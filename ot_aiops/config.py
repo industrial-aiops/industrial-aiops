@@ -50,10 +50,11 @@ SECRET_ENV_SUFFIX = "_PASSWORD"  # nosec B105 — env var suffix, not a secret
 _log = logging.getLogger("ot-aiops.config")
 
 # OT protocols this tool officially supports. ``eip`` is an accepted alias for
-# ``ethernetip`` (normalized to ``ethernetip`` on load). EtherCAT remains a
-# documented preview stub (no driver bundled) — see ot_aiops.ops.ethercat.
+# ``ethernetip`` (normalized to ``ethernetip`` on load). ``ethercat`` is a REAL
+# driver backed by the OPTIONAL ``pysoem`` extra (Linux + root/CAP_NET_RAW + a
+# dedicated NIC + real slaves; no software simulator) — see ot_aiops.ops.ethercat_ops.
 SUPPORTED_PROTOCOLS = (
-    "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "eip",
+    "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "eip", "ethercat",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -183,6 +184,9 @@ class TargetConfig:
       * ``ethernetip``— ``host`` / ``slot`` (Rockwell/Allen-Bradley Logix,
                         ControlLogix/CompactLogix, CIP via pycomm3). ``eip`` is
                         an accepted alias.
+      * ``ethercat``  — ``nic`` (the dedicated NIC interface name, e.g. ``eth1``)
+                        / optional ``expected_slaves`` (EtherCAT fieldbus master
+                        via pysoem/SOEM; Linux + root/CAP_NET_RAW + real slaves).
 
     The password / MQTT password is resolved from the encrypted store, never
     stored here.
@@ -207,6 +211,9 @@ class TargetConfig:
     # MQTT / Sparkplug B / UNS
     topic: str = ""
     use_tls: bool = False
+    # EtherCAT (pysoem/SOEM fieldbus master)
+    nic: str = ""
+    expected_slaves: int = 0
     tags: tuple[MonitorTag, ...] = ()
 
     def __post_init__(self) -> None:
@@ -214,8 +221,7 @@ class TargetConfig:
             raise ValueError(
                 f"Endpoint '{self.name}' has unsupported protocol "
                 f"'{self.protocol}'. Supported: {', '.join(SUPPORTED_PROTOCOLS)}. "
-                f"EtherCAT is a documented preview stub (needs a master stack) — "
-                f"request more protocols via a GitHub issue/PR."
+                f"Request more protocols via a GitHub issue/PR."
             )
 
     def password(self) -> str:
@@ -349,5 +355,8 @@ def _parse_target(d: dict) -> TargetConfig:
         agent_url=str(d.get("agent_url", "")),
         topic=str(d.get("topic", "")),
         use_tls=use_tls,
+        # EtherCAT: NIC interface name (accept 'interface' as an alias).
+        nic=str(d.get("nic", "") or d.get("interface", "")),
+        expected_slaves=int(d.get("expected_slaves", 0) or 0),
         tags=_parse_tags(d.get("tags", [])),
     )

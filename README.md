@@ -2,11 +2,11 @@
 
 # OT-AIops
 
-**Governed, vendor-neutral industrial data tap + intelligent troubleshooting for AI agents — across OPC-UA (incl. Historical Access), Modbus-TCP, S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B (full decode), and EtherNet/IP (Rockwell/Allen-Bradley Logix) — plus OEE/downtime, active asset-inventory, and change-of-value analytics.**
+**Governed, vendor-neutral industrial data tap + intelligent troubleshooting for AI agents — across OPC-UA (incl. Historical Access), Modbus-TCP, S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B (full decode), EtherNet/IP (Rockwell/Allen-Bradley Logix), and EtherCAT (pysoem/SOEM fieldbus master) — plus OEE/downtime, active asset-inventory, and change-of-value analytics.**
 
 OT-AIops is the OT/industrial member of [AIops-tools](https://github.com/AIops-tools). It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), ranks unhealthy tags, computes OEE / categorizes downtime, and builds an active asset register. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
 
-> ⚠️ **Preview / v0.2.0** — validated against an **in-process OPC-UA simulator (incl. HDA), mocked Modbus/S7/Mitsubishi/EtherNet-IP(pycomm3) clients, static MTConnect XML fixtures, and synthetic MQTT/Sparkplug B protobuf payloads**. **NOT tested against live PLCs / SCADA / brokers / Logix controllers.** See *Safety*.
+> ⚠️ **Preview / v0.3.0** — validated against an **in-process OPC-UA simulator (incl. HDA), mocked Modbus/S7/Mitsubishi/EtherNet-IP(pycomm3)/EtherCAT(pysoem) clients, static MTConnect XML fixtures, and synthetic MQTT/Sparkplug B protobuf payloads**. **NOT tested against live PLCs / SCADA / brokers / Logix controllers / EtherCAT slaves.** EtherCAT is hard-real-time and has **no software simulator** (Linux + root + a real bus only), so it is **entirely unverified against hardware**. See *Safety*.
 
 ## Why
 
@@ -67,10 +67,16 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 | Analytics | `oee_multidim` | OEE machine×part×shift | R | low | {matrix[], worst_performers[], mean_oee} |
 | Analytics | `asset_inventory` | active fingerprint | R | low | {assets:[{protocol, vendor, model, firmware, reachable}]} |
 | Analytics | `monitor_changes` | bounded change-of-value | R | low | {change_count, changes:[{value, previous, wall_clock}]} |
+| EtherCAT | `ethercat_master_state` | master/WKC + slave count | R | low | {master_state, expected_working_counter, slaves_found, slaves_expected} |
+| EtherCAT | `ethercat_slaves` | bus scan | R | low | {slave_count, slaves:[{index, name, vendor_id, product_code, state}]} |
+| EtherCAT | `ethercat_slave_info` | slave detail | R | low | {sync_managers[], fmmus[], object_dictionary[], input_bytes} |
+| EtherCAT | `ethercat_read_sdo` | CoE SDO upload | R | low | {index, byte_length, hex, as_uint} |
+| EtherCAT | `ethercat_read_pdo` | input PDO snapshot | R | low | {working_counter, input_hex, input_byte_length} |
+| EtherCAT | `ethercat_write_sdo` | CoE SDO download | **W** | **high/MOC** | {before, written, applied} |
+| EtherCAT | `ethercat_set_state` | AL-state transition | **W** | **high/MOC** | {before, requested, reached, applied} |
 | Self | `protocols_supported` | capability map | R | low | {protocols[], diagnostics[], analytics[]} |
-| Roadmap | `ethercat_status` | EtherCAT stub | R | low | {implemented:false, suggested_dependency} |
 
-**51 tools** = 47 read + 4 write (MOC). The 47 reads = 36 protocol-read · 4 diagnostics · 5 analytics · 1 self · 1 roadmap stub. Run `protocols_supported()` (or `ot-aiops protocols`) for the live map.
+**57 tools** = 51 read + 6 write (MOC). The 51 reads = 41 protocol-read · 4 diagnostics · 5 analytics · 1 self. Run `protocols_supported()` (or `ot-aiops protocols`) for the live map.
 
 ---
 
@@ -114,8 +120,24 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 - **Write**: `eip_write_tag` = **high risk_tier, MOC, dry-run default**, captures BEFORE value + undo.
 - **Not supported / planned**: **PLC-5 / SLC-500 (PCCC)** and **Micro800** are **not supported = roadmap** (Logix tag model only).
 
-### EtherCAT — roadmap stub
-- `ethercat_status` returns a clear "not implemented" + roadmap. Needs a master stack (**`pysoem`/SOEM**) + a dedicated NIC + slave devices.
+### EtherCAT (pysoem / SOEM fieldbus master)
+- **Supported**: a **real EtherCAT master** via **`pysoem`** (the Python binding for the SOEM C stack). **CoE SDO read** (`ethercat_read_sdo`, acyclic mailbox upload) + **SDO write** (`ethercat_write_sdo`, download), **input PDO read** (`ethercat_read_pdo`, one bounded cyclic snapshot), **bus scan / slave enumeration** (`ethercat_slaves`, `ethercat_slave_info` — identity, SM/FMMU mapping, object-dictionary summary), **master/working-counter state** (`ethercat_master_state`), and **AL-state transitions** INIT↔PREOP↔SAFEOP↔OP (`ethercat_set_state`).
+- **HARD REQUIREMENTS** (no way around them): **Linux**, **root or `CAP_NET_RAW`**, a **dedicated NIC** cabled to the bus, and **real EtherCAT slave hardware**. `pysoem` is an **OPTIONAL extra**: `pip install ot-aiops[ethercat]` — the base package installs and imports **without** it, and every EtherCAT tool then **degrades to a teaching error** (never crashes, never imports pysoem at module load).
+- **NOT supported**: **no software simulator** exists (unlike OPC-UA / Modbus) — EtherCAT is **hardware-only** and **not testable in mock-only CI**; **macOS is unsupported**. **EoE / FoE / SoE** mailbox protocols and full PDO-mapping decode/expansion = **roadmap**.
+- **Connection params**: `nic` (the dedicated interface name, e.g. `eth1`; alias `interface`), optional `expected_slaves` (a sanity check vs the bus scan). `protocol: ethercat`.
+- **Operations matrix**:
+
+  | Tool | Op | R/W | risk | Capture/notes |
+  |------|----|:---:|:----:|---------------|
+  | `ethercat_master_state` | master + WKC state, slave count | R | low | expected vs found |
+  | `ethercat_slaves` | bus scan / enumerate | R | low | index/vendor/product/rev/addr/AL-state |
+  | `ethercat_slave_info` | one-slave detail | R | low | SM/FMMU + OD summary |
+  | `ethercat_read_sdo` | CoE SDO upload | R | low | hex + uint interpretation |
+  | `ethercat_read_pdo` | input PDO snapshot | R | low | single cycle, never loops |
+  | `ethercat_write_sdo` | CoE SDO download | **W** | **high/MOC** | before-value (SDO read-back) + undo |
+  | `ethercat_set_state` | AL-state transition | **W** | **high/MOC** | before-state + undo; **can start/stop motion** |
+
+- **Write/state safety**: `ethercat_write_sdo` (hex little-endian bytes) and `ethercat_set_state` are **high risk_tier, MOC, dry-run by default**, capture the BEFORE value/state for undo, and need a CLI double-confirm. **Changing EtherCAT state can START or STOP machine motion** — treat with extreme care. 未经授权勿对生产控制系统写入.
 
 ### OEE / downtime analytics (cross-protocol, read-only)
 - `oee_compute` — **OEE = Availability × Performance × Quality** from production inputs (planned time, run time, ideal cycle, total/good counts). Each factor is reported **raw + clamped to [0,1]**; a `capped` performance >1.0 flags an optimistic ideal cycle.
@@ -187,6 +209,10 @@ endpoints:
     protocol: ethernetip           # alias: eip
     host: 10.0.0.9
     slot: 0                        # 0 for CompactLogix; CPU slot for ControlLogix
+  - name: bus1
+    protocol: ethercat             # Linux + root/CAP_NET_RAW + pip install ot-aiops[ethercat]
+    nic: eth1                      # dedicated NIC cabled to the EtherCAT bus
+    expected_slaves: 8             # optional sanity check vs the bus scan
 ```
 
 ### `ot-aiops init` walkthrough (per protocol)
@@ -202,7 +228,7 @@ Step 2 — add an endpoint
   Slot (1 for S7-1200/1500, 2 for S7-300/400) [1]: 1
 ✓ Saved endpoint 'press1'.
 ```
-(MQTT prompts add TLS/topic/username; MTConnect prompts for `agent_url`; OPC-UA/MQTT prompt for a hidden password stored encrypted.)
+(MQTT prompts add TLS/topic/username; MTConnect prompts for `agent_url`; EtherCAT prompts for the `nic` + `expected_slaves` and warns about the Linux/root/NIC/optional-extra requirement; OPC-UA/MQTT prompt for a hidden password stored encrypted.)
 
 ### Test against a simulator (per protocol)
 - **OPC-UA** — an `asyncua` demo server (the test suite runs a real in-process one).
@@ -212,6 +238,7 @@ Step 2 — add an endpoint
 - **MQTT** — a local `mosquitto` broker (+ a Sparkplug edge for SpB topics).
 - **Mitsubishi MC** — GX Simulator / an MC 3E server sim.
 - **EtherNet/IP** — a pycomm3-compatible CIP/Logix simulator (or a spare CompactLogix).
+- **EtherCAT** — **no simulator exists** (hard-real-time, raw-Ethernet). Validate only on **Linux**, as **root / with `CAP_NET_RAW`**, on a **dedicated NIC** wired to **real slaves** (e.g. a Beckhoff EK1100 coupler + EL terminals). `ot-aiops doctor` reports a clear "needs Linux/root/NIC/pysoem" status off the bus rather than failing.
 
 ---
 
@@ -227,6 +254,8 @@ ot-aiops mtconnect oee -e vmc1
 ot-aiops mqtt nodes -e uns --timeout-s 15
 ot-aiops eip tags -e cell5                           # Logix tag discovery
 ot-aiops eip read "Conveyor.Speed" -e cell5
+ot-aiops ethercat slaves -e bus1                     # EtherCAT bus scan (Linux+root)
+ot-aiops ethercat read-sdo 0 4120 --subindex 1 -e bus1   # CoE SDO 0x1018:1
 ot-aiops opcua history "ns=2;i=5" -e line1 --start 2026-06-28T08:00:00Z   # HDA
 ot-aiops opcua monitor "ns=2;i=5" -e line1 --duration-s 20 --deadband 0.5 # CoV
 ot-aiops diag dataflow -e line1 --ref "ns=2;i=5" --freshness-s 30
@@ -240,6 +269,8 @@ ot-aiops s7 write-db 1 INT 0 42 -e press1            # dry-run preview
 ot-aiops s7 write-db 1 INT 0 42 -e press1 --apply    # double-confirm prompt
 ot-aiops mqtt publish factory/line1/cmd '{"setpoint":50}' -e uns --apply
 ot-aiops eip write-tag Setpoint 42 -e cell5 --apply  # Logix tag write (double-confirm)
+ot-aiops ethercat write-sdo 0 24698 e8030000 -e bus1 --apply   # CoE SDO 0x607A download
+ot-aiops ethercat set-state PREOP --slave 0 -e bus1 --apply     # AL-state (can stop motion!)
 ```
 
 ### MCP tool calls (JSON args → sample structured return)
@@ -285,6 +316,24 @@ ot-aiops eip write-tag Setpoint 42 -e cell5 --apply  # Logix tag write (double-c
 ```json
 { "endpoint": "cell5", "tag": "Setpoint", "dry_run": true, "before": 7,
   "would_write": 42, "note": "Dry run — nothing written. Re-run with dry_run=false AND a recorded approver…" }
+```
+
+`ethercat_read_sdo` (CoE SDO upload):
+```json
+{ "slave": 0, "index": 4120, "subindex": 1, "endpoint": "bus1" }
+```
+```json
+{ "endpoint": "bus1", "slave": 0, "index": "0x1018", "subindex": 1,
+  "byte_length": 4, "hex": "9a020000", "as_uint": 666 }
+```
+
+`ethercat_set_state` (dry-run; can start/stop motion):
+```json
+{ "state": "OP", "slave": 0, "endpoint": "bus1" }
+```
+```json
+{ "endpoint": "bus1", "scope": "slave[0]", "dry_run": true, "before": "SAFEOP",
+  "would_request": "OP", "note": "Dry run — no state change. … Changing EtherCAT state can start/stop machine motion." }
 ```
 
 `sparkplug_decode_payload` (full SpB metric decode):
@@ -359,7 +408,7 @@ ot-aiops mcp        # stdio transport; or the `ot-aiops-mcp` entry point
 
 ## Safety & governance
 
-- **Read-first.** 47 of 51 tools are read-only. The 4 write/command tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`, `eip_write_tag`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, capture the **BEFORE value for undo**, require a **double-confirm in the CLI**, and (via policy) a recorded approver — **MOC discipline**. 未经授权勿对生产控制系统写入.
+- **Read-first.** 51 of 57 tools are read-only. The 6 write/command tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, capture the **BEFORE value/state for undo**, require a **double-confirm in the CLI**, and (via policy) a recorded approver — **MOC discipline**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
 - All endpoint-returned text is sanitized (prompt-injection defense); secrets are never returned by any tool; MTConnect XML is parsed with DTD/entity declarations refused.
 - Every tool runs through the vendored governance harness: SQLite **audit** (`~/.ot-aiops/audit.db`), token/call **budget** + runaway breaker, **risk-tier** gate, **undo** recording.
@@ -368,7 +417,7 @@ ot-aiops mcp        # stdio transport; or the `ot-aiops-mcp` entry point
 
 - EtherNet/IP **PLC-5 / SLC-500 (PCCC)** and **Micro800** support (Logix tags are done in 0.2.0).
 - **Passive** asset discovery (SPAN/tap, no connections) alongside today's active fingerprint.
-- EtherCAT read-only PDO/SDO via an optional `pysoem` extra.
+- EtherCAT **EoE / FoE / SoE** mailbox protocols and full PDO-mapping decode (CoE SDO/PDO read+write and AL-state landed in 0.3.0 via the optional `pysoem` extra).
 - OPC-UA certificate security + real Alarms & Conditions subscriptions.
 - MTConnect streaming long-poll; Sparkplug B DataSet/Template deep expansion.
 

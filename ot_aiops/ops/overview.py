@@ -96,13 +96,19 @@ PROTOCOLS: tuple[dict, ...] = (
     },
     {
         "protocol": "ethercat",
-        "status": "roadmap-stub",
-        "library": "pysoem (planned)",
-        "transport": "EtherCAT fieldbus",
-        "auth": "n/a",
-        "read_tools": ["ethercat_status"],
-        "write_tools": [],
-        "params": [],
+        "status": "implemented",
+        "library": "pysoem / SOEM (OPTIONAL extra: ot-aiops[ethercat])",
+        "transport": "EtherCAT fieldbus (raw Ethernet)",
+        "auth": "n/a (physical bus)",
+        "read_tools": [
+            "ethercat_master_state", "ethercat_slaves", "ethercat_slave_info",
+            "ethercat_read_sdo", "ethercat_read_pdo",
+        ],
+        "write_tools": ["ethercat_write_sdo (HIGH/MOC)", "ethercat_set_state (HIGH/MOC)"],
+        "params": ["nic", "expected_slaves"],
+        "requirements": "Linux + root/CAP_NET_RAW + dedicated NIC + real slaves; "
+        "no software simulator; macOS unsupported; pysoem is an optional extra.",
+        "not_supported": "EoE / FoE / SoE = roadmap; no simulator (hardware-only).",
     },
 )
 
@@ -135,7 +141,8 @@ def protocols_supported() -> dict:
             "diagnostics": len(DIAGNOSTICS_TOOLS),
             "analytics": len(ANALYTICS_TOOLS),
         },
-        "safety": "Reads non-destructive. Writes (S7/MC/MQTT/EtherNet-IP) are HIGH "
-        "risk_tier, MOC-gated (dry-run + double-confirm + undo capture). "
-        "未经授权勿对生产控制系统写入. Preview — not validated against live PLCs/SCADA.",
+        "safety": "Reads non-destructive. Writes (S7/MC/MQTT/EtherNet-IP/EtherCAT) "
+        "are HIGH risk_tier, MOC-gated (dry-run + double-confirm + undo capture). "
+        "未经授权勿对生产控制系统写入. Preview — not validated against live "
+        "PLCs/SCADA; EtherCAT is hardware-only (no simulator) and unverified.",
     }

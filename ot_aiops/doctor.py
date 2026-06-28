@@ -75,6 +75,16 @@ def run_doctor(skip_probe: bool = False) -> int:
     )
 
     for target in config.targets:
+        # EtherCAT can only be probed on Linux + root + NIC + real slaves (no
+        # simulator). Treat an environmental miss as an informational status, not
+        # a counted probe failure, so doctor stays useful off the bus.
+        if target.protocol == "ethercat":
+            ok, detail = _probe_ethercat(target)
+            if ok:
+                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+            else:
+                _console.print(f"[yellow]! EtherCAT '{target.name}' — {detail}[/]")
+            continue
         ok, detail = _probe(target)
         if ok:
             _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
@@ -83,6 +93,25 @@ def run_doctor(skip_probe: bool = False) -> int:
             problems += 1
 
     return 1 if problems else 0
+
+
+def _probe_ethercat(target) -> tuple[bool, str]:
+    """Probe an EtherCAT endpoint; never raises, never counts as a hard failure.
+
+    On Linux with pysoem + root + a real bus this opens the master and reports the
+    slave count; otherwise it returns a clear teaching status (needs
+    Linux/root/NIC/pysoem) instead of crashing.
+    """
+    try:
+        from ot_aiops.ops.ethercat_ops import ethercat_master_state
+
+        info = ethercat_master_state(target)
+        return True, (
+            f"EtherCAT master_state={info.get('master_state')} "
+            f"slaves_found={info.get('slaves_found')}"
+        )
+    except Exception as exc:  # noqa: BLE001 — environmental miss is a status, not a crash
+        return False, str(exc)[:200]
 
 
 def _where(target) -> str:
@@ -100,6 +129,8 @@ def _where(target) -> str:
         return f"{target.host}:{target.port} topic={topic} tls={target.use_tls}"
     if target.protocol in ("ethernetip", "eip"):
         return f"{target.host} slot={target.slot}"
+    if target.protocol == "ethercat":
+        return f"nic={target.nic or target.host or '?'}"
     return f"{target.host}:{target.port}"
 
 

@@ -4,7 +4,7 @@ description: >-
   Vendor-neutral, governed industrial/OT data tap + intelligent troubleshooting.
   Read (and, gated, write) PLCs, controllers, machine tools and IIoT brokers over
   OPC-UA, Modbus-TCP, Siemens S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B,
-  and Allen-Bradley EtherNet/IP — plus cross-protocol diagnostics ("no-data"
+  Allen-Bradley EtherNet/IP, and EtherCAT (pysoem/SOEM) — plus cross-protocol diagnostics ("no-data"
   dataflow diagnosis, ISA-18.2 alarm bad-actors, tag/historian health) and
   analytics (OEE/downtime, asset inventory, OPC-UA HDA, change-of-value). Use when
   the task names any industrial protocol, a PLC/SCADA/HMI/historian/CNC, an
@@ -16,9 +16,9 @@ description: >-
 
 # ot-aiops — industrial data tap + intelligent troubleshooting
 
-One governed MCP server exposing **51 tools** across 7 industrial protocols plus a
+One governed MCP server exposing **57 tools** across 8 industrial protocols plus a
 cross-protocol intelligence layer. Every tool runs through the ot-aiops governance
-harness (audit / budget / risk-tier / undo). **Read-first.** The 4 write tools are
+harness (audit / budget / risk-tier / undo). **Read-first.** The 6 write tools are
 gated as Management-of-Change: `risk=HIGH`, `dry_run=True` by default, CLI requires
 a double-confirm, the before-value is captured for undo. **Never write to a
 production control system without authorization.** Preview / mock-or-sim validated —
@@ -28,8 +28,9 @@ configured and `<protocol> doctor` to test a link.
 ## When to route here
 Task mentions: OPC-UA / opc.tcp, Modbus, Siemens S7 / S7-1200/1500, Mitsubishi /
 MELSEC, MTConnect / CNC machine monitoring, MQTT / Sparkplug B / Unified Namespace,
-Allen-Bradley / ControlLogix / CompactLogix / EtherNet-IP, OEE / downtime, OT asset
-inventory, "no data / stale tag" diagnosis, alarm flood / ISA-18.2.
+Allen-Bradley / ControlLogix / CompactLogix / EtherNet-IP, EtherCAT / CoE / SDO /
+PDO / SOEM, OEE / downtime, OT asset inventory, "no data / stale tag" diagnosis,
+alarm flood / ISA-18.2.
 
 ## Tools by protocol
 
@@ -84,6 +85,17 @@ inventory, "no data / stale tag" diagnosis, alarm flood / ISA-18.2.
 - `eip_read_many` — batch read (auto multi-packet)
 - `eip_write_tag` — **[WRITE][HIGH][MOC]** write one tag value (off by default)
 
+### EtherCAT (pysoem/SOEM; **Linux + root/CAP_NET_RAW + dedicated NIC + real slaves**)
+Optional extra `pip install ot-aiops[ethercat]`; **no software simulator** (hardware-only,
+macOS unsupported). Tools degrade to a teaching error if pysoem/permission/NIC/bus is missing.
+- `ethercat_master_state` — master/working-counter state + expected vs found slave count
+- `ethercat_slaves` — bus scan: enumerate slaves (id/vendor/product/rev/addr/AL-state)
+- `ethercat_slave_info` — one slave: SM/FMMU config + object-dictionary summary
+- `ethercat_read_sdo` — CoE SDO upload (acyclic mailbox read of an OD entry)
+- `ethercat_read_pdo` — one cyclic snapshot of a slave's input process-data image
+- `ethercat_write_sdo` — **[WRITE][HIGH][MOC]** CoE SDO download (off by default)
+- `ethercat_set_state` — **[WRITE][HIGH][MOC]** AL-state transition (can START/STOP motion; off by default)
+
 ## Cross-protocol intelligence
 
 ### Diagnostics — `skills` umbrella: troubleshooting
@@ -103,9 +115,8 @@ inventory, "no data / stale tag" diagnosis, alarm flood / ISA-18.2.
 
 ### Meta / roadmap
 - `protocols_supported` — capability map (protocols, status, tools, connection params)
-- `ethercat_status` — preview stub (EtherCAT not implemented yet)
-- EtherNet/IP roadmap: PLC-5 / SLC (PCCC), Micro800; passive asset discovery; OPC-UA
-  certificate security.
+- Roadmap: EtherCAT EoE/FoE/SoE mailbox protocols; EtherNet/IP PLC-5 / SLC (PCCC),
+  Micro800; passive asset discovery; OPC-UA certificate security.
 
 ## Setup
 `ot-aiops init` (interactive wizard, per-protocol prompts) writes
@@ -115,7 +126,8 @@ inventory, "no data / stale tag" diagnosis, alarm flood / ISA-18.2.
 connection params, simulator-test guide, and MCP JSON examples are in the README.
 
 ## Safety
-Read-first. The 4 write tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`,
-`eip_write_tag`) default to `dry_run=True`, require a CLI double-confirm, and record
-an undo descriptor from the captured before-value. Do not point this at production
-control systems without authorization. No tool returns secrets.
+Read-first. The 6 write tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`,
+`eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) default to `dry_run=True`,
+require a CLI double-confirm, and record an undo descriptor from the captured
+before-value/state. EtherCAT state changes can START or STOP machine motion. Do not
+point this at production control systems without authorization. No tool returns secrets.

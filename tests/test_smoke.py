@@ -34,6 +34,10 @@ EXPECTED_TOOLS = {
     # EtherNet/IP (Rockwell / Allen-Bradley Logix)
     "eip_controller_info", "eip_list_tags", "eip_read_tag", "eip_read_many",
     "eip_write_tag",
+    # EtherCAT (pysoem / SOEM fieldbus — optional extra, hardware-only)
+    "ethercat_master_state", "ethercat_slaves", "ethercat_slave_info",
+    "ethercat_read_sdo", "ethercat_read_pdo", "ethercat_write_sdo",
+    "ethercat_set_state",
     # cross-protocol diagnostics
     "diagnose_dataflow", "historian_health", "alarm_bad_actors", "tag_health",
     # cross-protocol analytics (OEE / downtime / asset / CoV)
@@ -41,12 +45,13 @@ EXPECTED_TOOLS = {
     "monitor_changes",
     # self-description
     "protocols_supported",
-    # roadmap stub
-    "ethercat_status",
 }
 
 # Tools that perform an OT-dangerous write/command — must be governed high-risk.
-WRITE_TOOLS = {"s7_write_db", "mc_write_words", "mqtt_publish", "eip_write_tag"}
+WRITE_TOOLS = {
+    "s7_write_db", "mc_write_words", "mqtt_publish", "eip_write_tag",
+    "ethercat_write_sdo", "ethercat_set_state",
+}
 
 
 @pytest.mark.unit
@@ -71,7 +76,7 @@ def test_all_modules_import():
         "ot_aiops.ops.monitor",
         "ot_aiops.ops.diagnostics",
         "ot_aiops.ops.overview",
-        "ot_aiops.ops.ethercat",
+        "ot_aiops.ops.ethercat_ops",
         "ot_aiops.sparkplug_b_pb2",
         "ot_aiops.cli",
         "ot_aiops.cli._root",
@@ -83,6 +88,7 @@ def test_all_modules_import():
         "ot_aiops.cli.mtconnect",
         "ot_aiops.cli.mqtt",
         "ot_aiops.cli.eip",
+        "ot_aiops.cli.ethercat",
         "ot_aiops.cli.analytics",
         "ot_aiops.cli.diagnostics",
         "ot_aiops.cli.secret",
@@ -112,7 +118,7 @@ def test_all_modules_import():
 def test_version():
     import ot_aiops
 
-    assert ot_aiops.__version__ == "0.2.0"
+    assert ot_aiops.__version__ == "0.3.0"
 
 
 @pytest.mark.unit
@@ -122,8 +128,8 @@ def test_cli_app_builds_and_help_works():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for sub in ("opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "eip", "diag",
-                "analytics", "secret", "init", "doctor", "mcp", "protocols"):
+    for sub in ("opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "eip", "ethercat",
+                "diag", "analytics", "secret", "init", "doctor", "mcp", "protocols"):
         assert sub in result.output
 
 
@@ -141,7 +147,8 @@ def test_cli_leaf_help_triggers_lazy_imports():
     for cmd in (
         ["opcua", "--help"], ["modbus", "--help"], ["s7", "--help"],
         ["mc", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
-        ["eip", "--help"], ["analytics", "--help"], ["diag", "--help"],
+        ["eip", "--help"], ["ethercat", "--help"], ["analytics", "--help"],
+        ["diag", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
@@ -166,6 +173,10 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["eip", "info", "--help"], ["eip", "tags", "--help"],
         ["eip", "read", "--help"], ["eip", "read-many", "--help"],
         ["eip", "write-tag", "--help"],
+        ["ethercat", "master", "--help"], ["ethercat", "slaves", "--help"],
+        ["ethercat", "info", "--help"], ["ethercat", "read-sdo", "--help"],
+        ["ethercat", "read-pdo", "--help"], ["ethercat", "write-sdo", "--help"],
+        ["ethercat", "set-state", "--help"],
         ["analytics", "oee", "--help"], ["analytics", "downtime", "--help"],
         ["analytics", "oee-multidim", "--help"], ["analytics", "asset", "--help"],
         ["diag", "dataflow", "--help"], ["diag", "alarms", "--help"],
@@ -212,7 +223,8 @@ def test_unsupported_protocol_rejected():
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "protocol", ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip"]
+    "protocol",
+    ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat"],
 )
 def test_supported_protocols_accepted(protocol):
     from ot_aiops.config import TargetConfig
@@ -253,9 +265,9 @@ def test_protocols_supported_lists_all():
 
     out = protocols_supported()
     assert set(out["implemented_protocols"]) == {
-        "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip"
+        "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat"
     }
-    assert set(out["roadmap_stubs"]) == {"ethercat"}
+    assert set(out["roadmap_stubs"]) == set()
     assert "asset_inventory" in out["analytics"]
     assert "oee_compute" in out["analytics"]
 
@@ -344,13 +356,64 @@ def test_config_password_legacy_env_fallback(monkeypatch, tmp_path):
 
 
 @pytest.mark.unit
-def test_ethercat_stub_reports_not_implemented():
-    from ot_aiops.ops import ethercat
+def test_ethercat_pysoem_is_optional_and_degrades_gracefully(monkeypatch):
+    """Without pysoem installed, the EtherCAT builder raises a teaching error
+    (never an unguarded ImportError/crash), and the MCP tool returns a clean
+    error dict — proving the optional/lazy/graceful-degrade contract."""
+    import builtins
 
-    out = ethercat.ethercat_status()
-    assert out["implemented"] is False
-    assert out["status"] == "preview-stub"
-    assert "pysoem" in out["message"]
+    import ot_aiops.connection as conn
+    from ot_aiops.config import TargetConfig
+    from ot_aiops.connection import OTConnectionError
+
+    real_import = builtins.__import__
+
+    def _no_pysoem(name, *args, **kwargs):
+        if name == "pysoem":
+            raise ImportError("No module named 'pysoem'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _no_pysoem)
+    target = TargetConfig(name="bus1", protocol="ethercat", nic="eth1")
+    with pytest.raises(OTConnectionError) as exc:
+        conn._build_ethercat_master(target)
+    assert "pysoem" in str(exc.value)
+    assert "ot-aiops[ethercat]" in str(exc.value)
+
+    # The MCP tool wraps that into a sanitized error dict (no crash).
+    monkeypatch.setattr(builtins, "__import__", real_import)
+    monkeypatch.setattr(conn, "_build_ethercat_master",
+                        lambda t: (_ for _ in ()).throw(
+                            OTConnectionError("pysoem not installed",
+                                              protocol="ethercat")))
+    from mcp_server.tools import ethercat_tools
+
+    monkeypatch.setattr(ethercat_tools, "_target", lambda e=None: target)
+    out = ethercat_tools.ethercat_master_state(endpoint="bus1")
+    assert isinstance(out, dict)
+    assert "error" in out and "pysoem" in out["error"]
+
+
+@pytest.mark.unit
+def test_ethercat_requires_nic():
+    """The EtherCAT builder rejects an endpoint with no NIC (clear teaching error)."""
+    import sys
+    import types
+
+    import ot_aiops.connection as conn
+    from ot_aiops.config import TargetConfig
+    from ot_aiops.connection import OTConnectionError
+
+    # Stub pysoem so we reach the NIC check rather than the import guard.
+    fake = types.ModuleType("pysoem")
+    fake.Master = lambda: object()
+    sys.modules["pysoem"] = fake
+    try:
+        target = TargetConfig(name="bus0", protocol="ethercat")  # no nic
+        with pytest.raises(OTConnectionError, match="no NIC"):
+            conn._build_ethercat_master(target)
+    finally:
+        sys.modules.pop("pysoem", None)
 
 
 @pytest.mark.unit

@@ -81,6 +81,19 @@ def _prompt_protocol(protocol: str, name: str, store):
             default=0, type=int,
         )
         entry["port"] = typer.prompt("Port", default=DEFAULT_EIP_PORT, type=int)
+    elif protocol == "ethercat":
+        console.print(
+            "[yellow]EtherCAT needs Linux + root (or CAP_NET_RAW) + a dedicated NIC "
+            "cabled to the bus + real slaves, and the optional extra "
+            "'pip install ot-aiops[ethercat]'. No software simulator; macOS "
+            "unsupported.[/]"
+        )
+        entry["nic"] = typer.prompt(
+            "Dedicated NIC interface name (e.g. eth1)", default="eth1"
+        ).strip()
+        entry["expected_slaves"] = typer.prompt(
+            "Expected slave count (0 = unknown / do not check)", default=0, type=int
+        )
     elif protocol == "mtconnect":
         entry["agent_url"] = typer.prompt(
             "MTConnect agent base URL", default="http://localhost:5000"

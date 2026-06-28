@@ -478,6 +478,106 @@ def _translate_eip(exc: Exception, target: TargetConfig) -> OTConnectionError:
     )
 
 
+# ─── EtherCAT (fieldbus master via pysoem / SOEM — OPTIONAL extra) ────────────
+
+
+def _build_ethercat_master(target: TargetConfig) -> Any:
+    """Construct (but do not open) a pysoem Master for ``target``.
+
+    ``pysoem`` is an OPTIONAL dependency (``pip install ot-aiops[ethercat]``).
+    It is imported LAZILY here so the package installs and imports cleanly
+    WITHOUT it — every EtherCAT tool then degrades to a teaching error instead
+    of crashing. EtherCAT is hard-real-time: it needs **Linux + root/CAP_NET_RAW
+    + a dedicated NIC + real slave hardware**; there is NO software simulator and
+    macOS is effectively unsupported. Module-level so tests monkeypatch it with a
+    fake master (the only way to exercise this without a live bus).
+    """
+    try:
+        import pysoem
+    except ImportError as exc:  # pragma: no cover — exercised only without pysoem
+        raise OTConnectionError(
+            "The 'pysoem' package is not installed. EtherCAT is an OPTIONAL extra: "
+            "'pip install ot-aiops[ethercat]'. It also requires Linux, root or "
+            "CAP_NET_RAW, a dedicated NIC, and real EtherCAT slaves on the bus — "
+            "there is NO software simulator and macOS is unsupported.",
+            endpoint=target.name,
+            protocol="ethercat",
+        ) from exc
+
+    nic = target.nic or target.host
+    if not nic:
+        raise OTConnectionError(
+            f"EtherCAT endpoint '{target.name}' has no NIC. Add 'nic: <iface>' "
+            f"(e.g. 'nic: eth1') — the dedicated interface cabled to the EtherCAT "
+            f"bus — to its config entry.",
+            endpoint=target.name,
+            protocol="ethercat",
+        )
+    return pysoem.Master()
+
+
+@contextmanager
+def ethercat_master(target: TargetConfig, *, map_pdo: bool = False) -> Iterator[Any]:
+    """Open the EtherCAT master on the NIC, config the bus, yield it, always close.
+
+    Always runs ``open(nic)`` + ``config_init()`` (cheap bus enumeration). When
+    ``map_pdo`` is True it also runs ``config_map()`` so the process-data image is
+    addressable (needed for PDO reads / OP-state). Never raises a raw pysoem
+    traceback — failures become a teaching ``OTConnectionError``.
+    """
+    if target.protocol != "ethercat":
+        raise OTConnectionError(
+            f"Endpoint '{target.name}' is protocol '{target.protocol}', not ethercat.",
+            endpoint=target.name,
+            protocol=target.protocol,
+        )
+    master = _build_ethercat_master(target)
+    nic = target.nic or target.host
+    try:
+        master.open(nic)
+    except Exception as exc:  # noqa: BLE001 — translate any open failure
+        raise _translate_ethercat(exc, target) from exc
+    try:
+        # config_init returns the number of slaves found on the bus (0 = none).
+        master.config_init(False)
+        if map_pdo:
+            master.config_map()
+        yield master
+    except OTConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — translate any in-session failure
+        raise _translate_ethercat(exc, target) from exc
+    finally:
+        try:
+            master.close()
+        except Exception:  # noqa: BLE001 — close must not mask the real error
+            pass
+
+
+def _translate_ethercat(exc: Exception, target: TargetConfig) -> OTConnectionError:
+    """Map a pysoem / OS exception to a teaching ``OTConnectionError``."""
+    detail = str(exc).strip()[:200]
+    nic = target.nic or target.host or "?"
+    lowered = detail.lower()
+    if isinstance(exc, PermissionError) or "permitted" in lowered or "permission" in lowered:
+        return OTConnectionError(
+            f"EtherCAT master '{target.name}' (nic={nic}) lacks raw-socket permission. "
+            f"Run as root or grant CAP_NET_RAW (e.g. 'sudo setcap cap_net_raw+ep "
+            f"$(readlink -f $(which python))'). EtherCAT needs Linux + a dedicated "
+            f"NIC + real slaves. {detail}",
+            endpoint=nic,
+            protocol="ethercat",
+        )
+    return OTConnectionError(
+        f"EtherCAT master '{target.name}' (nic={nic}) failed: {detail}. Check the NIC "
+        f"name (e.g. eth1), that you are root / have CAP_NET_RAW, the cabling, and "
+        f"that real EtherCAT slaves are on the bus. There is NO software simulator "
+        f"(macOS unsupported) — validate on Linux with hardware.",
+        endpoint=nic,
+        protocol="ethercat",
+    )
+
+
 # ─── manager ─────────────────────────────────────────────────────────────────
 
 

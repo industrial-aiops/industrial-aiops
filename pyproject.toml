@@ -4,16 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ot-aiops"
-version = "0.2.0"
-description = "Governed, vendor-neutral OT data tap + intelligent troubleshooting for AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / MQTT-Sparkplug / EtherNet-IP) with a built-in governance harness (audit, budget, risk tiers, MOC) plus OEE, downtime, and asset-inventory analytics"
+version = "0.3.0"
+description = "Governed, vendor-neutral OT data tap + intelligent troubleshooting for AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / MQTT-Sparkplug / EtherNet-IP / EtherCAT) with a built-in governance harness (audit, budget, risk tiers, MOC) plus OEE, downtime, and asset-inventory analytics"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "wei", email = "zhouwei008@gmail.com" }]
 keywords = [
     "opc-ua", "modbus", "s7comm", "siemens", "mitsubishi", "mtconnect", "mqtt",
-    "sparkplug", "uns", "ethernet-ip", "rockwell", "allen-bradley", "oee", "ot",
-    "scada", "plc", "industrial", "ai-ops", "mcp",
+    "sparkplug", "uns", "ethernet-ip", "rockwell", "allen-bradley", "ethercat",
+    "pysoem", "soem", "oee", "ot", "scada", "plc", "industrial", "ai-ops", "mcp",
 ]
 dependencies = [
     "asyncua>=1.0,<2",
@@ -31,6 +31,13 @@ dependencies = [
     "cryptography>=42.0",
     "mcp[cli]>=1.10,<2.0",
 ]
+
+[project.optional-dependencies]
+# EtherCAT is a hard-real-time fieldbus: its master (pysoem/SOEM) needs Linux +
+# root/CAP_NET_RAW + a dedicated NIC + real slaves and has NO software simulator
+# (macOS unsupported). It is OPTIONAL so the base package installs/imports cleanly
+# everywhere; install with: pip install ot-aiops[ethercat]
+ethercat = ["pysoem>=1.1,<2"]
 
 [dependency-groups]
 dev = [
