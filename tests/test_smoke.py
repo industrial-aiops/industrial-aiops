@@ -97,7 +97,7 @@ def test_all_modules_import():
 def test_version():
     import ot_aiops
 
-    assert ot_aiops.__version__ == "0.1.0"
+    assert ot_aiops.__version__ == "0.1.1"
 
 
 @pytest.mark.unit

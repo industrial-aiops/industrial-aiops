@@ -7,4 +7,4 @@ harness (audit / budget / risk-tier). Strictly non-destructive in this preview â
 no writes to PLCs, controllers, or SCADA servers.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

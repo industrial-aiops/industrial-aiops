@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.AIops-tools/ot-aiops -->
+
 # OT-AIops
 
 **Governed, vendor-neutral industrial data tap + intelligent troubleshooting for AI agents — across OPC-UA, Modbus-TCP, S7comm, Mitsubishi MC, MTConnect, and MQTT/Sparkplug B.**
