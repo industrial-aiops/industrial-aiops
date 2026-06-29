@@ -76,7 +76,7 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 | EtherCAT | `ethercat_set_state` | AL-state transition | **W** | **high/MOC** | {before, requested, reached, applied} |
 | Self | `protocols_supported` | capability map | R | low | {protocols[], diagnostics[], analytics[]} |
 
-**57 tools** = 51 read + 6 write (MOC). The 51 reads = 41 protocol-read · 4 diagnostics · 5 analytics · 1 self. Run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**58 tools** = 52 read + 6 write (MOC). The 52 reads = 42 protocol-read · 4 diagnostics · 5 analytics · 1 self. Run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -419,7 +419,7 @@ comma-list of protocols and/or a named profile (default `all`). The cross-protoc
 brain (OEE / downtime / diagnostics / asset / analysis) is **always** exposed.
 
 ```bash
-IAIOPS_MCP=opcua,modbus iaiops-mcp   # 24 tools instead of 57
+IAIOPS_MCP=opcua,modbus iaiops-mcp   # 25 tools instead of 58
 IAIOPS_MCP=fab          iaiops-mcp   # named profile (opcua+s7+modbus)
 IAIOPS_MCP=opcua        iaiops-mcp   # effectively a single-protocol MCP
 ```
@@ -432,7 +432,7 @@ single- or dual-protocol server.
 
 ## Safety & governance
 
-- **Read-first.** 51 of 57 tools are read-only. The 6 write/command tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, capture the **BEFORE value/state for undo**, require a **double-confirm in the CLI**, and (via policy) a recorded approver — **MOC discipline**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-first.** 52 of 58 tools are read-only. The 6 write/command tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, capture the **BEFORE value/state for undo**, require a **double-confirm in the CLI**, and (via policy) a recorded approver — **MOC discipline**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
 - All endpoint-returned text is sanitized (prompt-injection defense); secrets are never returned by any tool; MTConnect XML is parsed with DTD/entity declarations refused.
 - Every tool runs through the vendored governance harness: SQLite **audit** (`~/.iaiops/audit.db`), token/call **budget** + runaway breaker, **risk-tier** gate, **undo** recording.
