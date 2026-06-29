@@ -40,6 +40,26 @@ def test_failed_opcua_probe_reports_classified_remediation(monkeypatch, capsys):
     assert "raw asyncua error" not in out  # raw probe error is replaced by the verdict
 
 
+def test_opcua_probe_recovers_on_retry(monkeypatch, capsys):
+    # first probe fails, but the diagnosis re-connect succeeds (transient blip):
+    # report green "recovered", do NOT count a problem or print a red ✗ ok line.
+    cfg = SimpleNamespace(targets=[_opcua_target()])
+    monkeypatch.setattr(doctor, "load_config", lambda *a, **k: cfg)
+    monkeypatch.setattr(doctor, "_probe", lambda t: (False, "transient blip"))
+    monkeypatch.setattr(
+        opcua_diag,
+        "diagnose_connection",
+        lambda t: {"class": "ok", "diagnosis": "Connection succeeded.", "remediation": "—"},
+    )
+
+    rc = doctor.run_doctor(skip_probe=False)
+    out = capsys.readouterr().out
+
+    assert rc == 0  # recovered → not a counted problem
+    assert "recovered on retry" in out
+    assert "✗" not in out
+
+
 def test_diagnose_opcua_never_raises(monkeypatch):
     def _boom(_t):
         raise RuntimeError("kaboom")

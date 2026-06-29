@@ -93,11 +93,19 @@ def run_doctor(skip_probe: bool = False) -> int:
                 _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
             else:
                 v = _diagnose_opcua(target)
-                _console.print(
-                    f"[red]✗ OPC-UA '{target.name}' — {v['class']}: {v['diagnosis']}[/]"
-                )
-                _console.print(f"  [yellow]→ {v['remediation']}[/]")
-                problems += 1
+                if v["class"] == "ok":
+                    # probe failed but the diagnosis re-connect succeeded — a
+                    # transient blip, not a real fault; don't print a red ✗ ok.
+                    _console.print(
+                        f"[green]✓ Reachable '{target.name}' — recovered on retry "
+                        f"({v['diagnosis']})[/]"
+                    )
+                else:
+                    _console.print(
+                        f"[red]✗ OPC-UA '{target.name}' — {v['class']}: {v['diagnosis']}[/]"
+                    )
+                    _console.print(f"  [yellow]→ {v['remediation']}[/]")
+                    problems += 1
             continue
         ok, detail = _probe(target)
         if ok:
