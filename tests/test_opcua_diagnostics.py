@@ -53,10 +53,13 @@ def test_ok_connects_and_disconnects(monkeypatch):
         (RuntimeError("Bad_UserAccessDenied"), "auth"),
         (RuntimeError("The IdentityToken is not valid"), "auth"),
         (RuntimeError("Bad_SecurityPolicyRejected"), "security_policy"),
+        (RuntimeError("Bad_SecurityModeRejected"), "security_policy"),
+        (RuntimeError("Bad_NoMatchingEndpoint"), "security_policy"),
         (RuntimeError("Bad_ConnectionRejected by SecureChannel"), "security_policy"),
         (ConnectionRefusedError("[Errno 61] Connection refused"), "port_closed"),
         (socket.gaierror("getaddrinfo failed"), "dns"),
         (TimeoutError("operation timed out"), "firewall_timeout"),
+        (RuntimeError("Bad_Timeout"), "firewall_timeout"),
         (OSError("No route to host"), "unreachable"),
         (ValueError("something unexpected"), "unknown"),
     ],
@@ -73,6 +76,18 @@ def test_classifies_connect_failures(monkeypatch, exc, expected):
 def test_config_error_before_connect(monkeypatch):
     def _build(_target):
         raise OTConnectionError("OPC-UA endpoint 'line1' has no endpoint_url.")
+
+    monkeypatch.setattr(diag, "_build_opcua_client", _build)
+    v = diag.diagnose_connection(TARGET)
+    assert v["class"] == "config"
+    assert v["reachable"] is False
+
+
+def test_build_phase_non_ot_error_does_not_escape(monkeypatch):
+    # a malformed URL / locked secret store raises a non-OTConnectionError in build;
+    # it must be captured as a 'config' verdict, never propagated
+    def _build(_target):
+        raise ValueError("Invalid URL")
 
     monkeypatch.setattr(diag, "_build_opcua_client", _build)
     v = diag.diagnose_connection(TARGET)
