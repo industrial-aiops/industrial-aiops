@@ -39,8 +39,9 @@ _RULES: list[tuple[Any, str, str, str]] = [
         "server may require a user or a certificate identity rather than anonymous.",
     ),
     (
-        lambda n, d, e: "securitypolicy" in d or "policyid" in d
-        or "securechannel" in d or "connectionrejected" in d,
+        lambda n, d, e: "securitypolicy" in d or "securitymode" in d
+        or "moderejected" in d or "policyid" in d or "nomatchingendpoint" in d
+        or "no matching endpoint" in d or "connectionrejected" in d,
         "security_policy",
         "Security policy / message-security-mode mismatch with the server endpoint.",
         "Match the endpoint's SecurityPolicy and mode (e.g. the server requires "
@@ -62,7 +63,8 @@ _RULES: list[tuple[Any, str, str, str]] = [
         "hosts entry the gateway can resolve.",
     ),
     (
-        lambda n, d, e: isinstance(e, TimeoutError) or "timed out" in d or "timeout" in n.lower(),
+        lambda n, d, e: isinstance(e, TimeoutError) or "timed out" in d
+        or "timeout" in d or "timeout" in n.lower(),
         "firewall_timeout",
         "No response before timeout — a firewall is likely dropping the connection.",
         "Open the OPC-UA port through OT/DMZ firewalls and confirm the host is "
@@ -121,6 +123,15 @@ def diagnose_connection(target: Any) -> dict:
             "Endpoint or client-library configuration problem (no connect attempted).",
             "Fix the endpoint config (endpoint_url) or install the connector "
             "('pip install iaiops[opcua]'), then retry.",
+            str(exc),
+        )
+    except Exception as exc:  # noqa: BLE001 — malformed URL, locked secret store, etc.
+        return _verdict(
+            "config",
+            endpoint,
+            "Could not build the OPC-UA client before connecting.",
+            "Check endpoint_url is a valid opc.tcp://host:port URL and that the secret "
+            "store is unlocked (IAIOPS_MASTER_PASSWORD).",
             str(exc),
         )
     try:
