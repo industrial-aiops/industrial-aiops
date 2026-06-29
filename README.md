@@ -6,7 +6,7 @@
 
 Industrial-AIOps is the OT/industrial member of [Industrial-AIOps](https://github.com/industrial-aiops). It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), ranks unhealthy tags, computes OEE / categorizes downtime, and builds an active asset register. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
 
-> ⚠️ **Preview / v0.3.0** — validated against an **in-process OPC-UA simulator (incl. HDA), mocked Modbus/S7/Mitsubishi/EtherNet-IP(pycomm3)/EtherCAT(pysoem)/SECS-GEM(secsgem) clients, static MTConnect XML fixtures, and synthetic MQTT/Sparkplug B protobuf payloads**. **NOT tested against live PLCs / SCADA / brokers / Logix controllers / EtherCAT slaves.** EtherCAT is hard-real-time and has **no software simulator** (Linux + root + a real bus only), so it is **entirely unverified against hardware**. See *Safety*.
+> ⚠️ **Preview / v0.4.0** — validated against an **in-process OPC-UA simulator (incl. HDA), mocked Modbus/S7/Mitsubishi/EtherNet-IP(pycomm3)/EtherCAT(pysoem)/SECS-GEM(secsgem) clients, static MTConnect XML fixtures, and synthetic MQTT/Sparkplug B protobuf payloads**. **NOT tested against live PLCs / SCADA / brokers / Logix controllers / EtherCAT slaves.** EtherCAT is hard-real-time and has **no software simulator** (Linux + root + a real bus only), so it is **entirely unverified against hardware**. See *Safety*.
 
 ## Why
 
