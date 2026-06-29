@@ -25,6 +25,7 @@ PROTOCOL_MODULES = {
     "mtconnect": "mtconnect_tools",
     "sparkplug": "sparkplug_tools",
     "ethercat": "ethercat_tools",
+    "secsgem": "secsgem_tools",
 }
 
 # Always registered: the cross-protocol intelligence layer.
@@ -41,7 +42,7 @@ BRAIN_MODULES = (
 # independent of the pip extras that happen to share some names.
 NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "all": tuple(PROTOCOL_MODULES),
-    "fab": ("opcua", "s7", "modbus"),
+    "fab": ("secsgem", "opcua", "s7", "modbus"),
     "factory": ("modbus", "s7", "eip", "mc", "ethercat", "mtconnect", "opcua", "sparkplug"),
     "process": ("opcua", "modbus"),
 }

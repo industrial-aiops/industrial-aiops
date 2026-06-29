@@ -8,7 +8,13 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from iaiops.core.runtime.config import CONFIG_FILE, ENV_FILE, load_config, password_env_var
+from iaiops.core.runtime.config import (
+    CONFIG_FILE,
+    DEFAULT_SECSGEM_PORT,
+    ENV_FILE,
+    load_config,
+    password_env_var,
+)
 from iaiops.core.runtime.secretstore import SECRETS_FILE, check_permissions, has_store
 
 _console = Console()
@@ -171,6 +177,8 @@ def _where(target) -> str:
         return f"{target.host} slot={target.slot}"
     if target.protocol == "ethercat":
         return f"nic={target.nic or target.host or '?'}"
+    if target.protocol == "secsgem":
+        return f"{target.host}:{target.port or DEFAULT_SECSGEM_PORT} device={target.unit_id}"
     return f"{target.host}:{target.port}"
 
 
@@ -213,6 +221,11 @@ def _probe(target) -> tuple[bool, str]:
             info = eip_controller_info(target)
             ctrl = info.get("controller", {})
             return True, f"EtherNet/IP controller={ctrl.get('product_name', '?')}"
+        if target.protocol == "secsgem":
+            from iaiops.connectors.secsgem.ops import equipment_status
+
+            info = equipment_status(target)
+            return True, f"SECS/GEM comm={info.get('communication_state')}"
     except Exception as exc:  # noqa: BLE001 — connectivity is a status, not a crash
         return False, str(exc)[:200]
     return False, f"No probe implemented for protocol '{target.protocol}'."

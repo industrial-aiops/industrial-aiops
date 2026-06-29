@@ -401,6 +401,7 @@ all = [
     { name = "pys7" },
     { name = "pysoem" },
     { name = "requests" },
+    { name = "secsgem" },
 ]
 eip = [
     { name = "pycomm3" },
@@ -422,6 +423,9 @@ opcua = [
 ]
 s7 = [
     { name = "pys7" },
+]
+secsgem = [
+    { name = "secsgem" },
 ]
 sparkplug = [
     { name = "paho-mqtt" },
@@ -459,9 +463,11 @@ requires-dist = [
     { name = "requests", marker = "extra == 'all'", specifier = ">=2.31,<3" },
     { name = "requests", marker = "extra == 'mtconnect'", specifier = ">=2.31,<3" },
     { name = "rich", specifier = ">=13.0,<16.0" },
+    { name = "secsgem", marker = "extra == 'all'", specifier = ">=0.3,<1" },
+    { name = "secsgem", marker = "extra == 'secsgem'", specifier = ">=0.3,<1" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "ethercat", "all"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -818,6 +824,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/19/57/08dbc6f88aaa9deb447badfa5b552b3a2f89a8b2cabcaf9487f02c8ac720/pys7-2.8.1.tar.gz", hash = "sha256:859f788abccf7d64ddb1018e77eeb5697ea452f00c56eb273d40968ae1faf906", size = 89105, upload-time = "2026-04-18T13:24:18.624Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/33/2e/568c2af726ead57e7d143185d614ce26ec383e0e16fbb0cdd5a795288c68/pys7-2.8.1-py3-none-any.whl", hash = "sha256:9ba72a4e2dd638db8fdaed1bd76ef39adaf055f30b2844aee06c08afc12e412f", size = 58822, upload-time = "2026-04-18T13:24:17.37Z" },
+]
+
+[[package]]
+name = "pyserial"
+version = "3.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb", size = 159125, upload-time = "2020-11-23T03:59:15.045Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/07/bc/587a445451b253b285629263eb51c2d8e9bcea4fc97826266d186f96f558/pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0", size = 90585, upload-time = "2020-11-23T03:59:13.41Z" },
 ]
 
 [[package]]
@@ -1197,6 +1212,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/10/9b/5f14927848d2fd4aa891fd88d883788c5a7baba561c7874732364045708c/ruff-0.15.20-py3-none-win32.whl", hash = "sha256:ed65ef510e43a137207e0f01cfcf998aeddb1aeeda5c9d35023e910284d7cf21", size = 10857322, upload-time = "2026-06-25T17:20:28.612Z" },
     { url = "https://files.pythonhosted.org/packages/fa/f0/fe47c501f9dea92a26d788ff98bb5d92ed4cb4c88792c5c88af6b697dc8e/ruff-0.15.20-py3-none-win_amd64.whl", hash = "sha256:a525c81c70fb0380344dd1d8745d8cc1c890b7fc94a58d5a07bd8eb9557b8415", size = 11993274, upload-time = "2026-06-25T17:20:31.871Z" },
     { url = "https://files.pythonhosted.org/packages/d7/2b/9555445e1201d92b3195f45cdb153a0b68f24e0a4273f6e3d5ab46e212bb/ruff-0.15.20-py3-none-win_arm64.whl", hash = "sha256:2f5b2a6d614e8700388806a14996c40fab2c47b819ef57d790a34878858ed9ca", size = 11343498, upload-time = "2026-06-25T17:20:35.03Z" },
+]
+
+[[package]]
+name = "secsgem"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jsonschema" },
+    { name = "pyserial" },
+    { name = "python-dateutil" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d2/5e/640f53c54f79d540f75d511bd49a27035385d21418ef589d30bcdc21173d/secsgem-0.3.0.tar.gz", hash = "sha256:9e21059dfb278799e254bab071c164e56ba624530e4900f4893e6787bbdab4f2", size = 117519, upload-time = "2024-09-14T17:52:30.174Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/f5/5a2d32db683bb05db87ec251801d3177fa7f95f248d0de8064b358d124a0/secsgem-0.3.0-py3-none-any.whl", hash = "sha256:e1b89d5d47239de86d9da9d103736a7a86b57d28746f166dca88348f1776f960", size = 398713, upload-time = "2024-09-14T17:52:28.391Z" },
 ]
 
 [[package]]

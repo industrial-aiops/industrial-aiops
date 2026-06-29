@@ -16,7 +16,7 @@ description: >-
 
 # iaiops — industrial data tap + intelligent troubleshooting
 
-One governed MCP server exposing **59 tools** across 8 industrial protocols plus a
+One governed MCP server exposing **66 tools** across 8 industrial protocols plus a
 cross-protocol intelligence layer. Every tool runs through the iaiops governance
 harness (audit / budget / risk-tier / undo). **Read-first.** The 6 write tools are
 gated as Management-of-Change: `risk=HIGH`, `dry_run=True` by default, CLI requires
