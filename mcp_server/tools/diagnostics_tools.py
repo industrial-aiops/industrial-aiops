@@ -124,3 +124,46 @@ def tag_health(tags: list, thresholds: Optional[dict] = None) -> dict:
     Example: tag_health(tags=[{"ref":"ns=2;i=5","samples":[70,71,70,99]}]).
     """
     return diag.tag_health(tags, thresholds)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def subscription_health(
+    sequence: list,
+    republish_requested: int = 0,
+    republish_rejected: int = 0,
+    tags_per_channel: Optional[dict] = None,
+    max_tags_per_channel: int = 5000,
+    wrap_at: Optional[int] = None,
+) -> dict:
+    """[READ][risk=low] Health of a sequenced subscription feed (OPC-UA or Sparkplug B).
+
+    Detects dropped notifications (sequence gaps), duplicates / out-of-order, a high
+    republish-rejection rate, and overloaded channels — the classic Kepware
+    "too many tags on one channel → republish/queue-flush dropouts" fault.
+
+    Args:
+        sequence: Sequence numbers actually received, in arrival order.
+        republish_requested: How many republish requests were made.
+        republish_rejected: How many were rejected (server couldn't keep up).
+        tags_per_channel: {channel/endpoint: tag_count} — flags channels over the max.
+        max_tags_per_channel: Density above which a channel is flagged (default 5000).
+        wrap_at: Modulus for rolling counters (e.g. 256 for Sparkplug B seq); omit
+            for monotonic OPC-UA counters.
+
+    Returns dict: {received, missed_count, duplicate_count, out_of_order_count,
+        republish_requested, republish_rejected, republish_reject_rate,
+        overloaded_channels:[{channel, tags}], max_tags_per_channel,
+        verdict ('ok'|'reordered'|'lossy'|'overloaded'), recommendation}.
+
+    Example: subscription_health(sequence=[1,2,4,5], tags_per_channel={"ch1":7000}).
+    """
+    return diag.subscription_health(
+        sequence,
+        republish_requested,
+        republish_rejected,
+        tags_per_channel,
+        max_tags_per_channel,
+        wrap_at,
+    )
