@@ -413,6 +413,21 @@ iaiops ethercat set-state PREOP --slave 0 -e bus1 --apply     # AL-state (can st
 iaiops mcp        # stdio transport; or the `iaiops-mcp` entry point
 ```
 
+**Menu — expose only the protocols a site runs.** A fab usually runs 1–2 protocols;
+exposing all 8 floods the model with tools it can't use. Set `IAIOPS_MCP` to a
+comma-list of protocols and/or a named profile (default `all`). The cross-protocol
+brain (OEE / downtime / diagnostics / asset / analysis) is **always** exposed.
+
+```bash
+IAIOPS_MCP=opcua,modbus iaiops-mcp   # 24 tools instead of 57
+IAIOPS_MCP=fab          iaiops-mcp   # named profile (opcua+s7+modbus)
+IAIOPS_MCP=opcua        iaiops-mcp   # effectively a single-protocol MCP
+```
+
+Named profiles: `all` · `fab` · `factory` · `process`. In an MCP client (e.g. Claude
+Desktop) set `IAIOPS_MCP` per server entry — one entry per site/line, each a lean
+single- or dual-protocol server.
+
 ---
 
 ## Safety & governance
