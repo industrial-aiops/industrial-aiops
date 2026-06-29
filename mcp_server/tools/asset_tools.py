@@ -7,9 +7,9 @@ fingerprinting via our clients — NOT passive SPAN/tap discovery (roadmap).
 
 from typing import Optional
 
+from iaiops.core.brain import asset_inventory as ops
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import _manager, mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import asset_inventory as ops
 
 
 @mcp.tool()

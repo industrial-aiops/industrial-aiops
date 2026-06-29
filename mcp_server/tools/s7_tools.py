@@ -7,9 +7,9 @@ dry_run. 未经授权勿对生产控制系统写入.
 
 from typing import Any, Optional
 
+from iaiops.connectors.s7 import ops
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import s7_ops as ops
 
 
 @mcp.tool()

@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-import ot_aiops.connection as conn
-from ot_aiops.config import TargetConfig
-from ot_aiops.ops import s7_ops as ops
+import iaiops.core.runtime.connection as conn
+from iaiops.connectors.s7 import ops
+from iaiops.core.runtime.config import TargetConfig
 
 
 class _FakeS7Client:

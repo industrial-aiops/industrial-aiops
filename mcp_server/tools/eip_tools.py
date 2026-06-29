@@ -8,9 +8,9 @@ dry_run. ControlLogix / CompactLogix tag access only (PLC-5/SLC PCCC is roadmap)
 
 from typing import Any, Optional
 
+from iaiops.connectors.eip import ops
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import eip_ops as ops
 
 
 @mcp.tool()

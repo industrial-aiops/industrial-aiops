@@ -19,13 +19,13 @@ from typing import Any, Optional
 
 from mcp.server.fastmcp import FastMCP
 
-from ot_aiops.config import load_config
-from ot_aiops.connection import ConnectionManager, OTConnectionError
-from ot_aiops.governance import sanitize
+from iaiops.core.governance import sanitize
+from iaiops.core.runtime.config import load_config
+from iaiops.core.runtime.connection import ConnectionManager, OTConnectionError
 
 logger = logging.getLogger(__name__)
 
-_DOCTOR_HINT = "Run 'ot-aiops doctor' to verify endpoint config and reachability."
+_DOCTOR_HINT = "Run 'iaiops doctor' to verify endpoint config and reachability."
 
 
 def _safe_error(exc: Exception, tool: str) -> str:
@@ -73,7 +73,7 @@ def tool_errors(shape: str = "dict") -> Callable:
 
 
 mcp = FastMCP(
-    "ot-aiops",
+    "iaiops",
     instructions=(
         "Governed, vendor-neutral, READ-FIRST industrial data tap + intelligent "
         "troubleshooting (preview). Protocols: OPC-UA (incl. Historical Access), "
@@ -95,8 +95,8 @@ mcp = FastMCP(
         "default (dry-run), capture the BEFORE value/state for undo, and need a "
         "recorded approver (MOC). "
         "未经授权勿对生产控制系统写入. An 'endpoint' selects a target from config; "
-        "secrets live in an encrypted store unlocked via OT_AIOPS_MASTER_PASSWORD; "
-        "every tool runs through the ot-aiops governance harness (audit / budget / "
+        "secrets live in an encrypted store unlocked via IAIOPS_MASTER_PASSWORD; "
+        "every tool runs through the iaiops governance harness (audit / budget / "
         "risk-tier). Do NOT use for general IT/network devices, Kubernetes, "
         "hypervisors, or backups — this is OT field-protocol telemetry only. Need "
         "another protocol/action? Open a GitHub issue or PR."
@@ -110,7 +110,7 @@ def _manager() -> ConnectionManager:
     """Return the connection manager, lazily initialising it from config."""
     global _conn_mgr  # noqa: PLW0603
     if _conn_mgr is None:
-        config_path_str = os.environ.get("OT_AIOPS_CONFIG")
+        config_path_str = os.environ.get("IAIOPS_CONFIG")
         config_path = Path(config_path_str) if config_path_str else None
         _conn_mgr = ConnectionManager(load_config(config_path))
     return _conn_mgr

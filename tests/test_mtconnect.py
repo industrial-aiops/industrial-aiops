@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from ot_aiops.config import TargetConfig
-from ot_aiops.ops import mtconnect_ops as ops
+from iaiops.connectors.mtconnect import ops
+from iaiops.core.runtime.config import TargetConfig
 
 _NS_DEV = "urn:mtconnect.org:MTConnectDevices:1.7"
 _NS_STREAMS = "urn:mtconnect.org:MTConnectStreams:1.7"

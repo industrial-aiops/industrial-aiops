@@ -4,7 +4,7 @@ Reads are governed at risk_level='low'. ``ethercat_write_sdo`` and
 ``ethercat_set_state`` are risk_level='high' (MOC): they capture the BEFORE
 value/state, record an undo descriptor, and default to dry_run.
 
-pysoem is an OPTIONAL extra (``pip install ot-aiops[ethercat]``) imported lazily;
+pysoem is an OPTIONAL extra (``pip install iaiops[ethercat]``) imported lazily;
 EtherCAT needs Linux + root/CAP_NET_RAW + a dedicated NIC + real slaves (no
 simulator, macOS unsupported). When unavailable, every tool returns a teaching
 error dict instead of crashing. 未经授权勿对生产控制系统写入.
@@ -12,9 +12,9 @@ error dict instead of crashing. 未经授权勿对生产控制系统写入.
 
 from typing import Any, Optional
 
+from iaiops.connectors.ethercat import ops
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import ethercat_ops as ops
 
 
 @mcp.tool()

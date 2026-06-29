@@ -1,8 +1,8 @@
-"""Smoke tests for the ot-aiops skeleton.
+"""Smoke tests for the iaiops skeleton.
 
 Proves: every module imports, the CLI Typer app builds and --help works (root +
 leaf), the MCP server exposes the expected tools, EVERY MCP tool carries the
-ot-aiops harness marker ``_is_governed_tool``, the config validates protocols,
+iaiops harness marker ``_is_governed_tool``, the config validates protocols,
 secrets resolve from the encrypted store, and the EtherCAT stub reports clearly.
 """
 
@@ -57,43 +57,43 @@ WRITE_TOOLS = {
 @pytest.mark.unit
 def test_all_modules_import():
     for name in (
-        "ot_aiops",
-        "ot_aiops.config",
-        "ot_aiops.connection",
-        "ot_aiops.doctor",
-        "ot_aiops.secretstore",
-        "ot_aiops.ops._shared",
-        "ot_aiops.ops.opcua_ops",
-        "ot_aiops.ops.analysis",
-        "ot_aiops.ops.modbus_ops",
-        "ot_aiops.ops.s7_ops",
-        "ot_aiops.ops.mc_ops",
-        "ot_aiops.ops.mtconnect_ops",
-        "ot_aiops.ops.sparkplug_ops",
-        "ot_aiops.ops.eip_ops",
-        "ot_aiops.ops.oee",
-        "ot_aiops.ops.asset_inventory",
-        "ot_aiops.ops.monitor",
-        "ot_aiops.ops.diagnostics",
-        "ot_aiops.ops.overview",
-        "ot_aiops.ops.ethercat_ops",
-        "ot_aiops.sparkplug_b_pb2",
-        "ot_aiops.cli",
-        "ot_aiops.cli._root",
-        "ot_aiops.cli._common",
-        "ot_aiops.cli.opcua",
-        "ot_aiops.cli.modbus",
-        "ot_aiops.cli.s7",
-        "ot_aiops.cli.mc",
-        "ot_aiops.cli.mtconnect",
-        "ot_aiops.cli.mqtt",
-        "ot_aiops.cli.eip",
-        "ot_aiops.cli.ethercat",
-        "ot_aiops.cli.analytics",
-        "ot_aiops.cli.diagnostics",
-        "ot_aiops.cli.secret",
-        "ot_aiops.cli.init",
-        "ot_aiops.cli.doctor",
+        "iaiops",
+        "iaiops.core.runtime.config",
+        "iaiops.core.runtime.connection",
+        "iaiops.doctor",
+        "iaiops.core.runtime.secretstore",
+        "iaiops.core.brain._shared",
+        "iaiops.connectors.opcua.ops",
+        "iaiops.core.brain.analysis",
+        "iaiops.connectors.modbus.ops",
+        "iaiops.connectors.s7.ops",
+        "iaiops.connectors.mc.ops",
+        "iaiops.connectors.mtconnect.ops",
+        "iaiops.connectors.sparkplug.ops",
+        "iaiops.connectors.eip.ops",
+        "iaiops.core.brain.oee",
+        "iaiops.core.brain.asset_inventory",
+        "iaiops.core.brain.monitor",
+        "iaiops.core.brain.diagnostics",
+        "iaiops.core.brain.overview",
+        "iaiops.connectors.ethercat.ops",
+        "iaiops.connectors.sparkplug.sparkplug_b_pb2",
+        "iaiops.cli",
+        "iaiops.cli._root",
+        "iaiops.cli._common",
+        "iaiops.cli.opcua",
+        "iaiops.cli.modbus",
+        "iaiops.cli.s7",
+        "iaiops.cli.mc",
+        "iaiops.cli.mtconnect",
+        "iaiops.cli.mqtt",
+        "iaiops.cli.eip",
+        "iaiops.cli.ethercat",
+        "iaiops.cli.analytics",
+        "iaiops.cli.diagnostics",
+        "iaiops.cli.secret",
+        "iaiops.cli.init",
+        "iaiops.cli.doctor",
         "mcp_server.server",
         "mcp_server._shared",
         "mcp_server.tools.opcua_tools",
@@ -116,14 +116,14 @@ def test_all_modules_import():
 
 @pytest.mark.unit
 def test_version():
-    import ot_aiops
+    import iaiops
 
-    assert ot_aiops.__version__ == "0.3.0"
+    assert iaiops.__version__ == "0.3.0"
 
 
 @pytest.mark.unit
 def test_cli_app_builds_and_help_works():
-    from ot_aiops.cli import app
+    from iaiops.cli import app
 
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
@@ -135,7 +135,7 @@ def test_cli_app_builds_and_help_works():
 
 @pytest.mark.unit
 def test_cli_leaf_help_triggers_lazy_imports():
-    from ot_aiops.cli import app
+    from iaiops.cli import app
 
     runner = CliRunner()
     for cmd in (
@@ -215,7 +215,7 @@ def test_every_mcp_tool_is_governed_by_harness():
 
 @pytest.mark.unit
 def test_unsupported_protocol_rejected():
-    from ot_aiops.config import TargetConfig
+    from iaiops.core.runtime.config import TargetConfig
 
     with pytest.raises(ValueError, match="unsupported protocol"):
         TargetConfig(name="x", protocol="profinet")
@@ -227,14 +227,14 @@ def test_unsupported_protocol_rejected():
     ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat"],
 )
 def test_supported_protocols_accepted(protocol):
-    from ot_aiops.config import TargetConfig
+    from iaiops.core.runtime.config import TargetConfig
 
     assert TargetConfig(name="x", protocol=protocol).protocol == protocol
 
 
 @pytest.mark.unit
 def test_eip_alias_normalized_to_ethernetip(tmp_path):
-    import ot_aiops.config as cfg
+    import iaiops.core.runtime.config as cfg
 
     path = tmp_path / "config.yaml"
     path.write_text("endpoints:\n  - {name: cell5, protocol: eip, host: 10.0.0.9, slot: 0}\n")
@@ -261,7 +261,7 @@ def test_write_tools_are_high_risk_and_default_dry_run():
 
 @pytest.mark.unit
 def test_protocols_supported_lists_all():
-    from ot_aiops.ops.overview import protocols_supported
+    from iaiops.core.brain.overview import protocols_supported
 
     out = protocols_supported()
     assert set(out["implemented_protocols"]) == {
@@ -274,7 +274,7 @@ def test_protocols_supported_lists_all():
 
 @pytest.mark.unit
 def test_config_per_protocol_fields(tmp_path):
-    import ot_aiops.config as cfg
+    import iaiops.core.runtime.config as cfg
 
     path = tmp_path / "config.yaml"
     path.write_text(
@@ -294,7 +294,7 @@ def test_config_per_protocol_fields(tmp_path):
 
 @pytest.mark.unit
 def test_monitor_tag_classifies():
-    from ot_aiops.config import MonitorTag
+    from iaiops.core.runtime.config import MonitorTag
 
     tag = MonitorTag(ref="t", warn_high=70, alarm_high=90, warn_low=5, alarm_low=1)
     assert tag.classify(50) == "ok"
@@ -306,7 +306,7 @@ def test_monitor_tag_classifies():
 
 @pytest.mark.unit
 def test_config_default_port_per_protocol(tmp_path):
-    import ot_aiops.config as cfg
+    import iaiops.core.runtime.config as cfg
 
     path = tmp_path / "config.yaml"
     path.write_text(
@@ -326,15 +326,15 @@ def test_config_default_port_per_protocol(tmp_path):
 @pytest.mark.unit
 def test_config_password_resolves_from_encrypted_store(monkeypatch, tmp_path):
     """TargetConfig.password() reads the encrypted store (no plaintext env)."""
-    import ot_aiops.config as cfg
-    import ot_aiops.secretstore as ss
+    import iaiops.core.runtime.config as cfg
+    import iaiops.core.runtime.secretstore as ss
 
     monkeypatch.setattr(ss, "CONFIG_DIR", tmp_path)
     monkeypatch.setattr(ss, "SECRETS_FILE", tmp_path / "secrets.enc")
     monkeypatch.setattr(ss, "LEGACY_ENV_FILE", tmp_path / ".env")
     monkeypatch.setattr(ss, "_cached", None)
     monkeypatch.delenv("OT_LINE1_PASSWORD", raising=False)
-    monkeypatch.setenv("OT_AIOPS_MASTER_PASSWORD", "mpw")
+    monkeypatch.setenv("IAIOPS_MASTER_PASSWORD", "mpw")
     ss.SecretStore.unlock("mpw").set("line1", "encrypted-plc-pw")
 
     target = cfg.TargetConfig(name="line1", protocol="opcua", endpoint_url="opc.tcp://h:4840")
@@ -344,8 +344,8 @@ def test_config_password_resolves_from_encrypted_store(monkeypatch, tmp_path):
 @pytest.mark.unit
 def test_config_password_legacy_env_fallback(monkeypatch, tmp_path):
     """Falls back to the legacy OT_<NAME>_PASSWORD env var when no store."""
-    import ot_aiops.config as cfg
-    import ot_aiops.secretstore as ss
+    import iaiops.core.runtime.config as cfg
+    import iaiops.core.runtime.secretstore as ss
 
     monkeypatch.setattr(ss, "SECRETS_FILE", tmp_path / "secrets.enc")  # no store on disk
     monkeypatch.setattr(ss, "_cached", None)
@@ -362,9 +362,9 @@ def test_ethercat_pysoem_is_optional_and_degrades_gracefully(monkeypatch):
     error dict — proving the optional/lazy/graceful-degrade contract."""
     import builtins
 
-    import ot_aiops.connection as conn
-    from ot_aiops.config import TargetConfig
-    from ot_aiops.connection import OTConnectionError
+    import iaiops.core.runtime.connection as conn
+    from iaiops.core.runtime.config import TargetConfig
+    from iaiops.core.runtime.connection import OTConnectionError
 
     real_import = builtins.__import__
 
@@ -378,7 +378,7 @@ def test_ethercat_pysoem_is_optional_and_degrades_gracefully(monkeypatch):
     with pytest.raises(OTConnectionError) as exc:
         conn._build_ethercat_master(target)
     assert "pysoem" in str(exc.value)
-    assert "ot-aiops[ethercat]" in str(exc.value)
+    assert "iaiops[ethercat]" in str(exc.value)
 
     # The MCP tool wraps that into a sanitized error dict (no crash).
     monkeypatch.setattr(builtins, "__import__", real_import)
@@ -400,9 +400,9 @@ def test_ethercat_requires_nic():
     import sys
     import types
 
-    import ot_aiops.connection as conn
-    from ot_aiops.config import TargetConfig
-    from ot_aiops.connection import OTConnectionError
+    import iaiops.core.runtime.connection as conn
+    from iaiops.core.runtime.config import TargetConfig
+    from iaiops.core.runtime.connection import OTConnectionError
 
     # Stub pysoem so we reach the NIC check rather than the import guard.
     fake = types.ModuleType("pysoem")
@@ -418,8 +418,8 @@ def test_ethercat_requires_nic():
 
 @pytest.mark.unit
 def test_connection_translates_opcua_errors():
-    from ot_aiops.config import TargetConfig
-    from ot_aiops.connection import OTConnectionError, _translate_opcua
+    from iaiops.core.runtime.config import TargetConfig
+    from iaiops.core.runtime.connection import OTConnectionError, _translate_opcua
 
     target = TargetConfig(name="line1", protocol="opcua", endpoint_url="opc.tcp://1.2.3.4:4840")
     err = _translate_opcua(TimeoutError("timed out"), target)

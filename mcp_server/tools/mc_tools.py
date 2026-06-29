@@ -7,9 +7,9 @@ Reads are governed at risk_level='low'. ``mc_write_words`` is risk_level='high'
 
 from typing import Any, Optional
 
+from iaiops.connectors.mc import ops
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import mc_ops as ops
 
 
 @mcp.tool()

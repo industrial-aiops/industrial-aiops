@@ -1,7 +1,7 @@
-"""MCP server wrapping ot-aiops operations (stdio transport).
+"""MCP server wrapping iaiops operations (stdio transport).
 
 Thin adapter layer: each ``@mcp.tool()`` function (in ``mcp_server/tools/``)
-delegates to the ``ot_aiops`` ops package and is wrapped with the ot-aiops
+delegates to the ``iaiops`` ops package and is wrapped with the iaiops
 ``@governed_tool`` harness (audit / budget / risk-tier).
 
 Standalone, self-governed, vendor-neutral OT data tap + intelligent
@@ -11,7 +11,7 @@ Mitsubishi MC, MTConnect, MQTT/Sparkplug B (full decode), and EtherNet/IP
 roadmap stub. Read-first; the few write/command tools are MOC-gated (high
 risk_tier).
 
-Source: https://github.com/AIops-tools/OT-AIops
+Source: https://github.com/industrial-aiops/industrial-aiops
 License: MIT
 """
 

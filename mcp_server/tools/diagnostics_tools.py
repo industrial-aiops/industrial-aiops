@@ -6,9 +6,9 @@ multi-dimensional JSON designed for an agent to visualize.
 
 from typing import Optional
 
+from iaiops.core.brain import diagnostics as diag
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import diagnostics as diag
 
 
 @mcp.tool()

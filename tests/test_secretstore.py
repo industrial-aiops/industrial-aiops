@@ -1,7 +1,7 @@
 """Tests for the encrypted secret store.
 
 These tests redirect the store at the module's path constants to a tmp dir so
-nothing touches the real ``~/.ot-aiops``.
+nothing touches the real ``~/.iaiops``.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import importlib
 
 import pytest
 
-import ot_aiops.secretstore as ss
+import iaiops.core.runtime.secretstore as ss
 
 
 @pytest.fixture

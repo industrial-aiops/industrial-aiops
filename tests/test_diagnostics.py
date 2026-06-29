@@ -11,8 +11,8 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from ot_aiops.config import TargetConfig
-from ot_aiops.ops import diagnostics as diag
+from iaiops.core.brain import diagnostics as diag
+from iaiops.core.runtime.config import TargetConfig
 
 
 def _iso(dt):

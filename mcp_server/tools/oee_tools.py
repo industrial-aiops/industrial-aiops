@@ -6,9 +6,9 @@ collected inputs, so they need no live plant. Structured JSON for agent visuals.
 
 from typing import Optional
 
+from iaiops.core.brain import oee as ops
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import oee as ops
 
 
 @mcp.tool()

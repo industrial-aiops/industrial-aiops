@@ -1,15 +1,15 @@
 """Read-only OPC-UA MCP tools.
 
-Every tool is wrapped with ``@governed_tool`` (the ot-aiops harness): policy
+Every tool is wrapped with ``@governed_tool`` (the iaiops harness): policy
 pre-check, budget/runaway guard, risk-tier gate, and audit logging to
-~/.ot-aiops/audit.db. These are all READ tools (risk_level='low').
+~/.iaiops/audit.db. These are all READ tools (risk_level='low').
 """
 
 from typing import Optional
 
+from iaiops.connectors.opcua import ops
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import opcua_ops as ops
 
 
 @mcp.tool()

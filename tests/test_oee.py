@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from ot_aiops.ops import oee
+from iaiops.core.brain import oee
 
 
 @pytest.mark.unit

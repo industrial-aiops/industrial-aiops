@@ -13,9 +13,9 @@ import socket
 
 import pytest
 
-from ot_aiops.config import TargetConfig
-from ot_aiops.ops import analysis
-from ot_aiops.ops import opcua_ops as ops
+from iaiops.connectors.opcua import ops
+from iaiops.core.brain import analysis
+from iaiops.core.runtime.config import TargetConfig
 
 
 def _free_port() -> int:
@@ -33,7 +33,7 @@ def opcua_server():
     url = f"opc.tcp://127.0.0.1:{port}/aiops"
     srv = Server()
     srv.set_endpoint(url)
-    srv.set_server_name("ot-aiops-test")
+    srv.set_server_name("iaiops-test")
     idx = srv.register_namespace("http://aiops.test")
     objects = srv.nodes.objects
     line = objects.add_folder(idx, "Line1")
@@ -164,7 +164,7 @@ def test_read_history_real(opcua_server):
 @pytest.mark.integration
 def test_monitor_changes_bounded_real(opcua_server):
     """CoV monitor against the real server: a static node yields one change."""
-    from ot_aiops.ops import monitor
+    from iaiops.core.brain import monitor
 
     out = monitor.monitor_changes(
         _target(opcua_server["url"]), opcua_server["press"],

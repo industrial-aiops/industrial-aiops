@@ -1,1 +1,1 @@
-"""MCP server package for ot-aiops."""
+"""MCP server package for iaiops."""

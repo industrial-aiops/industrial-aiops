@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-import ot_aiops.connection as conn
-from ot_aiops.config import TargetConfig
-from ot_aiops.ops import asset_inventory as asset
+import iaiops.core.runtime.connection as conn
+from iaiops.core.brain import asset_inventory as asset
+from iaiops.core.runtime.config import TargetConfig
 
 
 class _FakeS7Client:

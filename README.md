@@ -1,16 +1,16 @@
-<!-- mcp-name: io.github.AIops-tools/ot-aiops -->
+<!-- mcp-name: io.github.industrial-aiops/iaiops -->
 
-# OT-AIops
+# Industrial-AIOps
 
 **Governed, vendor-neutral industrial data tap + intelligent troubleshooting for AI agents — across OPC-UA (incl. Historical Access), Modbus-TCP, S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B (full decode), EtherNet/IP (Rockwell/Allen-Bradley Logix), and EtherCAT (pysoem/SOEM fieldbus master) — plus OEE/downtime, active asset-inventory, and change-of-value analytics.**
 
-OT-AIops is the OT/industrial member of [AIops-tools](https://github.com/AIops-tools). It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), ranks unhealthy tags, computes OEE / categorizes downtime, and builds an active asset register. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
+Industrial-AIOps is the OT/industrial member of [Industrial-AIOps](https://github.com/industrial-aiops). It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), ranks unhealthy tags, computes OEE / categorizes downtime, and builds an active asset register. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
 
 > ⚠️ **Preview / v0.3.0** — validated against an **in-process OPC-UA simulator (incl. HDA), mocked Modbus/S7/Mitsubishi/EtherNet-IP(pycomm3)/EtherCAT(pysoem) clients, static MTConnect XML fixtures, and synthetic MQTT/Sparkplug B protobuf payloads**. **NOT tested against live PLCs / SCADA / brokers / Logix controllers / EtherCAT slaves.** EtherCAT is hard-real-time and has **no software simulator** (Linux + root + a real bus only), so it is **entirely unverified against hardware**. See *Safety*.
 
 ## Why
 
-OT is exactly where you want an agent on a tight leash: read first, never blind-write. OT-AIops is the **safe, neutral read wedge** — one package, one MCP server, many protocols — with governance and an intelligence layer that turns raw reads into actionable diagnoses.
+OT is exactly where you want an agent on a tight leash: read first, never blind-write. Industrial-AIOps is the **safe, neutral read wedge** — one package, one MCP server, many protocols — with governance and an intelligence layer that turns raw reads into actionable diagnoses.
 
 ---
 
@@ -76,7 +76,7 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 | EtherCAT | `ethercat_set_state` | AL-state transition | **W** | **high/MOC** | {before, requested, reached, applied} |
 | Self | `protocols_supported` | capability map | R | low | {protocols[], diagnostics[], analytics[]} |
 
-**57 tools** = 51 read + 6 write (MOC). The 51 reads = 41 protocol-read · 4 diagnostics · 5 analytics · 1 self. Run `protocols_supported()` (or `ot-aiops protocols`) for the live map.
+**57 tools** = 51 read + 6 write (MOC). The 51 reads = 41 protocol-read · 4 diagnostics · 5 analytics · 1 self. Run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -122,7 +122,7 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 
 ### EtherCAT (pysoem / SOEM fieldbus master)
 - **Supported**: a **real EtherCAT master** via **`pysoem`** (the Python binding for the SOEM C stack). **CoE SDO read** (`ethercat_read_sdo`, acyclic mailbox upload) + **SDO write** (`ethercat_write_sdo`, download), **input PDO read** (`ethercat_read_pdo`, one bounded cyclic snapshot), **bus scan / slave enumeration** (`ethercat_slaves`, `ethercat_slave_info` — identity, SM/FMMU mapping, object-dictionary summary), **master/working-counter state** (`ethercat_master_state`), and **AL-state transitions** INIT↔PREOP↔SAFEOP↔OP (`ethercat_set_state`).
-- **HARD REQUIREMENTS** (no way around them): **Linux**, **root or `CAP_NET_RAW`**, a **dedicated NIC** cabled to the bus, and **real EtherCAT slave hardware**. `pysoem` is an **OPTIONAL extra**: `pip install ot-aiops[ethercat]` — the base package installs and imports **without** it, and every EtherCAT tool then **degrades to a teaching error** (never crashes, never imports pysoem at module load).
+- **HARD REQUIREMENTS** (no way around them): **Linux**, **root or `CAP_NET_RAW`**, a **dedicated NIC** cabled to the bus, and **real EtherCAT slave hardware**. `pysoem` is an **OPTIONAL extra**: `pip install iaiops[ethercat]` — the base package installs and imports **without** it, and every EtherCAT tool then **degrades to a teaching error** (never crashes, never imports pysoem at module load).
 - **NOT supported**: **no software simulator** exists (unlike OPC-UA / Modbus) — EtherCAT is **hardware-only** and **not testable in mock-only CI**; **macOS is unsupported**. **EoE / FoE / SoE** mailbox protocols and full PDO-mapping decode/expansion = **roadmap**.
 - **Connection params**: `nic` (the dedicated interface name, e.g. `eth1`; alias `interface`), optional `expected_slaves` (a sanity check vs the bus scan). `protocol: ethercat`.
 - **Operations matrix**:
@@ -159,20 +159,29 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 
 ## Install
 
+Protocol client libraries are **optional extras** — install only the 1–2 protocols a site
+actually runs (every protocol library is imported lazily; the base package installs and
+imports without any of them, and a call to a not-installed protocol returns a teaching
+error pointing at the right extra):
+
 ```bash
-uv tool install ot-aiops      # or: pip install ot-aiops
-ot-aiops init                 # interactive: add endpoints, store passwords encrypted
-ot-aiops doctor               # config + per-protocol connectivity probe (point at simulators)
-ot-aiops protocols            # the capability map
+uv tool install "iaiops[opcua,modbus]"   # just the protocols you need
+# or one per site:  pip install "iaiops[s7]"   ·   everything:  pip install "iaiops[all]"
+
+iaiops init                 # interactive: add endpoints, store passwords encrypted
+iaiops doctor               # config + per-protocol connectivity probe (point at simulators)
+iaiops protocols            # the capability map
 ```
+
+Extras: `opcua` · `modbus` · `s7` · `mc` · `eip` · `mtconnect` · `sparkplug` · `ethercat` · `all`.
 
 ### Master password
-Secrets (per-endpoint passwords, MQTT credentials) are **never** stored in plaintext — they live in `~/.ot-aiops/secrets.enc` (Fernet + scrypt). Export `OT_AIOPS_MASTER_PASSWORD` so the MCP server/CLI can unlock non-interactively:
+Secrets (per-endpoint passwords, MQTT credentials) are **never** stored in plaintext — they live in `~/.iaiops/secrets.enc` (Fernet + scrypt). Export `IAIOPS_MASTER_PASSWORD` so the MCP server/CLI can unlock non-interactively:
 ```bash
-export OT_AIOPS_MASTER_PASSWORD='…'
+export IAIOPS_MASTER_PASSWORD='…'
 ```
 
-### Example `~/.ot-aiops/config.yaml` (one block per protocol)
+### Example `~/.iaiops/config.yaml` (one block per protocol)
 ```yaml
 endpoints:
   - name: line1
@@ -210,14 +219,14 @@ endpoints:
     host: 10.0.0.9
     slot: 0                        # 0 for CompactLogix; CPU slot for ControlLogix
   - name: bus1
-    protocol: ethercat             # Linux + root/CAP_NET_RAW + pip install ot-aiops[ethercat]
+    protocol: ethercat             # Linux + root/CAP_NET_RAW + pip install iaiops[ethercat]
     nic: eth1                      # dedicated NIC cabled to the EtherCAT bus
     expected_slaves: 8             # optional sanity check vs the bus scan
 ```
 
-### `ot-aiops init` walkthrough (per protocol)
+### `iaiops init` walkthrough (per protocol)
 ```
-$ ot-aiops init
+$ iaiops init
 Step 1 — master password: ********
 Step 2 — add an endpoint
   Endpoint name (e.g. line1): press1
@@ -238,7 +247,7 @@ Step 2 — add an endpoint
 - **MQTT** — a local `mosquitto` broker (+ a Sparkplug edge for SpB topics).
 - **Mitsubishi MC** — GX Simulator / an MC 3E server sim.
 - **EtherNet/IP** — a pycomm3-compatible CIP/Logix simulator (or a spare CompactLogix).
-- **EtherCAT** — **no simulator exists** (hard-real-time, raw-Ethernet). Validate only on **Linux**, as **root / with `CAP_NET_RAW`**, on a **dedicated NIC** wired to **real slaves** (e.g. a Beckhoff EK1100 coupler + EL terminals). `ot-aiops doctor` reports a clear "needs Linux/root/NIC/pysoem" status off the bus rather than failing.
+- **EtherCAT** — **no simulator exists** (hard-real-time, raw-Ethernet). Validate only on **Linux**, as **root / with `CAP_NET_RAW`**, on a **dedicated NIC** wired to **real slaves** (e.g. a Beckhoff EK1100 coupler + EL terminals). `iaiops doctor` reports a clear "needs Linux/root/NIC/pysoem" status off the bus rather than failing.
 
 ---
 
@@ -246,31 +255,31 @@ Step 2 — add an endpoint
 
 ### CLI (read)
 ```bash
-ot-aiops opcua read "ns=2;i=5" -e line1
-ot-aiops modbus holding 0 -e plc2 --count 4 --decode float32
-ot-aiops s7 read-db 1 REAL 4 -e press1 --count 2
-ot-aiops mc words D100 -e cell3 --count 8
-ot-aiops mtconnect oee -e vmc1
-ot-aiops mqtt nodes -e uns --timeout-s 15
-ot-aiops eip tags -e cell5                           # Logix tag discovery
-ot-aiops eip read "Conveyor.Speed" -e cell5
-ot-aiops ethercat slaves -e bus1                     # EtherCAT bus scan (Linux+root)
-ot-aiops ethercat read-sdo 0 4120 --subindex 1 -e bus1   # CoE SDO 0x1018:1
-ot-aiops opcua history "ns=2;i=5" -e line1 --start 2026-06-28T08:00:00Z   # HDA
-ot-aiops opcua monitor "ns=2;i=5" -e line1 --duration-s 20 --deadband 0.5 # CoV
-ot-aiops diag dataflow -e line1 --ref "ns=2;i=5" --freshness-s 30
-ot-aiops analytics oee 28800 25200 2.0 12000 11800   # OEE = A×P×Q
-ot-aiops analytics asset -e press1 -e cell5           # active asset register
+iaiops opcua read "ns=2;i=5" -e line1
+iaiops modbus holding 0 -e plc2 --count 4 --decode float32
+iaiops s7 read-db 1 REAL 4 -e press1 --count 2
+iaiops mc words D100 -e cell3 --count 8
+iaiops mtconnect oee -e vmc1
+iaiops mqtt nodes -e uns --timeout-s 15
+iaiops eip tags -e cell5                           # Logix tag discovery
+iaiops eip read "Conveyor.Speed" -e cell5
+iaiops ethercat slaves -e bus1                     # EtherCAT bus scan (Linux+root)
+iaiops ethercat read-sdo 0 4120 --subindex 1 -e bus1   # CoE SDO 0x1018:1
+iaiops opcua history "ns=2;i=5" -e line1 --start 2026-06-28T08:00:00Z   # HDA
+iaiops opcua monitor "ns=2;i=5" -e line1 --duration-s 20 --deadband 0.5 # CoV
+iaiops diag dataflow -e line1 --ref "ns=2;i=5" --freshness-s 30
+iaiops analytics oee 28800 25200 2.0 12000 11800   # OEE = A×P×Q
+iaiops analytics asset -e press1 -e cell5           # active asset register
 ```
 
 ### CLI (write — dry-run by default, double-confirm on `--apply`)
 ```bash
-ot-aiops s7 write-db 1 INT 0 42 -e press1            # dry-run preview
-ot-aiops s7 write-db 1 INT 0 42 -e press1 --apply    # double-confirm prompt
-ot-aiops mqtt publish factory/line1/cmd '{"setpoint":50}' -e uns --apply
-ot-aiops eip write-tag Setpoint 42 -e cell5 --apply  # Logix tag write (double-confirm)
-ot-aiops ethercat write-sdo 0 24698 e8030000 -e bus1 --apply   # CoE SDO 0x607A download
-ot-aiops ethercat set-state PREOP --slave 0 -e bus1 --apply     # AL-state (can stop motion!)
+iaiops s7 write-db 1 INT 0 42 -e press1            # dry-run preview
+iaiops s7 write-db 1 INT 0 42 -e press1 --apply    # double-confirm prompt
+iaiops mqtt publish factory/line1/cmd '{"setpoint":50}' -e uns --apply
+iaiops eip write-tag Setpoint 42 -e cell5 --apply  # Logix tag write (double-confirm)
+iaiops ethercat write-sdo 0 24698 e8030000 -e bus1 --apply   # CoE SDO 0x607A download
+iaiops ethercat set-state PREOP --slave 0 -e bus1 --apply     # AL-state (can stop motion!)
 ```
 
 ### MCP tool calls (JSON args → sample structured return)
@@ -401,7 +410,7 @@ ot-aiops ethercat set-state PREOP --slave 0 -e bus1 --apply     # AL-state (can 
 
 ### MCP server
 ```bash
-ot-aiops mcp        # stdio transport; or the `ot-aiops-mcp` entry point
+iaiops mcp        # stdio transport; or the `iaiops-mcp` entry point
 ```
 
 ---
@@ -411,7 +420,7 @@ ot-aiops mcp        # stdio transport; or the `ot-aiops-mcp` entry point
 - **Read-first.** 51 of 57 tools are read-only. The 6 write/command tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, capture the **BEFORE value/state for undo**, require a **double-confirm in the CLI**, and (via policy) a recorded approver — **MOC discipline**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
 - All endpoint-returned text is sanitized (prompt-injection defense); secrets are never returned by any tool; MTConnect XML is parsed with DTD/entity declarations refused.
-- Every tool runs through the vendored governance harness: SQLite **audit** (`~/.ot-aiops/audit.db`), token/call **budget** + runaway breaker, **risk-tier** gate, **undo** recording.
+- Every tool runs through the vendored governance harness: SQLite **audit** (`~/.iaiops/audit.db`), token/call **budget** + runaway breaker, **risk-tier** gate, **undo** recording.
 
 ## Roadmap
 
@@ -421,7 +430,7 @@ ot-aiops mcp        # stdio transport; or the `ot-aiops-mcp` entry point
 - OPC-UA certificate security + real Alarms & Conditions subscriptions.
 - MTConnect streaming long-poll; Sparkplug B DataSet/Template deep expansion.
 
-**Missing a protocol, device, or feature? 缺功能提 issue/PR 欢迎留言** — open a [GitHub issue or PR](https://github.com/AIops-tools/OT-AIops/issues).
+**Missing a protocol, device, or feature? 缺功能提 issue/PR 欢迎留言** — open a [GitHub issue or PR](https://github.com/industrial-aiops/industrial-aiops/issues).
 
 ## License
 

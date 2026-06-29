@@ -1,8 +1,8 @@
 """Self-description MCP tool: the protocol/capability map (read-only)."""
 
+from iaiops.core.brain import overview
+from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
-from ot_aiops.governance import governed_tool
-from ot_aiops.ops import overview
 
 
 @mcp.tool()
@@ -11,7 +11,7 @@ from ot_aiops.ops import overview
 def protocols_supported() -> dict:
     """[READ][risk=low] Capability map — protocols, status, tools, connection params.
 
-    Call this to discover what ot-aiops can do before choosing a protocol/tool.
+    Call this to discover what iaiops can do before choosing a protocol/tool.
     Lists implemented protocols (OPC-UA incl. HDA, Modbus, S7comm, Mitsubishi MC,
     MTConnect, MQTT/Sparkplug B full-decode, EtherNet/IP Logix) and the EtherCAT
     roadmap stub, plus cross-protocol analytics (OEE/downtime, asset inventory,

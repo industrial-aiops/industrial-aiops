@@ -11,9 +11,9 @@ import struct
 
 import pytest
 
-import ot_aiops.connection as conn
-from ot_aiops.config import MonitorTag, TargetConfig
-from ot_aiops.ops import modbus_ops as ops
+import iaiops.core.runtime.connection as conn
+from iaiops.connectors.modbus import ops
+from iaiops.core.runtime.config import MonitorTag, TargetConfig
 
 
 class _FakeResp:
