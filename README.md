@@ -159,12 +159,21 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 
 ## Install
 
+Protocol client libraries are **optional extras** — install only the 1–2 protocols a site
+actually runs (every protocol library is imported lazily; the base package installs and
+imports without any of them, and a call to a not-installed protocol returns a teaching
+error pointing at the right extra):
+
 ```bash
-uv tool install iaiops      # or: pip install iaiops
+uv tool install "iaiops[opcua,modbus]"   # just the protocols you need
+# or one per site:  pip install "iaiops[s7]"   ·   everything:  pip install "iaiops[all]"
+
 iaiops init                 # interactive: add endpoints, store passwords encrypted
 iaiops doctor               # config + per-protocol connectivity probe (point at simulators)
 iaiops protocols            # the capability map
 ```
+
+Extras: `opcua` · `modbus` · `s7` · `mc` · `eip` · `mtconnect` · `sparkplug` · `ethercat` · `all`.
 
 ### Master password
 Secrets (per-endpoint passwords, MQTT credentials) are **never** stored in plaintext — they live in `~/.iaiops/secrets.enc` (Fernet + scrypt). Export `IAIOPS_MASTER_PASSWORD` so the MCP server/CLI can unlock non-interactively:

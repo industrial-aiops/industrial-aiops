@@ -32,7 +32,15 @@ _OEE_PROGRAM = "PROGRAM"
 
 def _http_get(url: str, timeout: int = _HTTP_TIMEOUT_S) -> str:
     """Fetch ``url`` and return the response body as text. Monkeypatched in tests."""
-    import requests
+    try:
+        import requests
+    except ImportError as exc:  # pragma: no cover — exercised only without requests
+        from iaiops.core.runtime.connection import OTConnectionError
+
+        raise OTConnectionError(
+            "The 'requests' package is not installed. Install the MTConnect "
+            "connector: 'pip install iaiops[mtconnect]'."
+        ) from exc
 
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()

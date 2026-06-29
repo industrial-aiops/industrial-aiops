@@ -50,8 +50,8 @@ def _build_opcua_client(target: TargetConfig) -> Any:
         from asyncua.sync import Client
     except ImportError as exc:  # pragma: no cover — exercised only without asyncua
         raise OTConnectionError(
-            "The 'asyncua' package is not installed. Install it with "
-            "'uv tool install iaiops' (it is a declared dependency)."
+            "The 'asyncua' package is not installed. Install the OPC-UA "
+            "connector: 'pip install iaiops[opcua]'."
         ) from exc
 
     if not target.endpoint_url:
@@ -137,7 +137,8 @@ def _build_modbus_client(target: TargetConfig) -> Any:
         from pymodbus.client import ModbusTcpClient
     except ImportError as exc:  # pragma: no cover — exercised only without pymodbus
         raise OTConnectionError(
-            "The 'pymodbus' package is not installed (declared dependency)."
+            "The 'pymodbus' package is not installed. Install the Modbus "
+            "connector: 'pip install iaiops[modbus]'."
         ) from exc
 
     if not target.host:
@@ -209,7 +210,8 @@ def _build_s7_client(target: TargetConfig) -> Any:
         from pyS7 import S7Client
     except ImportError as exc:  # pragma: no cover — exercised only without pyS7
         raise OTConnectionError(
-            "The 'pyS7' package is not installed (declared dependency)."
+            "The 'pyS7' package is not installed. Install the S7comm "
+            "connector: 'pip install iaiops[s7]'."
         ) from exc
 
     if not target.host:
@@ -276,7 +278,8 @@ def _build_mc_client(target: TargetConfig) -> Any:
         import pymcprotocol
     except ImportError as exc:  # pragma: no cover — exercised only without the lib
         raise OTConnectionError(
-            "The 'pymcprotocol' package is not installed (declared dependency)."
+            "The 'pymcprotocol' package is not installed. Install the "
+            "Mitsubishi MC connector: 'pip install iaiops[mc]'."
         ) from exc
 
     if not target.host:
@@ -342,7 +345,8 @@ def _build_mqtt_client(target: TargetConfig) -> Any:
         import paho.mqtt.client as mqtt
     except ImportError as exc:  # pragma: no cover — exercised only without paho
         raise OTConnectionError(
-            "The 'paho-mqtt' package is not installed (declared dependency)."
+            "The 'paho-mqtt' package is not installed. Install the "
+            "MQTT/Sparkplug connector: 'pip install iaiops[sparkplug]'."
         ) from exc
 
     if not target.host:
@@ -422,7 +426,8 @@ def _build_eip_client(target: TargetConfig) -> Any:
         from pycomm3 import LogixDriver
     except ImportError as exc:  # pragma: no cover — exercised only without pycomm3
         raise OTConnectionError(
-            "The 'pycomm3' package is not installed (declared dependency)."
+            "The 'pycomm3' package is not installed. Install the EtherNet/IP "
+            "connector: 'pip install iaiops[eip]'."
         ) from exc
 
     if not target.host:

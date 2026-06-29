@@ -47,9 +47,9 @@ def _node_summary(node: Any) -> dict:
 
 def server_info(target: Any) -> dict:
     """[READ] OPC-UA server status: state, build info, namespaces, start time."""
-    from asyncua import ua
-
     with opcua_session(target) as client:
+        from asyncua import ua  # session guarantees asyncua is importable here
+
         namespaces = client.get_namespace_array()
         status_node = client.get_node(ua.ObjectIds.Server_ServerStatus)
         status = status_node.read_value()

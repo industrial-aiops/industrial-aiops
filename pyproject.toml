@@ -16,14 +16,6 @@ keywords = [
     "pysoem", "soem", "oee", "ot", "scada", "plc", "industrial", "ai-ops", "mcp",
 ]
 dependencies = [
-    "asyncua>=1.0,<2",
-    "pymodbus>=3.5,<4",
-    "pyS7>=2.8,<3",
-    "pymcprotocol>=0.3,<1",
-    "pycomm3>=1.2,<2",
-    "paho-mqtt>=2.0,<3",
-    "protobuf>=4.25,<8",
-    "requests>=2.31,<3",
     "typer>=0.12,<1.0",
     "rich>=13.0,<16.0",
     "pyyaml>=6.0,<7.0",
@@ -33,11 +25,35 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# EtherCAT is a hard-real-time fieldbus: its master (pysoem/SOEM) needs Linux +
-# root/CAP_NET_RAW + a dedicated NIC + real slaves and has NO software simulator
-# (macOS unsupported). It is OPTIONAL so the base package installs/imports cleanly
-# everywhere; install with: pip install iaiops[ethercat]
+# Per-protocol extras. Every protocol client library is imported LAZILY (inside the
+# connection session builders / connector ops), so the base package installs and
+# imports without any of these — a site installs only the 1-2 protocols it runs:
+#   pip install iaiops[opcua]        ·  pip install iaiops[opcua,modbus]
+opcua = ["asyncua>=1.0,<2"]
+modbus = ["pymodbus>=3.5,<4"]
+s7 = ["pyS7>=2.8,<3"]
+mc = ["pymcprotocol>=0.3,<1"]
+eip = ["pycomm3>=1.2,<2"]
+mtconnect = ["requests>=2.31,<3"]
+sparkplug = ["paho-mqtt>=2.0,<3", "protobuf>=4.25,<8"]
+# EtherCAT needs Linux + root/CAP_NET_RAW + a dedicated NIC + real slaves and has
+# NO software simulator (macOS unsupported) — hence optional like the rest.
 ethercat = ["pysoem>=1.1,<2"]
+# Convenience: install every connector (used for full installs and the test matrix).
+all = [
+    "asyncua>=1.0,<2",
+    "pymodbus>=3.5,<4",
+    "pyS7>=2.8,<3",
+    "pymcprotocol>=0.3,<1",
+    "pycomm3>=1.2,<2",
+    "requests>=2.31,<3",
+    "paho-mqtt>=2.0,<3",
+    "protobuf>=4.25,<8",
+    "pysoem>=1.1,<2",
+]
+# Per-industry edition bundles (fab / energy / building) land in P3 alongside their
+# signature protocols (SECS/GEM, IEC-104/DNP3/61850, BACnet) — not defined yet to
+# avoid shipping misleading half-empty bundles.
 
 [dependency-groups]
 dev = [

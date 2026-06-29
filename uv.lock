@@ -378,6 +378,98 @@ wheels = [
 ]
 
 [[package]]
+name = "iaiops"
+version = "0.3.0"
+source = { editable = "." }
+dependencies = [
+    { name = "cryptography" },
+    { name = "mcp", extra = ["cli"] },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "asyncua" },
+    { name = "paho-mqtt" },
+    { name = "protobuf" },
+    { name = "pycomm3" },
+    { name = "pymcprotocol" },
+    { name = "pymodbus" },
+    { name = "pys7" },
+    { name = "pysoem" },
+    { name = "requests" },
+]
+eip = [
+    { name = "pycomm3" },
+]
+ethercat = [
+    { name = "pysoem" },
+]
+mc = [
+    { name = "pymcprotocol" },
+]
+modbus = [
+    { name = "pymodbus" },
+]
+mtconnect = [
+    { name = "requests" },
+]
+opcua = [
+    { name = "asyncua" },
+]
+s7 = [
+    { name = "pys7" },
+]
+sparkplug = [
+    { name = "paho-mqtt" },
+    { name = "protobuf" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncua", marker = "extra == 'all'", specifier = ">=1.0,<2" },
+    { name = "asyncua", marker = "extra == 'opcua'", specifier = ">=1.0,<2" },
+    { name = "cryptography", specifier = ">=42.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.10,<2.0" },
+    { name = "paho-mqtt", marker = "extra == 'all'", specifier = ">=2.0,<3" },
+    { name = "paho-mqtt", marker = "extra == 'sparkplug'", specifier = ">=2.0,<3" },
+    { name = "protobuf", marker = "extra == 'all'", specifier = ">=4.25,<8" },
+    { name = "protobuf", marker = "extra == 'sparkplug'", specifier = ">=4.25,<8" },
+    { name = "pycomm3", marker = "extra == 'all'", specifier = ">=1.2,<2" },
+    { name = "pycomm3", marker = "extra == 'eip'", specifier = ">=1.2,<2" },
+    { name = "pymcprotocol", marker = "extra == 'all'", specifier = ">=0.3,<1" },
+    { name = "pymcprotocol", marker = "extra == 'mc'", specifier = ">=0.3,<1" },
+    { name = "pymodbus", marker = "extra == 'all'", specifier = ">=3.5,<4" },
+    { name = "pymodbus", marker = "extra == 'modbus'", specifier = ">=3.5,<4" },
+    { name = "pys7", marker = "extra == 'all'", specifier = ">=2.8,<3" },
+    { name = "pys7", marker = "extra == 's7'", specifier = ">=2.8,<3" },
+    { name = "pysoem", marker = "extra == 'all'", specifier = ">=1.1,<2" },
+    { name = "pysoem", marker = "extra == 'ethercat'", specifier = ">=1.1,<2" },
+    { name = "python-dotenv", specifier = ">=1.0,<2.0" },
+    { name = "pyyaml", specifier = ">=6.0,<7.0" },
+    { name = "requests", marker = "extra == 'all'", specifier = ">=2.31,<3" },
+    { name = "requests", marker = "extra == 'mtconnect'", specifier = ">=2.31,<3" },
+    { name = "rich", specifier = ">=13.0,<16.0" },
+    { name = "typer", specifier = ">=0.12,<1.0" },
+]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "ethercat", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=8.0,<10.0" },
+    { name = "ruff", specifier = ">=0.5,<1.0" },
+]
+
+[[package]]
 name = "idna"
 version = "3.18"
 source = { registry = "https://pypi.org/simple" }
@@ -472,64 +564,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
-]
-
-[[package]]
-name = "iaiops"
-version = "0.3.0"
-source = { editable = "." }
-dependencies = [
-    { name = "asyncua" },
-    { name = "cryptography" },
-    { name = "mcp", extra = ["cli"] },
-    { name = "paho-mqtt" },
-    { name = "protobuf" },
-    { name = "pycomm3" },
-    { name = "pymcprotocol" },
-    { name = "pymodbus" },
-    { name = "pys7" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-ethercat = [
-    { name = "pysoem" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "asyncua", specifier = ">=1.0,<2" },
-    { name = "cryptography", specifier = ">=42.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.10,<2.0" },
-    { name = "paho-mqtt", specifier = ">=2.0,<3" },
-    { name = "protobuf", specifier = ">=4.25,<8" },
-    { name = "pycomm3", specifier = ">=1.2,<2" },
-    { name = "pymcprotocol", specifier = ">=0.3,<1" },
-    { name = "pymodbus", specifier = ">=3.5,<4" },
-    { name = "pys7", specifier = ">=2.8,<3" },
-    { name = "pysoem", marker = "extra == 'ethercat'", specifier = ">=1.1,<2" },
-    { name = "python-dotenv", specifier = ">=1.0,<2.0" },
-    { name = "pyyaml", specifier = ">=6.0,<7.0" },
-    { name = "requests", specifier = ">=2.31,<3" },
-    { name = "rich", specifier = ">=13.0,<16.0" },
-    { name = "typer", specifier = ">=0.12,<1.0" },
-]
-provides-extras = ["ethercat"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=8.0,<10.0" },
-    { name = "ruff", specifier = ">=0.5,<1.0" },
 ]
 
 [[package]]
