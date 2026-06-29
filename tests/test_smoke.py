@@ -116,9 +116,13 @@ def test_all_modules_import():
 
 @pytest.mark.unit
 def test_version():
+    import importlib.metadata
+
     import iaiops
 
-    assert iaiops.__version__ == "0.3.0"
+    # __init__ must not drift from the packaged (pyproject) version — and this
+    # survives version bumps without a manual edit.
+    assert iaiops.__version__ == importlib.metadata.version("iaiops")
 
 
 @pytest.mark.unit
