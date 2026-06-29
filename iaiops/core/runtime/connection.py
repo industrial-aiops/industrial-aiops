@@ -583,6 +583,96 @@ def _translate_ethercat(exc: Exception, target: TargetConfig) -> OTConnectionErr
     )
 
 
+# ─── SECS/GEM (semiconductor / display fab equipment, HSMS via secsgem) ───────
+
+
+def _build_secsgem_host(target: TargetConfig) -> Any:
+    """Construct (but do not enable) a secsgem GEM *host* handler for ``target``.
+
+    We are the HOST connecting (HSMS ACTIVE) to the equipment's passive port.
+    ``secsgem`` is an OPTIONAL extra (``pip install iaiops[secsgem]``). Module-level
+    so tests can monkeypatch it with a fake handler.
+    """
+    try:
+        from secsgem.gem import GemHostHandler
+        from secsgem.hsms import DeviceType, HsmsConnectMode, HsmsSettings
+    except ImportError as exc:  # pragma: no cover — exercised only without secsgem
+        raise OTConnectionError(
+            "The 'secsgem' package is not installed. Install the SECS/GEM "
+            "connector: 'pip install iaiops[secsgem]'."
+        ) from exc
+
+    settings = HsmsSettings(
+        address=target.host,
+        port=target.port or 5000,
+        connect_mode=HsmsConnectMode.ACTIVE,
+        device_type=DeviceType.HOST,
+        session_id=target.unit_id,
+    )
+    return GemHostHandler(settings)
+
+
+@contextmanager
+def secsgem_session(target: TargetConfig, *, timeout_s: float = 10.0) -> Iterator[Any]:
+    """Enable a GEM host link, wait until communicating, yield the handler, disable."""
+    if target.protocol != "secsgem":
+        raise OTConnectionError(
+            f"Endpoint '{target.name}' is protocol '{target.protocol}', not secsgem.",
+            endpoint=target.name,
+            protocol=target.protocol,
+        )
+    if not target.host:
+        raise OTConnectionError(
+            f"SECS/GEM endpoint '{target.name}' has no host. Add 'host: <ip>' and "
+            f"optionally 'port: 5000' (HSMS default) to its config entry.",
+            endpoint=target.name,
+            protocol="secsgem",
+        )
+    handler = _build_secsgem_host(target)
+    try:
+        handler.enable()
+    except Exception as exc:  # noqa: BLE001 — translate any enable/connect failure
+        raise _translate_secsgem(exc, target) from exc
+    try:
+        if not handler.waitfor_communicating(timeout_s):
+            raise OTConnectionError(
+                f"SECS/GEM '{target.name}' did not reach the communicating state "
+                f"within {timeout_s}s (equipment offline or not PASSIVE/listening).",
+                endpoint=target.name,
+                protocol="secsgem",
+            )
+        yield handler
+    except OTConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — translate any in-session failure
+        raise _translate_secsgem(exc, target) from exc
+    finally:
+        try:
+            handler.disable()
+        except Exception:  # noqa: BLE001 — disable must not mask the real error
+            pass
+
+
+def _translate_secsgem(exc: Exception, target: TargetConfig) -> OTConnectionError:
+    """Map a secsgem/HSMS exception to a teaching ``OTConnectionError``."""
+    name = type(exc).__name__
+    detail = str(exc).strip()[:200]
+    where = f"{target.host}:{target.port or 5000}"
+    if isinstance(exc, (ConnectionError, OSError, TimeoutError)) or "timeout" in name.lower():
+        return OTConnectionError(
+            f"Could not reach SECS/GEM equipment '{target.name}' ({where}). Check the "
+            f"host/port (HSMS default 5000), that the equipment is online and configured "
+            f"as PASSIVE/listening, and the session (device) id. {detail}",
+            endpoint=where,
+            protocol="secsgem",
+        )
+    return OTConnectionError(
+        f"SECS/GEM operation on '{target.name}' ({where}) failed: {detail}",
+        endpoint=where,
+        protocol="secsgem",
+    )
+
+
 # ─── manager ─────────────────────────────────────────────────────────────────
 
 
@@ -619,6 +709,7 @@ class ConnectionManager:
             "mqtt": mqtt_session,
             "ethernetip": eip_session,
             "eip": eip_session,
+            "secsgem": secsgem_session,
         }
         builder = builders.get(target.protocol, opcua_session)
         return builder(target)

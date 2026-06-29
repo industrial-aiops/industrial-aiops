@@ -29,9 +29,9 @@ def test_comma_list_dedup_and_order():
 
 
 def test_named_profile_expands():
-    assert resolve_selection("fab") == ["opcua", "s7", "modbus"]
+    assert resolve_selection("fab") == ["secsgem", "opcua", "s7", "modbus"]
     # a profile combined with an extra protocol, de-duped
-    assert resolve_selection("fab,eip") == ["opcua", "s7", "modbus", "eip"]
+    assert resolve_selection("fab,eip") == ["secsgem", "opcua", "s7", "modbus", "eip"]
 
 
 def test_unknown_token_fails_fast():

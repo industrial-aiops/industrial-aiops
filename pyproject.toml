@@ -36,6 +36,8 @@ mc = ["pymcprotocol>=0.3,<1"]
 eip = ["pycomm3>=1.2,<2"]
 mtconnect = ["requests>=2.31,<3"]
 sparkplug = ["paho-mqtt>=2.0,<3", "protobuf>=4.25,<8"]
+# SECS/GEM (semiconductor / display fab equipment ↔ host over HSMS).
+secsgem = ["secsgem>=0.3,<1"]
 # EtherCAT needs Linux + root/CAP_NET_RAW + a dedicated NIC + real slaves and has
 # NO software simulator (macOS unsupported) — hence optional like the rest.
 ethercat = ["pysoem>=1.1,<2"]
@@ -49,6 +51,7 @@ all = [
     "requests>=2.31,<3",
     "paho-mqtt>=2.0,<3",
     "protobuf>=4.25,<8",
+    "secsgem>=0.3,<1",
     "pysoem>=1.1,<2",
 ]
 # Per-industry edition bundles (fab / energy / building) land in P3 alongside their

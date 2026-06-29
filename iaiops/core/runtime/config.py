@@ -64,6 +64,7 @@ DEFAULT_MC_PORT = 5007  # Mitsubishi MC 3E binary (common default)
 DEFAULT_MQTT_PORT = 1883  # plain MQTT (8883 when TLS)
 DEFAULT_MQTT_TLS_PORT = 8883
 DEFAULT_EIP_PORT = 44818  # EtherNet/IP (CIP over TCP)
+DEFAULT_SECSGEM_PORT = 5000  # HSMS (SECS-II over TCP) default
 
 # Per-protocol default TCP port, used by load_config + the init wizard.
 _DEFAULT_PORTS = {
@@ -73,6 +74,7 @@ _DEFAULT_PORTS = {
     "mc": DEFAULT_MC_PORT,
     "mqtt": DEFAULT_MQTT_PORT,
     "ethernetip": DEFAULT_EIP_PORT,
+    "secsgem": DEFAULT_SECSGEM_PORT,
 }
 
 
