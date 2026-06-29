@@ -7,6 +7,7 @@ pre-check, budget/runaway guard, risk-tier gate, and audit logging to
 
 from typing import Optional
 
+from iaiops.connectors.opcua import diagnostics as diag
 from iaiops.connectors.opcua import ops
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
@@ -137,3 +138,24 @@ def opcua_read_history(
     Example: opcua_read_history(node_id="ns=2;i=5", start="2026-06-28T08:00:00Z").
     """
     return ops.read_history(_target(endpoint), node_id, start, end, max_points)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def opcua_diagnose_connection(endpoint: Optional[str] = None) -> dict:
+    """[READ] Diagnose why an OPC-UA endpoint won't connect — a classified verdict.
+
+    Attempts a connect (no writes, disconnects immediately) and classifies any
+    failure into the well-known OPC-UA buckets instead of returning a raw error,
+    each with a concrete next step:
+    certificate (server doesn't trust our client cert) · auth (user/password) ·
+    security_policy (policy/mode mismatch) · port_closed · dns · firewall_timeout ·
+    unreachable · config (bad endpoint_url / connector not installed) · ok.
+
+    Args:
+        endpoint: Endpoint name from config; omit to use the default endpoint.
+
+    Returns dict: {endpoint, reachable (bool), class, diagnosis, remediation, detail}.
+    """
+    return diag.diagnose_connection(_target(endpoint))
