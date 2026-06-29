@@ -8,7 +8,13 @@ from __future__ import annotations
 
 from rich.console import Console
 
-from iaiops.core.runtime.config import CONFIG_FILE, ENV_FILE, load_config, password_env_var
+from iaiops.core.runtime.config import (
+    CONFIG_FILE,
+    DEFAULT_SECSGEM_PORT,
+    ENV_FILE,
+    load_config,
+    password_env_var,
+)
 from iaiops.core.runtime.secretstore import SECRETS_FILE, check_permissions, has_store
 
 _console = Console()
@@ -172,7 +178,7 @@ def _where(target) -> str:
     if target.protocol == "ethercat":
         return f"nic={target.nic or target.host or '?'}"
     if target.protocol == "secsgem":
-        return f"{target.host}:{target.port or 5000} device={target.unit_id}"
+        return f"{target.host}:{target.port or DEFAULT_SECSGEM_PORT} device={target.unit_id}"
     return f"{target.host}:{target.port}"
 
 

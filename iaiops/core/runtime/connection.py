@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from iaiops.core.runtime.config import (
+    DEFAULT_SECSGEM_PORT,
     AppConfig,
     TargetConfig,
     load_config,
@@ -604,7 +605,7 @@ def _build_secsgem_host(target: TargetConfig) -> Any:
 
     settings = HsmsSettings(
         address=target.host,
-        port=target.port or 5000,
+        port=target.port or DEFAULT_SECSGEM_PORT,
         connect_mode=HsmsConnectMode.ACTIVE,
         device_type=DeviceType.HOST,
         session_id=target.unit_id,
@@ -657,7 +658,7 @@ def _translate_secsgem(exc: Exception, target: TargetConfig) -> OTConnectionErro
     """Map a secsgem/HSMS exception to a teaching ``OTConnectionError``."""
     name = type(exc).__name__
     detail = str(exc).strip()[:200]
-    where = f"{target.host}:{target.port or 5000}"
+    where = f"{target.host}:{target.port or DEFAULT_SECSGEM_PORT}"
     if isinstance(exc, (ConnectionError, OSError, TimeoutError)) or "timeout" in name.lower():
         return OTConnectionError(
             f"Could not reach SECS/GEM equipment '{target.name}' ({where}). Check the "
