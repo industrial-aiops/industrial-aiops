@@ -184,7 +184,7 @@ iaiops protocols            # the capability map
 Protocol extras: `opcua` · `modbus` · `s7` · `mc` · `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `all`.
 
 **Edition bundles** (match the same-named `IAIOPS_MCP` profiles — install the protocols a vertical runs):
-`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set) · `process` (opcua + modbus). Energy/building bundles arrive with their signature protocols (IEC-104/DNP3/61850, BACnet).
+`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set — all protocols except SECS/GEM) · `process` (opcua + modbus). Energy/building bundles arrive with their signature protocols (IEC-104/DNP3/61850, BACnet).
 
 ### Master password
 Secrets (per-endpoint passwords, MQTT credentials) are **never** stored in plaintext — they live in `~/.iaiops/secrets.enc` (Fernet + scrypt). Export `IAIOPS_MASTER_PASSWORD` so the MCP server/CLI can unlock non-interactively:
