@@ -85,6 +85,20 @@ def run_doctor(skip_probe: bool = False) -> int:
             else:
                 _console.print(f"[yellow]! EtherCAT '{target.name}' — {detail}[/]")
             continue
+        # OPC-UA: on failure, classify *why* (certificate / security policy / auth /
+        # firewall / …) and print the conclusion + the fix, not a raw error string.
+        if target.protocol == "opcua":
+            ok, detail = _probe(target)
+            if ok:
+                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+            else:
+                v = _diagnose_opcua(target)
+                _console.print(
+                    f"[red]✗ OPC-UA '{target.name}' — {v['class']}: {v['diagnosis']}[/]"
+                )
+                _console.print(f"  [yellow]→ {v['remediation']}[/]")
+                problems += 1
+            continue
         ok, detail = _probe(target)
         if ok:
             _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
@@ -93,6 +107,24 @@ def run_doctor(skip_probe: bool = False) -> int:
             problems += 1
 
     return 1 if problems else 0
+
+
+def _diagnose_opcua(target) -> dict:
+    """Classify why an OPC-UA endpoint won't connect (never raises).
+
+    Always returns a dict with ``class`` / ``diagnosis`` / ``remediation`` so the
+    doctor can print a conclusion + fix rather than a raw error.
+    """
+    try:
+        from iaiops.connectors.opcua.diagnostics import diagnose_connection
+
+        return diagnose_connection(target)
+    except Exception as exc:  # noqa: BLE001 — the doctor must never crash on a probe
+        return {
+            "class": "unknown",
+            "diagnosis": f"Diagnosis itself failed: {str(exc)[:160]}",
+            "remediation": "Re-run 'iaiops doctor'; point the endpoint at a local simulator.",
+        }
 
 
 def _probe_ethercat(target) -> tuple[bool, str]:
