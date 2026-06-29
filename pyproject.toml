@@ -54,9 +54,21 @@ all = [
     "secsgem>=0.3,<1",
     "pysoem>=1.1,<2",
 ]
-# Per-industry edition bundles (fab / energy / building) land in P3 alongside their
-# signature protocols (SECS/GEM, IEC-104/DNP3/61850, BACnet) — not defined yet to
-# avoid shipping misleading half-empty bundles.
+# Per-industry edition bundles — install only the protocols a vertical runs, and
+# matching the same-named IAIOPS_MCP profiles. (energy/building arrive with their
+# signature protocols: IEC-104/DNP3/61850, BACnet.)
+fab = ["iaiops[secsgem]", "iaiops[opcua]", "iaiops[s7]", "iaiops[modbus]"]
+factory = [
+    "iaiops[opcua]",
+    "iaiops[modbus]",
+    "iaiops[s7]",
+    "iaiops[mc]",
+    "iaiops[eip]",
+    "iaiops[mtconnect]",
+    "iaiops[sparkplug]",
+    "iaiops[ethercat]",
+]
+process = ["iaiops[opcua]", "iaiops[modbus]"]
 
 [dependency-groups]
 dev = [
