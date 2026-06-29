@@ -409,6 +409,23 @@ eip = [
 ethercat = [
     { name = "pysoem" },
 ]
+fab = [
+    { name = "asyncua" },
+    { name = "pymodbus" },
+    { name = "pys7" },
+    { name = "secsgem" },
+]
+factory = [
+    { name = "asyncua" },
+    { name = "paho-mqtt" },
+    { name = "protobuf" },
+    { name = "pycomm3" },
+    { name = "pymcprotocol" },
+    { name = "pymodbus" },
+    { name = "pys7" },
+    { name = "pysoem" },
+    { name = "requests" },
+]
 mc = [
     { name = "pymcprotocol" },
 ]
@@ -420,6 +437,10 @@ mtconnect = [
 ]
 opcua = [
     { name = "asyncua" },
+]
+process = [
+    { name = "asyncua" },
+    { name = "pymodbus" },
 ]
 s7 = [
     { name = "pys7" },
@@ -443,6 +464,20 @@ requires-dist = [
     { name = "asyncua", marker = "extra == 'all'", specifier = ">=1.0,<2" },
     { name = "asyncua", marker = "extra == 'opcua'", specifier = ">=1.0,<2" },
     { name = "cryptography", specifier = ">=42.0" },
+    { name = "iaiops", extras = ["eip"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["ethercat"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["mc"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'fab'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'process'" },
+    { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["opcua"], marker = "extra == 'fab'" },
+    { name = "iaiops", extras = ["opcua"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["opcua"], marker = "extra == 'process'" },
+    { name = "iaiops", extras = ["s7"], marker = "extra == 'fab'" },
+    { name = "iaiops", extras = ["s7"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["secsgem"], marker = "extra == 'fab'" },
+    { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'factory'" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.10,<2.0" },
     { name = "paho-mqtt", marker = "extra == 'all'", specifier = ">=2.0,<3" },
     { name = "paho-mqtt", marker = "extra == 'sparkplug'", specifier = ">=2.0,<3" },
@@ -467,7 +502,7 @@ requires-dist = [
     { name = "secsgem", marker = "extra == 'secsgem'", specifier = ">=0.3,<1" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "all"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "all", "fab", "factory", "process"]
 
 [package.metadata.requires-dev]
 dev = [
