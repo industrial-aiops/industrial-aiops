@@ -4,11 +4,14 @@ description: >-
   Vendor-neutral, governed industrial/OT data tap + intelligent troubleshooting.
   Read (and, gated, write) PLCs, controllers, machine tools and IIoT brokers over
   OPC-UA, Modbus-TCP, Siemens S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B,
-  Allen-Bradley EtherNet/IP, and EtherCAT (pysoem/SOEM) — plus cross-protocol diagnostics ("no-data"
-  dataflow diagnosis, ISA-18.2 alarm bad-actors, tag/historian health) and
-  analytics (OEE/downtime, asset inventory, OPC-UA HDA, change-of-value). Use when
-  the task names any industrial protocol, a PLC/SCADA/HMI/historian/CNC, an
-  opc.tcp:// or mqtt:// endpoint, OEE/downtime, or OT asset inventory. Routes to
+  Allen-Bradley EtherNet/IP, EtherCAT (pysoem/SOEM), and SECS/GEM (semiconductor /
+  display fab equipment over HSMS) — plus cross-protocol diagnostics ("no-data"
+  dataflow diagnosis, OPC-UA connection self-diagnosis, subscription health,
+  ISA-18.2 alarm bad-actors, tag/historian health) and analytics (OEE/downtime,
+  asset inventory, OPC-UA HDA, change-of-value). Use when the task names any
+  industrial protocol, a PLC/SCADA/HMI/historian/CNC, a semiconductor/display fab
+  or SECS/GEM equipment, an opc.tcp:// or mqtt:// endpoint, OEE/downtime, or OT
+  asset inventory. Routes to
   the iaiops MCP server. Read-first; writes are MOC-gated (high risk, dry-run +
   double-confirm). Do NOT use for IT/network gear, Kubernetes, hypervisors, or
   backups — those are separate AIops tools.
@@ -16,8 +19,9 @@ description: >-
 
 # iaiops — industrial data tap + intelligent troubleshooting
 
-One governed MCP server exposing **66 tools** across 8 industrial protocols plus a
-cross-protocol intelligence layer. Every tool runs through the iaiops governance
+One governed MCP server exposing **66 tools** across 9 industrial protocols plus a
+cross-protocol intelligence layer. Narrow the exposed surface per site with
+`IAIOPS_MCP` (e.g. `IAIOPS_MCP=fab` or `IAIOPS_MCP=opcua,modbus`). Every tool runs through the iaiops governance
 harness (audit / budget / risk-tier / undo). **Read-first.** The 6 write tools are
 gated as Management-of-Change: `risk=HIGH`, `dry_run=True` by default, CLI requires
 a double-confirm, the before-value is captured for undo. **Never write to a
@@ -29,8 +33,9 @@ configured and `<protocol> doctor` to test a link.
 Task mentions: OPC-UA / opc.tcp, Modbus, Siemens S7 / S7-1200/1500, Mitsubishi /
 MELSEC, MTConnect / CNC machine monitoring, MQTT / Sparkplug B / Unified Namespace,
 Allen-Bradley / ControlLogix / CompactLogix / EtherNet-IP, EtherCAT / CoE / SDO /
-PDO / SOEM, OEE / downtime, OT asset inventory, "no data / stale tag" diagnosis,
-alarm flood / ISA-18.2.
+PDO / SOEM, SECS/GEM / SECS-II / HSMS / semiconductor / display fab / wafer / panel
+/ MES equipment / SVID / ECID, OEE / downtime, OT asset inventory, "no data / stale
+tag" diagnosis, OPC-UA "won't connect", subscription drops, alarm flood / ISA-18.2.
 
 ## Tools by protocol
 
@@ -42,6 +47,8 @@ alarm flood / ISA-18.2.
 - `opcua_subscribe_sample` — bounded sampling, then returns (never loops)
 - `opcua_read_alarms` — best-effort active alarm/condition surfacing
 - `opcua_read_history` — Historical Access (HDA): raw history over a [start,end] window
+- `opcua_diagnose_connection` — classify *why* a connect fails (certificate / security
+  policy / auth / firewall / dns / port / config) with the exact fix, not a raw error
 - `health_summary` — classify node-ids vs warn/alarm thresholds
 - `anomaly_scan` — sample a node, flag statistical outliers
 
@@ -96,6 +103,24 @@ macOS unsupported). Tools degrade to a teaching error if pysoem/permission/NIC/b
 - `ethercat_write_sdo` — **[WRITE][HIGH][MOC]** CoE SDO download (off by default)
 - `ethercat_set_state` — **[WRITE][HIGH][MOC]** AL-state transition (can START/STOP motion; off by default)
 
+### SECS/GEM (read-only; semiconductor / display fab equipment ↔ host over HSMS)
+Optional extra `pip install iaiops[secsgem]` (or the `iaiops[fab]` bundle). We are the
+HOST (HSMS ACTIVE). SECS/GEM (SEMI E5 SECS-II · E30 GEM · E37 HSMS) is the fab equipment
+↔ MES standard — the entry ticket for panel/semiconductor fabs.
+- `secsgem_equipment_status` — establish the GEM link + Are-You-There (S1F1/F2)
+- `secsgem_list_status_variables` — SVID namelist (S1F11/F12)
+- `secsgem_read_status_variables` — SVID values (S1F3/F4)
+- `secsgem_list_equipment_constants` — ECID namelist (S2F29/F30)
+- `secsgem_read_equipment_constants` — ECID values (S2F13/F14)
+- `secsgem_list_alarms` — alarm list (S5F5/F6): ALID, ALCD, text
+- `secsgem_list_process_programs` — PPID directory (S7F19/F20)
+
+> **Fab routing (semiconductor / display, e.g. panel TFT-LCD/OLED).** A fab equipment
+> is two layers: its **internal control** (PLC over S7 / OPC-UA / Modbus) and its
+> **MES-facing** SECS/GEM (HSMS) interface — different jobs, don't conflate. Use
+> `IAIOPS_MCP=fab` (secsgem + opcua + s7 + modbus). Read-first: `secsgem_equipment_status`
+> to confirm the link, then SVID/ECID/alarms; the PLC layer via the S7/OPC-UA tools.
+
 ## Cross-protocol intelligence
 
 ### Diagnostics — `skills` umbrella: troubleshooting
@@ -104,6 +129,8 @@ macOS unsupported). Tools degrade to a teaching error if pysoem/permission/NIC/b
 - `alarm_bad_actors` — ISA-18.2 alarm-flood analysis (rate vs <6/12/30, Pareto
   offenders, chattering, standing) over an event list
 - `tag_health` — rank tag offenders by bad-quality / flatline / range / anomaly
+- `subscription_health` — sequenced-feed loss/reorder/overload (OPC-UA monitored items
+  or Sparkplug B): sequence gaps, republish-rejection rate, overloaded channels
 
 ### Analytics
 - `oee_compute` — OEE = Availability × Performance × Quality
