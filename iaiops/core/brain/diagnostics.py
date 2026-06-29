@@ -613,6 +613,8 @@ def subscription_health(
     """
     seqs: list[int] = []
     for x in list(sequence or [])[:MAX_SERIES]:
+        if isinstance(x, bool):  # a sequence number is never boolean
+            continue
         n = num(x)
         if n is not None:
             seqs.append(int(n))
@@ -623,16 +625,24 @@ def subscription_health(
             "error": "Nothing to evaluate. Pass `sequence` (received seq numbers) "
             "and/or tags_per_channel / republish_requested."
         }
+    if wrap_at is not None and wrap_at <= 1:
+        return {
+            "error": "wrap_at must be > 1 (the rolling-counter modulus, e.g. 256 for "
+            "Sparkplug B)."
+        }
 
     missed = duplicates = out_of_order = 0
     for prev, cur in zip(seqs, seqs[1:]):
-        if wrap_at and wrap_at > 0:
+        if wrap_at:  # validated > 1 above
             step = (cur - prev) % wrap_at
             if step == 0:
                 duplicates += 1
             elif step == 1:
                 continue
-            elif step > wrap_at // 2:  # a large modular step is a backward jump = reorder
+            # A modular step past the half-way point reads as a backward jump
+            # (reorder). Inherent ambiguity: a very large forward loss (> wrap_at/2
+            # missed) lands here too — unavoidable from the sequence alone.
+            elif step > wrap_at // 2:
                 out_of_order += 1
             else:
                 missed += step - 1
