@@ -15,6 +15,16 @@ def _target(host="127.0.0.1", protocol="secsgem"):
     return SimpleNamespace(name="eqp1", protocol=protocol, host=host, port=5000, unit_id=0)
 
 
+class _SF:
+    """Mimics a secsgem SecsStreamFunction: undecoded until no-arg .get() is called."""
+
+    def __init__(self, data):
+        self._data = data
+
+    def get(self):
+        return self._data
+
+
 class _FakeHostHandler:
     def __init__(self, communicating=True):
         self._communicating = communicating
@@ -34,18 +44,21 @@ class _FakeHostHandler:
     def are_you_there(self):
         return {"MDLN": "CSOT-T7", "SOFTREV": "1.2.3"}
 
+    # SV/EC calls return an undecoded SecsStreamFunction (needs .get()) — matches the
+    # real lib, so a missing _decoded() in ops would surface here as stringified junk.
     def list_svs(self):
-        return [{"svid": 1, "name": "Clock"}, {"svid": 2, "name": "Temp"}]
+        return _SF([{"svid": 1, "name": "Clock"}, {"svid": 2, "name": "Temp"}])
 
     def request_svs(self, svs):
-        return [{"svid": i, "value": 100 + i} for i in svs]
+        return _SF([{"svid": i, "value": 100 + i} for i in svs])
 
     def list_ecs(self):
-        return [{"ecid": 10, "name": "SetPoint", "min": 0, "max": 500}]
+        return _SF([{"ecid": 10, "name": "SetPoint", "min": 0, "max": 500}])
 
     def request_ecs(self, ecs):
-        return [{"ecid": i, "value": 250} for i in ecs]
+        return _SF([{"ecid": i, "value": 250} for i in ecs])
 
+    # alarms / process-program list already .get() internally → plain lists.
     def list_alarms(self):
         return [{"alid": 7, "alcd": 132, "text": "Chamber over temp"}]
 

@@ -19,6 +19,29 @@ from iaiops.core.runtime.connection import secsgem_session
 _MAX_ITEMS = 1000
 
 
+def _decoded(value: Any) -> Any:
+    """Decode a secsgem return into plain Python.
+
+    secsgem 0.3 is inconsistent: ``list_svs`` / ``request_svs`` / ``list_ecs`` /
+    ``request_ecs`` (and ``are_you_there``) return an *undecoded* SecsStreamFunction /
+    message whose no-arg ``.get()`` yields the Python structure, whereas
+    ``list_alarms`` / ``get_process_program_list`` already ``.get()`` internally. We
+    only call ``.get()`` on non-plain objects (a plain dict also has ``.get`` but it
+    takes a key — never call it there).
+    """
+    if value is None or isinstance(
+        value, (list, dict, tuple, str, int, float, bool, bytes, bytearray)
+    ):
+        return value
+    getter = getattr(value, "get", None)
+    if callable(getter):
+        try:
+            return getter()
+        except TypeError:
+            return value
+    return value
+
+
 def _plain(value: Any, depth: int = 0) -> Any:
     """Best-effort convert a secsgem decoded value into JSON-friendly plain data."""
     if value is None or isinstance(value, (bool, int, float)):
@@ -42,14 +65,14 @@ def equipment_status(target: Any) -> dict:
         state = getattr(h, "communication_state", None)
         return {
             "communication_state": s(str(getattr(state, "current", state)), 60),
-            "are_you_there": _plain(h.are_you_there()),
+            "are_you_there": _plain(_decoded(h.are_you_there())),
         }
 
 
 def list_status_variables(target: Any) -> dict:
     """[READ] Status-variable namelist (S1F11/F12): SVID → name/units."""
     with secsgem_session(target) as h:
-        svs = _plain(h.list_svs())
+        svs = _plain(_decoded(h.list_svs()))
         return {"count": len(svs) if isinstance(svs, list) else None, "status_variables": svs}
 
 
@@ -59,13 +82,13 @@ def read_status_variables(target: Any, svids: list) -> dict:
     if not ids:
         return {"error": "Pass a non-empty list of SVIDs to read."}
     with secsgem_session(target) as h:
-        return {"svids": _plain(ids), "values": _plain(h.request_svs(ids))}
+        return {"svids": _plain(ids), "values": _plain(_decoded(h.request_svs(ids)))}
 
 
 def list_equipment_constants(target: Any) -> dict:
     """[READ] Equipment-constant namelist (S2F29/F30): ECID → name/min/max/default."""
     with secsgem_session(target) as h:
-        ecs = _plain(h.list_ecs())
+        ecs = _plain(_decoded(h.list_ecs()))
         return {"count": len(ecs) if isinstance(ecs, list) else None, "equipment_constants": ecs}
 
 
@@ -75,7 +98,7 @@ def read_equipment_constants(target: Any, ecids: list) -> dict:
     if not ids:
         return {"error": "Pass a non-empty list of ECIDs to read."}
     with secsgem_session(target) as h:
-        return {"ecids": _plain(ids), "values": _plain(h.request_ecs(ids))}
+        return {"ecids": _plain(ids), "values": _plain(_decoded(h.request_ecs(ids)))}
 
 
 def list_alarms(target: Any) -> dict:
