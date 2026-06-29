@@ -64,3 +64,21 @@ def test_non_numeric_sequence_entries_ignored():
     r = sh([1, "x", 2, None, 3])
     assert r["received"] == 3
     assert r["verdict"] == "ok"
+
+
+def test_booleans_are_not_treated_as_sequence_numbers():
+    # True/False must be filtered, not coerced to 1/0 and counted as seqs
+    r = sh([1, True, 2, False, 3])
+    assert r["received"] == 3
+    assert r["verdict"] == "ok"
+
+
+def test_wrap_at_must_be_greater_than_one():
+    assert "error" in sh([5, 6, 7], wrap_at=1)
+    assert "error" in sh([5, 6, 7], wrap_at=0)
+
+
+def test_reject_rate_boundary_is_exclusive():
+    # exactly 0.2 is not yet "overloaded" (strict >), 0.3 is
+    assert sh([1, 2, 3], republish_requested=10, republish_rejected=2)["verdict"] == "ok"
+    assert sh([1, 2, 3], republish_requested=10, republish_rejected=3)["verdict"] == "overloaded"
