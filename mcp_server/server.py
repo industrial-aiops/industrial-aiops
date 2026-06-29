@@ -34,6 +34,10 @@ def register_profile(spec: str | None) -> list[str]:
     the shared ``mcp`` instance — so importing only the selected modules exposes
     only the selected surface. The cross-protocol brain is always included.
     Returns the active protocol keys.
+
+    Note: registration is additive within a process (import is sys.modules-cached
+    and decoration runs at import) — call once per server process. It cannot
+    *narrow* an already-registered surface.
     """
     for mod in selected_tool_modules(spec):
         importlib.import_module(f"mcp_server.tools.{mod}")

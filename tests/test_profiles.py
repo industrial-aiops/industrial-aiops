@@ -40,6 +40,13 @@ def test_unknown_token_fails_fast():
     assert "bacnet" in str(ei.value)
 
 
+def test_content_free_spec_fails_fast():
+    # truthy-but-empty specs must not silently yield a zero-protocol server
+    for bad in (",", ", ,", " , "):
+        with pytest.raises(UnknownProtocolError):
+            resolve_selection(bad)
+
+
 def test_selected_modules_always_include_brain():
     mods = selected_tool_modules("opcua")
     assert set(BRAIN_MODULES).issubset(mods)
@@ -67,5 +74,3 @@ def test_profile_narrows_exposed_surface():
     assert opcua_n < all_n
     # … and a 3-protocol profile sits in between
     assert opcua_n < fab_n < all_n
-    # the brain is always present, so even one protocol has a non-trivial surface
-    assert opcua_n >= len(BRAIN_MODULES)

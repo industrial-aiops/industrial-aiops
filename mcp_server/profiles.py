@@ -42,7 +42,7 @@ BRAIN_MODULES = (
 NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "all": tuple(PROTOCOL_MODULES),
     "fab": ("opcua", "s7", "modbus"),
-    "factory": ("modbus", "s7", "eip", "mc", "ethercat", "mtconnect", "opcua"),
+    "factory": ("modbus", "s7", "eip", "mc", "ethercat", "mtconnect", "opcua", "sparkplug"),
     "process": ("opcua", "modbus"),
 }
 
@@ -76,6 +76,14 @@ def resolve_selection(spec: str | None) -> list[str]:
         for k in keys:
             if k not in selected:
                 selected.append(k)
+    if not selected:
+        # A non-empty but content-free spec (e.g. "," or ", ,") is a misconfig —
+        # fail fast rather than silently exposing a brain-only, zero-protocol server.
+        valid = ", ".join(sorted(set(PROTOCOL_MODULES) | set(NAMED_PROFILES)))
+        raise UnknownProtocolError(
+            f"IAIOPS_MCP={spec!r} selected no protocols. Use a comma list and/or a "
+            f"profile: {valid}."
+        )
     return selected
 
 
