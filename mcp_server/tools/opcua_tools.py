@@ -7,8 +7,8 @@ pre-check, budget/runaway guard, risk-tier gate, and audit logging to
 
 from typing import Optional
 
+from iaiops.connectors.opcua import ops
 from iaiops.core.governance import governed_tool
-from iaiops.ops import opcua_ops as ops
 from mcp_server._shared import _target, mcp, tool_errors
 
 

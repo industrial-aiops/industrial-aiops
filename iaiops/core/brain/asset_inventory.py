@@ -66,7 +66,7 @@ def _fingerprint_one(target: Any) -> dict:
 def _probe_identity(target: Any, proto: str) -> dict:
     """Per-protocol identity call → {vendor, model, firmware, serial}."""
     if proto == "opcua":
-        from iaiops.ops.opcua_ops import server_info
+        from iaiops.connectors.opcua.ops import server_info
 
         info = server_info(target)
         return {
@@ -75,7 +75,7 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "firmware": s(info.get("software_version", ""), 64),
         }
     if proto == "s7":
-        from iaiops.ops.s7_ops import s7_cpu_info
+        from iaiops.connectors.s7.ops import s7_cpu_info
 
         info = s7_cpu_info(target)
         cpu = info.get("cpu_info", {})
@@ -86,7 +86,7 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "serial": s(cpu.get("SerialNumber", ""), 64),
         }
     if proto in ("ethernetip", "eip"):
-        from iaiops.ops.eip_ops import eip_controller_info
+        from iaiops.connectors.eip.ops import eip_controller_info
 
         info = eip_controller_info(target)
         ctrl = info.get("controller", {})
@@ -97,7 +97,7 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "serial": s(str(ctrl.get("serial", "")), 64),
         }
     if proto == "mc":
-        from iaiops.ops.mc_ops import mc_cpu_status
+        from iaiops.connectors.mc.ops import mc_cpu_status
 
         info = mc_cpu_status(target)
         return {
@@ -108,7 +108,7 @@ def _probe_identity(target: Any, proto: str) -> dict:
     if proto == "modbus":
         return _modbus_identity(target)
     if proto == "mtconnect":
-        from iaiops.ops.mtconnect_ops import mtconnect_probe
+        from iaiops.connectors.mtconnect.ops import mtconnect_probe
 
         info = mtconnect_probe(target)
         devices = info.get("devices", [])

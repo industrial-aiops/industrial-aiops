@@ -14,7 +14,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
-from iaiops.ops import ethercat_ops as ops
+from iaiops.connectors.ethercat import ops
 
 ethercat_app = typer.Typer(
     help="EtherCAT read-first telemetry (pysoem/SOEM; Linux+root+NIC+slaves).",

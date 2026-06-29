@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
-from iaiops.ops import sparkplug_ops as ops
+from iaiops.connectors.sparkplug import ops
 
 mqtt_app = typer.Typer(help="MQTT / Sparkplug B / UNS consume-first telemetry.",
                        no_args_is_help=True)

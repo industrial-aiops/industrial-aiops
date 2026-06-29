@@ -12,8 +12,8 @@ import struct
 import pytest
 
 import iaiops.core.runtime.connection as conn
+from iaiops.connectors.modbus import ops
 from iaiops.core.runtime.config import MonitorTag, TargetConfig
-from iaiops.ops import modbus_ops as ops
 
 
 class _FakeResp:

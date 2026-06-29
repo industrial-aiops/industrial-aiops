@@ -52,7 +52,7 @@ _log = logging.getLogger("iaiops.core.runtime.config")
 # OT protocols this tool officially supports. ``eip`` is an accepted alias for
 # ``ethernetip`` (normalized to ``ethernetip`` on load). ``ethercat`` is a REAL
 # driver backed by the OPTIONAL ``pysoem`` extra (Linux + root/CAP_NET_RAW + a
-# dedicated NIC + real slaves; no software simulator) — see iaiops.ops.ethercat_ops.
+# dedicated NIC + real slaves; no software simulator) — see iaiops.connectors.ethercat.ops.
 SUPPORTED_PROTOCOLS = (
     "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "eip", "ethercat",
 )

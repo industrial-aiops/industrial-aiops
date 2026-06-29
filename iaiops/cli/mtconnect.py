@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
-from iaiops.ops import mtconnect_ops as ops
+from iaiops.connectors.mtconnect import ops
 
 mtconnect_app = typer.Typer(help="MTConnect read-only CNC telemetry.", no_args_is_help=True)
 console = Console()

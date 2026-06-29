@@ -13,9 +13,9 @@ import socket
 
 import pytest
 
+from iaiops.connectors.opcua import ops
 from iaiops.core.brain import analysis
 from iaiops.core.runtime.config import TargetConfig
-from iaiops.ops import opcua_ops as ops
 
 
 def _free_port() -> int:

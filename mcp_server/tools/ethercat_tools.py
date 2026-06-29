@@ -12,8 +12,8 @@ error dict instead of crashing. 未经授权勿对生产控制系统写入.
 
 from typing import Any, Optional
 
+from iaiops.connectors.ethercat import ops
 from iaiops.core.governance import governed_tool
-from iaiops.ops import ethercat_ops as ops
 from mcp_server._shared import _target, mcp, tool_errors
 
 

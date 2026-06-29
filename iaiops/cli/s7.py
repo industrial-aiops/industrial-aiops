@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
-from iaiops.ops import s7_ops as ops
+from iaiops.connectors.s7 import ops
 
 s7_app = typer.Typer(help="S7comm read-first telemetry (Siemens + 仿西门子).",
                      no_args_is_help=True)

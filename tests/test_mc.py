@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 
 import iaiops.core.runtime.connection as conn
+from iaiops.connectors.mc import ops
 from iaiops.core.runtime.config import TargetConfig
-from iaiops.ops import mc_ops as ops
 
 
 class _FakeMCClient:

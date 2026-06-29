@@ -12,8 +12,8 @@ from __future__ import annotations
 import pytest
 
 import iaiops.core.runtime.connection as conn
+from iaiops.connectors.ethercat import ops
 from iaiops.core.runtime.config import TargetConfig
-from iaiops.ops import ethercat_ops as ops
 
 # pysoem AL-state codes
 INIT, PREOP, SAFEOP, OP = 1, 2, 4, 8

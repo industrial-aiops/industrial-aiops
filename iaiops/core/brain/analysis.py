@@ -12,15 +12,15 @@ import statistics
 import time
 from typing import Any
 
-from iaiops.core.brain._shared import num, s
-from iaiops.core.runtime.config import MonitorTag
-from iaiops.core.runtime.connection import opcua_session
-from iaiops.ops.opcua_ops import (
+from iaiops.connectors.opcua.ops import (
     MAX_SAMPLE_SECONDS,
     MAX_SAMPLES,
     _coerce_value,
     _read_one,
 )
+from iaiops.core.brain._shared import num, s
+from iaiops.core.runtime.config import MonitorTag
+from iaiops.core.runtime.connection import opcua_session
 
 
 def _resolve_tag(target: Any, ref: str, overrides: dict | None) -> MonitorTag:

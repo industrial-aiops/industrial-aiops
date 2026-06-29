@@ -7,8 +7,8 @@ automatic inverse. 未经授权勿对生产控制系统下发指令.
 
 from typing import Optional
 
+from iaiops.connectors.sparkplug import ops
 from iaiops.core.governance import governed_tool
-from iaiops.ops import sparkplug_ops as ops
 from mcp_server._shared import _target, mcp, tool_errors
 
 

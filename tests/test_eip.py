@@ -13,8 +13,8 @@ from collections import namedtuple
 import pytest
 
 import iaiops.core.runtime.connection as conn
+from iaiops.connectors.eip import ops
 from iaiops.core.runtime.config import TargetConfig
-from iaiops.ops import eip_ops as ops
 
 # pycomm3's Tag is a 4-field namedtuple (tag, value, type, error).
 Tag = namedtuple("Tag", "tag value type error")

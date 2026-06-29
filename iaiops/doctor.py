@@ -103,7 +103,7 @@ def _probe_ethercat(target) -> tuple[bool, str]:
     Linux/root/NIC/pysoem) instead of crashing.
     """
     try:
-        from iaiops.ops.ethercat_ops import ethercat_master_state
+        from iaiops.connectors.ethercat.ops import ethercat_master_state
 
         info = ethercat_master_state(target)
         return True, (
@@ -138,37 +138,37 @@ def _probe(target) -> tuple[bool, str]:
     """Probe one endpoint read-only; return (ok, detail) — never raises."""
     try:
         if target.protocol == "opcua":
-            from iaiops.ops.opcua_ops import server_info
+            from iaiops.connectors.opcua.ops import server_info
 
             info = server_info(target)
             return True, f"OPC-UA state={info.get('state')} ({info.get('product_name', '?')})"
         if target.protocol == "modbus":
-            from iaiops.ops.modbus_ops import modbus_read_holding
+            from iaiops.connectors.modbus.ops import modbus_read_holding
 
             result = modbus_read_holding(target, address=0, count=1)
             return True, f"Modbus holding[0]={result.get('decoded')}"
         if target.protocol == "s7":
-            from iaiops.ops.s7_ops import s7_cpu_info
+            from iaiops.connectors.s7.ops import s7_cpu_info
 
             info = s7_cpu_info(target)
             return True, f"S7 cpu_status={info.get('cpu_status')}"
         if target.protocol == "mc":
-            from iaiops.ops.mc_ops import mc_cpu_status
+            from iaiops.connectors.mc.ops import mc_cpu_status
 
             info = mc_cpu_status(target)
             return True, f"MC cpu={info.get('cpu_type')}"
         if target.protocol == "mtconnect":
-            from iaiops.ops.mtconnect_ops import mtconnect_current
+            from iaiops.connectors.mtconnect.ops import mtconnect_current
 
             cur = mtconnect_current(target)
             return True, f"MTConnect observations={cur.get('observation_count')}"
         if target.protocol == "mqtt":
-            from iaiops.ops.sparkplug_ops import mqtt_read_topic
+            from iaiops.connectors.sparkplug.ops import mqtt_read_topic
 
             out = mqtt_read_topic(target, count=1, timeout_s=3)
             return True, f"MQTT connected, messages={out.get('message_count')}"
         if target.protocol in ("ethernetip", "eip"):
-            from iaiops.ops.eip_ops import eip_controller_info
+            from iaiops.connectors.eip.ops import eip_controller_info
 
             info = eip_controller_info(target)
             ctrl = info.get("controller", {})

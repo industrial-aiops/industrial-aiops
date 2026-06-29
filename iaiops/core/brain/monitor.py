@@ -24,27 +24,27 @@ def _read_point(target: Any, ref: str) -> tuple[Any, str]:
     """Read one point across protocols → (value, source_timestamp). Best-effort."""
     protocol = getattr(target, "protocol", "")
     if protocol == "opcua":
-        from iaiops.ops.opcua_ops import read_node
+        from iaiops.connectors.opcua.ops import read_node
 
         desc = read_node(target, ref)
         return desc.get("value"), desc.get("source_timestamp", "")
     if protocol == "modbus":
-        from iaiops.ops.modbus_ops import modbus_read_holding
+        from iaiops.connectors.modbus.ops import modbus_read_holding
 
         r = modbus_read_holding(target, address=int(ref), count=1)
         return (r.get("decoded") or [None])[0], ""
     if protocol == "s7":
-        from iaiops.ops.s7_ops import s7_read_many
+        from iaiops.connectors.s7.ops import s7_read_many
 
         items = s7_read_many(target, [ref]).get("items") or []
         return (items[0]["value"] if items else None), ""
     if protocol == "mc":
-        from iaiops.ops.mc_ops import mc_read_words
+        from iaiops.connectors.mc.ops import mc_read_words
 
         words = mc_read_words(target, ref, count=1).get("words") or []
         return (words[0] if words else None), ""
     if protocol in ("ethernetip", "eip"):
-        from iaiops.ops.eip_ops import eip_read_tag
+        from iaiops.connectors.eip.ops import eip_read_tag
 
         desc = eip_read_tag(target, ref)
         return desc.get("value"), ""

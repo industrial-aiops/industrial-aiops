@@ -8,9 +8,9 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.connectors.opcua import ops
 from iaiops.core.brain import analysis
 from iaiops.core.brain import monitor as mon
-from iaiops.ops import opcua_ops as ops
 
 opcua_app = typer.Typer(help="OPC-UA read-only telemetry & problem surfacing.",
                         no_args_is_help=True)

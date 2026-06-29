@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
-from iaiops.ops import mc_ops as ops
+from iaiops.connectors.mc import ops
 
 mc_app = typer.Typer(help="Mitsubishi MC read-first telemetry (Q/L/iQ-R).",
                      no_args_is_help=True)

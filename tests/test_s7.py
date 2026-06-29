@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 
 import iaiops.core.runtime.connection as conn
+from iaiops.connectors.s7 import ops
 from iaiops.core.runtime.config import TargetConfig
-from iaiops.ops import s7_ops as ops
 
 
 class _FakeS7Client:

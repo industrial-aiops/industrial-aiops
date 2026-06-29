@@ -11,8 +11,8 @@ import base64
 
 import pytest
 
+from iaiops.connectors.sparkplug import ops
 from iaiops.core.runtime.config import TargetConfig
-from iaiops.ops import sparkplug_ops as ops
 
 TARGET = TargetConfig(name="uns", protocol="mqtt", host="broker", topic="spBv1.0/#")
 
@@ -21,7 +21,7 @@ TARGET = TargetConfig(name="uns", protocol="mqtt", host="broker", topic="spBv1.0
 
 
 def _pb():
-    from iaiops import sparkplug_b_pb2
+    from iaiops.connectors.sparkplug import sparkplug_b_pb2
 
     return sparkplug_b_pb2
 

@@ -7,7 +7,7 @@ them — decoded as JSON/text or full **Sparkplug B protobuf** where applicable.
 
 Sparkplug B decoding is complete (not a hex preview): the payload protobuf is
 parsed with a *vendored, byte-for-byte* copy of the official Eclipse Tahu
-``sparkplug_b.proto`` generated module (:mod:`iaiops.sparkplug_b_pb2`,
+``sparkplug_b.proto`` generated module (:mod:`iaiops.connectors.sparkplug.sparkplug_b_pb2`,
 depends only on ``protobuf``). Per metric we surface name, **alias** (resolved to
 its name via the NBIRTH/DBIRTH model), datatype (Int/Float/Bool/String/DateTime/
 DataSet/Template…), value, timestamp, and the ``is_historical`` / ``is_null``
@@ -91,7 +91,7 @@ def _collect(target: Any, topic: str, count: int, timeout_s: int) -> list[dict]:
 def _sparkplug_pb():
     """Return the vendored Sparkplug B protobuf module, or None if unavailable."""
     try:
-        from iaiops import sparkplug_b_pb2
+        from iaiops.connectors.sparkplug import sparkplug_b_pb2
 
         return sparkplug_b_pb2
     except Exception:  # noqa: BLE001 — missing protobuf must not crash the tool

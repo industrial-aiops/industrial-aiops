@@ -2,8 +2,8 @@
 
 from typing import Optional
 
+from iaiops.connectors.modbus import ops
 from iaiops.core.governance import governed_tool
-from iaiops.ops import modbus_ops as ops
 from mcp_server._shared import _target, mcp, tool_errors
 
 
