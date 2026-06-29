@@ -408,7 +408,7 @@ def _finalize(state: _CallState) -> None:
 def _infer_skill(func: Any) -> str:
     """Infer the skill name from the function's module path.
 
-    ``iaiops.ops.jobs`` → ``iaiops``
+    ``iaiops.connectors.opcua.ops`` → ``iaiops``
     ``mcp_server.server`` → ``iaiops`` (the only consumer here).
     """
     module = getattr(func, "__module__", "") or ""

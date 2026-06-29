@@ -40,14 +40,14 @@ from cryptography.exceptions import InvalidKey
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
+from iaiops.core.governance.paths import ops_home
+
 # ─── Tool-specific constants (change these three to vendor for another tool) ──
 APP_NAME = "iaiops"
-_LEGACY_CONFIG_DIR = Path.home() / ".ot-aiops"  # pre-rename location
-# Default to ~/.iaiops, but keep using a pre-existing legacy ~/.ot-aiops store so
-# existing encrypted secrets keep unlocking after the rename.
-CONFIG_DIR = Path.home() / ".iaiops"
-if not CONFIG_DIR.exists() and _LEGACY_CONFIG_DIR.exists():
-    CONFIG_DIR = _LEGACY_CONFIG_DIR
+# Secrets live alongside the rest of the harness state. ops_home() centralizes the
+# IAIOPS_HOME override + legacy ~/.ot-aiops fallback, so audit/budget/undo and
+# secrets never split-brain across two directories.
+CONFIG_DIR = ops_home()
 MASTER_PASSWORD_ENV = "IAIOPS_MASTER_PASSWORD"  # nosec B105 — env var name, not a secret
 _LEGACY_MASTER_PASSWORD_ENV = "OT_AIOPS_MASTER_PASSWORD"  # nosec B105 — pre-rename fallback
 # ──────────────────────────────────────────────────────────────────────────────

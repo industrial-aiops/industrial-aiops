@@ -155,7 +155,8 @@ def decode_sparkplug_payload(payload: bytes, alias_map: dict[int, str] | None = 
             "encoding": "binary",
             "bytes": len(payload),
             "hex_preview": payload[:32].hex(),
-            "error": "protobuf not available to decode Sparkplug B.",
+            "error": "protobuf not available to decode Sparkplug B. "
+            "Install the connector: 'pip install iaiops[sparkplug]'.",
         }
     aliases = alias_map or {}
     try:
