@@ -568,9 +568,127 @@ def _anomalies(values: list[float]) -> list[dict]:
     return out[:50]
 
 
+# ─── 4. Subscription / feed health ───────────────────────────────────────────
+
+
+def _sub_recommendation(verdict: str, overloaded: list[dict], reject_rate: float) -> str:
+    if verdict == "overloaded":
+        return (
+            "Server can't keep up. Spread tags across more channels/subscriptions — a "
+            "single channel with thousands of tags overloads the server (classic Kepware "
+            "republish/queue-flush). Keep each channel <= max_tags_per_channel and/or raise "
+            "the publishing interval."
+        )
+    if verdict == "lossy":
+        return (
+            "Sequence gaps mean dropped notifications. Reduce tags per subscription, increase "
+            "the monitored-item queue size and publishing interval, and check server CPU/load."
+        )
+    if verdict == "reordered":
+        return (
+            "Out-of-order / duplicate sequence numbers — usually transient redelivery. Verify "
+            "the network path and that a single client owns the subscription."
+        )
+    return "Subscription feed healthy."
+
+
+def subscription_health(
+    sequence: list[Any],
+    republish_requested: int = 0,
+    republish_rejected: int = 0,
+    tags_per_channel: dict[str, Any] | None = None,
+    max_tags_per_channel: int = 5000,
+    wrap_at: int | None = None,
+) -> dict:
+    """[READ] Health of a sequenced subscription feed (OPC-UA monitored items or
+    Sparkplug B): missed / duplicate / out-of-order sequence numbers, the
+    republish-rejection rate, and overloaded channels.
+
+    ``sequence`` is the list of sequence numbers actually received, in arrival
+    order. ``wrap_at`` enables modular arithmetic for rolling counters (e.g. 256
+    for Sparkplug B's seq); omit for monotonically-increasing OPC-UA counters.
+    ``tags_per_channel`` maps channel/endpoint -> tag count; any over
+    ``max_tags_per_channel`` is flagged (the #1 cause of Kepware large-subscription
+    dropouts). Pure analysis over injected telemetry — no live subscription needed.
+    """
+    seqs: list[int] = []
+    for x in list(sequence or [])[:MAX_SERIES]:
+        if isinstance(x, bool):  # a sequence number is never boolean
+            continue
+        n = num(x)
+        if n is not None:
+            seqs.append(int(n))
+
+    channels = tags_per_channel or {}
+    if not seqs and not channels and not republish_requested:
+        return {
+            "error": "Nothing to evaluate. Pass `sequence` (received seq numbers) "
+            "and/or tags_per_channel / republish_requested."
+        }
+    if wrap_at is not None and wrap_at <= 1:
+        return {
+            "error": "wrap_at must be > 1 (the rolling-counter modulus, e.g. 256 for "
+            "Sparkplug B)."
+        }
+
+    missed = duplicates = out_of_order = 0
+    for prev, cur in zip(seqs, seqs[1:]):
+        if wrap_at:  # validated > 1 above
+            step = (cur - prev) % wrap_at
+            if step == 0:
+                duplicates += 1
+            elif step == 1:
+                continue
+            # A modular step past the half-way point reads as a backward jump
+            # (reorder). Inherent ambiguity: a very large forward loss (> wrap_at/2
+            # missed) lands here too — unavoidable from the sequence alone.
+            elif step > wrap_at // 2:
+                out_of_order += 1
+            else:
+                missed += step - 1
+        else:
+            if cur == prev:
+                duplicates += 1
+            elif cur < prev:
+                out_of_order += 1
+            elif cur > prev + 1:
+                missed += cur - prev - 1
+
+    reject_rate = republish_rejected / republish_requested if republish_requested > 0 else 0.0
+
+    overloaded: list[dict] = []
+    for ch, cnt in channels.items():
+        c = num(cnt)
+        if c is not None and c > max_tags_per_channel:
+            overloaded.append({"channel": s(str(ch), 60), "tags": int(c)})
+
+    verdict = "ok"
+    if overloaded or reject_rate > 0.2:
+        verdict = "overloaded"
+    elif missed:
+        verdict = "lossy"
+    elif out_of_order or duplicates:
+        verdict = "reordered"
+
+    return {
+        "received": len(seqs),
+        "missed_count": missed,
+        "duplicate_count": duplicates,
+        "out_of_order_count": out_of_order,
+        "republish_requested": republish_requested,
+        "republish_rejected": republish_rejected,
+        "republish_reject_rate": round(reject_rate, 4),
+        "overloaded_channels": overloaded[:50],
+        "max_tags_per_channel": max_tags_per_channel,
+        "verdict": verdict,
+        "recommendation": _sub_recommendation(verdict, overloaded, reject_rate),
+    }
+
+
 __all__ = [
     "diagnose_dataflow",
     "historian_health",
     "alarm_bad_actors",
     "tag_health",
+    "subscription_health",
 ]
