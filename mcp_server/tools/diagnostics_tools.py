@@ -6,7 +6,10 @@ multi-dimensional JSON designed for an agent to visualize.
 
 from typing import Optional
 
+from iaiops.core.brain import dataquality as dq
 from iaiops.core.brain import diagnostics as diag
+from iaiops.core.brain import rca as rca_brain
+from iaiops.core.brain import rca_collect
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -167,3 +170,150 @@ def subscription_health(
         max_tags_per_channel,
         wrap_at,
     )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def downtime_root_cause(
+    window: dict,
+    alarms: Optional[list] = None,
+    tags: Optional[list] = None,
+    dataflow: Optional[dict] = None,
+    state_series: Optional[list] = None,
+    lead_window_s: float = 300.0,
+) -> dict:
+    """[READ][risk=low] AI downtime root-cause copilot — cited verdict, ADVISORY only.
+
+    Correlates whatever evidence you supply around a downtime/incident window —
+    alarm events, tag samples, a diagnose_dataflow verdict, a machine-state series —
+    ranks candidate root causes, and cites the REAL signals behind each. Read-first:
+    it proposes a human-approved, undoable (MOC-gated) action but executes nothing.
+    Anti-hallucination: only signals present in the input are cited; thin evidence
+    downgrades to 'insufficient_evidence' with a 'recommended_next_data' list rather
+    than a confident guess. Confidence combines independent, time-correlated evidence
+    (signals BEFORE onset outweigh signals during it).
+
+    Args:
+        window: {start (ISO-8601), end? (ISO-8601), asset?, category?}. If 'end' is
+            omitted but state_series is given, the first running→stopped span bounds it.
+        alarms: Alarm/condition events — {source, timestamp, message?, priority?, state?}.
+        tags: Per-tag samples — {ref, samples:[scalars or {value, good|quality}],
+            warn_high?, alarm_high?, ...} (scored via tag_health).
+        dataflow: A diagnose_dataflow result dict (its 'verdict' localizes comms vs field).
+        state_series: {timestamp, state} samples to bound the window if 'end' is absent.
+        lead_window_s: How far before onset a signal may sit and still count as a cause
+            (default 300s); signals after onset are treated as consequences.
+
+    Returns dict: {window, verdict ('root_cause_identified'|'multiple_candidates'|
+        'insufficient_evidence'), primary_cause, hypotheses:[{cause, confidence (0..1),
+        confidence_band, evidence:[{signal, ref, at?, lead_time_s?, detail, weight}],
+        recommended_action}], evidence_summary, recommended_next_data?,
+        anti_hallucination}.
+
+    Example: downtime_root_cause(window={"start":"2026-06-28T10:00:00Z","asset":"line1"},
+        alarms=[{"source":"M1_DRIVE","timestamp":"2026-06-28T09:59:50Z",
+                 "message":"motor overload trip"}], dataflow={"verdict":"healthy"}).
+    """
+    return rca_brain.downtime_rca(
+        window, alarms, tags, dataflow, state_series, lead_window_s
+    )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def downtime_root_cause_live(
+    endpoint: Optional[str] = None,
+    window: Optional[dict] = None,
+    refs: Optional[list] = None,
+    sample_count: int = 8,
+    interval_ms: int = 200,
+    include_alarms: bool = True,
+    lead_window_s: float = 300.0,
+) -> dict:
+    """[READ][risk=low] AI downtime RCA copilot that GATHERS its own live evidence.
+
+    Same advisory, read-only, evidence-cited contract as downtime_root_cause — but
+    instead of hand-injecting evidence you give an endpoint + incident window and it
+    pulls the evidence itself: a cross-protocol diagnose_dataflow probe, a short
+    sampled series per ref (so flatline/bad-quality/anomaly surface via tag_health),
+    and active OPC-UA conditions. Light read load; non-destructive; nothing executed.
+    The gathered bundle is echoed under 'collected_evidence' (no hidden inputs).
+
+    Args:
+        endpoint: Endpoint name from config (any protocol). Omit for the default.
+        window: {start (ISO-8601), end?, asset?, category?, freshness_threshold_s?}.
+        refs: Tags/nodes/addresses to sample for this incident (first is also the
+            diagnose_dataflow target). Capped at 20.
+        sample_count: Reads per ref to build its series (1..60, default 8).
+        interval_ms: Delay between reads (>=50ms, default 200).
+        include_alarms: Surface active OPC-UA conditions as alarm evidence (OPC-UA only).
+        lead_window_s: Causal lead window before onset (default 300s).
+
+    Returns dict: same shape as downtime_root_cause plus 'collected_evidence'
+        {endpoint, protocol, refs_sampled, alarms_found, dataflow_verdict}.
+
+    Example: downtime_root_cause_live(endpoint="line1",
+        window={"start":"2026-06-28T10:00:00Z","asset":"line1"},
+        refs=["ns=2;i=5","ns=2;i=6"]).
+    """
+    if not isinstance(window, dict) or not window.get("start"):
+        return {"error": "window={start: ISO-8601, ...} is required.",
+                "hint": "Pass the incident onset time as window.start."}
+    return rca_collect.downtime_rca_live(
+        _target(endpoint), window, refs, sample_count, interval_ms,
+        include_alarms, lead_window_s,
+    )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def data_quality_scorecard(
+    feeds: list, default_staleness_s: float = 300.0, now: Optional[str] = None
+) -> dict:
+    """[READ][risk=low] Fleet data-TRUST scorecard across endpoints' tag feeds.
+
+    Scores each tag 0-100 on whether its data can be BELIEVED — staleness, dead
+    heartbeat, bad-quality, flatline, gaps, anomaly — then rolls up per endpoint
+    and across the fleet. NOT process health (it does not score whether a value is
+    alarming, only whether it is trustworthy). Pure analysis over provided feeds.
+
+    Args:
+        feeds: Per-endpoint feeds — {endpoint, tags:[{ref, label?, samples:[scalars
+            or {value, good|quality, timestamp?}], expected_update_s?, heartbeat?}]}.
+        default_staleness_s: Max sample-age before 'stale' when a tag sets no
+            expected_update_s (default 300).
+        now: ISO-8601 reference time for staleness (deterministic); omit for now-UTC.
+
+    Returns dict: {evaluated_endpoints, evaluated_tags, fleet_score (0-100),
+        fleet_status, issue_breakdown{}, worst_endpoints[], worst_tags[],
+        endpoints:[{endpoint, score, status, status_counts, worst_tag}]}.
+
+    Example: data_quality_scorecard(feeds=[{"endpoint":"line1","tags":[{"ref":"hb",
+        "heartbeat":true,"samples":[5,5,5,5]}]}]).
+    """
+    return dq.data_quality_scorecard(feeds, default_staleness_s, now)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def heartbeat_health(series: list, max_interval_s: Optional[float] = None) -> dict:
+    """[READ][risk=low] Is a heartbeat/watchdog tag still alive? (liveness check).
+
+    A heartbeat must keep CHANGING; a flatlined one means the upstream is dead even
+    when comms/quality look fine. With timestamped samples + max_interval_s, also
+    flags the longest stall.
+
+    Args:
+        series: Heartbeat samples — scalars or {value, timestamp?} (a counter/toggle).
+        max_interval_s: Max allowed gap between changes; exceeding it = not alive.
+
+    Returns dict: {alive (bool), samples, distinct_transitions, spread,
+        longest_stall_s, reason}.
+
+    Example: heartbeat_health(series=[1,2,3,4,5], max_interval_s=10).
+    """
+    return dq.heartbeat_health(series, max_interval_s)

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
 from iaiops.connectors.sparkplug import ops
+from iaiops.core.brain import uns_governance as uns
 
 mqtt_app = typer.Typer(help="MQTT / Sparkplug B / UNS consume-first telemetry.",
                        no_args_is_help=True)
@@ -76,3 +78,28 @@ def publish_cmd(
     if not typer.confirm("Final confirm — publish now?", default=False):
         raise typer.Abort()
     _emit(ops.mqtt_publish(target, topic, payload, qos=qos, retain=retain, dry_run=False))
+
+
+@mqtt_app.command("uns-audit")
+@cli_errors
+def uns_audit_cmd(
+    input: Path = typer.Option(..., "--input", help="JSON file: list of UNS topic strings"),
+    root: list[str] = typer.Option(None, "--root", help="Allowed top-level root (repeatable)"),
+    min_segments: int = typer.Option(0, "--min-segments"),
+    max_leaf_parents: int = typer.Option(5, "--max-leaf-parents"),
+) -> None:
+    """Govern a UNS topic tree: naming conformance + topic sprawl (over a JSON list)."""
+    topics = json.loads(Path(input).read_text("utf-8"))
+    _emit(uns.uns_topic_audit(topics, list(root) if root else None, min_segments, max_leaf_parents))
+
+
+@mqtt_app.command("uns-drift")
+@cli_errors
+def uns_drift_cmd(
+    baseline: Path = typer.Option(..., "--baseline", help="JSON: baseline node/metric schema"),
+    current: Path = typer.Option(..., "--current", help="JSON: current node/metric schema"),
+) -> None:
+    """Detect Sparkplug/UNS schema drift between two snapshot JSON files."""
+    base = json.loads(Path(baseline).read_text("utf-8"))
+    curr = json.loads(Path(current).read_text("utf-8"))
+    _emit(uns.uns_schema_drift(base, curr))

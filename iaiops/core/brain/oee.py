@@ -19,7 +19,7 @@ optimistic ideal cycle, is flagged rather than silently hidden).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from iaiops.core.brain._shared import num, s
@@ -97,18 +97,23 @@ def oee_compute(
 
 
 def _parse_ts(value: Any) -> datetime | None:
-    """Parse an ISO-8601 timestamp (tolerant of a trailing Z), else None."""
+    """Parse an ISO-8601 timestamp (tolerant of a trailing Z), else None.
+
+    Naive timestamps are coerced to UTC so a series mixing naive and aware (``Z``)
+    stamps can be sorted/subtracted without an offset-naive/aware TypeError.
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     text = str(value).strip()
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _is_running(state: Any) -> bool:

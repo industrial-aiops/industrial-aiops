@@ -26,6 +26,11 @@ PROTOCOL_MODULES = {
     "sparkplug": "sparkplug_tools",
     "ethercat": "ethercat_tools",
     "secsgem": "secsgem_tools",
+    "profinet": "profinet_tools",
+    "iec104": "iec104_tools",
+    "dnp3": "dnp3_tools",
+    "iec61850": "iec61850_tools",
+    "bacnet": "bacnet_tools",
 }
 
 # Always registered: the cross-protocol intelligence layer.
@@ -36,6 +41,8 @@ BRAIN_MODULES = (
     "asset_tools",
     "oee_tools",
     "monitor_tools",
+    # 信创 / compliance self-assessment + national-TSDB historian sink.
+    "compliance_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are
@@ -43,8 +50,13 @@ BRAIN_MODULES = (
 NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "all": tuple(PROTOCOL_MODULES),
     "fab": ("secsgem", "opcua", "s7", "modbus"),
-    "factory": ("modbus", "s7", "eip", "mc", "ethercat", "mtconnect", "opcua", "sparkplug"),
+    "factory": ("modbus", "s7", "eip", "mc", "ethercat", "profinet", "mtconnect",
+                "opcua", "sparkplug"),
     "process": ("opcua", "modbus"),
+    # Energy edition: electrical substation / utility telecontrol protocols.
+    "energy": ("iec104", "dnp3", "iec61850", "modbus", "opcua"),
+    # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).
+    "building": ("bacnet", "modbus", "opcua"),
 }
 
 
