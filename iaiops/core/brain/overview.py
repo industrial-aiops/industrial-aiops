@@ -18,7 +18,8 @@ PROTOCOLS: tuple[dict, ...] = (
         "read_tools": [
             "opcua_server_info", "opcua_browse", "opcua_read_node",
             "opcua_read_many", "opcua_subscribe_sample", "opcua_read_alarms",
-            "opcua_read_history", "health_summary", "anomaly_scan",
+            "opcua_read_history", "opcua_diagnose_connection",
+            "opcua_discover_tags", "health_summary", "anomaly_scan",
         ],
         "write_tools": [],
         "params": ["endpoint_url", "username", "security_mode", "security_policy"],
