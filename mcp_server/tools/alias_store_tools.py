@@ -20,7 +20,10 @@ from mcp_server._shared import mcp, tool_errors
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def adopt_alias_map(feeds: list, site: Optional[str] = None) -> dict:
-    """[READ][risk=low] Adopt + persist the canonical alias map for a site.
+    """[READ+PERSIST][risk=low] Adopt + persist the canonical alias map for a site.
+
+    Writes a local owner-only advisory JSON file (NOT an OT-device write — hence
+    risk=low); see the persistence note below.
 
     Runs the cross-protocol asset model over ``feeds``, extracts the adopted map
     ``{canonical_alias: {ref, protocol, asset, name, class}}``, and persists it as
