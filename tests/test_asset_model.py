@@ -109,11 +109,45 @@ def test_cross_protocol_overlap_same_physical_quantity():
 def test_alias_collision_detected_across_protocols():
     model = _model()
     collisions = model["naming_quality"]["alias_collisions"]
-    # both Line1 temperatures canonicalize to plant.line1.temperature.
-    hit = next(c for c in collisions if c["alias"] == "plant.line1.temperature")
+    # The two Line1 temperatures share the SAME class AND the same name
+    # ("Temperature"/"temperature") → a GENUINE collision after disambiguation
+    # (same physical point exposed by two protocols).
+    hit = next(c for c in collisions if c["alias"] == "plant.line1.temperature_temperature")
     assert hit["count"] == 2
     assert set(hit["protocols"]) == {"opcua", "modbus"}
     assert model["naming_quality"]["verdict"] == "review"
+
+
+@pytest.mark.unit
+def test_same_class_different_name_siblings_get_unique_aliases():
+    """Two temperatures with DIFFERENT names on one asset must NOT collide (the fix).
+
+    Same-class siblings are normal in OT (zone A / zone B); the canonical alias
+    must stay unique-per-tag (a usable rename map) and not spam the collision channel.
+    """
+    feeds = [{"protocol": "opcua", "source": "l", "asset": "Line1", "tags": [
+        {"browse_name": "TempZoneA", "class": "temperature"},
+        {"browse_name": "TempZoneB", "class": "temperature"},
+    ]}]
+    model = am.cross_protocol_asset_model(feeds, site="plant")
+    aliases = sorted(t["canonical_alias"] for a in model["assets"] for t in a["tags"])
+    assert aliases == ["plant.line1.temperature_tempzonea", "plant.line1.temperature_tempzoneb"]
+    assert model["naming_quality"]["alias_collisions"] == []
+    assert model["naming_quality"]["verdict"] == "clean"
+
+
+@pytest.mark.unit
+def test_case_insensitive_asset_fusion():
+    """'Line1' (OPC-UA) and 'LINE1' (Modbus) are the same asset — they must fuse."""
+    feeds = [
+        {"protocol": "opcua", "source": "a", "asset": "Line1", "tags": [
+            {"browse_name": "Temperature", "class": "temperature"}]},
+        {"protocol": "modbus", "source": "b", "asset": "LINE1", "tags": [
+            {"tag": "voltage_l1", "address": 0}]},
+    ]
+    model = am.cross_protocol_asset_model(feeds, site="p")
+    assert model["asset_count"] == 1
+    assert set(model["assets"][0]["protocols"]) == {"opcua", "modbus"}
 
 
 @pytest.mark.unit
