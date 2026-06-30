@@ -28,7 +28,11 @@
   `profinet_station_params` / `profinet_asset_inventory`). No RT cyclic data; DCP
   *Set* (set-name/ip/blink/reset) intentionally not exposed. Follow-up: add DCP Set
   behind the MOC write gate if demand appears.
-- **Modbus-RTU (serial)** — extend the Modbus connector (pymodbus already supports it).
+- ✅ **Modbus-RTU (serial)** — shipped: the Modbus connector now selects pymodbus's
+  `ModbusSerialClient` when an endpoint sets `transport: rtu` (or a `serial_port:`),
+  with `baudrate`/`parity`/`stopbits`/`bytesize` config; the same read ops work over
+  RTU and TCP. Client construction + config plumbing unit-verified. 待核实: live-serial
+  round-trip (needs real RS-485/USB hardware, not CI-verifiable).
 - ❌ Not doing: CC-Link (MC already covers Mitsubishi), PROFIBUS-DP (needs a master
   card, not software-tappable), FL-net (niche, no library).
 
@@ -49,7 +53,11 @@
   a cross-endpoint **fleet rollup** (`data_quality_fleet_rollup` brain fn + MCP tool +
   `iaiops diag dataquality-fleet`) that ranks endpoints by their worst tag and
   aggregates bad-quality counts across endpoints (extends `_rollup_endpoint`).
-- **Modbus byte-order auto-detect + vendor register templates** (R4 community pain).
+- ✅ **Modbus byte-order auto-detect + vendor register templates** (R4 community pain) —
+  shipped: `modbus_detect_byte_order` (pure decode: scores all candidate word/byte
+  orders for a numeric type against a hint/range) + `modbus_list_templates` /
+  `modbus_apply_template` (curated vendor register maps → named tags). New
+  `iaiops/connectors/modbus/byteorder.py` + `templates.py`, fully unit-tested.
 - **UNS governance** — Sparkplug/MQTT schema-drift detection + topic-sprawl /
   naming control (position as a governable neutral data source, not a broker).
 - ✅ **Tag auto-discovery + semantic modeling + safe alias layer** — shipped:

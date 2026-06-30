@@ -13,6 +13,25 @@
   the menu, and produces an identical registered tool set to `IAIOPS_MCP=<name>`.
   Pure sugar — the `IAIOPS_MCP` env var already delivered the capability.
 
+### Added — Modbus connector
+- **Modbus byte-order auto-detect + vendor register templates** (R4 community pain) —
+  `modbus_detect_byte_order` (PURE decode logic, no device): decodes a raw register
+  block under every candidate word/byte order for a numeric type (uint16/int16/
+  uint32/int32/float32 → AB/BA and ABCD/DCBA/BADC/CDAB) and scores them against a
+  known `hint` value and/or a plausible `[value_min, value_max]` band, returning the
+  best order + confidence. Plus `modbus_list_templates` / `modbus_apply_template`: a
+  curated set of vendor register maps (generic big-endian / word-swapped float blocks,
+  Eastron SDM630 energy meter, Schneider PM5xxx power meter) that decode a block into
+  named engineering tags. New modules `iaiops/connectors/modbus/byteorder.py` +
+  `templates.py`. Fully unit-tested.
+- **Modbus-RTU (serial) transport** — the Modbus connector now speaks Modbus-RTU over
+  a serial line as well as Modbus-TCP. Endpoints set `transport: rtu` (or just a
+  `serial_port:`) with `baudrate` / `parity` / `stopbits` / `bytesize`; the connection
+  layer builds pymodbus's `ModbusSerialClient` and the same read ops (holding / input /
+  coils / discrete) work unchanged. Client construction + config plumbing are
+  unit-verified (monkeypatched pymodbus client). **待核实:** the live-serial round-trip
+  needs real RS-485/USB hardware and is not CI-verifiable.
+
 ### Added — intelligence layer
 - **Data-quality watchdog enhancements** (`iaiops/core/brain/dataquality.py`) — extends
   the data-trust scorecard with: (1) **configurable staleness/gap per tag and per feed**

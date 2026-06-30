@@ -14,6 +14,7 @@ from __future__ import annotations
 import struct
 from typing import Any
 
+from iaiops.connectors.modbus import byteorder, templates
 from iaiops.core.brain._shared import s
 from iaiops.core.runtime.connection import OTConnectionError, modbus_session
 
@@ -109,6 +110,56 @@ def modbus_read_coils(target: Any, address: int, count: int = 1) -> dict:
 def modbus_read_discrete(target: Any, address: int, count: int = 1) -> dict:
     """[READ] Read discrete inputs (FC02) — read-only digital inputs."""
     return _read_bits(target, address, count, "read_discrete_inputs")
+
+
+def modbus_detect_byte_order(
+    registers: list[int],
+    value_type: str = "float32",
+    hint: float | None = None,
+    value_min: float | None = None,
+    value_max: float | None = None,
+) -> dict:
+    """[READ] Detect the word/byte order of a raw Modbus register block.
+
+    Pure decode logic (no device): decodes ``registers`` under every candidate
+    order for ``value_type`` (uint16/int16/uint32/int32/float32) and scores them
+    against a ``hint`` value and/or a ``[value_min, value_max]`` plausibility band.
+    Returns the candidates, the best-matching order and a confidence.
+    """
+    return byteorder.detect_byte_order(
+        list(registers),
+        value_type,
+        hint=hint,
+        value_min=value_min,
+        value_max=value_max,
+    )
+
+
+def modbus_list_templates() -> dict:
+    """[READ] List the built-in vendor register-map templates."""
+    return {"templates": templates.list_templates()}
+
+
+def modbus_apply_template(
+    target: Any, template: str, address: int | None = None, count: int | None = None
+) -> dict:
+    """[READ] Read a register block and decode it into named tags via a template.
+
+    Reads ``count`` registers (default: the template's span) starting at
+    ``address`` from the right register file (holding/input per the template),
+    then decodes them into named engineering tags. ``address`` defaults to the
+    template's own base offset (its lowest register) so a template using absolute
+    vendor addresses reads from the right place without the caller knowing them;
+    pass ``address`` to override.
+    """
+    tmpl = templates.get_template(template)
+    start = address if address is not None else tmpl.base_offset
+    span = count if count is not None else tmpl.span
+    fn_name = "read_input_registers" if tmpl.register_type == "input" else "read_holding_registers"
+    block = _read_registers(target, start, span, "raw", fn_name)
+    decoded = templates.apply_template(template, block["raw_registers"], start_address=start)
+    decoded["unit_id"] = target.unit_id
+    return decoded
 
 
 def modbus_health_summary(
