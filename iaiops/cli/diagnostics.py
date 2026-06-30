@@ -16,7 +16,7 @@ from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
 from iaiops.core.brain import dataquality as dq
 from iaiops.core.brain import diagnostics as diag
 from iaiops.core.brain import rca as rca_brain
-from iaiops.core.brain import rca_collect
+from iaiops.core.brain import rca_collect, rca_weights
 
 diag_app = typer.Typer(help="Cross-protocol intelligent troubleshooting (read-only).",
                        no_args_is_help=True)
@@ -113,17 +113,24 @@ def rca_cmd(
         help="JSON evidence bundle: {window, alarms?, tags?, dataflow?, state_series?}",
     ),
     lead_window_s: float = typer.Option(300.0, "--lead-window-s"),
+    weights: Path = typer.Option(
+        None, "--weights",
+        help="JSON file: per-site {cause: weight} override (e.g. from 'diag learn-weights')",
+    ),
 ) -> None:
     """AI downtime root-cause copilot — cited, advisory-only verdict over evidence.
 
     The bundle JSON carries the incident ``window`` ({start, end?, asset?, category?})
-    plus any of ``alarms`` / ``tags`` / ``dataflow`` / ``state_series``. Nothing is
-    executed; the output ranks causes, cites the real signals, and proposes a
-    human-approved, undoable action.
+    plus any of ``alarms`` / ``tags`` / ``dataflow`` / ``state_series`` (and an
+    optional inline ``cause_weights``). ``--weights`` points at a learned per-site
+    ``{cause: weight}`` profile that overrides the inline one. Nothing is executed;
+    the output ranks causes, cites the real signals, and proposes a human-approved,
+    undoable action.
     """
     bundle = _load_json(input)
     if not isinstance(bundle, dict) or "window" not in bundle:
         raise ValueError("Bundle must be an object with at least a 'window' key.")
+    cause_weights = _load_json(weights) if weights else bundle.get("cause_weights")
     _emit(rca_brain.downtime_rca(
         window=bundle.get("window"),
         alarms=bundle.get("alarms"),
@@ -131,7 +138,28 @@ def rca_cmd(
         dataflow=bundle.get("dataflow"),
         state_series=bundle.get("state_series"),
         lead_window_s=lead_window_s,
+        cause_weights=cause_weights,
     ))
+
+
+@diag_app.command("learn-weights")
+@cli_errors
+def learn_weights_cmd(
+    input: Path = typer.Option(
+        ..., "--input",
+        help="JSON file: list of confirmed incidents [{cause, signals:[...]}]",
+    ),
+    min_samples: int = typer.Option(8, "--min-samples"),
+    smoothing: float = typer.Option(1.0, "--smoothing"),
+) -> None:
+    """Learn a per-site {cause: weight} RCA profile from a labeled incident history.
+
+    Reads a corpus of confirmed incidents (each ``{cause, signals}``) and derives a
+    per-site cause-weight profile to feed ``diag rca --weights``. Explainable
+    (smoothed signal→cause precision) with smoothing + a min-sample fall-back to
+    the shipped defaults; advisory only — it tunes ranking, executes nothing.
+    """
+    _emit(rca_weights.learn_cause_weights(_load_json(input), min_samples, smoothing))
 
 
 @diag_app.command("rca-live")

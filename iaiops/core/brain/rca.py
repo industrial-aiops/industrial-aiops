@@ -51,6 +51,14 @@ MEDIUM_CONFIDENCE = 0.4
 # A primary must beat the runner-up by this margin to read as "the" root cause.
 DOMINANCE_MARGIN = 0.2
 
+# Per-site cause-weight multipliers. ``downtime_rca`` multiplies every piece of
+# evidence for a cause by its multiplier before noisy-OR aggregation, so a site
+# can up-/down-weight causes it has learned to trust more/less. 1.0 is neutral
+# (the shipped behaviour); overrides are clamped to [MIN, MAX] at the boundary.
+DEFAULT_CAUSE_WEIGHT = 1.0
+MIN_CAUSE_WEIGHT = 0.1
+MAX_CAUSE_WEIGHT = 3.0
+
 # Per-evidence base support (∈[0,1)) before the proximity scale is applied.
 # Tuned so no single signal alone reaches HIGH — corroboration is what earns it.
 W_DATAFLOW_CANNOT_CONNECT = 0.6
@@ -78,6 +86,10 @@ CAUSE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "utility_fault": ("power", "air", "vacuum", "coolant", "hydraulic", "pneumatic",
                       "utility", "supply"),
 }
+
+# Every cause the copilot can attribute, including the ``alarm_flood`` context tag.
+# A ``cause_weights`` override may only name a member of this set.
+KNOWN_CAUSES: frozenset[str] = frozenset(CAUSE_KEYWORDS) | {"alarm_flood"}
 
 # Advisory, reversible, MOC-gated next step per cause. Never executed here.
 RECOMMENDED_ACTIONS: dict[str, str] = {
@@ -113,6 +125,7 @@ def downtime_rca(
     dataflow: dict | None = None,
     state_series: list[dict] | None = None,
     lead_window_s: float = DEFAULT_LEAD_WINDOW_S,
+    cause_weights: dict[str, float] | None = None,
 ) -> dict:
     """[READ] Correlate evidence around a downtime window into a cited root cause.
 
@@ -121,11 +134,19 @@ def downtime_rca(
     span is used to bound the incident. Each evidence stream is optional — the
     copilot scores whatever is provided and is explicit about what is missing.
 
+    ``cause_weights`` is an optional per-site ``{cause: multiplier}`` override
+    (e.g. from ``learn_cause_weights``): each cause's evidence is scaled by its
+    multiplier (1.0 = neutral, today's behaviour) before the noisy-OR, so a site
+    can up-/down-weight causes its history has shown to be more/less reliable.
+    Unknown causes or non-numeric weights raise; values are clamped to
+    ``[MIN_CAUSE_WEIGHT, MAX_CAUSE_WEIGHT]``. Absent ⇒ no behaviour change.
+
     Returns a structured verdict: ranked ``hypotheses`` (each with a confidence,
     band, and real-signal ``evidence`` citations + an advisory action),
     ``primary_cause``, an ``evidence_summary``, and — when thin —
     ``recommended_next_data``. Nothing is executed; all actions are advisory.
     """
+    weights = _normalize_cause_weights(cause_weights)
     win = _resolve_window(window, state_series)
     if "error" in win:
         return {"verdict": "insufficient_evidence", **win,
@@ -140,6 +161,7 @@ def downtime_rca(
     _score_tags(tags, contributions)
     _score_category_prior(win.get("category"), contributions)
 
+    contributions = _apply_cause_weights(contributions, weights)
     hypotheses = _build_hypotheses(contributions)
     verdict, primary = _decide(hypotheses)
     summary = _evidence_summary(alarm_ctx, tags, dataflow, contributions)
@@ -208,6 +230,63 @@ def _first_stoppage(state_series: list[dict]) -> dict | None:
         "end_dt": _parse_ts(first.get("end")),
         "category": first.get("category"),
     }
+
+
+# ─── per-site cause weighting ────────────────────────────────────────────────
+
+
+def _normalize_cause_weights(cause_weights: dict[str, float] | None) -> dict[str, float]:
+    """Validate + clamp a per-site ``{cause: multiplier}`` override at the boundary.
+
+    Returns a NEW dict (never mutates the input) holding only non-neutral, known
+    causes. ``None``/empty ⇒ ``{}`` (no behaviour change). Teaches on unknown
+    causes or non-numeric weights rather than silently dropping them.
+    """
+    if not cause_weights:
+        return {}
+    if not isinstance(cause_weights, dict):
+        raise ValueError(
+            "cause_weights must be a {cause: weight} mapping, e.g. "
+            "{'mechanical_fault': 1.5}."
+        )
+    normalized: dict[str, float] = {}
+    for cause, raw in cause_weights.items():
+        if cause not in KNOWN_CAUSES:
+            raise ValueError(
+                f"cause_weights[{cause!r}] is not a known cause; valid causes: "
+                f"{sorted(KNOWN_CAUSES)}."
+            )
+        try:
+            value = float(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"cause_weights[{cause!r}] must be a number (got {raw!r})."
+            ) from exc
+        normalized[cause] = max(MIN_CAUSE_WEIGHT, min(value, MAX_CAUSE_WEIGHT))
+    return normalized
+
+
+def _apply_cause_weights(
+    contributions: dict[str, list[dict]], weights: dict[str, float]
+) -> dict[str, list[dict]]:
+    """Scale each cause's evidence by its per-site multiplier (immutably).
+
+    Returns a NEW contributions map; weights are re-clamped to the same [0,0.95]
+    band ``_add`` enforces so a boost can never manufacture certainty.
+    """
+    if not weights:
+        return contributions
+    scaled: dict[str, list[dict]] = {}
+    for cause, items in contributions.items():
+        mult = weights.get(cause, DEFAULT_CAUSE_WEIGHT)
+        if mult == DEFAULT_CAUSE_WEIGHT:
+            scaled[cause] = items
+            continue
+        scaled[cause] = [
+            {**it, "weight": round(max(0.0, min(it["weight"] * mult, 0.95)), 4)}
+            for it in items
+        ]
+    return scaled
 
 
 # ─── per-stream scoring ──────────────────────────────────────────────────────
@@ -445,4 +524,5 @@ def _next_data(alarm_ctx: dict, tags: list[dict] | None, dataflow: dict | None) 
     return wants
 
 
-__all__ = ["downtime_rca"]
+__all__ = ["downtime_rca", "KNOWN_CAUSES", "DEFAULT_CAUSE_WEIGHT",
+           "MIN_CAUSE_WEIGHT", "MAX_CAUSE_WEIGHT"]

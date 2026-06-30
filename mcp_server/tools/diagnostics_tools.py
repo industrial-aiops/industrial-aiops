@@ -9,7 +9,7 @@ from typing import Optional
 from iaiops.core.brain import dataquality as dq
 from iaiops.core.brain import diagnostics as diag
 from iaiops.core.brain import rca as rca_brain
-from iaiops.core.brain import rca_collect
+from iaiops.core.brain import rca_collect, rca_weights
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -182,6 +182,7 @@ def downtime_root_cause(
     dataflow: Optional[dict] = None,
     state_series: Optional[list] = None,
     lead_window_s: float = 300.0,
+    cause_weights: Optional[dict] = None,
 ) -> dict:
     """[READ][risk=low] AI downtime root-cause copilot — cited verdict, ADVISORY only.
 
@@ -204,6 +205,10 @@ def downtime_root_cause(
         state_series: {timestamp, state} samples to bound the window if 'end' is absent.
         lead_window_s: How far before onset a signal may sit and still count as a cause
             (default 300s); signals after onset are treated as consequences.
+        cause_weights: Optional per-site {cause: multiplier} override (e.g. from
+            learn_cause_weights) — scales each cause's evidence (1.0 = neutral
+            default) before the noisy-OR. Unknown causes / non-numeric weights are
+            rejected; values are clamped. Omit for the shipped default weighting.
 
     Returns dict: {window, verdict ('root_cause_identified'|'multiple_candidates'|
         'insufficient_evidence'), primary_cause, hypotheses:[{cause, confidence (0..1),
@@ -216,7 +221,7 @@ def downtime_root_cause(
                  "message":"motor overload trip"}], dataflow={"verdict":"healthy"}).
     """
     return rca_brain.downtime_rca(
-        window, alarms, tags, dataflow, state_series, lead_window_s
+        window, alarms, tags, dataflow, state_series, lead_window_s, cause_weights
     )
 
 
@@ -265,6 +270,43 @@ def downtime_root_cause_live(
         _target(endpoint), window, refs, sample_count, interval_ms,
         include_alarms, lead_window_s,
     )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def learn_cause_weights(
+    history: list,
+    min_samples: int = 8,
+    smoothing: float = 1.0,
+) -> dict:
+    """[READ][risk=low] Learn a per-site RCA {cause: weight} profile from history.
+
+    Derives a per-site cause-weight profile from a corpus of CONFIRMED past
+    incidents so downtime_root_cause adapts to what THIS site's evidence actually
+    predicts. Pure + explainable: each weight is the smoothed signal→cause
+    precision relative to chance (>1 = evidence for that cause is reliable here,
+    <1 = often misleading) — no black box. Anti-overfit: Laplace smoothing + a
+    per-cause min-sample guard, and a fall-back to the shipped defaults when the
+    corpus is too thin. Feed the returned 'cause_weights' to downtime_root_cause's
+    cause_weights argument. Advisory: it tunes ranking, never executes anything.
+
+    Args:
+        history: Confirmed incidents — [{cause, signals:[...]}] where 'cause' is the
+            known root cause and 'signals' are the cause labels the evidence pointed
+            at (both from the copilot taxonomy: mechanical_fault, comms_loss,
+            sensor_fault, material_starvation, quality_reject, changeover, utility_fault).
+        min_samples: Minimum confirmed incidents before adapting at all (default 8);
+            below it the defaults are kept.
+        smoothing: Laplace pseudo-count pulling each estimate toward chance (default 1.0).
+
+    Returns dict: {cause_weights:{cause: multiplier}, n_incidents, per_cause:{cause:
+        {support, hits, precision, weight, note}}, rationale}.
+
+    Example: learn_cause_weights(history=[{"cause":"mechanical_fault",
+        "signals":["mechanical_fault"]}, {"cause":"comms_loss","signals":["comms_loss"]}]).
+    """
+    return rca_weights.learn_cause_weights(history, min_samples, smoothing)
 
 
 @mcp.tool()

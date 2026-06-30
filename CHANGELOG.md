@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added — cross-protocol intelligence
+- **RCA learned / configurable per-site cause weights** — the downtime
+  root-cause copilot (`iaiops/core/brain/rca.py`, `downtime_rca`) gains an
+  optional `cause_weights` `{cause: multiplier}` override that scales each
+  cause's evidence (1.0 = neutral, today's shipped behaviour) before the noisy-OR,
+  so a site can up-/down-weight causes its own history has shown to be more/less
+  reliable. Overrides are validated + clamped at the boundary (unknown causes /
+  non-numeric weights teach an error). New pure module
+  `iaiops/core/brain/rca_weights.py` (`learn_cause_weights`) derives that profile
+  from a labeled incident corpus (`[{cause, signals}]`) with a simple, explainable
+  estimator — smoothed signal→cause precision relative to chance — plus anti-overfit
+  guards (Laplace smoothing, a per-cause min-sample guard, and a fall-back to the
+  shipped defaults when history is thin) and a human-readable rationale. Wired as a
+  new MCP brain tool `learn_cause_weights` (`@governed_tool(risk_level="low")`), a
+  `cause_weights` arg on `downtime_root_cause`, and CLI
+  `iaiops diag learn-weights --input incidents.json` + `iaiops diag rca --weights
+  profile.json`. Pure/deterministic and advisory only — it tunes ranking, never
+  executes anything.
+
 ### Added — CI / DX
 - **GitHub Actions CI** (`.github/workflows/ci.yml`) — runs the release quality
   gate on push to `main` and on every pull request. A `gate` job (Python 3.11 +

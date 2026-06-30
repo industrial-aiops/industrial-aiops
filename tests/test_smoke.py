@@ -44,7 +44,7 @@ EXPECTED_TOOLS = {
     "ethercat_set_state",
     # cross-protocol diagnostics
     "diagnose_dataflow", "historian_health", "alarm_bad_actors", "tag_health",
-    "data_quality_fleet_rollup",
+    "data_quality_fleet_rollup", "learn_cause_weights",
     # cross-protocol analytics (OEE / downtime / asset / CoV)
     "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
     "cross_protocol_asset_model", "monitor_changes",
