@@ -63,10 +63,11 @@ jobs:
       - name: ruff check
         run: uv run --no-sync ruff check .
 
-      # bandit must report 0 Medium+ (it exits non-zero on any finding at/above
-      # the configured severity); pulled in ephemerally via `uvx`.
+      # --severity-level medium: bandit exits non-zero on any finding at/above the
+      # threshold. The project's gate is "0 Medium+" (the ~40 Low B110 try/except
+      # are accepted), so without this it would fail on those Low findings.
       - name: bandit (static security scan, 0 Medium+)
-        run: uvx bandit -q -r iaiops mcp_server
+        run: uvx bandit -q -r iaiops mcp_server --severity-level medium
 
   # ── Integration contract tests (linux only) ─────────────────────────────────
   # The base suite mocks every protocol library, so the preview/待核实 bindings can
