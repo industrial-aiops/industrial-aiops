@@ -28,14 +28,18 @@ PROTOCOLS: tuple[dict, ...] = (
         "protocol": "modbus",
         "status": "implemented",
         "library": "pymodbus",
-        "transport": "Modbus-TCP",
+        "transport": "Modbus-TCP + Modbus-RTU (serial)",
         "auth": "none (transport)",
         "read_tools": [
             "modbus_read_holding", "modbus_read_input", "modbus_read_coils",
             "modbus_read_discrete", "modbus_health_summary",
+            "modbus_detect_byte_order", "modbus_list_templates", "modbus_apply_template",
         ],
         "write_tools": [],
-        "params": ["host", "port(502)", "unit_id"],
+        "params": [
+            "host", "port(502)", "unit_id",
+            "transport(tcp|rtu)", "serial_port", "baudrate", "parity", "stopbits", "bytesize",
+        ],
     },
     {
         "protocol": "s7",
