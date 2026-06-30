@@ -32,6 +32,16 @@
   unit-verified (monkeypatched pymodbus client). **待核实:** the live-serial round-trip
   needs real RS-485/USB hardware and is not CI-verifiable.
 
+### Added — verticals & protocols
+- **HART-IP connector (read-only, process edition)** — `hart_device_identity` /
+  `hart_primary_variable` / `hart_dynamic_variables` MCP tools + `iaiops hart` CLI
+  (`iaiops/connectors/hart/`), over HART-IP (UDP 5094) via the `hart` extra
+  (`hart-protocol`); added to the `process` profile/bundle. The HART command codec
+  (build/parse) is **verified offline** against the real library; the **HART-IP wire
+  transport is 待核实** (not validated against a live HART-IP server/gateway). Write
+  and device-specific commands are intentionally NOT exposed (OT-dangerous on live
+  instrumentation).
+
 ### Added — intelligence layer
 - **Data-quality watchdog enhancements** (`iaiops/core/brain/dataquality.py`) — extends
   the data-trust scorecard with: (1) **configurable staleness/gap per tag and per feed**

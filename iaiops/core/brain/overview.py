@@ -216,6 +216,23 @@ PROTOCOLS: tuple[dict, ...] = (
         "not_supported": "Present-value writes (with priority/relinquish) = not "
         "exposed (live building-control is OT-dangerous).",
     },
+    {
+        "protocol": "hart",
+        "status": "implemented",
+        "library": "hart-protocol (OPTIONAL extra: iaiops[hart])",
+        "transport": "HART-IP (UDP/TCP 5094)",
+        "auth": "none (transport)",
+        "read_tools": [
+            "hart_device_identity", "hart_primary_variable", "hart_dynamic_variables",
+        ],
+        "write_tools": [],
+        "params": ["host (HART-IP server/gateway)", "port(5094)"],
+        "requirements": "Process edition extra. Command codec verified against "
+        "hart-protocol (2026-06-30); the HART-IP wire transport is 待核实 — not "
+        "validated against a live HART-IP server/gateway.",
+        "not_supported": "Device-specific + write/config commands = not exposed "
+        "(OT-dangerous on live instrumentation).",
+    },
 )
 
 DIAGNOSTICS_TOOLS = (
