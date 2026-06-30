@@ -7,7 +7,7 @@ automatic inverse. 未经授权勿对生产控制系统下发指令.
 
 from typing import Optional
 
-from iaiops.connectors.sparkplug import ops
+from iaiops.connectors.sparkplug import live, ops
 from iaiops.core.brain import uns_governance as uns
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
@@ -236,3 +236,103 @@ def uns_schema_drift(baseline: dict, current: dict) -> dict:
         current={"N1":{"temp":"Int32","rpm":"Float"}}).
     """
     return uns.uns_schema_drift(baseline, current)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def uns_live_audit(
+    endpoint: Optional[str] = None,
+    topic: str = "#",
+    duration_s: int = 10,
+    max_msgs: int = 500,
+    allowed_roots: Optional[list] = None,
+    min_segments: int = 0,
+    max_leaf_parents: int = 5,
+) -> dict:
+    """[READ][risk=low] Capture the LIVE UNS topic tree (bounded) then audit it.
+
+    Closes the governance loop: subscribes to a live broker, collects up to
+    ``max_msgs`` messages or until ``duration_s`` (whichever first), then runs the
+    naming-conformance + topic-sprawl audit over the observed topics. Never an
+    open-ended loop.
+
+    Args:
+        endpoint: Endpoint name from config (protocol must be 'mqtt').
+        topic: Topic filter to capture under (default '#').
+        duration_s: Capture window in seconds (1..60, capped server-side).
+        max_msgs: Max messages to capture (1..500, capped server-side).
+        allowed_roots: Permitted top-level segments; others are flagged (optional).
+        min_segments: Minimum namespace depth a well-formed topic must have.
+        max_leaf_parents: A leaf under more than this many parents is scattered.
+
+    Returns dict: the uns_topic_audit result (topic_count, depth, verdict, findings)
+        plus capture:{endpoint, topic, observed_messages, unique_topics, topics[]}.
+
+    Example: uns_live_audit(topic="factory/#", duration_s=8, allowed_roots=["factory"]).
+    """
+    return live.uns_live_audit(
+        _target(endpoint), topic, duration_s, max_msgs,
+        allowed_roots, min_segments, max_leaf_parents,
+    )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def sparkplug_live_schema(
+    endpoint: Optional[str] = None,
+    topic: str = "spBv1.0/#",
+    duration_s: int = 10,
+    max_msgs: int = 500,
+) -> dict:
+    """[READ][risk=low] Capture a LIVE Sparkplug schema (bounded) → drift-ready dict.
+
+    Subscribes, collects up to ``max_msgs`` messages or until ``duration_s``, decodes
+    NBIRTH/DBIRTH metrics, and returns ``schema`` = {node: {metric: datatype}} (node =
+    group/edge[/device]) — exactly the shape uns_schema_drift accepts. Use it as a
+    baseline or current snapshot.
+
+    Args:
+        endpoint: Endpoint name from config.
+        topic: Topic filter (default 'spBv1.0/#').
+        duration_s: Capture window in seconds (1..60).
+        max_msgs: Max messages to capture (1..500).
+
+    Returns dict: {endpoint, topic, message_count, birth_count, node_count,
+        schema:{node:{metric:datatype}}}.
+
+    Example: sparkplug_live_schema(topic="spBv1.0/Plant1/#", duration_s=15).
+    """
+    return live.sparkplug_live_schema(_target(endpoint), topic, duration_s, max_msgs)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def uns_live_drift(
+    baseline: dict,
+    endpoint: Optional[str] = None,
+    topic: str = "spBv1.0/#",
+    duration_s: int = 10,
+    max_msgs: int = 500,
+) -> dict:
+    """[READ][risk=low] Capture the LIVE Sparkplug schema (bounded) and diff vs baseline.
+
+    Captures current node/metric definitions from live BIRTHs, then runs schema drift
+    against ``baseline`` — added / removed / type-changed metrics per node with a
+    none/additive/breaking verdict.
+
+    Args:
+        baseline: Prior schema {node:{metric:datatype}} (e.g. from sparkplug_live_schema).
+        endpoint: Endpoint name from config.
+        topic: Topic filter (default 'spBv1.0/#').
+        duration_s: Capture window in seconds (1..60).
+        max_msgs: Max messages to capture (1..500).
+
+    Returns dict: the uns_schema_drift result (changed_nodes, verdict, node_changes)
+        plus capture:{endpoint, topic, message_count, birth_count, node_count}.
+
+    Example: uns_live_drift(baseline={"Plant1/Edge1":{"Temperature":"Double"}}).
+    """
+    return live.uns_live_drift(_target(endpoint), baseline, topic, duration_s, max_msgs)

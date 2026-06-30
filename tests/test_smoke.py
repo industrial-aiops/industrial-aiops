@@ -33,6 +33,8 @@ EXPECTED_TOOLS = {
     # MQTT / Sparkplug B / UNS (full protobuf decode)
     "mqtt_read_topic", "sparkplug_subscribe_sample", "sparkplug_decode_payload",
     "sparkplug_node_list", "uns_browse", "mqtt_publish",
+    "uns_topic_audit", "uns_schema_drift",
+    "uns_live_audit", "sparkplug_live_schema", "uns_live_drift",
     # EtherNet/IP (Rockwell / Allen-Bradley Logix)
     "eip_controller_info", "eip_list_tags", "eip_read_tag", "eip_read_many",
     "eip_write_tag",
@@ -73,6 +75,7 @@ def test_all_modules_import():
         "iaiops.connectors.mc.ops",
         "iaiops.connectors.mtconnect.ops",
         "iaiops.connectors.sparkplug.ops",
+        "iaiops.connectors.sparkplug.live",
         "iaiops.connectors.eip.ops",
         "iaiops.core.brain.oee",
         "iaiops.core.brain.asset_inventory",
