@@ -74,8 +74,18 @@
   naming-quality report (alias collisions / cryptic names). Advisory only — no
   server-side rename. Skips ns=0 infrastructure by default. Verified against a real
   asyncua server. Follow-ups: extend the classifier (more domains / vendor profiles);
-  cross-protocol model (Modbus register maps → same alias layer); persist/diff the
+  ~~cross-protocol model (Modbus register maps → same alias layer)~~; persist/diff the
   adopted alias map over time.
+- ✅ **Cross-protocol semantic / asset / alias layer** (the follow-up above) —
+  `cross_protocol_asset_model` (`iaiops/core/brain/asset_model.py` + `iaiops analytics
+  asset-model`) fuses per-protocol tag feeds (OPC-UA discovery + Modbus register
+  templates) into ONE asset/tag model: tags are re-classified with the SAME shared
+  classifier (lifted to `iaiops/core/brain/semantics.py`, re-exported by
+  `opcua/discovery`), grouped into assets ACROSS protocols, given a canonical
+  `<site>.<asset>.<class_or_name>` alias, and checked for alias collisions,
+  same-physical-quantity-on-two-protocols overlaps, and cryptic names. Pure +
+  advisory (no server-side rename). Follow-ups: persist/diff the adopted alias map;
+  add more per-protocol feed adapters as connectors gain tag discovery.
 
 ## China / 信创 (market entry for fabs like 华星)
 > v0.6.0 shipped the documentation + code artifacts; the **hardware validation**

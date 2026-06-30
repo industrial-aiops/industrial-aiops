@@ -23,60 +23,14 @@ from typing import Any
 from iaiops.connectors.opcua.ops import _coerce_value, opcua_session
 from iaiops.core.brain._shared import s
 
+# Tag semantics (class inference + alias scheme) live in the shared brain home so
+# both this connector and the cross-protocol asset model use the SAME rules.
+# Re-exported here to keep this module's long-standing public API stable.
+from iaiops.core.brain.semantics import classify_tag, suggest_alias
+
 MAX_TAGS = 2000
 MAX_DISCOVERY_DEPTH = 8
 OBJECTS_NODE = "i=85"
-
-# Semantic class → browse-name substrings (checked lowercased, first match wins).
-# Ordered so more-specific classes (setpoint, runtime) precede generic ones.
-_CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("setpoint", ("setpoint", "_sp", "sptval", "target")),
-    ("alarm", ("alarm", "alert", "fault", "trip", "fail")),
-    ("state", ("state", "status", "running", "ready", "mode")),
-    # Physical quantities precede the generic 'command' class so a name like
-    # "Startup_Temperature" classifies by its quantity, not the bare verb.
-    ("temperature", ("temp", "temperature", "_t_", "degc", "degf")),
-    ("pressure", ("press", "pressure", "_p_", "bar", "psi")),
-    ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h")),
-    ("level", ("level", "_lv_", "tanklvl")),
-    ("speed", ("speed", "rpm", "freq", "hz", "velocity")),
-    ("torque", ("torque",)),
-    ("power", ("power", "_kw", "watt", "_pwr")),
-    ("energy", ("energy", "kwh", "consumption")),
-    ("current", ("current", "amp", "_i_")),
-    ("voltage", ("voltage", "volt", "_v_")),
-    ("vibration", ("vibration", "vib", "accel")),
-    ("position", ("position", "_pos", "encoder")),
-    ("counter", ("count", "counter", "total", "qty")),
-    ("runtime", ("runtime", "hours", "uptime", "elapsed")),
-    ("command", ("command", "cmd", "start", "stop", "enable")),
-)
-
-
-def classify_tag(browse_name: str) -> str:
-    """Infer a semantic class for a tag from its browse name (heuristic).
-
-    Returns ``other`` when nothing matches rather than guessing — honest over a
-    confident-but-wrong label that downstream tooling would trust.
-    """
-    text = str(browse_name or "").lower()
-    for klass, hints in _CLASS_HINTS:
-        if any(h in text for h in hints):
-            return klass
-    return "other"
-
-
-def _alias_segment(text: str) -> str:
-    """Lowercase a browse-name/path segment to an alias-safe token (alnum/_)."""
-    out = "".join(c if (c.isalnum() or c == "_") else "_" for c in str(text).lower())
-    return out.strip("_") or "unknown"
-
-
-def suggest_alias(asset_path: str, browse_name: str) -> str:
-    """Propose a clean canonical alias ``<asset>.<tag>`` (dot-delimited, advisory)."""
-    parts = [_alias_segment(p) for p in str(asset_path or "").split("/") if p]
-    tag = _alias_segment(browse_name)
-    return ".".join([*parts, tag]) if parts else tag
 
 
 def _read_engineering_unit(node: Any) -> str:

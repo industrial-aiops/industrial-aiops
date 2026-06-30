@@ -45,7 +45,7 @@ EXPECTED_TOOLS = {
     "data_quality_fleet_rollup",
     # cross-protocol analytics (OEE / downtime / asset / CoV)
     "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
-    "monitor_changes",
+    "cross_protocol_asset_model", "monitor_changes",
     # self-description
     "protocols_supported",
 }
@@ -76,6 +76,8 @@ def test_all_modules_import():
         "iaiops.connectors.eip.ops",
         "iaiops.core.brain.oee",
         "iaiops.core.brain.asset_inventory",
+        "iaiops.core.brain.asset_model",
+        "iaiops.core.brain.semantics",
         "iaiops.core.brain.monitor",
         "iaiops.core.brain.diagnostics",
         "iaiops.core.brain.overview",
@@ -109,6 +111,7 @@ def test_all_modules_import():
         "mcp_server.tools.eip_tools",
         "mcp_server.tools.oee_tools",
         "mcp_server.tools.asset_tools",
+        "mcp_server.tools.asset_model_tools",
         "mcp_server.tools.monitor_tools",
         "mcp_server.tools.diagnostics_tools",
         "mcp_server.tools.overview_tools",
@@ -186,6 +189,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["ethercat", "set-state", "--help"],
         ["analytics", "oee", "--help"], ["analytics", "downtime", "--help"],
         ["analytics", "oee-multidim", "--help"], ["analytics", "asset", "--help"],
+        ["analytics", "asset-model", "--help"],
         ["diag", "dataflow", "--help"], ["diag", "alarms", "--help"],
         ["diag", "tags", "--help"], ["diag", "historian", "--help"],
         ["secret", "set", "--help"], ["secret", "list", "--help"],
