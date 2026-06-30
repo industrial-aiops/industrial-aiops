@@ -55,3 +55,36 @@ def read_cmd(
 def points_cmd(address: str, device_id: int, endpoint: EndpointOption = None) -> None:
     """Read presentValue of all monitor-relevant points of a device (HVAC snapshot)."""
     _emit(ops.bacnet_read_points(resolve_target(endpoint), address, device_id))
+
+
+@bacnet_app.command("cov")
+@cli_errors
+def cov_cmd(
+    address: str,
+    object_type: str,
+    instance: int,
+    max_notifications: int = typer.Option(20, "--max", help="Stop after N notifications"),
+    timeout_s: int = typer.Option(30, "--timeout", help="Stop after N seconds"),
+    lifetime_s: int = typer.Option(300, "--lifetime", help="COV subscription lifetime"),
+    endpoint: EndpointOption = None,
+) -> None:
+    """Bounded COV capture: collect up to --max changes or --timeout, then unsubscribe."""
+    _emit(ops.bacnet_cov_subscribe(
+        resolve_target(endpoint), address, object_type, instance,
+        max_notifications, timeout_s, lifetime_s,
+    ))
+
+
+@bacnet_app.command("trend")
+@cli_errors
+def trend_cmd(
+    address: str,
+    instance: int,
+    count: int = typer.Option(100, "--count", help="Max records to read"),
+    newest_first: bool = typer.Option(True, "--newest-first/--oldest-first"),
+    endpoint: EndpointOption = None,
+) -> None:
+    """Read buffered records from a device's BACnet TrendLog object (historical trend)."""
+    _emit(ops.bacnet_read_trend_log(
+        resolve_target(endpoint), address, instance, count, newest_first,
+    ))
