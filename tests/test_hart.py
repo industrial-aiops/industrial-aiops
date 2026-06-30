@@ -10,13 +10,15 @@ Two real layers + one mocked:
 
 from __future__ import annotations
 
+import socket
 import struct
+import threading
 
 import pytest
 
 from iaiops.connectors.hart import codec
 from iaiops.connectors.hart import transport as tx
-from iaiops.core.runtime.config import TargetConfig
+from iaiops.core.runtime.config import TargetConfig, _hart_transport
 
 hart_protocol = pytest.importorskip("hart_protocol")  # the 'hart' extra
 
@@ -166,3 +168,134 @@ def test_hart_dynamic_variables_end_to_end(monkeypatch):
     names = {v["name"]: v["value"] for v in out["variables"]}
     assert names["primary"] == pytest.approx(85.0)
     assert names["secondary"] == pytest.approx(55.0)
+
+
+# ── transport selection (udp default / tcp opt-in) ────────────────────────────
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "given,expected",
+    [("", "udp"), ("udp", "udp"), ("UDP", "udp"), ("tcp", "tcp"), ("TCP", "tcp")],
+)
+def test_hart_transport_resolves(given, expected):
+    assert _hart_transport({"transport": given}) == expected
+
+
+@pytest.mark.unit
+def test_build_hart_ip_client_selects_session_class():
+    udp = tx._build_hart_ip_client(
+        TargetConfig(name="u", protocol="hart", host="10.0.0.7", transport="udp")
+    )
+    tcp = tx._build_hart_ip_client(
+        TargetConfig(name="t", protocol="hart", host="10.0.0.7", transport="tcp")
+    )
+    assert isinstance(udp, tx.HartIpSession)
+    assert isinstance(tcp, tx.HartIpTcpSession)
+
+
+# ── TCP transport: real localhost loopback through the REAL ops/codec path ─────
+
+class _HartIpTcpServer:
+    """A tiny in-process HART-IP TCP server speaking the 8-byte framing.
+
+    It reads a framed request (length-delimited by the header byte_count exactly
+    like the client must), then replies with a framed response: an empty body for
+    session-initiate/close, and the crafted HART long-frame ACK for token-passing.
+    Bounded to a single connection; joined + closed in teardown.
+    """
+
+    def __init__(self, ack: bytes) -> None:
+        self._ack = ack
+        self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._srv.bind(("127.0.0.1", 0))
+        self._srv.listen(1)
+        self._srv.settimeout(5.0)
+        self.port = self._srv.getsockname()[1]
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    @staticmethod
+    def _recv_exactly(conn: socket.socket, n: int) -> bytes:
+        chunks: list[bytes] = []
+        got = 0
+        while got < n:
+            chunk = conn.recv(n - got)
+            if not chunk:
+                return b""
+            chunks.append(chunk)
+            got += len(chunk)
+        return b"".join(chunks)
+
+    def _serve(self) -> None:
+        conn, _ = self._srv.accept()
+        try:
+            conn.settimeout(5.0)
+            while True:
+                header = self._recv_exactly(conn, tx.HEADER_LEN)
+                if len(header) < tx.HEADER_LEN:
+                    return
+                meta = tx.parse_message(header)
+                body_len = meta["byte_count"] - tx.HEADER_LEN
+                if body_len:
+                    self._recv_exactly(conn, body_len)
+                if meta["message_id"] == tx.MID_TOKEN_PASSING:
+                    payload = self._ack
+                else:
+                    payload = b""
+                conn.sendall(
+                    tx.frame_message(
+                        tx.MT_RESPONSE, meta["message_id"], meta["sequence"], payload
+                    )
+                )
+                if meta["message_id"] == tx.MID_SESSION_CLOSE:
+                    return
+        finally:
+            conn.close()
+
+    def close(self) -> None:
+        self._srv.close()
+        self._thread.join(timeout=5.0)
+
+
+@pytest.fixture
+def hart_tcp_server():
+    payload = bytes([0, 0, 7]) + struct.pack(">f", 85.0)
+    server = _HartIpTcpServer(_ack_frame(1, payload))
+    server.start()
+    try:
+        yield server
+    finally:
+        server.close()
+
+
+@pytest.mark.unit
+def test_hart_tcp_transport_loopback_to_primary_variable(hart_tcp_server):
+    """Real TCP socket round-trip: the TCP session length-delimits the stream by the
+    header byte_count and feeds the response through the REAL ops/codec path."""
+    from iaiops.connectors.hart import ops
+
+    target = TargetConfig(
+        name="xmtr-tcp", protocol="hart", host="127.0.0.1",
+        port=hart_tcp_server.port, transport="tcp",
+    )
+    out = ops.hart_primary_variable(target)
+    assert out["endpoint"] == "xmtr-tcp"
+    assert out["command"] == 1
+    assert out["primary_variable"] == pytest.approx(85.0)
+
+
+@pytest.mark.unit
+def test_hart_tcp_session_length_delimits_split_response(hart_tcp_server):
+    """Lower-level: drive HartIpTcpSession directly to prove header-then-body reads."""
+    session = tx.HartIpTcpSession("127.0.0.1", hart_tcp_server.port)
+    session.open()
+    try:
+        raw = session.send_hart_pdu(codec.build_command("primary_variable"))
+    finally:
+        session.close()
+    messages = codec.parse_responses(raw)
+    assert messages and messages[0].command == 1
+    assert messages[0].primary_variable == pytest.approx(85.0)

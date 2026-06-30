@@ -1,14 +1,17 @@
-"""HART-IP wire transport over UDP (待核实, read path only).
+"""HART-IP wire transport over UDP or TCP (read path only).
 
 HART-IP frames a native HART PDU inside an 8-byte HART-IP header and exchanges it
 with a HART-IP server/gateway on UDP/TCP 5094. A session is initiated, then each
 HART command is sent as a *token-passing PDU* message and the response read back.
+The same 8-byte framing is used on both transports — :func:`frame_message` /
+:func:`parse_message` are transport-agnostic and reused by both sessions.
 
-This module is **待核实** — the header layout below follows the public HART-IP
-spec structure, but it is NOT verified against a live HART-IP server/gateway here.
-The framing is written as pure functions (structurally unit-tested) and the I/O is
-isolated in :class:`HartIpSession`, so the codec/ops layers stay testable. The
-``_build_hart_ip_client`` factory is module-level so tests monkeypatch it.
+Honesty: the live-gateway behaviour stays **待核实** (not validated against a real
+HART-IP server here). The framing is pure (structurally unit-tested) and the I/O is
+isolated in :class:`HartIpSession` (UDP) and :class:`HartIpTcpSession` (TCP). The
+TCP path's header-then-body length-delimiting **is** loopback-verified against an
+in-process server (see tests). The ``_build_hart_ip_client`` factory is module-level
+so tests monkeypatch it, and selects UDP vs TCP from the target's ``transport``.
 """
 
 from __future__ import annotations
@@ -108,8 +111,92 @@ class HartIpSession:
                 pass
 
 
-def _build_hart_ip_client(target: Any) -> HartIpSession:
-    """Construct (not open) a HART-IP session for ``target`` (待核实, monkeypatchable)."""
+class HartIpTcpSession:
+    """TCP HART-IP session. Same framing/sequence as UDP, but length-delimited.
+
+    TCP is a byte stream with no message boundaries, so a single ``recv`` may return
+    a partial frame OR several frames coalesced. Each response is therefore read by
+    first reading the fixed 8-byte header, parsing its ``byte_count``, then reading
+    exactly ``byte_count - HEADER_LEN`` more bytes — never relying on one ``recv`` to
+    return a whole message. The live-gateway behaviour is 待核实; the framing /
+    length-delimiting is loopback-verified.
+    """
+
+    def __init__(self, host: str, port: int, timeout_s: float = 5.0) -> None:
+        self._host = host
+        self._port = int(port or 5094)
+        self._timeout = timeout_s
+        self._sock: Any = None
+        self._seq = 0
+
+    def open(self) -> None:
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.settimeout(self._timeout)
+        self._sock.connect((self._host, self._port))
+        self._exchange(MID_SESSION_INITIATE, session_initiate_payload())
+
+    def send_hart_pdu(self, pdu: bytes) -> bytes:
+        """Send a HART command PDU as a token-passing message; return the HART response bytes."""
+        resp = self._exchange(MID_TOKEN_PASSING, pdu)
+        return parse_message(resp)["payload"]
+
+    def _exchange(self, message_id: int, payload: bytes) -> bytes:
+        self._seq = (self._seq + 1) & 0xFFFF
+        self._sock.sendall(frame_message(MT_REQUEST, message_id, self._seq, payload))
+        return self._read_message()
+
+    def _read_message(self) -> bytes:
+        header = self._recv_exactly(HEADER_LEN)
+        byte_count = parse_message(header)["byte_count"]
+        body_len = byte_count - HEADER_LEN
+        if body_len < 0:
+            raise OTConnectionError(
+                f"HART-IP TCP framing error: header byte_count {byte_count} < "
+                f"{HEADER_LEN} (header length). The peer is not speaking HART-IP framing.",
+                endpoint=self._host, protocol="hart",
+            )
+        body = self._recv_exactly(body_len) if body_len else b""
+        return header + body
+
+    def _recv_exactly(self, n: int) -> bytes:
+        """Read exactly ``n`` bytes from the stream (TCP recv may return fewer)."""
+        chunks: list[bytes] = []
+        got = 0
+        while got < n:
+            chunk = self._sock.recv(n - got)
+            if not chunk:
+                raise OTConnectionError(
+                    f"HART-IP TCP connection closed after {got}/{n} bytes — the gateway "
+                    f"dropped the connection mid-message.",
+                    endpoint=self._host, protocol="hart",
+                )
+            chunks.append(chunk)
+            got += len(chunk)
+        return b"".join(chunks)
+
+    def close(self) -> None:
+        if self._sock is not None:
+            try:
+                self._exchange(MID_SESSION_CLOSE, b"")
+            except Exception:  # noqa: BLE001 — best-effort graceful close
+                pass
+            try:
+                self._sock.close()
+            except Exception:  # noqa: BLE001 — close is best-effort
+                pass
+
+
+def _wants_tcp(target: Any) -> bool:
+    """True when the HART endpoint selects the TCP transport (else UDP, the default)."""
+    return str(getattr(target, "transport", "") or "").strip().lower() == "tcp"
+
+
+def _build_hart_ip_client(target: Any) -> HartIpSession | HartIpTcpSession:
+    """Construct (not open) a HART-IP session for ``target`` (monkeypatchable).
+
+    Selects the TCP session when ``target.transport == 'tcp'``, else the UDP session.
+    Live-gateway behaviour is 待核实.
+    """
     try:
         import hart_protocol  # noqa: F401 — codec lib presence check
     except ImportError as exc:  # pragma: no cover — only without the extra
@@ -124,11 +211,13 @@ def _build_hart_ip_client(target: Any) -> HartIpSession:
             f"server/gateway; port defaults to 5094) to its config entry.",
             endpoint=getattr(target, "name", "?"), protocol="hart",
         )
+    if _wants_tcp(target):
+        return HartIpTcpSession(target.host, target.port or 5094)
     return HartIpSession(target.host, target.port or 5094)
 
 
 @contextmanager
-def hart_session(target: Any) -> Iterator[HartIpSession]:
+def hart_session(target: Any) -> Iterator[HartIpSession | HartIpTcpSession]:
     """Open a HART-IP session, yield it, always close (translates failures)."""
     if target.protocol != "hart":
         raise OTConnectionError(
@@ -154,5 +243,5 @@ def hart_session(target: Any) -> Iterator[HartIpSession]:
 
 __all__ = [
     "frame_message", "parse_message", "session_initiate_payload",
-    "HartIpSession", "hart_session",
+    "HartIpSession", "HartIpTcpSession", "hart_session",
 ]
