@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.industrial-aiops/iaiops",
   "title": "OT AIops",
-  "description": "Governed OT tap (66 tools): OPC-UA/Modbus/S7/MC/MTConnect/MQTT/EtherNet-IP/EtherCAT.",
+  "description": "Governed OT tap (98 tools, 15 protocols): OPC-UA/Modbus/S7/MC/MTConnect/MQTT-Sparkplug/EtherNet-IP/EtherCAT/SECS-GEM/PROFINET/IEC-104/DNP3/IEC-61850/BACnet/HART-IP + downtime RCA, data-quality, OEE, asset & OPC-UA tag discovery.",
   "repository": {
     "url": "https://github.com/industrial-aiops/industrial-aiops",
     "source": "github"
   },
-  "version": "0.6.0",
+  "version": "0.7.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "iaiops",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "transport": {
         "type": "stdio"
       }

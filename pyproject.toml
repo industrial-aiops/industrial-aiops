@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iaiops"
-version = "0.6.0"
+version = "0.7.0"
 description = "Governed, vendor-neutral OT data tap + intelligent troubleshooting for AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / MQTT-Sparkplug / EtherNet-IP / EtherCAT / SECS-GEM / PROFINET / IEC-104 / DNP3 / IEC-61850 / BACnet) with a built-in governance harness (audit, budget, risk tiers, MOC), an AI downtime root-cause copilot, plus OEE, downtime, and asset-inventory analytics"
 readme = "README.md"
 license = "MIT"

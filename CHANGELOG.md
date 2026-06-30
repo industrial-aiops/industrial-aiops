@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 — HART-IP, tag discovery, data-quality & Modbus depth (2026-06-30)
+
+New read-only **HART-IP** process-instrumentation connector, **OPC-UA tag
+auto-discovery + semantic modeling**, data-quality watchdog enhancements,
+Modbus byte-order auto-detect / vendor templates / RTU serial, and per-protocol
+named MCP entry points — plus a live binding-validation pass that fixed three
+real defects mocks never caught (see the 0.6.0 validation notes below). All
+read-first; previews carry honest `待核实` caveats.
 
 ### Added — packaging / DX
 - **Per-protocol & per-edition named MCP entry points** — convenience console
