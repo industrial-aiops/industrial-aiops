@@ -48,15 +48,60 @@ def _tag_ref(raw: dict) -> str:
     return ""
 
 
-def _canonical_alias(site: str, asset: str, klass: str, name: str) -> str:
-    """Build ``<site>.<asset>.<class|name>`` (class when meaningful, else name).
-
-    Reuses the shared ``alias_segment`` canonicalization so a cross-protocol
-    alias is sanitized exactly like a per-protocol ``suggest_alias``.
-    """
-    leaf = klass if klass and klass != "other" else name
+def _build_alias(site: str, asset: str, leaf: str) -> str:
+    """Build ``<site>.<asset>.<leaf>`` with the shared ``alias_segment`` sanitizer."""
     parts = [alias_segment(p) for p in (site, asset, leaf) if str(p)]
-    return ".".join(parts) if parts else alias_segment(name)
+    return ".".join(parts) if parts else alias_segment(leaf)
+
+
+def _alias_leaf(klass: str, name: str) -> str:
+    """The alias leaf for a tag: its semantic class when meaningful, else its name."""
+    return klass if klass and klass != "other" else name
+
+
+def _canonical_alias(site: str, asset: str, klass: str, name: str) -> str:
+    """Build a single-tag ``<site>.<asset>.<class|name>`` alias (provisional).
+
+    NOTE: this is the per-tag form; within an asset, ``_finalize_assets`` may
+    disambiguate same-class siblings so the canonical alias stays unique.
+    """
+    return _build_alias(site, asset, _alias_leaf(klass, name))
+
+
+def _asset_key(asset: str) -> str:
+    """Case/whitespace-insensitive grouping key so 'Line1'/'LINE1'/'Line 1' fuse."""
+    return alias_segment(asset) if asset else ""
+
+
+def _finalize_assets(tags: list[dict], site: str) -> list[dict]:
+    """Return NEW tags with a normalized asset label + an asset-unique canonical alias.
+
+    Two fixes vs the per-tag form: (1) tags are regrouped on a case/whitespace-
+    insensitive asset key so the SAME physical asset fuses across protocols even
+    when the OPC-UA folder name and the Modbus feed's asset differ only in case;
+    (2) within an asset, same-class siblings (e.g. two temperature points) get the
+    tag name appended to the leaf so each ``canonical_alias`` is unique — otherwise
+    the alias map has colliding keys and every multi-sensor asset reads as 'review'.
+    Immutable: builds fresh tag dicts, never mutates the input.
+    """
+    by_key: dict[str, list[dict]] = {}
+    for t in tags:
+        by_key.setdefault(_asset_key(t["asset"]), []).append(t)
+    out: list[dict] = []
+    for items in by_key.values():
+        display = next((t["asset"] for t in items if t["asset"]), "")
+        leaf_counts: dict[str, int] = {}
+        for t in items:
+            base = _alias_leaf(t["klass"], t["name"])
+            leaf_counts[base] = leaf_counts.get(base, 0) + 1
+        for t in items:
+            base = _alias_leaf(t["klass"], t["name"])
+            # disambiguate only when a meaningful CLASS leaf is shared by siblings
+            disambiguate = t["klass"] and t["klass"] != "other" and leaf_counts[base] > 1
+            leaf = f"{t['klass']}_{t['name']}" if disambiguate else base
+            out.append({**t, "asset": s(display, 200),
+                        "canonical_alias": _build_alias(site, display, leaf)})
+    return out
 
 
 def normalize_tag(raw: dict, *, protocol: str, source: str, asset: str = "",
@@ -194,7 +239,7 @@ def cross_protocol_asset_model(feeds: Any, site: str = "site") -> dict:
     SUGGESTIONS, never a server-side rename.
     """
     valid = _validate_feeds(feeds)
-    tags = _normalize_all(valid, site)
+    tags = _finalize_assets(_normalize_all(valid, site), site)
     assets = _group_assets(tags)
     collisions = _alias_collisions(tags)
     overlaps = _cross_protocol_overlaps(tags)
