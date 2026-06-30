@@ -12,7 +12,9 @@ Layering + honesty:
 - The HART command CODEC (building command frames + parsing device responses) uses
   the ``hart-protocol`` library and is **verified offline** (a crafted long-frame
   ACK round-trips through the parser) — see ``codec.py`` + tests.
-- The HART-IP **wire transport** (session-initiate + token-passing PDU over UDP)
-  is implemented from the public spec and is **待核实** — not verified against a
-  live HART-IP server/gateway here. It is isolated in ``transport.py``.
+- The HART-IP **wire transport** (session-initiate + token-passing PDU over UDP or
+  TCP — ``transport: tcp`` opts into the stream session, UDP is the default) is
+  implemented from the public spec; live-gateway behaviour stays **待核实** (not
+  validated against a live server here). The TCP path's header-then-body
+  length-delimiting IS loopback-verified. It is isolated in ``transport.py``.
 """

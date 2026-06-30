@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added — protocols
+- **HART-IP TCP transport** — the HART connector now speaks HART-IP over **TCP**
+  (port 5094) in addition to UDP. An endpoint selects it with `transport: tcp`
+  (UDP stays the default); `_build_hart_ip_client` picks the new
+  `HartIpTcpSession` vs the existing UDP `HartIpSession`. Both reuse the same
+  transport-agnostic 8-byte framing (`frame_message`/`parse_message`) and the same
+  session-initiate → token-passing → close sequence. The TCP session correctly
+  **length-delimits** the byte stream — it reads the 8-byte header, parses
+  `byte_count`, then reads exactly `byte_count - 8` more bytes (never trusting a
+  single `recv` to return a whole frame). Config gained a per-protocol transport
+  resolver (`_hart_transport`: `tcp` only when explicit, else `udp`); the shared
+  `TargetConfig.transport` default is now `""` ("protocol default": Modbus→tcp,
+  HART→udp). **Loopback-verified**: an in-process HART-IP TCP server thread
+  round-trips a real HART long-frame ACK through the REAL ops/codec path to the
+  primary variable. Live-gateway behaviour stays 待核实; write/device-specific
+  commands remain unexposed.
+
 ### Added — CI / DX
 - **GitHub Actions CI** (`.github/workflows/ci.yml`) — runs the release quality
   gate on push to `main` and on every pull request. A `gate` job (Python 3.11 +
