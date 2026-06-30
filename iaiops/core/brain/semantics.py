@@ -34,9 +34,11 @@ _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("pressure", ("press", "pressure", "_p_", "bar", "psi", "kpa", "mbar", "mmhg", "torr")),
     ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h", "m³/h", "m3/h", "scfm", "cfm", "nm3")),
     ("level", ("level", "_lv_", "tanklvl", "ullage")),
-    ("conductivity", ("conductivity", "conduct", "_ec_", "_ec", "us/cm", "µs/cm", "ms/cm")),
+    # no bare "conduct" — it false-matches Conductor*; "conductivity" already covers it.
+    ("conductivity", ("conductivity", "_ec_", "_ec", "us/cm", "µs/cm", "ms/cm")),
     ("ph", ("_ph", "ph_", "phval", "ph_value", "potential_hydrogen")),
-    ("turbidity", ("turbidity", "turbid", "ntu", "_fnu", "nephelo")),
+    # "_ntu" (not bare "ntu") so it doesn't match incidental words (e.g. Adventure).
+    ("turbidity", ("turbidity", "turbid", "_ntu", "ntu_", "_fnu", "nephelo")),
     ("density", ("density", "densit", "kg/m3", "g/cm3", "g/ml", "specificgravity",
                  "specific_gravity")),
     # frequency (VFD/line Hz) is split OUT of speed so a drive's output frequency
@@ -49,7 +51,9 @@ _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("current", ("current", "amp", "_i_")),
     ("voltage", ("voltage", "volt", "_v_")),
     ("vibration", ("vibration", "vib", "accel")),
-    ("mass", ("weight", "mass", "_kg", "kg_", "tonne", "loadcell", "load_cell", "gram")),
+    # no bare "gram" — it false-matches Program/Histogram/Telegram (common PLC tags);
+    # mass is covered by weight/mass/_kg/kg_/tonne/loadcell well enough.
+    ("mass", ("weight", "mass", "_kg", "kg_", "tonne", "loadcell", "load_cell")),
     # valve position / opening are an analog feedback → the position class.
     ("position", ("position", "_pos", "encoder", "valve", "_vlv", "opening")),
     ("counter", ("count", "counter", "total", "qty")),

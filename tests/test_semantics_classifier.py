@@ -76,6 +76,24 @@ def test_new_domain_classifications(name, expected):
     assert classify_tag(name) == expected
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "name",
+    [
+        # bare "gram" must NOT match mass — these are common PLC/recipe tag names
+        "ProgramNumber", "ProgramStep", "RecipeProgram", "Histogram", "Telegram",
+        "Diagram",
+        # bare "conduct" must NOT match conductivity
+        "Conductor_Status", "ConductTest",
+        # bare "ntu" must NOT match turbidity
+        "Adventure_Mode", "Continue_Flag",
+    ],
+)
+def test_overbroad_substrings_do_not_false_match(name):
+    """Guard against the substring false-matches the classifier-extension review found."""
+    assert classify_tag(name) not in ("mass", "conductivity", "turbidity")
+
+
 # ── extra unit-token hints ─────────────────────────────────────────────────────
 
 @pytest.mark.unit
