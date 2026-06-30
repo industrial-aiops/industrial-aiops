@@ -231,9 +231,14 @@ class TargetConfig:
     host: str = ""
     port: int = 0
     unit_id: int = 1
-    # Modbus transport: "tcp" (default) or "rtu" (serial). When "rtu" the
-    # serial_* params below select pymodbus's ModbusSerialClient instead of TCP.
-    transport: str = "tcp"
+    # Wire transport selector (per-protocol meaning, resolved at parse time):
+    #   * Modbus — "tcp" (default) or "rtu" (serial); "rtu" + the serial_* params
+    #     select pymodbus's ModbusSerialClient instead of ModbusTcpClient.
+    #   * HART-IP — "udp" (default) or "tcp"; both speak the same 8-byte framing
+    #     on port 5094, "tcp" picks the stream (length-delimited) session.
+    # Empty means "protocol default" (Modbus→tcp, HART→udp) so a directly built
+    # TargetConfig is unsurprising; the YAML parser always fills in a concrete value.
+    transport: str = ""
     serial_port: str = ""
     baudrate: int = 19200
     parity: str = "N"
@@ -364,6 +369,24 @@ def _modbus_transport(d: dict) -> str:
     return "tcp"
 
 
+def _hart_transport(d: dict) -> str:
+    """Resolve the HART-IP transport: 'tcp' only when explicitly requested, else 'udp'.
+
+    HART-IP runs over both UDP and TCP on port 5094 with identical 8-byte framing;
+    UDP is the historical default, so anything that is not an explicit 'tcp' (blank,
+    'udp', or a typo) resolves to 'udp' rather than silently switching transports.
+    """
+    given = str(d.get("transport", "") or "").strip().lower()
+    return "tcp" if given == "tcp" else "udp"
+
+
+def _resolve_transport(protocol: str, d: dict) -> str:
+    """Pick the per-protocol transport resolver (Modbus tcp/rtu vs HART udp/tcp)."""
+    if protocol == "hart":
+        return _hart_transport(d)
+    return _modbus_transport(d)
+
+
 def _as_bool(value: object) -> bool:
     """Coerce a YAML scalar to bool (tolerates 'true'/'1'/'yes')."""
     if isinstance(value, bool):
@@ -404,9 +427,9 @@ def _parse_target(d: dict) -> TargetConfig:
         host=d.get("host", "") or d.get("broker", ""),
         port=_default_port(protocol, d.get("port"), use_tls),
         unit_id=int(d.get("unit_id", 1) or 1),
-        # Modbus transport (tcp|rtu) + serial params. 'serial_port' accepts the
-        # 'serial_port'/'com_port' aliases; presence of one implies rtu.
-        transport=_modbus_transport(d),
+        # Wire transport, resolved per protocol: Modbus tcp|rtu (a 'serial_port'/
+        # 'com_port' alias implies rtu); HART-IP udp|tcp (udp default).
+        transport=_resolve_transport(protocol, d),
         serial_port=str(d.get("serial_port", "") or d.get("com_port", "")),
         baudrate=int(d.get("baudrate", 19200) or 19200),
         parity=str(d.get("parity", "N") or "N").upper()[:1],

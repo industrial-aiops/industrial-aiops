@@ -22,11 +22,16 @@
   (contract test guards it). 待核实: live building/HVAC read. Follow-ups:
   present-value writes behind the MOC gate; COV subscriptions; trends.
 - ✅ **process edition — HART-IP connector** — shipped (read-only): `hart_device_identity`
-  / `hart_primary_variable` / `hart_dynamic_variables` over HART-IP (UDP 5094) via the
+  / `hart_primary_variable` / `hart_dynamic_variables` over HART-IP (UDP/TCP 5094) via the
   `hart` extra (`hart-protocol`), added to the `process` profile/bundle. The HART command
-  codec is verified against the real library; the **HART-IP wire transport is 待核实**
+  codec is verified against the real library; live-gateway behaviour stays **待核实**
   (not validated against a live HART-IP server/gateway). Write/device-specific commands
-  not exposed. Follow-ups: live-gateway validation; TCP transport; burst-mode subscribe.
+  not exposed.
+  - ✅ **TCP transport** — `transport: tcp` selects a stream session (`HartIpTcpSession`)
+    alongside the UDP default; reuses the 8-byte framing and **length-delimits** the
+    stream by the header `byte_count`. Loopback-verified against an in-process HART-IP
+    TCP server (real ACK → real ops/codec). Follow-ups: live-gateway validation;
+    burst-mode subscribe.
 - ✅ **PROFINET (read-only)** — shipped in v0.6.0: DCP discovery / identify / asset
   via `pnio-dcp` (`profinet_discover` / `profinet_identify_station` /
   `profinet_station_params` / `profinet_asset_inventory`). No RT cyclic data; DCP
