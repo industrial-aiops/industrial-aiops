@@ -104,6 +104,23 @@ def test_staleness_flagged_against_pinned_now():
 
 
 @pytest.mark.unit
+def test_pinned_zero_staleness_is_honored_not_overridden():
+    """staleness_s: 0 (demand real-time) must flag ANY age>0 — not fall through to a default.
+
+    Regression for the `num(x) or default` bug: num(0)==0.0 is falsy, so a pinned 0
+    was silently replaced by the looser feed/expected default (no stale flag).
+    """
+    feeds = [{"endpoint": "line1", "tags": [
+        {"ref": "rt", "staleness_s": 0,
+         "samples": [{"value": 1, "timestamp": _iso(NOW - timedelta(seconds=5))}]},
+    ]}]
+    out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
+    tag = out["worst_tags"][0]
+    assert tag["staleness_s"] == 0
+    assert "stale" in tag["flags"]  # 5s-old sample against a 0s budget
+
+
+@pytest.mark.unit
 def test_bad_quality_all_samples():
     feeds = [{"endpoint": "line1", "tags": [
         {"ref": "bad", "samples": [{"value": None, "good": False} for _ in range(4)]},

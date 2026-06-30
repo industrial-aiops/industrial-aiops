@@ -80,7 +80,10 @@ def data_quality_scorecard(
     issue_totals: dict[str, int] = {}
     for feed in rows:
         endpoint = s(str(feed.get("endpoint", "")), 64)
-        feed_staleness = num(feed.get("staleness_s")) or default_staleness_s
+        # is-not-None so a feed pinning staleness_s: 0 keeps real-time strictness.
+        feed_staleness = _first_num(feed.get("staleness_s"))
+        if feed_staleness is None:
+            feed_staleness = default_staleness_s
         tags = [t for t in (feed.get("tags") or [])[:MAX_TAGS_PER_FEED] if isinstance(t, dict)]
         assessed = [_assess_tag(endpoint, t, feed_staleness, ref_now) for t in tags]
         for a in assessed:
@@ -180,10 +183,25 @@ def _thresholds(tag: dict, feed_staleness_s: float) -> tuple[float, float]:
     The gap budget defaults to staleness × DEFAULT_GAP_FACTOR unless the tag pins
     ``gap_threshold_s`` — so a slow daily counter is not judged like a 1Hz sensor.
     """
-    expected = num(tag.get("expected_update_s"))
-    staleness = num(tag.get("staleness_s")) or expected or feed_staleness_s
-    gap = num(tag.get("gap_threshold_s")) or staleness * DEFAULT_GAP_FACTOR
+    # Use is-not-None precedence (NOT `or`): a deliberately-pinned 0 means "demand
+    # real-time freshness" and must NOT fall through to a looser default.
+    staleness = _first_num(
+        tag.get("staleness_s"), tag.get("expected_update_s"), feed_staleness_s,
+    )
+    if staleness is None:
+        staleness = feed_staleness_s
+    pinned_gap = num(tag.get("gap_threshold_s"))
+    gap = pinned_gap if pinned_gap is not None else staleness * DEFAULT_GAP_FACTOR
     return staleness, gap
+
+
+def _first_num(*values: Any) -> float | None:
+    """First value that parses to a number (treats 0 as a real value, not missing)."""
+    for v in values:
+        n = num(v)
+        if n is not None:
+            return n
+    return None
 
 
 def _tag_flags(
