@@ -48,6 +48,7 @@ EXPECTED_TOOLS = {
     # cross-protocol analytics (OEE / downtime / asset / CoV)
     "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
     "cross_protocol_asset_model", "monitor_changes",
+    "adopt_alias_map", "diff_alias_map",
     # self-description
     "protocols_supported",
 }
@@ -80,6 +81,7 @@ def test_all_modules_import():
         "iaiops.core.brain.oee",
         "iaiops.core.brain.asset_inventory",
         "iaiops.core.brain.asset_model",
+        "iaiops.core.brain.alias_store",
         "iaiops.core.brain.semantics",
         "iaiops.core.brain.monitor",
         "iaiops.core.brain.diagnostics",
@@ -115,6 +117,7 @@ def test_all_modules_import():
         "mcp_server.tools.oee_tools",
         "mcp_server.tools.asset_tools",
         "mcp_server.tools.asset_model_tools",
+        "mcp_server.tools.alias_store_tools",
         "mcp_server.tools.monitor_tools",
         "mcp_server.tools.diagnostics_tools",
         "mcp_server.tools.overview_tools",
