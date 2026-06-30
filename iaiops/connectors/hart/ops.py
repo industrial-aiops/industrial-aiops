@@ -39,11 +39,12 @@ def hart_device_identity(target: Any) -> dict:
         return {**base, "error": "no HART response (device/gateway unreachable)"}
     return {
         **base,
+        # Attribute names verified against the hart-protocol cmd-0 parser (2026-06-30).
         "command": getattr(msg, "command", None),
         "manufacturer_id": getattr(msg, "manufacturer_id", None),
-        "device_type": getattr(msg, "device_type", None),
+        "device_type": getattr(msg, "manufacturer_device_type", None),
         "device_id": getattr(msg, "device_id", None),
-        "hart_revision": getattr(msg, "universal_revision", None),
+        "hart_revision": getattr(msg, "universal_command_revision_level", None),
     }
 
 
@@ -79,7 +80,9 @@ def hart_dynamic_variables(target: Any) -> dict:
             "value": num(val) if num(val) is not None else s(val, 48),
             "unit_code": getattr(msg, f"{label}_variable_units", None),
         })
-    loop = getattr(msg, "loop_current", getattr(msg, "current", None))
+    # The hart-protocol cmd-3 parser emits the loop current as 'analog_signal'
+    # (verified 2026-06-30); it decodes primary + secondary dynamic variables.
+    loop = getattr(msg, "analog_signal", None)
     return {
         **base,
         "command": getattr(msg, "command", None),
