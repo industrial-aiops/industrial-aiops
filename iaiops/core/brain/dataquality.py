@@ -59,11 +59,16 @@ def data_quality_scorecard(
 ) -> dict:
     """[READ] Fleet data-trust scorecard across endpoints' tag feeds.
 
-    Each feed: ``{endpoint, tags: [{ref, label?, samples, expected_update_s?,
+    Each feed: ``{endpoint, staleness_s?, tags: [{ref, label?, samples,
+    expected_update_s?, staleness_s?, gap_threshold_s?, flatline_after_s?,
     heartbeat?}]}`` where ``samples`` is a list of scalars or ``{value, good|
-    quality, timestamp?}``. ``now`` (ISO-8601) pins the staleness reference for
-    deterministic results; omitted → current UTC. Returns per-tag scores, per-
-    endpoint rollups, a fleet summary + issue breakdown, and ranked worst tags.
+    quality, timestamp?}``. Staleness/gap thresholds are configurable per tag
+    (``staleness_s`` / ``gap_threshold_s``) and per feed (``staleness_s``) so a
+    slow daily counter is not judged like a 1Hz sensor; ``flatline_after_s`` flags
+    a stuck value via its longest stall. ``now`` (ISO-8601) pins the staleness
+    reference for deterministic results; omitted → current UTC. Returns per-tag
+    scores, per-endpoint rollups, a fleet summary + issue breakdown, a first-class
+    ``liveness`` section (dead-heartbeat / flatline), and ranked worst tags.
     """
     ref_now = _parse_ts(now) or datetime.now(tz=UTC)
     rows = [f for f in (feeds or [])[:MAX_FEEDS] if isinstance(f, dict)]
@@ -75,8 +80,9 @@ def data_quality_scorecard(
     issue_totals: dict[str, int] = {}
     for feed in rows:
         endpoint = s(str(feed.get("endpoint", "")), 64)
+        feed_staleness = num(feed.get("staleness_s")) or default_staleness_s
         tags = [t for t in (feed.get("tags") or [])[:MAX_TAGS_PER_FEED] if isinstance(t, dict)]
-        assessed = [_assess_tag(endpoint, t, default_staleness_s, ref_now) for t in tags]
+        assessed = [_assess_tag(endpoint, t, feed_staleness, ref_now) for t in tags]
         for a in assessed:
             for flag in a["flags"]:
                 issue_totals[flag] = issue_totals.get(flag, 0) + 1
@@ -91,6 +97,7 @@ def data_quality_scorecard(
         "fleet_score": fleet_score,
         "fleet_status": _status(fleet_score),
         "issue_breakdown": dict(sorted(issue_totals.items(), key=lambda kv: kv[1], reverse=True)),
+        "liveness": _liveness_rollup(all_tags),
         "worst_endpoints": sorted(endpoints, key=lambda e: e["score"])[:5],
         "worst_tags": offenders[:20],
         "endpoints": endpoints,
@@ -135,55 +142,93 @@ def heartbeat_health(series: list[Any], max_interval_s: float | None = None) -> 
 # ─── per-tag assessment ──────────────────────────────────────────────────────
 
 
-def _assess_tag(endpoint: str, tag: dict, default_staleness_s: float, ref_now: datetime) -> dict:
-    """Score one tag 0-100 over the data-trust dimensions; collect its flags."""
+def _assess_tag(endpoint: str, tag: dict, feed_staleness_s: float, ref_now: datetime) -> dict:
+    """Score one tag 0-100 over the data-trust dimensions; collect its flags.
+
+    ``feed_staleness_s`` is the feed-level default staleness budget; a tag may
+    override it (``staleness_s``) and the gap budget (``gap_threshold_s``).
+    """
     ref = s(str(tag.get("ref", tag.get("tag", ""))), 96)
     raw = list(tag.get("samples", []) or [])
     values = _numeric_series(raw)
-    flags: list[str] = []
-
-    is_heartbeat = bool(tag.get("heartbeat", False))
-    if is_heartbeat and len(values) >= 2 and (max(values) - min(values)) <= 0.0:
-        flags.append("dead_heartbeat")
-    elif len(values) >= 2 and (max(values) - min(values)) <= 1e-9:
-        flags.append("flatline")
-
-    bad = sum(1 for it in raw if isinstance(it, dict) and _is_bad(it))
-    if raw and bad == len(raw):
-        flags.append("bad_quality")
-    elif bad:
-        flags.append("some_bad_quality")
-
-    expected = num(tag.get("expected_update_s")) or default_staleness_s
+    staleness_s, gap_s = _thresholds(tag, feed_staleness_s)
     age = _last_age_s(raw, ref_now)
-    if age is not None and age > expected:
-        flags.append("stale")
-    if _has_gap(raw, expected * DEFAULT_GAP_FACTOR):
-        flags.append("gappy")
-    if _has_anomaly(values):
-        flags.append("anomaly")
-
+    stall = _longest_stall(raw)
+    flags = _tag_flags(tag, raw, values, age, stall, staleness_s, gap_s)
     score = max(0, 100 - sum(DEDUCTIONS.get(f, 0) for f in flags))
     return {
         "endpoint": endpoint,
         "ref": ref,
         "label": s(str(tag.get("label", "")), 64),
-        "heartbeat": is_heartbeat,
+        "heartbeat": bool(tag.get("heartbeat", False)),
         "samples": len(raw),
         "latest": values[-1] if values else None,
         "age_seconds": age,
+        "staleness_s": staleness_s,
+        "gap_threshold_s": gap_s,
+        "longest_stall_s": stall,
         "flags": flags,
         "score": score,
         "status": _status(score),
     }
 
 
+def _thresholds(tag: dict, feed_staleness_s: float) -> tuple[float, float]:
+    """Resolve (staleness_s, gap_threshold_s) for one tag, honoring overrides.
+
+    Precedence: tag ``staleness_s`` > tag ``expected_update_s`` > feed default.
+    The gap budget defaults to staleness × DEFAULT_GAP_FACTOR unless the tag pins
+    ``gap_threshold_s`` — so a slow daily counter is not judged like a 1Hz sensor.
+    """
+    expected = num(tag.get("expected_update_s"))
+    staleness = num(tag.get("staleness_s")) or expected or feed_staleness_s
+    gap = num(tag.get("gap_threshold_s")) or staleness * DEFAULT_GAP_FACTOR
+    return staleness, gap
+
+
+def _tag_flags(
+    tag: dict, raw: list[Any], values: list[float],
+    age: float | None, stall: float | None, staleness_s: float, gap_s: float,
+) -> list[str]:
+    """Collect the data-trust flags for one tag (flatline/quality/staleness/gap)."""
+    flags: list[str] = []
+    if _is_flatlined(tag, values, stall):
+        flags.append("dead_heartbeat" if tag.get("heartbeat") else "flatline")
+    bad = sum(1 for it in raw if isinstance(it, dict) and _is_bad(it))
+    if raw and bad == len(raw):
+        flags.append("bad_quality")
+    elif bad:
+        flags.append("some_bad_quality")
+    if age is not None and age > staleness_s:
+        flags.append("stale")
+    if _has_gap(raw, gap_s):
+        flags.append("gappy")
+    if _has_anomaly(values):
+        flags.append("anomaly")
+    return flags
+
+
+def _is_flatlined(tag: dict, values: list[float], stall: float | None) -> bool:
+    """Has the value stopped moving? A configurable ``flatline_after_s`` uses the
+    longest stall (value should move but hasn't); else zero variance over the window.
+    """
+    if len(values) < 2:
+        return False
+    after = num(tag.get("flatline_after_s"))
+    if after is not None and stall is not None:
+        return stall > after
+    return (max(values) - min(values)) <= 1e-9
+
+
 def _rollup_endpoint(endpoint: str, tags: list[dict]) -> dict:
     """Aggregate per-tag scores into an endpoint-level data-trust rollup."""
     scores = [t["score"] for t in tags]
     counts = {"ok": 0, "warn": 0, "alarm": 0, "dead": 0}
+    issue_counts: dict[str, int] = {}
     for t in tags:
         counts[t["status"]] += 1
+        for f in t["flags"]:
+            issue_counts[f] = issue_counts.get(f, 0) + 1
     score = _mean(scores) if scores else 100.0
     worst = min(tags, key=lambda t: t["score"]) if tags else None
     return {
@@ -192,8 +237,92 @@ def _rollup_endpoint(endpoint: str, tags: list[dict]) -> dict:
         "status": _status(score),
         "tag_count": len(tags),
         "status_counts": counts,
+        "issue_counts": dict(sorted(issue_counts.items(), key=lambda kv: kv[1], reverse=True)),
+        "bad_quality_tags": issue_counts.get("bad_quality", 0)
+        + issue_counts.get("some_bad_quality", 0),
         "worst_tag": {"ref": worst["ref"], "score": worst["score"], "flags": worst["flags"]}
         if worst else None,
+    }
+
+
+# ─── first-class liveness + cross-endpoint fleet rollup ──────────────────────
+
+
+def _liveness_rollup(all_tags: list[dict]) -> dict:
+    """Surface flatline / dead-heartbeat as explicit scored dimensions (not buried)."""
+    dead = [_liveness_entry(t) for t in all_tags if "dead_heartbeat" in t["flags"]]
+    flat = [_liveness_entry(t) for t in all_tags if "flatline" in t["flags"]]
+    by_stall = lambda e: (e["longest_stall_s"] or 0.0, -e["score"])  # noqa: E731
+    return {
+        "dead_heartbeat_count": len(dead),
+        "flatline_count": len(flat),
+        "dead_heartbeats": sorted(dead, key=by_stall, reverse=True)[:20],
+        "flatlines": sorted(flat, key=by_stall, reverse=True)[:20],
+    }
+
+
+def _liveness_entry(t: dict) -> dict:
+    return {
+        "endpoint": t["endpoint"], "ref": t["ref"], "heartbeat": t["heartbeat"],
+        "longest_stall_s": t.get("longest_stall_s"), "score": t["score"],
+    }
+
+
+def data_quality_fleet_rollup(
+    feeds: list[dict],
+    default_staleness_s: float = DEFAULT_STALENESS_S,
+    now: str | None = None,
+    top_n: int = 10,
+) -> dict:
+    """[READ] Cross-endpoint fleet rollup: rank endpoints by worst tag + bad-quality.
+
+    Builds on ``data_quality_scorecard`` to give a fleet-wide view: endpoints
+    ranked by their single worst tag, bad-quality tag counts aggregated across
+    every endpoint, and the first-class liveness rollup. Pure analysis.
+    """
+    card = data_quality_scorecard(feeds, default_staleness_s, now)
+    if "error" in card:
+        return card
+    top = max(1, min(int(top_n or 10), MAX_FEEDS))
+    endpoints = card["endpoints"]
+    ranked = sorted(endpoints, key=_worst_tag_key)
+    return {
+        "evaluated_endpoints": card["evaluated_endpoints"],
+        "evaluated_tags": card["evaluated_tags"],
+        "fleet_score": card["fleet_score"],
+        "fleet_status": card["fleet_status"],
+        "endpoints_ranked_by_worst_tag": ranked[:top],
+        "bad_quality_rollup": _fleet_bad_quality(endpoints, top),
+        "liveness_rollup": card["liveness"],
+        "issue_breakdown": card["issue_breakdown"],
+        "reference_time": card["reference_time"],
+        "note": "Fleet view: endpoints ranked by their single worst tag, plus "
+        "bad-quality tag counts aggregated across every endpoint. Data-TRUST, "
+        "not process health.",
+    }
+
+
+def _worst_tag_key(endpoint: dict) -> tuple[float, float]:
+    """Sort key: lowest worst-tag score first, then lowest endpoint mean score."""
+    worst = endpoint.get("worst_tag")
+    return (worst["score"] if worst else 100.0, endpoint["score"])
+
+
+def _fleet_bad_quality(endpoints: list[dict], top_n: int) -> dict:
+    """Aggregate bad-quality tag counts across endpoints, ranked worst-first."""
+    by_ep = [
+        {
+            "endpoint": e["endpoint"],
+            "bad_quality_tags": e["bad_quality_tags"],
+            "fully_bad": e["issue_counts"].get("bad_quality", 0),
+            "partial_bad": e["issue_counts"].get("some_bad_quality", 0),
+        }
+        for e in endpoints if e["bad_quality_tags"]
+    ]
+    return {
+        "total_bad_quality_tags": sum(e["bad_quality_tags"] for e in endpoints),
+        "endpoints_affected": len(by_ep),
+        "by_endpoint": sorted(by_ep, key=lambda x: x["bad_quality_tags"], reverse=True)[:top_n],
     }
 
 
@@ -273,4 +402,4 @@ def _longest_stall(raw: list[Any]) -> float | None:
     return round(longest, 3)
 
 
-__all__ = ["data_quality_scorecard", "heartbeat_health"]
+__all__ = ["data_quality_scorecard", "data_quality_fleet_rollup", "heartbeat_health"]

@@ -217,7 +217,7 @@ PROTOCOLS: tuple[dict, ...] = (
 DIAGNOSTICS_TOOLS = (
     "diagnose_dataflow", "historian_health", "alarm_bad_actors", "tag_health",
     "subscription_health", "downtime_root_cause", "downtime_root_cause_live",
-    "data_quality_scorecard", "heartbeat_health",
+    "data_quality_scorecard", "data_quality_fleet_rollup", "heartbeat_health",
 )
 
 # Cross-protocol analytics (read-only): OEE/downtime, active asset inventory, CoV.

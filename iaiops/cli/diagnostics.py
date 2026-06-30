@@ -72,6 +72,19 @@ def dataquality_cmd(
     _emit(dq.data_quality_scorecard(_load_json(input), staleness_s, now))
 
 
+@diag_app.command("dataquality-fleet")
+@cli_errors
+def dataquality_fleet_cmd(
+    input: Path = typer.Option(..., "--input",
+                               help="JSON file: list of {endpoint, tags:[{ref, samples}]}"),
+    staleness_s: float = typer.Option(300.0, "--staleness-s"),
+    now: str = typer.Option(None, "--now", help="ISO-8601 staleness reference (deterministic)"),
+    top_n: int = typer.Option(10, "--top-n", help="How many endpoints / bad-quality rows"),
+) -> None:
+    """Cross-endpoint fleet rollup: worst tags + bad-quality counts across endpoints."""
+    _emit(dq.data_quality_fleet_rollup(_load_json(input), staleness_s, now, top_n))
+
+
 @diag_app.command("heartbeat")
 @cli_errors
 def heartbeat_cmd(
