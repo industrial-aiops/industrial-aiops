@@ -2,11 +2,11 @@
 
 # Industrial-AIOps
 
-**Governed, vendor-neutral industrial data tap + intelligent troubleshooting for AI agents — across OPC-UA (incl. Historical Access), Modbus-TCP, S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B (full decode), EtherNet/IP (Rockwell/Allen-Bradley Logix), EtherCAT (pysoem/SOEM fieldbus master), and SECS/GEM (HSMS fab equipment) — plus OEE/downtime, active asset-inventory, and change-of-value analytics.**
+**Governed, vendor-neutral industrial data tap + intelligent troubleshooting for AI agents — across OPC-UA (incl. Historical Access), Modbus-TCP, S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B (full decode), EtherNet/IP (Rockwell/Allen-Bradley Logix), EtherCAT (pysoem/SOEM fieldbus master), PROFINET (DCP discovery), SECS/GEM (HSMS fab equipment), and the energy (IEC-104/DNP3/IEC-61850) + building (BACnet/IP) editions — plus OEE/downtime, active asset-inventory, and change-of-value analytics.**
 
-Industrial-AIOps is the OT/industrial member of [Industrial-AIOps](https://github.com/industrial-aiops). It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), ranks unhealthy tags, computes OEE / categorizes downtime, and builds an active asset register. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
+Industrial-AIOps is the OT/industrial member of [Industrial-AIOps](https://github.com/industrial-aiops). It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), ranks unhealthy tags, computes OEE / categorizes downtime, builds an active asset register, and — the flagship — runs an **AI downtime root-cause copilot** that correlates the evidence into an **evidence-cited, advisory** verdict. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
 
-> ⚠️ **Preview / v0.4.0** — validated against an **in-process OPC-UA simulator (incl. HDA), mocked Modbus/S7/Mitsubishi/EtherNet-IP(pycomm3)/EtherCAT(pysoem)/SECS-GEM(secsgem) clients, static MTConnect XML fixtures, and synthetic MQTT/Sparkplug B protobuf payloads**. **NOT tested against live PLCs / SCADA / brokers / Logix controllers / EtherCAT slaves.** EtherCAT is hard-real-time and has **no software simulator** (Linux + root + a real bus only), so it is **entirely unverified against hardware**. See *Safety*.
+> ⚠️ **Preview / v0.6.0** — validated against an **in-process OPC-UA simulator (incl. HDA), mocked Modbus/S7/Mitsubishi/EtherNet-IP(pycomm3)/EtherCAT(pysoem)/SECS-GEM(secsgem) clients, static MTConnect XML fixtures, and synthetic MQTT/Sparkplug B protobuf payloads**. **NOT tested against live PLCs / SCADA / brokers / Logix controllers / EtherCAT slaves.** EtherCAT is hard-real-time and has **no software simulator** (Linux + root + a real bus only), so it is **entirely unverified against hardware**. See *Safety*.
 
 ## Why
 
@@ -52,6 +52,8 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 | MQTT/Sparkplug | `sparkplug_decode_payload` | decode raw SpB payload | R | low | {metrics:[{name, alias, datatype, value, is_historical}]} |
 | MQTT/Sparkplug | `sparkplug_node_list` | node discovery + state | R | low | {nodes:[{group_id, edge_node_id, online, devices}], primary_hosts[]} |
 | MQTT/Sparkplug | `uns_browse` | topic-tree browse | R | low | {topics[], tree{}} |
+| MQTT/Sparkplug | `uns_topic_audit` | UNS naming + sprawl governance | R | low | {verdict, sprawl_findings, findings{casing_collisions[], scattered_leaves[], …}} |
+| MQTT/Sparkplug | `uns_schema_drift` | Sparkplug schema-drift (baseline vs current) | R | low | {verdict (none/additive/breaking), node_changes[]} |
 | MQTT/Sparkplug | `mqtt_publish` | publish/command | **W** | **high/MOC** | {published_bytes, applied} |
 | EtherNet/IP | `eip_controller_info` | Logix controller id | R | low | {controller:{vendor, product_name, revision, serial}} |
 | EtherNet/IP | `eip_list_tags` | tag discovery | R | low | {tag_count, tags:[{name, data_type, structure}]} |
@@ -62,6 +64,11 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 | Diagnostics | `alarm_bad_actors` | ISA-18.2 flood | R | low | {flood_verdict, top_offenders[]} |
 | Diagnostics | `tag_health` | offender ranking | R | low | {overall, offenders[]} |
 | Diagnostics | `historian_health` | gap/flatline | R | low | {verdict, gaps[]} |
+| Diagnostics | `subscription_health` | sequenced-feed loss/reorder/overload | R | low | {verdict, missed_count, overloaded_channels[]} |
+| Diagnostics | `downtime_root_cause` | AI downtime RCA copilot (cited, advisory) | R | low | {verdict, primary_cause, hypotheses:[{cause, confidence, evidence[]}]} |
+| Diagnostics | `downtime_root_cause_live` | RCA copilot that gathers its own live evidence | R | low | {…downtime_root_cause…, collected_evidence} |
+| Diagnostics | `data_quality_scorecard` | fleet data-trust rollup | R | low | {fleet_score, fleet_status, issue_breakdown, worst_tags[], endpoints[]} |
+| Diagnostics | `heartbeat_health` | heartbeat/watchdog liveness | R | low | {alive, distinct_transitions, longest_stall_s, reason} |
 | Analytics | `oee_compute` | OEE = A×P×Q | R | low | {availability, performance, quality, oee, oee_pct} |
 | Analytics | `downtime_events` | stoppage detect + categorize | R | low | {event_count, total_downtime_s, by_category, events[]} |
 | Analytics | `oee_multidim` | OEE machine×part×shift | R | low | {matrix[], worst_performers[], mean_oee} |
@@ -74,6 +81,10 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 | EtherCAT | `ethercat_read_pdo` | input PDO snapshot | R | low | {working_counter, input_hex, input_byte_length} |
 | EtherCAT | `ethercat_write_sdo` | CoE SDO download | **W** | **high/MOC** | {before, written, applied} |
 | EtherCAT | `ethercat_set_state` | AL-state transition | **W** | **high/MOC** | {before, requested, reached, applied} |
+| PROFINET | `profinet_discover` | DCP IdentifyAll (segment-wide) | R | low | {station_count, stations:[{name_of_station, mac, ip, vendor_id, device_roles[]}]} |
+| PROFINET | `profinet_identify_station` | identify by name-of-station | R | low | {found, name_of_station, mac, ip, device_family} |
+| PROFINET | `profinet_station_params` | targeted DCP Get (by MAC) | R | low | {found, name_of_station, ip, netmask, gateway} |
+| PROFINET | `profinet_asset_inventory` | DCP asset register | R | low | {asset_count, io_controller_count, assets[]} |
 | SECS/GEM | `secsgem_equipment_status` | GEM link + identity (S1F1/F2) | R | low | {communication_state, are_you_there} |
 | SECS/GEM | `secsgem_list_status_variables` | SVID namelist (S1F11/F12) | R | low | {count, status_variables[]} |
 | SECS/GEM | `secsgem_read_status_variables` | SVID values (S1F3/F4) | R | low | {svids, values[]} |
@@ -81,9 +92,23 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 | SECS/GEM | `secsgem_read_equipment_constants` | ECID values (S2F13/F14) | R | low | {ecids, values[]} |
 | SECS/GEM | `secsgem_list_alarms` | alarm list (S5F5/F6) | R | low | {count, alarms[]} |
 | SECS/GEM | `secsgem_list_process_programs` | PPID directory (S7F19/F20) | R | low | {count, process_programs[]} |
+| IEC-104 (energy) | `iec104_connection_info` | link + stations (CAs) | R | low | {connected, station_count, common_addresses[]} |
+| IEC-104 (energy) | `iec104_interrogate` | general interrogation | R | low | {common_address, point_count, points:[{io_address, type, value, quality}]} |
+| IEC-104 (energy) | `iec104_read_point` | one point by IOA | R | low | {found, io_address, value, quality} |
+| DNP3 (energy) | `dnp3_link_status` | master/outstation link | R | low | {online, outstation_address, master_address} |
+| DNP3 (energy) | `dnp3_integrity_poll` | Class 0/1/2/3 database | R | low | {point_count, by_type{}, points:[{type, index, value}]} |
+| IEC-61850 (energy) | `iec61850_device_directory` | logical-device model | R | low | {logical_device_count, logical_devices[]} |
+| IEC-61850 (energy) | `iec61850_browse` | browse model children | R | low | {reference, child_count, children[]} |
+| IEC-61850 (energy) | `iec61850_read` | read data attribute (FC) | R | low | {reference, fc, value} |
+| BACnet (building) | `bacnet_discover` | Who-Is device discovery | R | low | {device_count, devices:[{device_id, address}]} |
+| BACnet (building) | `bacnet_object_list` | a device's objects | R | low | {object_count, objects:[{object_type, instance}]} |
+| BACnet (building) | `bacnet_read_property` | one object property | R | low | {object_type, instance, property, value} |
+| BACnet (building) | `bacnet_read_points` | all present-values (HVAC snapshot) | R | low | {point_count, points:[{object_type, instance, present_value}]} |
+| 信创 / compliance | `compliance_mapping` | 《工控网络安全防护指南》↔ iaiops | R | low | {pillars[], status_summary, controls:[{pillar, status, gap}]} |
+| 信创 / historian | `historian_push` | push telemetry to TDengine/IoTDB | R(→historian) | low | {sink, received, written, skipped_non_numeric} |
 | Self | `protocols_supported` | capability map | R | low | {protocols[], diagnostics[], analytics[]} |
 
-**66 tools** = 60 read + 6 write (MOC). The 60 reads = 49 protocol-read · 5 diagnostics · 5 analytics · 1 self. Run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**90 tools** = 84 read + 6 write (MOC). The 84 reads = 67 protocol-read · 9 diagnostics · 5 analytics · 2 compliance/historian · 1 self. Run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -145,6 +170,35 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
   | `ethercat_set_state` | AL-state transition | **W** | **high/MOC** | before-state + undo; **can start/stop motion** |
 
 - **Write/state safety**: `ethercat_write_sdo` (hex little-endian bytes) and `ethercat_set_state` are **high risk_tier, MOC, dry-run by default**, capture the BEFORE value/state for undo, and need a CLI double-confirm. **Changing EtherCAT state can START or STOP machine motion** — treat with extreme care. 未经授权勿对生产控制系统写入.
+
+### PROFINET (DCP discovery / identify — read-only)
+- **Supported**: layer-2 **PROFINET-DCP** via **`pnio-dcp`** — **`profinet_discover`** (DCP IdentifyAll: one broadcast surfaces *every* station on the segment — name-of-station, MAC, IP, vendor/device id, role — closer to passive discovery than a per-device fingerprint), **`profinet_identify_station`** (by name-of-station), **`profinet_station_params`** (targeted DCP Get by MAC → name + IP suite), and **`profinet_asset_inventory`** (a register with IO-controller vs IO-device role decoding).
+- **Scope (deliberate)**: **discovery + identify ONLY**. **No RT cyclic process data** (that needs an IO-controller/IO-device stack and hard real-time — out of scope and unsafe to tap), and the disruptive **DCP *Set* services** (set-name / set-ip / **blink** / factory-reset) are **intentionally not exposed** (they re-address or physically signal a live device). Ask via issue/PR to add them behind the MOC write gate.
+- **HARD REQUIREMENTS**: **raw-socket access** (root / admin / `CAP_NET_RAW`) on the **NIC on the PROFINET subnet**. `pnio-dcp` is an **OPTIONAL extra**: `pip install iaiops[profinet]` — the base package installs/imports **without** it, and every tool then **degrades to a teaching error**.
+- **Connection params**: `host` — **THIS machine's IP** on the PROFINET subnet (the DCP broadcast goes out on it). `protocol: profinet`.
+- **Preview caveat**: validated against a **mocked `pnio-dcp` DCP** — **not** verified against live PROFINET devices yet.
+
+### Energy edition (electrical substation / utility telecontrol — read-only)
+The **energy** vertical adds the three protocols that dominate power/utility SCADA, as **read-only monitoring** taps. Install with `pip install iaiops[energy]` and expose with `IAIOPS_MCP=energy`.
+- **IEC 60870-5-104** (`c104`): `iec104_connection_info` (link + discovered ASDU common addresses), `iec104_interrogate` (general interrogation — all monitored points of a station), `iec104_read_point` (one point by IOA). Config: `host` / `port` (2404) / `common_address`.
+- **DNP3** (`pydnp3`/opendnp3): `dnp3_link_status` (master/outstation link), `dnp3_integrity_poll` (Class 0/1/2/3 → the outstation database, grouped by binary/analog/counter). Config: `host` / `port` (20000) / `unit_id` (outstation addr) / `master_address`.
+- **IEC 61850 MMS** (`libiec61850` binding): `iec61850_device_directory` (logical-device model map), `iec61850_browse` (browse LD/LN/DO children), `iec61850_read` (read a data attribute by object-reference + functional constraint, e.g. `IED1MMXU1.TotW.mag.f` FC=`MX`). Config: `host` / `port` (102).
+- **Scope (deliberate)**: **monitor direction only** — control commands (IEC-104 C_SC/C_DC/setpoints, DNP3 CROB/analog-output, IEC-61850 Oper/select-before-operate) and IEC-61850 GOOSE / Sampled Values are **not exposed**.
+- **⚠️ Preview / 待核实**: the energy connectors are **mock-tested** and their **library/API bindings are unverified against live RTUs/IEDs**. `iec61850` needs **libiec61850** built; `pydnp3` builds a native extension — these stay opt-in (not in `iaiops[all]`). This is the connector line's largest validation debt — open an issue with your device + library version if a binding symbol differs.
+
+### Building edition (facility / HVAC / 厂务 — read-only)
+The **building** vertical adds **BACnet/IP** (ASHRAE 135) — the dominant building-automation protocol for HVAC, lighting, metering, and facility plant. Install with `pip install iaiops[building]` and expose with `IAIOPS_MCP=building`.
+- **BACnet/IP** (`BAC0` over bacpypes3): `bacnet_discover` (Who-Is device discovery), `bacnet_object_list` (a device's objects), `bacnet_read_property` (one object property), `bacnet_read_points` (present-value of all analog/binary/multistate points — the HVAC snapshot). Config: `host` = THIS machine's BACnet/IP interface (`ip` or `ip/mask`) / `port` (47808).
+- **Scope (deliberate)**: **read-only** — present-value writes (with priority/relinquish) are not exposed; overriding a live building-control point is OT-dangerous.
+- **⚠️ Preview / 待核实**: mock-tested; the BAC0 binding is **unverified against live building gear**.
+
+### 信创 / China entry (offline · 国产 TSDB · compliance)
+For 自主可控 / 信创 deployments — see **[docs/CHINA.md](docs/CHINA.md)** for the full guide.
+- **Air-gapped install**: pure-Python core + per-protocol optional extras → install from a local wheelhouse with `pip install --no-index --find-links ./wheelhouse "iaiops[...]"`; secrets stay local (encrypted store), no cloud KMS.
+- **National TSDB historian sink** (`historian_push`, CLI `iaiops historian push`): write collected telemetry to **TDengine** (`iaiops[tdengine]`) or **Apache IoTDB** (`iaiops[iotdb]`) — domestic, controllable; we don't build our own store or bind InfluxDB. *Data egress to the operator's own historian, not a control write.*
+- **Compliance mapping** (`compliance_mapping`, CLI `iaiops compliance`): an honest 《工控系统网络安全防护指南》 ↔ iaiops self-assessment across 分区隔离 / 可审计 / 双向认证 / 最小权限 / 数据保护 / 自主可控, with per-control status (addressed / partial / 待核实) and the named gap.
+- **国产 PLC**: 汇川 / 台达 / 信捷 over the existing **Modbus-TCP / S7** connectors.
+- **⚠️ 待核实**: 国产 OS (麒麟/统信) · 芯 (鲲鹏/海光) · PLC validation and the TSDB write paths are documented but **not yet hardware-verified** — see the validation matrix in docs/CHINA.md.
 
 ### OEE / downtime analytics (cross-protocol, read-only)
 - `oee_compute` — **OEE = Availability × Performance × Quality** from production inputs (planned time, run time, ideal cycle, total/good counts). Each factor is reported **raw + clamped to [0,1]**; a `capped` performance >1.0 flags an optimistic ideal cycle.
@@ -419,18 +473,66 @@ iaiops ethercat set-state PREOP --slave 0 -e bus1 --apply     # AL-state (can st
                  {"ref":"bad","latest":null,"flags":["bad_quality"],"severity":3} ] }
 ```
 
+#### AI downtime root-cause copilot (flagship)
+
+`downtime_root_cause` correlates whatever evidence you can hand over — alarm
+events, tag samples, a `diagnose_dataflow` verdict, a machine-state series —
+around an incident window and returns an **evidence-cited, advisory** verdict.
+Read-first: it proposes a human-approved, MOC-gated, undoable action and executes
+nothing. Anti-hallucination by design — it cites only signals actually present in
+the input, weights them by temporal proximity to onset (a cause precedes its
+effect), and downgrades to `insufficient_evidence` (with a `recommended_next_data`
+list) rather than guessing when evidence is thin.
+
+`downtime_root_cause(window={"start":"2026-06-28T10:00:00Z","asset":"line1"},
+alarms=[{"source":"M1_DRIVE","timestamp":"2026-06-28T09:59:52Z","message":"motor overload trip"}],
+tags=[{"ref":"DRV1.Torque","samples":[10,11,99,99],"alarm_high":80}], dataflow={"verdict":"healthy"})`:
+```json
+{ "window": {"start":"2026-06-28 10:00:00+00:00","asset":"line1","duration_s":300.0},
+  "verdict": "root_cause_identified",
+  "primary_cause": {
+    "cause": "mechanical_fault", "confidence": 0.722, "confidence_band": "high",
+    "evidence": [
+      {"signal":"alarm","ref":"M1_DRIVE","at":"2026-06-28 09:59:52+00:00","lead_time_s":8.0,
+       "detail":"motor overload trip","weight":0.4959},
+      {"signal":"tag","ref":"DRV1.Torque","detail":"flags=out_of_range_alarm severity=3","weight":0.45} ],
+    "recommended_action": "Dispatch maintenance to inspect the faulting unit; if a latch/interlock is set, the reversible step is to clear the fault and reset the latch (MOC-approved, undo captures the prior latch state)." },
+  "evidence_summary": {"alarms_supplied":1,"tags_supplied":1,"dataflow_verdict":"healthy","total_evidence_items":2},
+  "anti_hallucination": "Advisory only — nothing is executed. Every cited signal is present in the supplied evidence …" }
+```
+
+The same copilot is on the CLI: `iaiops diag rca --input bundle.json` where the
+bundle is `{window, alarms?, tags?, dataflow?, state_series?}`.
+
+**Let it gather its own evidence.** `downtime_root_cause_live` (CLI `iaiops diag
+rca-live`) takes just an endpoint + window + the refs to look at, then pulls the
+evidence itself — a cross-protocol `diagnose_dataflow` probe, a short sampled
+series per ref (so flatline / bad-quality / anomaly surface via `tag_health`),
+and active OPC-UA conditions — before running the same advisory, read-only copilot.
+The gathered bundle is echoed back under `collected_evidence` (no hidden inputs):
+
+```bash
+iaiops diag rca-live -e line1 --start 2026-06-28T10:00:00Z \
+  --asset line1 --ref "ns=2;i=5" --ref "ns=2;i=6"
+```
+
+### Data-quality watchdog & UNS governance (read-only intelligence)
+Two more pure-analysis layers — fully testable without live gear, and they feed the RCA copilot.
+- **`data_quality_scorecard`** (CLI `iaiops diag dataquality`) — a fleet **data-TRUST** rollup: scores each tag 0-100 on whether its data can be *believed* — staleness, **dead heartbeat** (first-class), bad-quality, flatline, gaps, anomaly — then rolls up per endpoint and across the fleet with an issue breakdown and ranked worst offenders. Distinct from process health: it asks "can I trust this number," not "is this number alarming." `heartbeat_health` (CLI `iaiops diag heartbeat`) is the standalone watchdog-liveness check (a flatlined heartbeat = dead upstream even when comms look fine).
+- **`uns_topic_audit`** (CLI `iaiops mqtt uns-audit`) — governs a UNS topic tree: naming conformance (allowed roots / min depth) + **topic sprawl** (casing collisions of the same logical name, leaf metrics scattered under many parents, depth outliers, duplicates) → a `clean`/`minor`/`sprawling` verdict. **`uns_schema_drift`** (CLI `iaiops mqtt uns-drift`) — compares two Sparkplug NBIRTH-style snapshots and classifies the change `none` / `additive` / `breaking` (a metric removed or its datatype changed). Positions the UNS as a *governable* neutral data source, not just a broker.
+
 ### MCP server
 ```bash
 iaiops mcp        # stdio transport; or the `iaiops-mcp` entry point
 ```
 
 **Menu — expose only the protocols a site runs.** A fab usually runs 1–2 protocols;
-exposing all 8 floods the model with tools it can't use. Set `IAIOPS_MCP` to a
+exposing all 13 floods the model with tools it can't use. Set `IAIOPS_MCP` to a
 comma-list of protocols and/or a named profile (default `all`). The cross-protocol
 brain (OEE / downtime / diagnostics / asset / analysis) is **always** exposed.
 
 ```bash
-IAIOPS_MCP=opcua,modbus iaiops-mcp   # 26 tools instead of 66
+IAIOPS_MCP=opcua,modbus iaiops-mcp   # 32 tools instead of 90
 IAIOPS_MCP=fab          iaiops-mcp   # named profile (opcua+s7+modbus)
 IAIOPS_MCP=opcua        iaiops-mcp   # effectively a single-protocol MCP
 ```
@@ -443,7 +545,7 @@ single- or dual-protocol server.
 
 ## Safety & governance
 
-- **Read-first.** 60 of 66 tools are read-only. The 6 write/command tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, capture the **BEFORE value/state for undo**, require a **double-confirm in the CLI**, and (via policy) a recorded approver — **MOC discipline**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-first.** 84 of 90 tools are read-only. The 6 write/command tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, capture the **BEFORE value/state for undo**, require a **double-confirm in the CLI**, and (via policy) a recorded approver — **MOC discipline**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
 - All endpoint-returned text is sanitized (prompt-injection defense); secrets are never returned by any tool; MTConnect XML is parsed with DTD/entity declarations refused.
 - Every tool runs through the vendored governance harness: SQLite **audit** (`~/.iaiops/audit.db`), token/call **budget** + runaway breaker, **risk-tier** gate, **undo** recording.

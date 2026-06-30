@@ -5,16 +5,22 @@ from __future__ import annotations
 import typer
 
 from iaiops.cli.analytics import analytics_app
+from iaiops.cli.bacnet import bacnet_app
+from iaiops.cli.compliance import compliance_cmd, historian_app
 from iaiops.cli.diagnostics import diag_app
+from iaiops.cli.dnp3 import dnp3_app
 from iaiops.cli.doctor import doctor_cmd
 from iaiops.cli.eip import eip_app
 from iaiops.cli.ethercat import ethercat_app
+from iaiops.cli.iec104 import iec104_app
+from iaiops.cli.iec61850 import iec61850_app
 from iaiops.cli.init import init_cmd
 from iaiops.cli.mc import mc_app
 from iaiops.cli.modbus import modbus_app
 from iaiops.cli.mqtt import mqtt_app
 from iaiops.cli.mtconnect import mtconnect_app
 from iaiops.cli.opcua import opcua_app
+from iaiops.cli.profinet import profinet_app
 from iaiops.cli.s7 import s7_app
 from iaiops.cli.secret import secret_app
 
@@ -35,11 +41,18 @@ app.add_typer(mtconnect_app, name="mtconnect")
 app.add_typer(mqtt_app, name="mqtt")
 app.add_typer(eip_app, name="eip")
 app.add_typer(ethercat_app, name="ethercat")
+app.add_typer(profinet_app, name="profinet")
+app.add_typer(iec104_app, name="iec104")
+app.add_typer(dnp3_app, name="dnp3")
+app.add_typer(iec61850_app, name="iec61850")
+app.add_typer(bacnet_app, name="bacnet")
 app.add_typer(diag_app, name="diag")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(secret_app, name="secret")
+app.add_typer(historian_app, name="historian")
 app.command("init")(init_cmd)
 app.command("doctor")(doctor_cmd)
+app.command("compliance")(compliance_cmd)
 
 
 @app.command("protocols")

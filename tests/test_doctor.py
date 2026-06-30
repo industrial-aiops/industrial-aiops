@@ -68,3 +68,57 @@ def test_diagnose_opcua_never_raises(monkeypatch):
     v = doctor._diagnose_opcua(_opcua_target())
     assert v["class"] == "unknown"
     assert v["remediation"]  # still actionable
+
+
+# ─── new-protocol probes never crash (informational status, not a hard fail) ──
+
+
+def _probe_target(protocol, **extra):
+    return SimpleNamespace(name="ep", protocol=protocol, host="10.0.0.5",
+                           nic="", port=0, unit_id=1, **extra)
+
+
+def test_probe_profinet_success_and_failure(monkeypatch):
+    import iaiops.connectors.profinet.ops as pn
+    monkeypatch.setattr(pn, "profinet_discover", lambda t: {"station_count": 3})
+    ok, detail = doctor._probe_profinet(_probe_target("profinet"))
+    assert ok is True and "stations_found=3" in detail
+
+    monkeypatch.setattr(pn, "profinet_discover",
+                        lambda t: (_ for _ in ()).throw(RuntimeError("no raw socket")))
+    ok, detail = doctor._probe_profinet(_probe_target("profinet"))
+    assert ok is False and "no raw socket" in detail
+
+
+def _raise(msg):
+    def _fn(_t):
+        raise RuntimeError(msg)
+    return _fn
+
+
+def test_probe_energy_each_protocol(monkeypatch):
+    import iaiops.connectors.dnp3.ops as b
+    import iaiops.connectors.iec104.ops as a
+    import iaiops.connectors.iec61850.ops as c
+    monkeypatch.setattr(a, "iec104_connection_info",
+                        lambda t: {"connected": True, "station_count": 1})
+    monkeypatch.setattr(b, "dnp3_link_status", lambda t: {"online": True})
+    monkeypatch.setattr(c, "iec61850_device_directory",
+                        lambda t: {"logical_device_count": 2})
+    assert doctor._probe_energy(_probe_target("iec104"))[0] is True
+    assert doctor._probe_energy(_probe_target("dnp3"))[0] is True
+    assert doctor._probe_energy(_probe_target("iec61850"))[0] is True
+    # a raising op degrades to (False, detail), never propagates
+    monkeypatch.setattr(b, "dnp3_link_status", _raise("offline"))
+    ok, detail = doctor._probe_energy(_probe_target("dnp3"))
+    assert ok is False and "offline" in detail
+
+
+def test_probe_bacnet_success_and_failure(monkeypatch):
+    import iaiops.connectors.bacnet.ops as bn
+    monkeypatch.setattr(bn, "bacnet_discover", lambda t: {"device_count": 4})
+    ok, detail = doctor._probe_bacnet(_probe_target("bacnet"))
+    assert ok is True and "devices_found=4" in detail
+    monkeypatch.setattr(bn, "bacnet_discover", _raise("bind fail"))
+    ok, detail = doctor._probe_bacnet(_probe_target("bacnet"))
+    assert ok is False and "bind fail" in detail

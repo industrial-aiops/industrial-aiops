@@ -222,13 +222,14 @@ def test_unsupported_protocol_rejected():
     from iaiops.core.runtime.config import TargetConfig
 
     with pytest.raises(ValueError, match="unsupported protocol"):
-        TargetConfig(name="x", protocol="profinet")
+        TargetConfig(name="x", protocol="nonexistent-proto")
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "protocol",
-    ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat"],
+    ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
+     "secsgem", "profinet", "iec104", "dnp3", "iec61850", "bacnet"],
 )
 def test_supported_protocols_accepted(protocol):
     from iaiops.core.runtime.config import TargetConfig
@@ -269,7 +270,8 @@ def test_protocols_supported_lists_all():
 
     out = protocols_supported()
     assert set(out["implemented_protocols"]) == {
-        "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat"
+        "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
+        "secsgem", "profinet", "iec104", "dnp3", "iec61850", "bacnet",
     }
     assert set(out["roadmap_stubs"]) == set()
     assert "asset_inventory" in out["analytics"]

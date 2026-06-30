@@ -13,7 +13,10 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.core.brain import dataquality as dq
 from iaiops.core.brain import diagnostics as diag
+from iaiops.core.brain import rca as rca_brain
+from iaiops.core.brain import rca_collect
 
 diag_app = typer.Typer(help="Cross-protocol intelligent troubleshooting (read-only).",
                        no_args_is_help=True)
@@ -57,6 +60,28 @@ def tags_cmd(
     _emit(diag.tag_health(_load_json(input)))
 
 
+@diag_app.command("dataquality")
+@cli_errors
+def dataquality_cmd(
+    input: Path = typer.Option(..., "--input",
+                               help="JSON file: list of {endpoint, tags:[{ref, samples}]}"),
+    staleness_s: float = typer.Option(300.0, "--staleness-s"),
+    now: str = typer.Option(None, "--now", help="ISO-8601 staleness reference (deterministic)"),
+) -> None:
+    """Fleet data-trust scorecard (staleness / heartbeat / quality) across feeds."""
+    _emit(dq.data_quality_scorecard(_load_json(input), staleness_s, now))
+
+
+@diag_app.command("heartbeat")
+@cli_errors
+def heartbeat_cmd(
+    input: Path = typer.Option(..., "--input", help="JSON file: list of heartbeat samples"),
+    max_interval_s: float = typer.Option(None, "--max-interval-s"),
+) -> None:
+    """Heartbeat/watchdog liveness check over a JSON sample series."""
+    _emit(dq.heartbeat_health(_load_json(input), max_interval_s))
+
+
 @diag_app.command("historian")
 @cli_errors
 def historian_cmd(
@@ -65,3 +90,62 @@ def historian_cmd(
 ) -> None:
     """Bad-tag / flatline / gap detection over a JSON sample series."""
     _emit(diag.historian_health(_load_json(input), gap_s))
+
+
+@diag_app.command("rca")
+@cli_errors
+def rca_cmd(
+    input: Path = typer.Option(
+        ..., "--input",
+        help="JSON evidence bundle: {window, alarms?, tags?, dataflow?, state_series?}",
+    ),
+    lead_window_s: float = typer.Option(300.0, "--lead-window-s"),
+) -> None:
+    """AI downtime root-cause copilot — cited, advisory-only verdict over evidence.
+
+    The bundle JSON carries the incident ``window`` ({start, end?, asset?, category?})
+    plus any of ``alarms`` / ``tags`` / ``dataflow`` / ``state_series``. Nothing is
+    executed; the output ranks causes, cites the real signals, and proposes a
+    human-approved, undoable action.
+    """
+    bundle = _load_json(input)
+    if not isinstance(bundle, dict) or "window" not in bundle:
+        raise ValueError("Bundle must be an object with at least a 'window' key.")
+    _emit(rca_brain.downtime_rca(
+        window=bundle.get("window"),
+        alarms=bundle.get("alarms"),
+        tags=bundle.get("tags"),
+        dataflow=bundle.get("dataflow"),
+        state_series=bundle.get("state_series"),
+        lead_window_s=lead_window_s,
+    ))
+
+
+@diag_app.command("rca-live")
+@cli_errors
+def rca_live_cmd(
+    endpoint: EndpointOption = None,
+    start: str = typer.Option(..., "--start", help="Incident onset (ISO-8601)"),
+    end: str = typer.Option(None, "--end", help="Incident end (ISO-8601)"),
+    asset: str = typer.Option(None, "--asset", help="Machine/line label"),
+    ref: list[str] = typer.Option(None, "--ref", help="Tag/node/address to sample (repeatable)"),
+    sample_count: int = typer.Option(8, "--samples"),
+    interval_ms: int = typer.Option(200, "--interval-ms"),
+    no_alarms: bool = typer.Option(False, "--no-alarms", help="Skip OPC-UA alarm surfacing"),
+    lead_window_s: float = typer.Option(300.0, "--lead-window-s"),
+) -> None:
+    """AI downtime RCA copilot that gathers its own live evidence from an endpoint.
+
+    Pulls a diagnose_dataflow probe + a sampled series per --ref + active OPC-UA
+    conditions, then runs the copilot. Read-only and advisory — nothing is executed.
+    """
+    window = {"start": start, "end": end, "asset": asset}
+    _emit(rca_collect.downtime_rca_live(
+        resolve_target(endpoint),
+        window={k: v for k, v in window.items() if v is not None},
+        refs=list(ref) if ref else None,
+        sample_count=sample_count,
+        interval_ms=interval_ms,
+        include_alarms=not no_alarms,
+        lead_window_s=lead_window_s,
+    ))

@@ -55,6 +55,12 @@ _log = logging.getLogger("iaiops.core.runtime.config")
 # dedicated NIC + real slaves; no software simulator) — see iaiops.connectors.ethercat.ops.
 SUPPORTED_PROTOCOLS = (
     "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "eip", "ethercat",
+    "secsgem",  # host-side SECS/GEM (was registered everywhere else but missing here)
+    "profinet",
+    # Energy edition (read-only monitoring): IEC 60870-5-104, DNP3, IEC 61850 MMS.
+    "iec104", "dnp3", "iec61850",
+    # Building edition (read-only): BACnet/IP (facility / HVAC / 厂务).
+    "bacnet",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -65,6 +71,10 @@ DEFAULT_MQTT_PORT = 1883  # plain MQTT (8883 when TLS)
 DEFAULT_MQTT_TLS_PORT = 8883
 DEFAULT_EIP_PORT = 44818  # EtherNet/IP (CIP over TCP)
 DEFAULT_SECSGEM_PORT = 5000  # HSMS (SECS-II over TCP) default
+DEFAULT_IEC104_PORT = 2404  # IEC 60870-5-104 (TCP)
+DEFAULT_DNP3_PORT = 20000  # DNP3 over TCP (IANA 20000)
+DEFAULT_IEC61850_PORT = 102  # IEC 61850 MMS (ISO-on-TCP / RFC1006)
+DEFAULT_BACNET_PORT = 47808  # BACnet/IP (UDP 0xBAC0)
 
 # Per-protocol default TCP port, used by load_config + the init wizard.
 _DEFAULT_PORTS = {
@@ -75,6 +85,10 @@ _DEFAULT_PORTS = {
     "mqtt": DEFAULT_MQTT_PORT,
     "ethernetip": DEFAULT_EIP_PORT,
     "secsgem": DEFAULT_SECSGEM_PORT,
+    "iec104": DEFAULT_IEC104_PORT,
+    "dnp3": DEFAULT_DNP3_PORT,
+    "iec61850": DEFAULT_IEC61850_PORT,
+    "bacnet": DEFAULT_BACNET_PORT,
 }
 
 
@@ -189,6 +203,19 @@ class TargetConfig:
       * ``ethercat``  — ``nic`` (the dedicated NIC interface name, e.g. ``eth1``)
                         / optional ``expected_slaves`` (EtherCAT fieldbus master
                         via pysoem/SOEM; Linux + root/CAP_NET_RAW + real slaves).
+      * ``profinet``  — ``host`` (the LOCAL interface IP the DCP L2 broadcast goes
+                        out on, e.g. the IP of the NIC on the PROFINET subnet).
+                        Read-only DCP discovery/identify via pnio-dcp; needs L2
+                        raw-socket access (root/admin). NO RT cyclic data.
+      * ``iec104``    — ``host`` / ``port`` (2404) / ``common_address`` (ASDU CA).
+                        IEC 60870-5-104 read-only monitoring via the ``c104`` extra.
+      * ``dnp3``      — ``host`` / ``port`` (20000) / ``unit_id`` (outstation addr) /
+                        ``master_address``. DNP3 read-only via the ``dnp3`` extra.
+      * ``iec61850``  — ``host`` / ``port`` (102). IEC 61850 MMS read-only (browse +
+                        read data objects) via the ``iec61850`` extra.
+      * ``bacnet``    — ``host`` (THIS machine's local BACnet/IP interface, optionally
+                        ``ip/mask`` e.g. ``10.0.0.5/24``) / ``port`` (47808). Read-only
+                        facility/HVAC monitoring via the ``bacnet`` (BAC0) extra.
 
     The password / MQTT password is resolved from the encrypted store, never
     stored here.
@@ -213,9 +240,15 @@ class TargetConfig:
     # MQTT / Sparkplug B / UNS
     topic: str = ""
     use_tls: bool = False
-    # EtherCAT (pysoem/SOEM fieldbus master)
+    # EtherCAT (pysoem/SOEM fieldbus master) — and PROFINET-DCP, which binds the
+    # local interface by its IP via ``host`` (the NIC the DCP broadcast goes out on).
     nic: str = ""
     expected_slaves: int = 0
+    # Energy edition addressing: IEC 60870-5-104 ``common_address`` (ASDU CA);
+    # DNP3 ``master_address`` (the local master link addr; the outstation addr is
+    # ``unit_id``). IEC 61850 needs neither (MMS objects are named).
+    common_address: int = 0
+    master_address: int = 0
     tags: tuple[MonitorTag, ...] = ()
 
     def __post_init__(self) -> None:
@@ -360,5 +393,8 @@ def _parse_target(d: dict) -> TargetConfig:
         # EtherCAT: NIC interface name (accept 'interface' as an alias).
         nic=str(d.get("nic", "") or d.get("interface", "")),
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
+        # Energy edition addressing (accept a couple of common aliases).
+        common_address=int(d.get("common_address", d.get("ca", 0)) or 0),
+        master_address=int(d.get("master_address", d.get("master", 0)) or 0),
         tags=_parse_tags(d.get("tags", [])),
     )
