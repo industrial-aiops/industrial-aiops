@@ -212,8 +212,12 @@ def test_cli_leaf_help_triggers_lazy_imports():
 
 @pytest.mark.unit
 def test_mcp_list_tools_exposes_expected_tools():
-    from mcp_server.server import mcp
+    from mcp_server.server import mcp, register_profile
 
+    # Tools register as a side effect of importing their modules; ensure the full
+    # surface is registered so this test is order-independent (register_profile is
+    # idempotent + additive — it can't narrow an already-registered surface).
+    register_profile("all")
     tools = asyncio.run(mcp.list_tools())
     names = {t.name for t in tools}
     assert EXPECTED_TOOLS <= names, f"missing: {EXPECTED_TOOLS - names}"
@@ -223,7 +227,9 @@ def test_mcp_list_tools_exposes_expected_tools():
 def test_every_mcp_tool_is_governed_by_harness():
     """Every registered tool callable must carry the @governed_tool marker."""
     from mcp_server import _shared
+    from mcp_server.server import register_profile
 
+    register_profile("all")  # order-independent: ensure the full surface is registered
     tool_objs = _shared.mcp._tool_manager._tools
     assert EXPECTED_TOOLS <= set(tool_objs), "tool registry incomplete"
     for name, tool in tool_objs.items():
