@@ -4,14 +4,16 @@ description: >-
   Vendor-neutral, governed industrial/OT data tap + intelligent troubleshooting.
   Read (and, gated, write) PLCs, controllers, machine tools and IIoT brokers over
   OPC-UA, Modbus-TCP, Siemens S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B,
-  Allen-Bradley EtherNet/IP, EtherCAT (pysoem/SOEM), and SECS/GEM (semiconductor /
-  display fab equipment over HSMS) — plus cross-protocol diagnostics ("no-data"
-  dataflow diagnosis, OPC-UA connection self-diagnosis, subscription health,
-  ISA-18.2 alarm bad-actors, tag/historian health) and analytics (OEE/downtime,
-  asset inventory, OPC-UA HDA, change-of-value). Use when the task names any
-  industrial protocol, a PLC/SCADA/HMI/historian/CNC, a semiconductor/display fab
-  or SECS/GEM equipment, an opc.tcp:// or mqtt:// endpoint, OEE/downtime, or OT
-  asset inventory. Routes to
+  Allen-Bradley EtherNet/IP, EtherCAT (pysoem/SOEM), SECS/GEM (semiconductor /
+  display fab equipment over HSMS), PROFINET (DCP discovery), and the energy
+  edition (IEC 60870-5-104, DNP3, IEC 61850 MMS) — plus cross-protocol diagnostics
+  ("no-data" dataflow diagnosis, OPC-UA connection self-diagnosis, subscription
+  health, ISA-18.2 alarm bad-actors, tag/historian health, and the AI downtime
+  root-cause copilot) and analytics (OEE/downtime, asset inventory, OPC-UA HDA,
+  change-of-value). Use when the task names any industrial protocol, a
+  PLC/SCADA/HMI/historian/CNC/RTU/IED, a semiconductor/display fab or SECS/GEM
+  equipment, an electrical substation, an opc.tcp:// or mqtt:// endpoint,
+  OEE/downtime, downtime root-cause, or OT asset inventory. Routes to
   the iaiops MCP server. Read-first; writes are MOC-gated (high risk, dry-run +
   double-confirm). Do NOT use for IT/network gear, Kubernetes, hypervisors, or
   backups — those are separate AIops tools.
@@ -19,7 +21,7 @@ description: >-
 
 # iaiops — industrial data tap + intelligent troubleshooting
 
-One governed MCP server exposing **66 tools** across 9 industrial protocols plus a
+One governed MCP server exposing **90 tools** across 14 industrial protocols plus a
 cross-protocol intelligence layer. Narrow the exposed surface per site with
 `IAIOPS_MCP` (e.g. `IAIOPS_MCP=fab` or `IAIOPS_MCP=opcua,modbus`). Every tool runs through the iaiops governance
 harness (audit / budget / risk-tier / undo). **Read-first.** The 6 write tools are
@@ -34,8 +36,12 @@ Task mentions: OPC-UA / opc.tcp, Modbus, Siemens S7 / S7-1200/1500, Mitsubishi /
 MELSEC, MTConnect / CNC machine monitoring, MQTT / Sparkplug B / Unified Namespace,
 Allen-Bradley / ControlLogix / CompactLogix / EtherNet-IP, EtherCAT / CoE / SDO /
 PDO / SOEM, SECS/GEM / SECS-II / HSMS / semiconductor / display fab / wafer / panel
-/ MES equipment / SVID / ECID, OEE / downtime, OT asset inventory, "no data / stale
-tag" diagnosis, OPC-UA "won't connect", subscription drops, alarm flood / ISA-18.2.
+/ MES equipment / SVID / ECID, PROFINET / DCP / name-of-station, IEC 60870-5-104 /
+IEC-104 / RTU / telecontrol, DNP3 / outstation, IEC 61850 / MMS / IED / substation,
+energy / power / utility SCADA, BACnet / BACnet-IP / building automation / HVAC /
+facility / 厂务 / Who-Is, OEE / downtime, OT asset inventory, "no data / stale
+tag" diagnosis, **downtime root-cause / why did the line stop**, OPC-UA "won't
+connect", subscription drops, alarm flood / ISA-18.2.
 
 ## Tools by protocol
 
@@ -121,16 +127,56 @@ HOST (HSMS ACTIVE). SECS/GEM (SEMI E5 SECS-II · E30 GEM · E37 HSMS) is the fab
 > `IAIOPS_MCP=fab` (secsgem + opcua + s7 + modbus). Read-first: `secsgem_equipment_status`
 > to confirm the link, then SVID/ECID/alarms; the PLC layer via the S7/OPC-UA tools.
 
+### PROFINET (read-only DCP discovery; pnio-dcp, layer-2 raw socket)
+Optional extra `pip install iaiops[profinet]` (or the `iaiops[factory]` bundle). Needs
+raw-socket access (root/admin/CAP_NET_RAW) on the NIC on the PROFINET subnet; `host` is
+THIS machine's IP on that subnet. **Discovery + identify only** — no RT cyclic data, no
+disruptive DCP Set (set-name/ip/blink/reset).
+- `profinet_discover` — DCP IdentifyAll: every station on the segment (name/MAC/IP/role)
+- `profinet_identify_station` — identify one station by its name-of-station
+- `profinet_station_params` — targeted DCP Get by MAC (name + IP suite)
+- `profinet_asset_inventory` — register with IO-controller vs IO-device role decoding
+
+### Energy edition (read-only; electrical substation / utility telecontrol)
+Optional bundle `pip install iaiops[energy]` and `IAIOPS_MCP=energy`. **Monitor direction
+only** — no control commands. **⚠️ Preview / 待核实**: library bindings are mock-tested,
+not verified against live RTUs/IEDs (`iec61850` needs libiec61850 built).
+- **IEC 60870-5-104** (`iaiops[iec104]`): `iec104_connection_info` (link + ASDU CAs),
+  `iec104_interrogate` (general interrogation), `iec104_read_point` (one point by IOA)
+- **DNP3** (`iaiops[dnp3]`): `dnp3_link_status`, `dnp3_integrity_poll` (Class 0/1/2/3 →
+  outstation database grouped by binary/analog/counter)
+- **IEC 61850 MMS** (`iaiops[iec61850]`): `iec61850_device_directory` (model map),
+  `iec61850_browse` (LD/LN/DO children), `iec61850_read` (object-ref + functional constraint)
+
+### Building edition (read-only; facility / HVAC / 厂务 — BACnet/IP)
+Optional bundle `pip install iaiops[building]` and `IAIOPS_MCP=building`. `host` is THIS
+machine's BACnet/IP interface (`ip` or `ip/mask`). **Read-only** — no building-control
+writes. **⚠️ Preview / 待核实**: BAC0 binding not verified against live gear.
+- `bacnet_discover` — Who-Is: devices on the local BACnet/IP network
+- `bacnet_object_list` — a device's object/point list
+- `bacnet_read_property` — one object property (default presentValue)
+- `bacnet_read_points` — presentValue of all analog/binary/multistate points (HVAC snapshot)
+
 ## Cross-protocol intelligence
 
 ### Diagnostics — `skills` umbrella: troubleshooting
 - `diagnose_dataflow` — localize a "no data" break across an endpoint's reachable hops
+- `downtime_root_cause` — **AI downtime root-cause copilot (flagship)**: correlate alarms /
+  tags / dataflow / machine-state around an incident window into an evidence-cited,
+  **advisory** verdict (read-only; cites only real signals; `insufficient_evidence` over
+  guessing). `downtime_root_cause_live` gathers the evidence itself from an endpoint.
 - `historian_health` — bad-tag / flatline / gap detection over a series
 - `alarm_bad_actors` — ISA-18.2 alarm-flood analysis (rate vs <6/12/30, Pareto
   offenders, chattering, standing) over an event list
 - `tag_health` — rank tag offenders by bad-quality / flatline / range / anomaly
 - `subscription_health` — sequenced-feed loss/reorder/overload (OPC-UA monitored items
   or Sparkplug B): sequence gaps, republish-rejection rate, overloaded channels
+- `data_quality_scorecard` — fleet data-TRUST rollup: scores each tag 0-100 on staleness /
+  dead heartbeat / bad-quality / flatline / gaps / anomaly, per endpoint + fleet
+- `heartbeat_health` — first-class heartbeat/watchdog liveness (flatline = dead upstream)
+- `uns_topic_audit` — UNS naming conformance + topic-sprawl governance (casing collisions,
+  scattered leaves, depth outliers, duplicates → clean/minor/sprawling)
+- `uns_schema_drift` — Sparkplug schema drift baseline-vs-current → none/additive/breaking
 
 ### Analytics
 - `oee_compute` — OEE = Availability × Performance × Quality
@@ -139,6 +185,13 @@ HOST (HSMS ACTIVE). SECS/GEM (SEMI E5 SECS-II · E30 GEM · E37 HSMS) is the fab
 - `asset_inventory` — actively fingerprint endpoints (vendor/model/firmware/protocol)
   into an asset register (active discovery, **not** passive SPAN/tap)
 - `monitor_changes` — capture only the value CHANGES of a point over a bounded window
+
+### 信创 / China entry + compliance
+- `compliance_mapping` — 《工控系统网络安全防护指南》 ↔ iaiops governance self-assessment
+  (分区隔离 / 可审计 / 双向认证 / 最小权限 / 数据保护 / 自主可控) with honest status + gaps
+- `historian_push` — write collected telemetry to a domestic TSDB (TDengine / IoTDB);
+  data egress to the operator's own historian, not a control write. See docs/CHINA.md
+  for air-gapped install + 国产 OS/芯/PLC validation matrix (待核实).
 
 ### Meta / roadmap
 - `protocols_supported` — capability map (protocols, status, tools, connection params)

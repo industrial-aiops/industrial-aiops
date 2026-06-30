@@ -91,6 +91,34 @@ def run_doctor(skip_probe: bool = False) -> int:
             else:
                 _console.print(f"[yellow]! EtherCAT '{target.name}' — {detail}[/]")
             continue
+        # PROFINET-DCP is layer-2 (raw socket) like EtherCAT — an environmental miss
+        # (no pnio-dcp / no raw-socket permission) is informational, not a hard fail.
+        if target.protocol == "profinet":
+            ok, detail = _probe_profinet(target)
+            if ok:
+                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+            else:
+                _console.print(f"[yellow]! PROFINET '{target.name}' — {detail}[/]")
+            continue
+        # Energy edition (iec104/dnp3/iec61850) needs optional native libs that may
+        # be absent; treat an environmental miss as informational, not a hard fail.
+        if target.protocol in ("iec104", "dnp3", "iec61850"):
+            ok, detail = _probe_energy(target)
+            if ok:
+                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+            else:
+                _console.print(
+                    f"[yellow]! {target.protocol.upper()} '{target.name}' — {detail}[/]"
+                )
+            continue
+        # BACnet/IP needs the optional BAC0 lib + a live segment; informational miss.
+        if target.protocol == "bacnet":
+            ok, detail = _probe_bacnet(target)
+            if ok:
+                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+            else:
+                _console.print(f"[yellow]! BACnet '{target.name}' — {detail}[/]")
+            continue
         # OPC-UA: on failure, classify *why* (certificate / security policy / auth /
         # firewall / …) and print the conclusion + the fix, not a raw error string.
         if target.protocol == "opcua":
@@ -160,6 +188,64 @@ def _probe_ethercat(target) -> tuple[bool, str]:
         return False, str(exc)[:200]
 
 
+def _probe_energy(target) -> tuple[bool, str]:
+    """Probe an energy-edition endpoint (iec104/dnp3/iec61850); never raises.
+
+    These need optional native libraries (c104 / pydnp3 / libiec61850) and live
+    RTUs/IEDs to fully verify; an environmental miss returns a teaching status
+    instead of crashing. Preview — connectors are not yet validated against live gear.
+    """
+    try:
+        if target.protocol == "iec104":
+            from iaiops.connectors.iec104.ops import iec104_connection_info
+
+            info = iec104_connection_info(target)
+            return True, (f"IEC-104 connected={info.get('connected')} "
+                          f"stations={info.get('station_count')}")
+        if target.protocol == "dnp3":
+            from iaiops.connectors.dnp3.ops import dnp3_link_status
+
+            info = dnp3_link_status(target)
+            return True, f"DNP3 online={info.get('online')}"
+        from iaiops.connectors.iec61850.ops import iec61850_device_directory
+
+        info = iec61850_device_directory(target)
+        return True, f"IEC-61850 logical_devices={info.get('logical_device_count')}"
+    except Exception as exc:  # noqa: BLE001 — environmental miss is a status, not a crash
+        return False, str(exc)[:200]
+
+
+def _probe_bacnet(target) -> tuple[bool, str]:
+    """Probe a BACnet endpoint (Who-Is); never raises, never a hard failure.
+
+    Needs the optional BAC0 lib + a reachable BACnet/IP segment; an environmental
+    miss returns a teaching status. Preview — not validated against live gear.
+    """
+    try:
+        from iaiops.connectors.bacnet.ops import bacnet_discover
+
+        info = bacnet_discover(target)
+        return True, f"BACnet devices_found={info.get('device_count')}"
+    except Exception as exc:  # noqa: BLE001 — environmental miss is a status, not a crash
+        return False, str(exc)[:200]
+
+
+def _probe_profinet(target) -> tuple[bool, str]:
+    """Probe a PROFINET endpoint; never raises, never counts as a hard failure.
+
+    With pnio-dcp + raw-socket access on the right NIC this runs a DCP IdentifyAll
+    and reports the station count; otherwise it returns a clear teaching status
+    (needs pnio-dcp + root/admin/CAP_NET_RAW on the PROFINET subnet's NIC).
+    """
+    try:
+        from iaiops.connectors.profinet.ops import profinet_discover
+
+        info = profinet_discover(target)
+        return True, f"PROFINET-DCP stations_found={info.get('station_count')}"
+    except Exception as exc:  # noqa: BLE001 — environmental miss is a status, not a crash
+        return False, str(exc)[:200]
+
+
 def _where(target) -> str:
     """Human-readable 'where' for an endpoint, per protocol."""
     if target.protocol == "opcua":
@@ -177,6 +263,9 @@ def _where(target) -> str:
         return f"{target.host} slot={target.slot}"
     if target.protocol == "ethercat":
         return f"nic={target.nic or target.host or '?'}"
+    if target.protocol == "profinet":
+        # Layer-2 DCP: there is no TCP port — show the local interface IP.
+        return f"local-ip={target.host or target.nic or '?'}"
     if target.protocol == "secsgem":
         return f"{target.host}:{target.port or DEFAULT_SECSGEM_PORT} device={target.unit_id}"
     return f"{target.host}:{target.port}"
