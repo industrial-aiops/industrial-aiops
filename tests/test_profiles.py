@@ -34,10 +34,15 @@ def test_named_profile_expands():
     assert resolve_selection("fab,eip") == ["secsgem", "opcua", "s7", "modbus", "eip"]
 
 
+def test_energy_and_building_profiles_resolve():
+    assert resolve_selection("energy") == ["iec104", "dnp3", "iec61850", "modbus", "opcua"]
+    assert resolve_selection("building") == ["bacnet", "modbus", "opcua"]
+
+
 def test_unknown_token_fails_fast():
     with pytest.raises(UnknownProtocolError) as ei:
-        resolve_selection("opcua,bacnet")
-    assert "bacnet" in str(ei.value)
+        resolve_selection("opcua,nonexistent-proto")
+    assert "nonexistent-proto" in str(ei.value)
 
 
 def test_content_free_spec_fails_fast():
