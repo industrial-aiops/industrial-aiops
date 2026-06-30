@@ -8,6 +8,7 @@ pre-check, budget/runaway guard, risk-tier gate, and audit logging to
 from typing import Optional
 
 from iaiops.connectors.opcua import diagnostics as diag
+from iaiops.connectors.opcua import discovery as disc
 from iaiops.connectors.opcua import ops
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
@@ -159,3 +160,34 @@ def opcua_diagnose_connection(endpoint: Optional[str] = None) -> dict:
     Returns dict: {endpoint, reachable (bool), class, diagnosis, remediation, detail}.
     """
     return diag.diagnose_connection(_target(endpoint))
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def opcua_discover_tags(
+    endpoint: Optional[str] = None, root: str = "i=85", max_depth: int = 6,
+    include_standard: bool = False,
+) -> dict:
+    """[READ] Auto-discover OPC-UA tags and build a semantic asset model.
+
+    Walks the address space, collects every Variable node, and enriches each with
+    datatype / value / engineering-unit / a heuristic semantic class (temperature,
+    pressure, flow, setpoint, alarm, state, …) and a suggested clean alias. Tags
+    are grouped into assets by their browse path, and a naming-quality report
+    flags alias collisions + cryptic names. Aliases are ADVISORY — nothing is
+    written back to the server (a server-side rename would be OT-dangerous).
+
+    Args:
+        endpoint: Endpoint name from config; omit to use the default endpoint.
+        root: Root node id to discover from (default i=85, the Objects folder).
+        max_depth: Bounded recursion depth (capped server-side at 8).
+        include_standard: Include OPC-UA namespace-0 server infrastructure
+            (default False — only real process tags in vendor namespaces).
+
+    Returns dict: {endpoint, root, tag_count, asset_count,
+        assets:[{asset, tag_count, classes, tags:[{node_id, browse_name,
+        browse_path, datatype, value, unit, writable, class, suggested_alias}]}],
+        naming_quality:{alias_collisions, cryptic_names, verdict}}.
+    """
+    return disc.tag_discovery(_target(endpoint), root, max_depth, include_standard)

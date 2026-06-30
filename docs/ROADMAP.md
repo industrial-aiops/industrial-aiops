@@ -49,8 +49,16 @@
 - **Modbus byte-order auto-detect + vendor register templates** (R4 community pain).
 - **UNS governance** — Sparkplug/MQTT schema-drift detection + topic-sprawl /
   naming control (position as a governable neutral data source, not a broker).
-- **Tag auto-discovery + semantic modeling + safe rename/alias layer** (the
-  integrator's biggest hidden cost; OPC-UA address-space → asset model).
+- ✅ **Tag auto-discovery + semantic modeling + safe alias layer** — shipped:
+  `opcua_discover_tags` (`iaiops/connectors/opcua/discovery.py` + `iaiops opcua
+  discover`) walks the OPC-UA address space, collects Variable nodes enriched with
+  datatype / value / engineering-unit / a heuristic semantic class, groups them into
+  assets by browse path, and proposes a clean canonical alias per tag with a
+  naming-quality report (alias collisions / cryptic names). Advisory only — no
+  server-side rename. Skips ns=0 infrastructure by default. Verified against a real
+  asyncua server. Follow-ups: extend the classifier (more domains / vendor profiles);
+  cross-protocol model (Modbus register maps → same alias layer); persist/diff the
+  adopted alias map over time.
 
 ## China / 信创 (market entry for fabs like 华星)
 > v0.6.0 shipped the documentation + code artifacts; the **hardware validation**
