@@ -53,8 +53,15 @@
   (`insufficient_evidence` over guessing). ✅ Live evidence auto-collection shipped
   too (`downtime_root_cause_live` / `iaiops diag rca-live`): gathers
   diagnose_dataflow + per-ref sampled series (→ tag_health) + active OPC-UA
-  conditions for the window instead of requiring injection. Follow-ups: learned
-  per-site cause weights, a maintenance-log corpus link, and pulling timestamped
+  conditions for the window instead of requiring injection. ✅ **Learned /
+  configurable per-site cause weights** shipped (Unreleased): `downtime_rca`
+  takes a clamped `cause_weights` `{cause: multiplier}` override (neutral 1.0 =
+  default), and `iaiops/core/brain/rca_weights.py` (`learn_cause_weights`, MCP
+  tool + `iaiops diag learn-weights` / `iaiops diag rca --weights`) derives that
+  per-site profile from a labeled incident corpus via an explainable smoothed
+  signal→cause precision estimator (Laplace smoothing + per-cause min-sample
+  guard + thin-history fall-back to defaults). Remaining follow-ups: a
+  maintenance-log corpus link to auto-build that history, and pulling timestamped
   alarms from a live A&C event source (current OPC-UA surfacing is untimed).
 - ✅ **Data-quality watchdog enhancements** — shipped: configurable staleness/gap
   per tag + per feed (`staleness_s` / `gap_threshold_s` / `flatline_after_s`),
