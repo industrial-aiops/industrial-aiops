@@ -15,25 +15,47 @@ Pure, no I/O — fully unit-testable.
 from __future__ import annotations
 
 # Semantic class → name substrings (checked lowercased, first match wins).
-# Ordered so more-specific classes (setpoint, runtime) precede generic ones.
+# Ordered so more-specific classes (setpoint, runtime) precede generic ones, and
+# physical quantities precede the generic 'command' class (so "Startup_Temperature"
+# classifies by its quantity, not the bare verb). 'command' MUST stay last.
+#
+# Substring hints are deliberately underscore/symbol-guarded where the bare token
+# is ambiguous (e.g. ``_ph``/``ph_`` for pH, so "graph"/"phase" don't false-match;
+# ``_ec_`` for conductivity), trading a little recall for far fewer wrong labels —
+# the classifier prefers an honest ``other`` over a confident-but-wrong class.
 _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("setpoint", ("setpoint", "_sp", "sptval", "target")),
     ("alarm", ("alarm", "alert", "fault", "trip", "fail")),
     ("state", ("state", "status", "running", "ready", "mode")),
-    # Physical quantities precede the generic 'command' class so a name like
-    # "Startup_Temperature" classifies by its quantity, not the bare verb.
-    ("temperature", ("temp", "temperature", "_t_", "degc", "degf")),
-    ("pressure", ("press", "pressure", "_p_", "bar", "psi")),
-    ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h")),
-    ("level", ("level", "_lv_", "tanklvl")),
-    ("speed", ("speed", "rpm", "freq", "hz", "velocity")),
+    # ── physical quantities (specific units help disambiguate) ──
+    ("temperature",
+     ("temp", "temperature", "_t_", "degc", "degf", "°c", "°f", "celsius", "fahrenheit")),
+    ("humidity", ("humidity", "humid", "_rh", "rh_", "rh%", "%rh", "dewpoint", "dew_point")),
+    ("pressure", ("press", "pressure", "_p_", "bar", "psi", "kpa", "mbar", "mmhg", "torr")),
+    ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h", "m³/h", "m3/h", "scfm", "cfm", "nm3")),
+    ("level", ("level", "_lv_", "tanklvl", "ullage")),
+    # no bare "conduct" — it false-matches Conductor*; "conductivity" already covers it.
+    ("conductivity", ("conductivity", "_ec_", "_ec", "us/cm", "µs/cm", "ms/cm")),
+    ("ph", ("_ph", "ph_", "phval", "ph_value", "potential_hydrogen")),
+    # "_ntu" (not bare "ntu") so it doesn't match incidental words (e.g. Adventure).
+    ("turbidity", ("turbidity", "turbid", "_ntu", "ntu_", "_fnu", "nephelo")),
+    ("density", ("density", "densit", "kg/m3", "g/cm3", "g/ml", "specificgravity",
+                 "specific_gravity")),
+    # frequency (VFD/line Hz) is split OUT of speed so a drive's output frequency
+    # and a motor's RPM are distinct quantities (frequency-vs-speed disambiguation).
+    ("frequency", ("frequency", "freq", "hz", "hertz")),
+    ("speed", ("speed", "rpm", "velocity", "_spd")),
     ("torque", ("torque",)),
-    ("power", ("power", "_kw", "watt", "_pwr")),
+    ("power", ("power", "_kw", "watt", "_pwr", "kvar", "kva")),
     ("energy", ("energy", "kwh", "consumption")),
     ("current", ("current", "amp", "_i_")),
     ("voltage", ("voltage", "volt", "_v_")),
     ("vibration", ("vibration", "vib", "accel")),
-    ("position", ("position", "_pos", "encoder")),
+    # no bare "gram" — it false-matches Program/Histogram/Telegram (common PLC tags);
+    # mass is covered by weight/mass/_kg/kg_/tonne/loadcell well enough.
+    ("mass", ("weight", "mass", "_kg", "kg_", "tonne", "loadcell", "load_cell")),
+    # valve position / opening are an analog feedback → the position class.
+    ("position", ("position", "_pos", "encoder", "valve", "_vlv", "opening")),
     ("counter", ("count", "counter", "total", "qty")),
     ("runtime", ("runtime", "hours", "uptime", "elapsed")),
     ("command", ("command", "cmd", "start", "stop", "enable")),

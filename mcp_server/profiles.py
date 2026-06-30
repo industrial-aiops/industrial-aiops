@@ -41,6 +41,7 @@ BRAIN_MODULES = (
     "diagnostics_tools",
     "asset_tools",
     "asset_model_tools",
+    "alias_store_tools",
     "oee_tools",
     "monitor_tools",
     # 信创 / compliance self-assessment + national-TSDB historian sink.
