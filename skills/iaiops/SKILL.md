@@ -23,7 +23,8 @@ description: >-
 
 One governed MCP server exposing **90 tools** across 14 industrial protocols plus a
 cross-protocol intelligence layer. Narrow the exposed surface per site with
-`IAIOPS_MCP` (e.g. `IAIOPS_MCP=fab` or `IAIOPS_MCP=opcua,modbus`). Every tool runs through the iaiops governance
+`IAIOPS_MCP` (e.g. `IAIOPS_MCP=fab` or `IAIOPS_MCP=opcua,modbus`), or just launch the matching pre-scoped
+script (`iaiops-mcp-opcua`, `iaiops-mcp-fab`, … — sugar over `IAIOPS_MCP`). Every tool runs through the iaiops governance
 harness (audit / budget / risk-tier / undo). **Read-first.** The 6 write tools are
 gated as Management-of-Change: `risk=HIGH`, `dry_run=True` by default, CLI requires
 a double-confirm, the before-value is captured for undo. **Never write to a

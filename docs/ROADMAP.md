@@ -82,8 +82,10 @@
   自主可控) with honest per-control status + gaps.
 
 ## Packaging / DX
-- **Per-protocol named MCP entry points** (`iaiops-mcp-opcua` …) — sugar; the
-  `IAIOPS_MCP` env already delivers the capability.
+- ✅ **Per-protocol named MCP entry points** (`iaiops-mcp-opcua` … + per-edition
+  `iaiops-mcp-fab` / `-energy` / `-building` …) — thin shims over `IAIOPS_MCP`,
+  data-driven from the profile menu (`mcp_server/entrypoints.py`); reuse the same
+  `server.main`. Sugar; the `IAIOPS_MCP` env already delivers the capability.
 - **OPC-UA FX / TSN** roadmap watch (2026 certification) as a future credibility point.
 
 ## Standing release debt
