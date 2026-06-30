@@ -19,8 +19,12 @@
   (discover / object-list / read-property / read-points), `building` MCP profile +
   `iaiops[building]` bundle. **Verified 2026-06-30:** fixed a fabricated `whois()`
   call → BAC0's real `who_is()`; who_is/read/disconnect surface verified present
-  (contract test guards it). 待核实: live building/HVAC read. Follow-ups:
-  present-value writes behind the MOC gate; COV subscriptions; trends.
+  (contract test guards it). 待核实: live building/HVAC read. **Unreleased:** added
+  bounded COV subscriptions (`bacnet_cov_subscribe` — count+timeout capped, always
+  unsubscribes) and read-only trend-log reads (`bacnet_read_trend_log` via
+  `readRange`); BAC0 `cov`/`cancel_cov`/`readRange` surface contract-verified, live
+  COV/trend behaviour still 待核实 (no gear). Follow-ups: present-value writes
+  behind the MOC gate.
 - ✅ **process edition — HART-IP connector** — shipped (read-only): `hart_device_identity`
   / `hart_primary_variable` / `hart_dynamic_variables` over HART-IP (UDP/TCP 5094) via the
   `hart` extra (`hart-protocol`), added to the `process` profile/bundle. The HART command

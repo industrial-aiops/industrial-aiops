@@ -48,6 +48,8 @@ EXPECTED_TOOLS = {
     # cross-protocol analytics (OEE / downtime / asset / CoV)
     "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
     "cross_protocol_asset_model", "monitor_changes",
+    # BACnet/IP (building / HVAC — bounded COV + read-only trend log)
+    "bacnet_cov_subscribe", "bacnet_read_trend_log",
     # self-description
     "protocols_supported",
 }
@@ -119,6 +121,7 @@ def test_all_modules_import():
         "mcp_server.tools.diagnostics_tools",
         "mcp_server.tools.overview_tools",
         "mcp_server.tools.ethercat_tools",
+        "mcp_server.tools.bacnet_tools",
     ):
         importlib.import_module(name)
 

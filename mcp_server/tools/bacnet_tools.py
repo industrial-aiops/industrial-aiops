@@ -96,3 +96,69 @@ def bacnet_read_points(address: str, device_id: int, endpoint: Optional[str] = N
     Example: bacnet_read_points(address="192.168.1.10", device_id=1001, endpoint="ahu-net").
     """
     return ops.bacnet_read_points(_target(endpoint), address, device_id)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def bacnet_cov_subscribe(
+    address: str, object_type: str, instance: int,
+    max_notifications: int = 20, timeout_s: int = 30, lifetime_s: int = 300,
+    endpoint: Optional[str] = None,
+) -> dict:
+    """[READ][risk=low] Bounded Change-of-Value capture for one BACnet object.
+
+    Subscribes to the object's COV, collects up to max_notifications notifications
+    OR until timeout_s elapses (whichever first), then always unsubscribes. Never
+    an open subscription — both count and wall-clock are hard-capped.
+
+    Args:
+        address: BACnet device address (from bacnet_discover), e.g. '192.168.1.10'.
+        object_type: BACnet object type, e.g. 'analogInput', 'binaryValue'.
+        instance: Object instance number.
+        max_notifications: Stop after this many notifications (capped, default 20).
+        timeout_s: Stop after this many seconds (capped, default 30).
+        lifetime_s: COV subscription lifetime requested of the device (default 300).
+        endpoint: Endpoint name from config (protocol 'bacnet').
+
+    Returns dict: {endpoint, address, object_type, instance, requested_max,
+        timeout_s, lifetime_s, notification_count, terminated_reason,
+        changes:[{property, value, wall_clock}]}.
+
+    Example: bacnet_cov_subscribe(address="192.168.1.10", object_type="analogInput",
+        instance=1, max_notifications=5, timeout_s=20, endpoint="ahu-net").
+    """
+    return ops.bacnet_cov_subscribe(
+        _target(endpoint), address, object_type, instance,
+        max_notifications, timeout_s, lifetime_s,
+    )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def bacnet_read_trend_log(
+    address: str, instance: int, count: int = 100, newest_first: bool = True,
+    endpoint: Optional[str] = None,
+) -> dict:
+    """[READ][risk=low] Read buffered records from a device's BACnet TrendLog object.
+
+    A TrendLog object logs a point's value over time on the device itself; this
+    reads its logBuffer with a single bounded ReadRange. Read-only historical trend.
+
+    Args:
+        address: BACnet device address (from bacnet_discover), e.g. '192.168.1.10'.
+        instance: TrendLog object instance number (from bacnet_object_list).
+        count: Maximum records to return (capped, default 100).
+        newest_first: Return most-recent records first (default True).
+        endpoint: Endpoint name from config (protocol 'bacnet').
+
+    Returns dict: {endpoint, address, instance, requested_count, newest_first,
+        record_count, records:[{timestamp, value}]}.
+
+    Example: bacnet_read_trend_log(address="192.168.1.10", instance=1, count=50,
+        endpoint="ahu-net").
+    """
+    return ops.bacnet_read_trend_log(
+        _target(endpoint), address, instance, count, newest_first
+    )

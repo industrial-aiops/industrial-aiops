@@ -14,6 +14,9 @@ request strings and normalize results defensively, and are fully mock-testable.
 
 from __future__ import annotations
 
+import threading
+import time
+from datetime import UTC, datetime
 from typing import Any
 
 from iaiops.core.brain._shared import num, s
@@ -22,6 +25,17 @@ from iaiops.core.runtime.connection import OTConnectionError, bacnet_session
 MAX_DEVICES = 2000
 MAX_OBJECTS = 2000
 MAX_POINT_READS = 500
+
+# COV (change-of-value) capture bounds — the capture is ALWAYS bounded by BOTH a
+# notification count and a wall-clock timeout, and the subscription is always
+# cancelled. It can never become an open subscription loop.
+MAX_COV_NOTIFICATIONS = 500
+MAX_COV_TIMEOUT_S = 300
+MAX_COV_LIFETIME_S = 3600
+_COV_POLL_S = 0.05
+
+# TrendLog read bound — a single bounded ReadRange of the device's log buffer.
+MAX_TREND_RECORDS = 1000
 
 # Monitor-relevant object types whose presentValue is worth a bulk read.
 READABLE_TYPES = (
@@ -167,10 +181,171 @@ def bacnet_read_points(target: Any, address: str, device_id: int) -> dict:
     }
 
 
+def _cov_task_ids(net: Any) -> set:
+    """Snapshot the network's live COV task ids (BAC0 keys ``cov_tasks`` by id)."""
+    tasks = getattr(net, "cov_tasks", None)
+    try:
+        return set(tasks or {})
+    except TypeError:  # pragma: no cover — defensive: non-iterable cov_tasks
+        return set()
+
+
+def bacnet_cov_subscribe(
+    target: Any, address: str, object_type: str, instance: int,
+    max_notifications: int = 20, timeout_s: int = 30, lifetime_s: int = 300,
+) -> dict:
+    """[READ] Bounded Change-of-Value capture for one BACnet object.
+
+    Subscribes to the object's COV (the device pushes a notification whenever the
+    point changes), collects up to ``max_notifications`` notifications OR until
+    ``timeout_s`` elapses — whichever comes first — then ALWAYS unsubscribes and
+    returns the captured changes. This is never an open subscription: both the
+    count and the wall-clock are hard-capped, and the subscription is cancelled in
+    a ``finally`` so it cannot leak on the device.
+    """
+    addr = str(address or "").strip()
+    otype = str(object_type or "").strip()
+    inst = _opt_int(instance)
+    if not addr or not otype or inst is None:
+        return {"error": "address, object_type and instance are required."}
+    cap = max(1, min(int(max_notifications), MAX_COV_NOTIFICATIONS))
+    timeout = max(1, min(int(timeout_s), MAX_COV_TIMEOUT_S))
+    lifetime = max(1, min(int(lifetime_s), MAX_COV_LIFETIME_S))
+
+    changes: list[dict] = []
+    lock = threading.Lock()
+
+    def _collect(prop_id: Any, value: Any) -> None:
+        # Called from BAC0's asyncio thread on each notification — append under a
+        # lock so the bounded wait loop reads a consistent count.
+        with lock:
+            if len(changes) >= cap:
+                return
+            changes.append({
+                "property": s(prop_id, 48),
+                "value": num(value) if num(value) is not None else s(value, 120),
+                "wall_clock": datetime.now(tz=UTC).isoformat(timespec="milliseconds"),
+            })
+
+    with bacnet_session(target) as net:
+        before = _cov_task_ids(net)
+        # BAC0.lite.cov(address, objectID=(type, inst), lifetime, confirmed, callback)
+        # — verified against BAC0/bacpypes3 (2026-06). The callback receives
+        # (property_identifier, property_value).
+        net.cov(addr, objectID=(otype, inst), lifetime=lifetime,
+                confirmed=False, callback=_collect)
+        new_ids = _cov_task_ids(net) - before
+        try:
+            deadline = time.monotonic() + timeout
+            reason = "timeout"
+            while time.monotonic() < deadline:
+                with lock:
+                    if len(changes) >= cap:
+                        reason = "max_notifications"
+                        break
+                time.sleep(_COV_POLL_S)
+        finally:
+            # Always unsubscribe every task this capture created (BAC0.cancel_cov).
+            for task_id in new_ids:
+                try:
+                    net.cancel_cov(task_id)
+                except Exception:  # noqa: BLE001 — cancel must not mask the result
+                    pass
+        with lock:
+            captured = list(changes)
+    return {
+        "endpoint": s(getattr(target, "name", ""), 64),
+        "address": s(addr, 64),
+        "object_type": s(otype, 32),
+        "instance": inst,
+        "requested_max": cap,
+        "timeout_s": timeout,
+        "lifetime_s": lifetime,
+        "notification_count": len(captured),
+        "terminated_reason": reason,
+        "changes": captured,
+        "note": "Bounded COV capture (read-only): up to requested_max notifications "
+        "or timeout_s, then unsubscribed. Never an open subscription.",
+    }
+
+
+def _record_timestamp(record: Any) -> str:
+    """Normalize a TrendLog record timestamp (bacpypes3 DateTime: .date/.time)."""
+    ts = getattr(record, "timestamp", None)
+    if ts is None:
+        return ""
+    date = getattr(ts, "date", None)
+    tval = getattr(ts, "time", None)
+    if date is not None and tval is not None:
+        return s(f"{date} {tval}", 64)
+    return s(ts, 64)
+
+
+# logDatum is a CHOICE — probe the common value members in priority order.
+_LOG_DATUM_MEMBERS = (
+    "realValue", "enumValue", "unsignedValue", "signedValue",
+    "booleanValue", "bitstringValue", "anyValue",
+)
+
+
+def _record_value(record: Any) -> Any:
+    """Extract the value from a TrendLog record's logDatum CHOICE, defensively."""
+    datum = getattr(record, "logDatum", record)
+    for member in _LOG_DATUM_MEMBERS:
+        val = getattr(datum, member, None)
+        if val is not None:
+            return num(val) if num(val) is not None else s(val, 120)
+    return num(datum) if num(datum) is not None else s(datum, 120)
+
+
+def bacnet_read_trend_log(
+    target: Any, address: str, instance: int,
+    count: int = 100, newest_first: bool = True,
+) -> dict:
+    """[READ] Read buffered records from a device's BACnet TrendLog object.
+
+    A TrendLog object logs a point's value over time on the device itself; this
+    reads its ``logBuffer`` with a single bounded ReadRange (RangeByPosition).
+    ``count`` is hard-capped; ``newest_first`` reverses the search so the most
+    recent records come first. Read-only historical trend — no device state changes.
+    """
+    addr = str(address or "").strip()
+    inst = _opt_int(instance)
+    if not addr or inst is None:
+        return {"error": "address and instance are required (the TrendLog instance)."}
+    want = max(1, min(int(count), MAX_TREND_RECORDS))
+    # RangeByPosition tuple: (range_type, first, date, time, count). A negative
+    # count walks backwards from the end → newest records first (BAC0/bacpypes3).
+    range_count = -want if newest_first else want
+    range_params = ("p", 1, None, None, range_count)
+    request = f"{addr} trendLog {inst} logBuffer"
+    with bacnet_session(target) as net:
+        # BAC0.lite.readRange(args, range_params=...) — verified against
+        # BAC0/bacpypes3 (2026-06); returns a list of log records.
+        raw = net.readRange(request, range_params=range_params)
+        records = [
+            {"timestamp": _record_timestamp(r), "value": _record_value(r)}
+            for r in list(raw or [])[:MAX_TREND_RECORDS]
+        ]
+    return {
+        "endpoint": s(getattr(target, "name", ""), 64),
+        "address": s(addr, 64),
+        "instance": inst,
+        "requested_count": want,
+        "newest_first": bool(newest_first),
+        "record_count": len(records),
+        "records": records,
+        "note": "Buffered BACnet TrendLog records (read-only historical trend), "
+        "bounded by requested_count.",
+    }
+
+
 __all__ = [
     "bacnet_discover",
     "bacnet_object_list",
     "bacnet_read_property",
     "bacnet_read_points",
+    "bacnet_cov_subscribe",
+    "bacnet_read_trend_log",
     "OTConnectionError",
 ]

@@ -38,6 +38,25 @@
   profile.json`. Pure/deterministic and advisory only — it tunes ranking, never
   executes anything.
 
+### Added — building edition (BACnet)
+- **BACnet bounded COV subscriptions + read-only trend-log reads** — two new
+  read-only tools on the BACnet connector (`iaiops/connectors/bacnet/ops.py`):
+  - `bacnet_cov_subscribe` — a BOUNDED change-of-value capture: subscribes to one
+    object's COV (`BAC0.lite.cov`), collects up to `max_notifications` OR until
+    `timeout_s` (whichever first), then ALWAYS unsubscribes (`cancel_cov` in a
+    `finally`). Hard-capped by both count and wall-clock — never an open
+    subscription. Reports `terminated_reason` (`max_notifications`|`timeout`).
+  - `bacnet_read_trend_log` — reads a device's BACnet `TrendLog` object's buffered
+    log records via a single bounded `readRange` (RangeByPosition; `newest_first`
+    reverses the search), normalizing each record to `{timestamp, value}`.
+  - Both exposed as governed MCP tools (`@governed_tool(risk_level="low")`) and CLI
+    `iaiops bacnet cov` / `iaiops bacnet trend`; added to the overview catalog.
+  - The BAC0 `cov` / `cancel_cov` / `readRange` surface is VERIFIED against the
+    installed BAC0/bacpypes3 (contract tests `test_bacnet_bac0_surface` +
+    `test_bacnet_bac0_cov_signature`); live HVAC COV/trend behaviour stays 待核实
+    (no gear). Unit-tested against a mocked network, incl. the bounded-termination
+    guarantee and the always-unsubscribe invariant.
+
 ### Added — CI / DX
 - **GitHub Actions CI** (`.github/workflows/ci.yml`) — runs the release quality
   gate on push to `main` and on every pull request. A `gate` job (Python 3.11 +
