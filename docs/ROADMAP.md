@@ -62,8 +62,10 @@
   orders for a numeric type against a hint/range) + `modbus_list_templates` /
   `modbus_apply_template` (curated vendor register maps → named tags). New
   `iaiops/connectors/modbus/byteorder.py` + `templates.py`, fully unit-tested.
-- **UNS governance** — Sparkplug/MQTT schema-drift detection + topic-sprawl /
-  naming control (position as a governable neutral data source, not a broker).
+- ✅ **UNS governance** — shipped in v0.6.0: `uns_topic_audit` (naming conformance +
+  topic-sprawl: casing collisions / scattered leaves / depth outliers) + `uns_schema_drift`
+  (Sparkplug NBIRTH baseline-vs-current → none/additive/breaking). Governable neutral
+  source, not a broker. Follow-up: live MQTT/Sparkplug subscription to feed it.
 - ✅ **Tag auto-discovery + semantic modeling + safe alias layer** — shipped:
   `opcua_discover_tags` (`iaiops/connectors/opcua/discovery.py` + `iaiops opcua
   discover`) walks the OPC-UA address space, collects Variable nodes enriched with
@@ -104,6 +106,8 @@
 - **OPC-UA FX / TSN** roadmap watch (2026 certification) as a future credibility point.
 
 ## Standing release debt
-- ⚠️ PyPI token rotation — give industrial-aiops its own token/account (was reusing
-  the vmware one).
-- Re-list on skills.sh / ClawHub / MCP Registry under the new org namespace.
+- ⚠️ **PyPI token** — the token used for the 0.7.0 publish was exposed (pasted in a
+  chat) and MUST be revoked; give industrial-aiops its own fresh token/account, never
+  pasted into a conversation.
+- ✅ Listed on PyPI / GitHub Release / MCP Registry / ClawHub / skills.sh under the
+  industrial-aiops org namespace (v0.7.0, 2026-06-30).
