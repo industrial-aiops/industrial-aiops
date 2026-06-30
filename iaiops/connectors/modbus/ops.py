@@ -141,20 +141,23 @@ def modbus_list_templates() -> dict:
 
 
 def modbus_apply_template(
-    target: Any, template: str, address: int = 0, count: int | None = None
+    target: Any, template: str, address: int | None = None, count: int | None = None
 ) -> dict:
     """[READ] Read a register block and decode it into named tags via a template.
 
     Reads ``count`` registers (default: the template's span) starting at
     ``address`` from the right register file (holding/input per the template),
-    then decodes them into named engineering tags. ``address`` is the absolute
-    address of the first register read, aligned to the template's offsets.
+    then decodes them into named engineering tags. ``address`` defaults to the
+    template's own base offset (its lowest register) so a template using absolute
+    vendor addresses reads from the right place without the caller knowing them;
+    pass ``address`` to override.
     """
     tmpl = templates.get_template(template)
+    start = address if address is not None else tmpl.base_offset
     span = count if count is not None else tmpl.span
     fn_name = "read_input_registers" if tmpl.register_type == "input" else "read_holding_registers"
-    block = _read_registers(target, address, span, "raw", fn_name)
-    decoded = templates.apply_template(template, block["raw_registers"], start_address=address)
+    block = _read_registers(target, start, span, "raw", fn_name)
+    decoded = templates.apply_template(template, block["raw_registers"], start_address=start)
     decoded["unit_id"] = target.unit_id
     return decoded
 

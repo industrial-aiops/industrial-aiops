@@ -196,6 +196,37 @@ def test_apply_template_decodes_named_tags():
 
 
 @pytest.mark.unit
+def test_template_span_measured_from_base_offset():
+    """An absolute-offset vendor template spans from its base, not from 0."""
+    from iaiops.connectors.modbus import templates
+
+    sch = templates.get_template("schneider_pm5xxx_basic")
+    assert sch.base_offset == 2999
+    assert sch.span == 112  # 3109+2-2999, NOT ~3111 (would exceed the 125-reg limit)
+    gen = templates.get_template("generic_float32_be")
+    assert gen.base_offset == 0
+    assert gen.span == 16
+
+
+@pytest.mark.unit
+def test_apply_template_defaults_to_base_offset(monkeypatch):
+    """With no explicit address, the read starts at the template's base offset."""
+    seen = {}
+
+    class _RecordingClient(_FakeModbusClient):
+        def read_holding_registers(self, address, *, count=1, **kw):
+            seen["address"] = address
+            seen["count"] = count
+            return _FakeResp(registers=[0] * count)
+
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: _RecordingClient())
+    target = TargetConfig(name="m", protocol="modbus", host="127.0.0.1", unit_id=1)
+    ops.modbus_apply_template(target, "schneider_pm5xxx_basic")  # no address
+    assert seen["address"] == 2999  # base offset, not 0
+    assert seen["count"] == 112
+
+
+@pytest.mark.unit
 def test_apply_template_unknown_raises():
     from iaiops.connectors.modbus import templates
 
