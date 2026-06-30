@@ -912,11 +912,11 @@ def _build_iec61850_client(target: TargetConfig) -> Any:
     monkeypatch it with a fake adapter.
     """
     try:
-        import iec61850  # noqa: F401
+        import pyiec61850  # noqa: F401 — libiec61850 SWIG binding (NOT 'iec61850')
     except ImportError as exc:  # pragma: no cover — only without the binding
         raise OTConnectionError(
-            "The 'iec61850' (libiec61850) binding is not installed. IEC 61850 is an "
-            "OPTIONAL extra: 'pip install iaiops[iec61850]' (needs libiec61850 built).",
+            "The 'pyiec61850' (libiec61850 SWIG) binding is not installed. IEC 61850 "
+            "is an OPTIONAL extra: 'pip install iaiops[iec61850]' (linux-only wheel).",
             endpoint=target.name, protocol="iec61850",
         ) from exc
     if not target.host:

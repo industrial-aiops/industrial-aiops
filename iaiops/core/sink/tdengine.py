@@ -1,10 +1,12 @@
-"""TDengine historian sink (待核实) — write OT telemetry to TDengine.
+"""TDengine historian sink — write OT telemetry to TDengine.
 
 TDengine is a domestic (国产) time-series database popular for industrial/IoT
 historians. ``taospy`` (the official Python connector) is an OPTIONAL extra
-(``pip install iaiops[tdengine]``) imported LAZILY. The exact connect/insert
-surface is UNVERIFIED against a live cluster here (preview) — isolated behind the
-uniform ``write(points) -> int`` interface so the push path is mock-testable.
+(``pip install iaiops[tdengine]``) imported LAZILY. The connect/insert surface +
+SQL dialect were verified against a live taosd 3.3 (write→read round-trip,
+2026-06-30) — which is how the ``value`` reserved-word DDL bug was caught. The
+path is isolated behind the uniform ``write(points) -> int`` interface (also
+mock-testable). NB: ``value`` must be back-quoted in DDL (TDengine reserved word).
 """
 
 from __future__ import annotations
@@ -47,9 +49,13 @@ class TDengineSink:
         cur.execute(f"CREATE DATABASE IF NOT EXISTS {self._database}")  # nosec B608 — ident sanitized
         cur.execute(f"USE {self._database}")  # nosec B608 — ident sanitized
         # Super-table: ts + value + a metric tag (one sub-table per metric).
+        # ``value`` is a TDengine RESERVED WORD — it must be back-quoted in DDL or
+        # the CREATE STABLE fails with a syntax error (verified against a live
+        # taosd 3.3, 2026-06-30). The INSERTs are positional (no column list) so
+        # they need no quoting.
         cur.execute(  # nosec B608 — ident sanitized
             f"CREATE STABLE IF NOT EXISTS {self._stable} "
-            f"(ts TIMESTAMP, value DOUBLE) TAGS (metric BINARY(160))"
+            f"(ts TIMESTAMP, `value` DOUBLE) TAGS (metric BINARY(160))"
         )
 
     def write(self, points: list[dict]) -> int:

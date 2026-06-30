@@ -6,16 +6,21 @@
 
 ## Editions / connectors (new verticals)
 - ✅ **energy edition** — shipped in v0.6.0 (read-only monitoring): IEC 60870-5-104
-  (`c104`), DNP3 (`pydnp3`), IEC 61850 MMS (`libiec61850`), with the `energy` MCP
-  profile + `iaiops[energy]` bundle. **Validation debt (待核实)**: library bindings
-  are mock-tested only, not verified against live RTUs/IEDs — this is the biggest
-  open validation item. Follow-ups: live-device validation pass; IEC-61850 GOOSE/SV
-  (out of scope for now); possibly graduate to its own repo importing core if the
-  buyer/regulation divergence grows.
+  (`c104`), DNP3 (`pydnp3`), IEC 61850 MMS (`pyiec61850`), with the `energy` MCP
+  profile + `iaiops[energy]` bundle. **Binding verification pass (2026-06-30):**
+  IEC-104 verified against a real c104 loopback link (`tests/test_binding_contracts.py`
+  exercises the actual `iec104_session`); IEC-61850 **pin corrected** — the extra
+  pointed at the unrelated PyPI `iec61850` (async OOP client, 0 driver symbols); it
+  now pins `pyiec61850` (libiec61850 SWIG) and all 14 driver symbols are verified
+  present. **Still 待核实:** DNP3 (`pydnp3` ships no wheel + needs a live outstation;
+  not yet CI-verifiable) and live-RTU/IED reads. Follow-ups: DNP3 `is_online` live
+  link-state via OnStateChange; live-device pass; IEC-61850 GOOSE/SV (out of scope).
 - ✅ **building edition** — shipped in v0.6.0 (read-only): BACnet/IP via `BAC0`
   (discover / object-list / read-property / read-points), `building` MCP profile +
-  `iaiops[building]` bundle. 待核实: BAC0 binding mock-tested, not live-verified.
-  Follow-ups: present-value writes behind the MOC gate; COV subscriptions; trends.
+  `iaiops[building]` bundle. **Verified 2026-06-30:** fixed a fabricated `whois()`
+  call → BAC0's real `who_is()`; who_is/read/disconnect surface verified present
+  (contract test guards it). 待核实: live building/HVAC read. Follow-ups:
+  present-value writes behind the MOC gate; COV subscriptions; trends.
 - **process edition** — HART-IP connector (process instrumentation) to flesh out
   the existing `process` profile/bundle.
 - ✅ **PROFINET (read-only)** — shipped in v0.6.0: DCP discovery / identify / asset
@@ -55,7 +60,10 @@
   public index. (docs/CHINA.md §2.)
 - ✅ **National time-series DB integration** — `historian_push` sink for TDengine
   (`iaiops[tdengine]`) + IoTDB (`iaiops[iotdb]`); no own store, no InfluxDB bind.
-  待核实: write paths mock-tested, not live-verified.
+  **Live-verified 2026-06-30** against containerized servers (write→read round-trip):
+  IoTDB via the real `IoTDBSink`; TDengine after fixing a real bug — the `value`
+  column is a TDengine reserved word and must be back-quoted in the `CREATE STABLE`
+  DDL (mock tests never hit the live parser).
 - ⏳ **国产 OS / 芯 validation** — 麒麟/统信, 鲲鹏/海光: validation matrix documented
   (docs/CHINA.md §3), **待核实** (not hardware-verified). Per-protocol extras make
   overseas deps replaceable.

@@ -1,10 +1,11 @@
-"""Apache IoTDB historian sink (待核实) — write OT telemetry to IoTDB.
+"""Apache IoTDB historian sink — write OT telemetry to IoTDB.
 
 Apache IoTDB is an open, increasingly domestic-adopted time-series database for
 industrial/IoT historians. ``apache-iotdb`` is an OPTIONAL extra
-(``pip install iaiops[iotdb]``) imported LAZILY. Its Session insert surface is
-UNVERIFIED against a live cluster here (preview) — isolated behind the uniform
-``write(points) -> int`` interface so the push path is mock-testable.
+(``pip install iaiops[iotdb]``) imported LAZILY. The Session insert surface was
+verified against a live IoTDB server (write→read round-trip via this sink,
+2026-06-30) — isolated behind the uniform ``write(points) -> int`` interface
+(also mock-testable).
 """
 
 from __future__ import annotations

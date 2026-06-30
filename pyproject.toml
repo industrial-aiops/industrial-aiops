@@ -51,10 +51,16 @@ profinet = ["pnio-dcp>=1.1,<3"]
 # needs the C library built). Preview — not yet validated against live RTUs/IEDs.
 iec104 = ["c104>=2.0,<3"]
 dnp3 = ["pydnp3>=0.1,<1"]
-# NB: the 'iec61850' PyPI distribution tops out at 0.12.x (the 1.5-series
-# libiec61850 SWIG wrapper publishes as 'pyiec61850', currently pre-release only).
-# Pin the resolvable stable distribution; the binding is 待核实 either way.
-iec61850 = ["iec61850>=0.10,<1"]
+# IEC 61850 MMS: the driver targets the libiec61850 SWIG binding (procedural
+# IedConnection_* API). That binding publishes on PyPI as 'pyiec61850' (1.5-series,
+# pre-release alphas; linux-only manylinux wheels — the wheel bundles libiec61850).
+# NB: the similarly-named 'iec61850' distribution is an UNRELATED async OOP client
+# (Iec61850Client/IedConnection classes) whose surface the driver does NOT use —
+# verified 2026-06-30 (pyiec61850 exposes IedConnection_create/_connect/_readObject;
+# 'iec61850' exposes 0 of them). The pre-release alpha is pinned explicitly so the
+# resolver accepts it. Symbol-verified in a linux container; still 待核实 against a
+# live IED.
+iec61850 = ["pyiec61850>=1.5.2a1,<2"]
 # Building edition (read-only facility/HVAC): BACnet/IP via BAC0 (over bacpypes3).
 bacnet = ["BAC0>=2023.6,<2026"]
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).

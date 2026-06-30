@@ -158,8 +158,8 @@ PROTOCOLS: tuple[dict, ...] = (
         ],
         "write_tools": [],
         "params": ["host", "port(2404)", "common_address"],
-        "requirements": "Energy edition extra. PREVIEW — binding/API shape 待核实, "
-        "not validated against a live RTU.",
+        "requirements": "Energy edition extra. Binding verified against a c104 "
+        "loopback link (2026-06-30); live-RTU read still 待核实.",
         "not_supported": "Control direction (C_SC/C_DC/C_RC/setpoints) = not exposed "
         "(OT-dangerous).",
     },
@@ -173,13 +173,14 @@ PROTOCOLS: tuple[dict, ...] = (
         "write_tools": [],
         "params": ["host", "port(20000)", "unit_id(outstation)", "master_address"],
         "requirements": "Energy edition extra. PREVIEW — callback-based opendnp3 "
-        "binding 待核实, not validated against a live outstation.",
+        "binding 待核实 (pydnp3 has no wheel + needs a live outstation; not yet "
+        "verifiable in CI). is_online reflects enable(), not live link-state.",
         "not_supported": "Control (CROB / analog output) = not exposed (OT-dangerous).",
     },
     {
         "protocol": "iec61850",
         "status": "implemented",
-        "library": "libiec61850 binding (OPTIONAL extra: iaiops[iec61850])",
+        "library": "pyiec61850 — libiec61850 SWIG (OPTIONAL extra: iaiops[iec61850])",
         "transport": "IEC 61850 MMS (ISO-on-TCP 102)",
         "auth": "none (transport)",
         "read_tools": [
@@ -187,8 +188,9 @@ PROTOCOLS: tuple[dict, ...] = (
         ],
         "write_tools": [],
         "params": ["host", "port(102)"],
-        "requirements": "Energy edition extra; needs libiec61850 built. PREVIEW — "
-        "binding/API shape 待核实, not validated against a live IED.",
+        "requirements": "Energy edition extra (pyiec61850, linux-only wheel). Driver "
+        "symbol surface verified against the real binding (2026-06-30); live-IED "
+        "read still 待核实.",
         "not_supported": "Control blocks (Oper / select-before-operate), GOOSE, "
         "Sampled Values = not exposed / out of scope.",
     },
@@ -204,8 +206,8 @@ PROTOCOLS: tuple[dict, ...] = (
         ],
         "write_tools": [],
         "params": ["host (local BACnet/IP interface, e.g. 10.0.0.5/24)", "port(47808)"],
-        "requirements": "Building edition extra. PREVIEW — BAC0 binding 待核实, not "
-        "validated against live building/HVAC gear.",
+        "requirements": "Building edition extra. BAC0 who_is/read/disconnect surface "
+        "verified (2026-06-30); live building/HVAC read still 待核实.",
         "not_supported": "Present-value writes (with priority/relinquish) = not "
         "exposed (live building-control is OT-dangerous).",
     },

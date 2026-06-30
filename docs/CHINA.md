@@ -71,8 +71,10 @@ iaiops historian push --sink tdengine --input points.json \
 Or via the `historian_push` MCP tool (`sink="tdengine"|"iotdb"`). Points are
 normalized from any connector's output (`{ref|metric, value|present_value,
 timestamp?}`); non-numeric points are skipped (these TSDBs store a numeric value
-column). **⚠️ `待核实`**: the `taospy` / `apache-iotdb` write paths are
-mock-tested, not validated against a live cluster.
+column). **✅ Live-verified 2026-06-30** (write→read round-trip against
+containerized servers): IoTDB via the real `IoTDBSink`; TDengine after fixing a
+real DDL bug (the `value` column is a TDengine reserved word — back-quoted in
+`CREATE STABLE`). Production cluster scale/HA/auth tuning remains site-specific.
 
 Design choice: we **do not build our own historian** and **do not bind InfluxDB** —
 the sink is a thin adapter so a site uses its existing domestic TSDB.
@@ -98,6 +100,7 @@ mapping of the iaiops governance posture to the guidance pillars:
 
 - 国产 OS/芯/PLC：上述矩阵全部 `待核实` — 需在 麒麟/统信 + 鲲鹏/海光 + 汇川/台达/信捷
   上实测并回填版本。
-- TSDB sink：`taospy` / `apache-iotdb` 写路径未对真实集群验证。
+- ~~TSDB sink：写路径未对真实集群验证~~ → **✅ 已验证 (2026-06-30)**：IoTDB / TDengine
+  容器写读 round-trip 通过(TDengine 修了 `value` 保留字 DDL bug)。生产集群规模/HA 仍按现场调优。
 - mTLS / 证书双向认证：OPC-UA cert 安全模式、MQTT 客户端证书为 roadmap。
 - 审计外发到集中 SIEM：当前需自行导出/转发审计库。

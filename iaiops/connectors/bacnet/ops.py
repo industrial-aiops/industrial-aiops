@@ -32,7 +32,7 @@ READABLE_TYPES = (
 
 
 def _norm_device(item: Any) -> dict:
-    """Normalize a BAC0 whois result (tuple/list/obj) to {device_id, address}."""
+    """Normalize a BAC0 who_is result (tuple/list/obj) to {device_id, address}."""
     if isinstance(item, (list, tuple)) and len(item) >= 2:
         # BAC0 commonly yields (device_id, address) or (address, device_id).
         a, b = item[0], item[1]
@@ -73,7 +73,9 @@ def _norm_object(item: Any) -> dict:
 def bacnet_discover(target: Any) -> dict:
     """[READ] Who-Is broadcast: discover BACnet devices on the local network."""
     with bacnet_session(target) as net:
-        raw = list(net.whois() or [])[:MAX_DEVICES]
+        # BAC0.lite exposes Who-Is as ``who_is`` (verified against BAC0/bacpypes3,
+        # 2026-06) — broadcasts to the local segment when called with no address.
+        raw = list(net.who_is() or [])[:MAX_DEVICES]
         devices = [_norm_device(d) for d in raw]
     return {
         "endpoint": s(getattr(target, "name", ""), 64),

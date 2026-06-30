@@ -1,7 +1,7 @@
 """BACnet/IP ops tests against a MOCKED BAC0 network.
 
 BAC0/bacpypes3 needs a live BACnet/IP segment, so ``_build_bacnet_network`` is
-monkeypatched to return a fake network whose whois()/read() duck-type the BAC0
+monkeypatched to return a fake network whose who_is()/read() duck-type the BAC0
 surface — exercising discovery, object-list browse, property read, and the
 present-value points sweep (with per-point error tolerance) without any gear.
 """
@@ -28,7 +28,7 @@ class _FakeNet:
             "192.168.1.10 binaryInput 3 presentValue": "active",
         }
 
-    def whois(self):
+    def who_is(self, *args, **kwargs):
         return [(1001, "192.168.1.10"), (1002, "192.168.1.11")]
 
     def read(self, request):

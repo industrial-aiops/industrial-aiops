@@ -19,8 +19,14 @@ FUNCTIONAL_CONSTRAINTS = ("MX", "ST", "CF", "DC", "SP", "SG", "SE", "EX")
 
 
 def build_mms_adapter(host: str, port: int) -> Any:
-    """Build an IEC 61850 MMS client adapter for ``host:port`` (待核实)."""
-    import iec61850
+    """Build an IEC 61850 MMS client adapter for ``host:port`` (待核实).
+
+    The binding is the libiec61850 SWIG wrapper, published on PyPI as ``pyiec61850``
+    (NOT the unrelated ``iec61850`` async-OOP distribution). Its procedural
+    ``IedConnection_*`` symbol surface was verified present 2026-06-30; the live-IED
+    read path remains 待核实.
+    """
+    import pyiec61850 as iec61850
 
     return _LibIec61850Adapter(iec61850, host, port)
 

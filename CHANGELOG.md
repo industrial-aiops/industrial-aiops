@@ -33,6 +33,26 @@ preview / mock-or-sim caveat. (Also includes a code-review hardening pass — se
   chattering alarms inflated RCA confidence; live sink errors escaped the error contract.
   15 regression tests added for the previously-untested paths.
 
+### Fixed (binding validation pass, 2026-06-30)
+Ran the preview/待核实 bindings against **real libraries + containerized servers**
+(not mocks) — which surfaced three real bugs the mock suite could never catch:
+- **`iec61850` extra pointed at the wrong PyPI distribution.** The prior pin
+  `iec61850>=0.10,<1` resolves to an unrelated async-OOP client that exposes **none**
+  of the `IedConnection_*` SWIG symbols the driver calls (0/14). Re-pinned to
+  **`pyiec61850`** (the real libiec61850 SWIG binding, linux-only wheel); all 14
+  driver symbols verified present, and the driver/connection imports now use it.
+- **BACnet called a fabricated `whois()`** — BAC0 exposes `who_is()`; the mock fake
+  duck-typed the wrong name, so it would have `AttributeError`'d against real gear.
+- **TDengine `CREATE STABLE` used `value` as a column name** — a TDengine reserved
+  word the live parser rejects with a syntax error → back-quoted in DDL.
+- **Verified live:** IEC-104 (real c104 loopback link via `iec104_session`), IoTDB &
+  TDengine (write→read round-trip via the real sinks). **Still 待核实:** DNP3
+  (`pydnp3` has no wheel + needs a live outstation) and live-RTU/IED reads.
+- **New guards:** `tests/test_binding_contracts.py` (per-binding library-API contract
+  tests, `importorskip`-gated — run when an extra is installed) and
+  `tests/test_protocol_consistency.py` (cross-registry meta-test that would have caught
+  the historical `secsgem`-missing-from-`SUPPORTED_PROTOCOLS` regression).
+
 ### Added — verticals & protocols
 - **PROFINET connector (read-only)** — layer-2 **PROFINET-DCP** discovery/identify
   via the optional `pnio-dcp` extra (`pip install iaiops[profinet]`):
