@@ -1,5 +1,113 @@
 # Changelog
 
+## 0.6.0 — New verticals & protocols (PROFINET, energy, building, 信创) + intelligence
+
+Breadth release: new field protocols and per-industry editions, China-market entry
+artifacts, and two new read-only intelligence layers. Same read-first stance and
+preview / mock-or-sim caveat. (Also includes a code-review hardening pass — see below.)
+
+### Added — intelligence layer
+- **Data-quality watchdog** — `data_quality_scorecard` (fleet data-TRUST rollup:
+  scores each tag 0-100 on staleness / **dead heartbeat** / bad-quality / flatline /
+  gaps / anomaly, rolled up per endpoint + fleet with ranked worst offenders) and
+  `heartbeat_health` (first-class watchdog-liveness check). Pure analysis; also feeds
+  the downtime root-cause copilot. CLIs `iaiops diag dataquality` / `iaiops diag heartbeat`.
+- **UNS governance** — `uns_topic_audit` (UNS naming conformance + topic-sprawl:
+  casing collisions, scattered leaves, depth outliers, duplicates → clean/minor/
+  sprawling) and `uns_schema_drift` (Sparkplug NBIRTH baseline-vs-current →
+  none/additive/breaking). CLIs `iaiops mqtt uns-audit` / `iaiops mqtt uns-drift`.
+
+### Fixed (code-review hardening)
+- **`iec61850` extra had a fabricated version pin** (`>=1.5` — uninstallable; PyPI tops
+  out at 0.12.x) that broke `iaiops[energy]` resolution → corrected to `>=0.10,<1`.
+- **`secsgem` was missing from `SUPPORTED_PROTOCOLS`** since v0.4.0 — config rejected
+  every secsgem endpoint, making that connector unreachable → fixed + fully wired into
+  the capability map.
+- **RCA copilot crashed on mixed naive/aware timestamps** (operator's naive `start` vs a
+  device's `...Z` alarm) → timestamp parsing now coerces naive→UTC everywhere.
+- **PROFINET / BACnet / IEC-104 raised raw tracebacks** on the most common real failure
+  (raw-socket permission / UDP bind) because the client was built outside the session
+  `try` → builds moved inside; failures now translate to teaching errors.
+- **SQL-injection hole** in the TDengine sink (unescaped timestamp; identifiers) → fixed.
+  Plus: DNP3 integrity-poll harvested the wrong handler; IoTDB wrote local-tz/epoch-0;
+  chattering alarms inflated RCA confidence; live sink errors escaped the error contract.
+  15 regression tests added for the previously-untested paths.
+
+### Added — verticals & protocols
+- **PROFINET connector (read-only)** — layer-2 **PROFINET-DCP** discovery/identify
+  via the optional `pnio-dcp` extra (`pip install iaiops[profinet]`):
+  `profinet_discover` (DCP IdentifyAll — one broadcast surfaces every station on the
+  segment), `profinet_identify_station` (by name-of-station), `profinet_station_params`
+  (targeted DCP Get by MAC), and `profinet_asset_inventory` (register with
+  IO-controller/IO-device role decoding). **Discovery + identify only** — no RT cyclic
+  process data, and the disruptive DCP *Set* services (set-name/ip/blink/reset) are not
+  exposed. Needs raw-socket access (root/admin/CAP_NET_RAW) on the NIC on the PROFINET
+  subnet; added to the `factory` profile + bundle. Mock-tested, not yet hardware-verified.
+- **Energy edition** — three read-only substation/utility telecontrol connectors,
+  an `energy` MCP profile (`IAIOPS_MCP=energy`), and the `iaiops[energy]` bundle:
+  - **IEC 60870-5-104** (`iaiops[iec104]`, `c104`): `iec104_connection_info`,
+    `iec104_interrogate` (general interrogation), `iec104_read_point`.
+  - **DNP3** (`iaiops[dnp3]`, `pydnp3`/opendnp3): `dnp3_link_status`,
+    `dnp3_integrity_poll` (Class 0/1/2/3 database grouped by measurement type).
+  - **IEC 61850 MMS** (`iaiops[iec61850]`, libiec61850): `iec61850_device_directory`,
+    `iec61850_browse`, `iec61850_read` (object-reference + functional constraint).
+  - **Monitor direction only** — control commands (C_SC/C_DC, CROB, Oper/SBO) and
+    IEC-61850 GOOSE/SV are not exposed. **⚠️ Preview / 待核实**: library bindings are
+    unverified against live RTUs/IEDs and kept out of `iaiops[all]` (iec61850 needs
+    libiec61850 built; pydnp3 builds a native ext). Largest validation debt in the line.
+- **Building edition** — **BACnet/IP** (ASHRAE 135) read-only facility/HVAC monitoring
+  via the `iaiops[bacnet]` extra (BAC0/bacpypes3), the `building` MCP profile
+  (`IAIOPS_MCP=building`), and the `iaiops[building]` bundle: `bacnet_discover`
+  (Who-Is), `bacnet_object_list`, `bacnet_read_property`, `bacnet_read_points`
+  (present-value snapshot of analog/binary/multistate points). Read-only — present-value
+  writes are not exposed. **⚠️ Preview / 待核实**: BAC0 binding unverified against live gear.
+- **信创 / China entry** — `compliance_mapping` (《工控系统网络安全防护指南》 ↔ iaiops
+  governance self-assessment with honest per-control status), a national-TSDB
+  historian sink `historian_push` (write collected telemetry to **TDengine**
+  `iaiops[tdengine]` or **Apache IoTDB** `iaiops[iotdb]` — data egress to the
+  operator's own historian, not a control write), CLIs `iaiops compliance` /
+  `iaiops historian push`, and **docs/CHINA.md** (air-gapped wheelhouse install,
+  国产 OS/芯/PLC validation matrix, compliance reference). **⚠️ 待核实**: 国产
+  OS/芯/PLC and the TSDB write paths are documented but not hardware-verified.
+
+### Notes
+- 90 tools across 14 protocols (incl. 2 信创/compliance + 4 new intelligence tools).
+  Still **preview** — mock/sim validated; the energy, building, and 信创 paths are
+  unverified against live equipment (see docs/CHINA.md for the validation backlog).
+
+## 0.5.0 — AI downtime root-cause copilot
+
+The flagship cross-protocol intelligence step: orchestrate the existing read
+tools + brain into an **evidence-cited, advisory** root-cause verdict for a
+downtime/incident window. Read-first, mock/sim preview — unchanged stance.
+
+### Added
+- **`downtime_root_cause`** (brain `iaiops/core/brain/rca.py`, MCP tool, and
+  `iaiops diag rca`) — correlates whatever evidence a site supplies (alarm events,
+  tag samples, a `diagnose_dataflow` verdict, a machine-state series) around an
+  incident window and ranks candidate causes. Highlights:
+  - **Temporal correlation** — a cause precedes its effect, so signals *before*
+    onset (within a configurable `lead_window_s`) outweigh signals *during* it;
+    signals *after* onset are treated as consequences.
+  - **Confidence by noisy-OR** (`1 − Π(1−wᵢ)`) — independent, agreeing evidence
+    compounds toward (never reaching) certainty; a lone weak signal stays weak.
+  - **Anti-hallucination** — every citation references a real supplied signal;
+    thin evidence downgrades to `insufficient_evidence` with a concrete
+    `recommended_next_data` list instead of a confident guess.
+  - **Advisory / read-only** — proposes a human-approved, MOC-gated, undoable
+    next step per cause; executes nothing.
+- **`downtime_root_cause_live`** (brain `iaiops/core/brain/rca_collect.py`, MCP
+  tool, and `iaiops diag rca-live`) — the copilot that **gathers its own evidence**:
+  give it an endpoint + window + refs and it pulls a cross-protocol
+  `diagnose_dataflow` probe, a short sampled series per ref (feeding `tag_health`),
+  and active OPC-UA conditions, then runs the same advisory analysis. The gathered
+  bundle is echoed under `collected_evidence`; reuses only existing read paths, adds
+  light read load, and degrades (never raises) on a partial outage.
+
+### Notes
+- 68 tools across 9 protocols (7 cross-protocol diagnostics). Still **preview** —
+  validated against simulators / mocks, not live equipment.
+
 ## 0.4.0 — Industrial-AIOps
 
 First release under the standalone **`industrial-aiops`** org (split out of the

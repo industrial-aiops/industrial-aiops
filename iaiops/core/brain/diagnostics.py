@@ -20,7 +20,7 @@ All inputs are validated; device/event text is sanitized.
 from __future__ import annotations
 
 import statistics
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from iaiops.core.brain._shared import num, s
@@ -41,18 +41,25 @@ DEFAULT_FRESHNESS_S = 60
 
 
 def _parse_ts(value: Any) -> datetime | None:
-    """Parse an ISO-8601 timestamp (tolerant of a trailing Z), else None."""
+    """Parse an ISO-8601 timestamp (tolerant of a trailing Z), else None.
+
+    A naive timestamp (no offset — the common case when an operator types a plain
+    ``2026-06-29T10:00:00``) is coerced to UTC so it can be subtracted/compared
+    against aware device timestamps (``...Z``) without raising
+    ``can't subtract offset-naive and offset-aware datetimes``.
+    """
     if value is None:
         return None
     if isinstance(value, datetime):
-        return value
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     text = str(value).strip()
     if not text:
         return None
     try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 def _numeric_series(series: list[Any]) -> list[float]:

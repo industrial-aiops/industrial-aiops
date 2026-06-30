@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iaiops"
-version = "0.4.0"
-description = "Governed, vendor-neutral OT data tap + intelligent troubleshooting for AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / MQTT-Sparkplug / EtherNet-IP / EtherCAT) with a built-in governance harness (audit, budget, risk tiers, MOC) plus OEE, downtime, and asset-inventory analytics"
+version = "0.6.0"
+description = "Governed, vendor-neutral OT data tap + intelligent troubleshooting for AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / MQTT-Sparkplug / EtherNet-IP / EtherCAT / SECS-GEM / PROFINET / IEC-104 / DNP3 / IEC-61850 / BACnet) with a built-in governance harness (audit, budget, risk tiers, MOC), an AI downtime root-cause copilot, plus OEE, downtime, and asset-inventory analytics"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
@@ -13,7 +13,9 @@ authors = [{ name = "wei", email = "zhouwei008@gmail.com" }]
 keywords = [
     "opc-ua", "modbus", "s7comm", "siemens", "mitsubishi", "mtconnect", "mqtt",
     "sparkplug", "uns", "ethernet-ip", "rockwell", "allen-bradley", "ethercat",
-    "pysoem", "soem", "oee", "ot", "scada", "plc", "industrial", "ai-ops", "mcp",
+    "pysoem", "soem", "secs-gem", "profinet", "iec-104", "dnp3", "iec-61850",
+    "bacnet", "substation", "hvac", "oee", "ot", "scada", "plc", "industrial",
+    "ai-ops", "mcp",
 ]
 dependencies = [
     "typer>=0.12,<1.0",
@@ -41,7 +43,27 @@ secsgem = ["secsgem>=0.3,<1"]
 # EtherCAT needs Linux + root/CAP_NET_RAW + a dedicated NIC + real slaves and has
 # NO software simulator (macOS unsupported) — hence optional like the rest.
 ethercat = ["pysoem>=1.1,<2"]
-# Convenience: install every connector (used for full installs and the test matrix).
+# PROFINET-DCP (read-only discovery/identify) — layer-2 raw sockets (root/admin/
+# CAP_NET_RAW on the NIC on the PROFINET subnet); discovery only, no RT cyclic.
+profinet = ["pnio-dcp>=1.1,<3"]
+# Energy edition (read-only monitoring): substation / utility telecontrol.
+# IEC 60870-5-104 (c104), DNP3 (pydnp3/opendnp3), IEC 61850 MMS (libiec61850 binding;
+# needs the C library built). Preview — not yet validated against live RTUs/IEDs.
+iec104 = ["c104>=2.0,<3"]
+dnp3 = ["pydnp3>=0.1,<1"]
+# NB: the 'iec61850' PyPI distribution tops out at 0.12.x (the 1.5-series
+# libiec61850 SWIG wrapper publishes as 'pyiec61850', currently pre-release only).
+# Pin the resolvable stable distribution; the binding is 待核实 either way.
+iec61850 = ["iec61850>=0.10,<1"]
+# Building edition (read-only facility/HVAC): BACnet/IP via BAC0 (over bacpypes3).
+bacnet = ["BAC0>=2023.6,<2026"]
+# 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
+tdengine = ["taospy>=2.7,<3"]
+iotdb = ["apache-iotdb>=1.0,<3"]
+# Convenience: install every pip-installable connector (full installs + the test
+# matrix). NOTE: the energy extras (c104 / pydnp3 / iec61850) are deliberately NOT
+# in 'all' — iec61850 needs the libiec61850 C library built and pydnp3 builds a
+# native ext, so they stay opt-in via their own extras / the 'energy' bundle.
 all = [
     "asyncua>=1.0,<2",
     "pymodbus>=3.5,<4",
@@ -53,6 +75,8 @@ all = [
     "protobuf>=4.25,<8",
     "secsgem>=0.3,<1",
     "pysoem>=1.1,<2",
+    "pnio-dcp>=1.1,<3",
+    "BAC0>=2023.6,<2026",
 ]
 # Per-industry edition bundles — install only the protocols a vertical runs, and
 # matching the same-named IAIOPS_MCP profiles. (energy/building arrive with their
@@ -67,8 +91,17 @@ factory = [
     "iaiops[mtconnect]",
     "iaiops[sparkplug]",
     "iaiops[ethercat]",
+    "iaiops[profinet]",
 ]
 process = ["iaiops[opcua]", "iaiops[modbus]"]
+# Energy edition: substation / utility telecontrol (matches the IAIOPS_MCP=energy
+# profile). iec61850 needs libiec61850 built — see its extra's note.
+energy = ["iaiops[iec104]", "iaiops[dnp3]", "iaiops[iec61850]", "iaiops[modbus]",
+          "iaiops[opcua]"]
+# Building edition: facility / HVAC / 厂务 (matches IAIOPS_MCP=building).
+building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]"]
+# 信创 / China entry: domestic TSDB historian sinks (compliance mapping is built-in).
+xinchuang = ["iaiops[tdengine]", "iaiops[iotdb]"]
 
 [dependency-groups]
 dev = [
