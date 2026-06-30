@@ -21,13 +21,28 @@ pytestmark = pytest.mark.integration
 
 
 def test_bacnet_bac0_surface() -> None:
-    """BAC0.lite must expose the methods the bacnet ops call (who_is/read/disconnect)."""
+    """BAC0.lite must expose every method the bacnet ops call.
+
+    Reads use who_is/read; the bounded COV capture uses cov/cancel_cov; the
+    trend-log read uses readRange; teardown uses disconnect. A fabricated name
+    here = AttributeError on live gear (the exact bug class this repo fixes).
+    """
     bac0 = pytest.importorskip("BAC0")
     lite = bac0.lite
-    for method in ("who_is", "read", "disconnect"):
+    for method in ("who_is", "read", "cov", "cancel_cov", "readRange", "disconnect"):
         assert hasattr(lite, method), f"BAC0.lite lacks {method!r} — bacnet ops call it"
     # Guard against a regression to the fabricated name.
     assert not hasattr(lite, "whois"), "BAC0.lite has no 'whois'; ops must use 'who_is'"
+
+
+def test_bacnet_bac0_cov_signature() -> None:
+    """BAC0.lite.cov must accept the keyword args the COV op passes."""
+    import inspect
+
+    bac0 = pytest.importorskip("BAC0")
+    params = inspect.signature(bac0.lite.cov).parameters
+    for kw in ("address", "objectID", "lifetime", "confirmed", "callback"):
+        assert kw in params, f"BAC0.lite.cov lacks {kw!r} — bacnet_cov_subscribe passes it"
 
 
 def test_iotdb_session_surface() -> None:

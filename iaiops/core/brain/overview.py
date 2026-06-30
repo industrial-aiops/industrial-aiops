@@ -208,12 +208,13 @@ PROTOCOLS: tuple[dict, ...] = (
         "auth": "none (transport)",
         "read_tools": [
             "bacnet_discover", "bacnet_object_list", "bacnet_read_property",
-            "bacnet_read_points",
+            "bacnet_read_points", "bacnet_cov_subscribe", "bacnet_read_trend_log",
         ],
         "write_tools": [],
         "params": ["host (local BACnet/IP interface, e.g. 10.0.0.5/24)", "port(47808)"],
-        "requirements": "Building edition extra. BAC0 who_is/read/disconnect surface "
-        "verified (2026-06-30); live building/HVAC read still 待核实.",
+        "requirements": "Building edition extra. BAC0 who_is/read/cov/cancel_cov/"
+        "readRange/disconnect surface verified (2026-06-30); live building/HVAC "
+        "read + COV/trend behaviour still 待核实 (no gear).",
         "not_supported": "Present-value writes (with priority/relinquish) = not "
         "exposed (live building-control is OT-dangerous).",
     },
