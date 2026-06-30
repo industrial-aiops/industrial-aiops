@@ -537,9 +537,22 @@ IAIOPS_MCP=fab          iaiops-mcp   # named profile (opcua+s7+modbus)
 IAIOPS_MCP=opcua        iaiops-mcp   # effectively a single-protocol MCP
 ```
 
-Named profiles: `all` · `fab` · `factory` · `process`. In an MCP client (e.g. Claude
-Desktop) set `IAIOPS_MCP` per server entry — one entry per site/line, each a lean
-single- or dual-protocol server.
+**Named entry-point sugar.** For the common single-protocol / single-edition case
+there is a pre-scoped console script per protocol and per named profile — no env
+var to set. Each is a thin shim over the same server:
+
+```bash
+iaiops-mcp-opcua     # == IAIOPS_MCP=opcua    iaiops-mcp
+iaiops-mcp-modbus    # == IAIOPS_MCP=modbus   iaiops-mcp
+iaiops-mcp-fab       # == IAIOPS_MCP=fab      iaiops-mcp  (per-edition)
+iaiops-mcp-energy    # == IAIOPS_MCP=energy   iaiops-mcp
+iaiops-mcp-building  # == IAIOPS_MCP=building iaiops-mcp
+```
+
+Named profiles: `all` · `fab` · `factory` · `process` · `energy` · `building`. In an
+MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per server entry — or point the
+entry straight at the matching `iaiops-mcp-<name>` script — one entry per site/line,
+each a lean single- or dual-protocol server.
 
 ---
 

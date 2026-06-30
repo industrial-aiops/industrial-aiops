@@ -121,6 +121,30 @@ dev = [
 [project.scripts]
 iaiops = "iaiops.cli:app"
 iaiops-mcp = "mcp_server.server:main"
+# Convenience named entry points — sugar over IAIOPS_MCP=<name> iaiops-mcp. Each
+# targets a data-driven shim in mcp_server.entrypoints (kept in sync with the
+# PROTOCOL_MODULES / NAMED_PROFILES menu; see tests/test_entrypoints.py).
+# Per-protocol:
+iaiops-mcp-opcua = "mcp_server.entrypoints:main_opcua"
+iaiops-mcp-modbus = "mcp_server.entrypoints:main_modbus"
+iaiops-mcp-s7 = "mcp_server.entrypoints:main_s7"
+iaiops-mcp-mc = "mcp_server.entrypoints:main_mc"
+iaiops-mcp-eip = "mcp_server.entrypoints:main_eip"
+iaiops-mcp-mtconnect = "mcp_server.entrypoints:main_mtconnect"
+iaiops-mcp-sparkplug = "mcp_server.entrypoints:main_sparkplug"
+iaiops-mcp-ethercat = "mcp_server.entrypoints:main_ethercat"
+iaiops-mcp-secsgem = "mcp_server.entrypoints:main_secsgem"
+iaiops-mcp-profinet = "mcp_server.entrypoints:main_profinet"
+iaiops-mcp-iec104 = "mcp_server.entrypoints:main_iec104"
+iaiops-mcp-dnp3 = "mcp_server.entrypoints:main_dnp3"
+iaiops-mcp-iec61850 = "mcp_server.entrypoints:main_iec61850"
+iaiops-mcp-bacnet = "mcp_server.entrypoints:main_bacnet"
+# Per-edition named profiles:
+iaiops-mcp-fab = "mcp_server.entrypoints:main_fab"
+iaiops-mcp-factory = "mcp_server.entrypoints:main_factory"
+iaiops-mcp-process = "mcp_server.entrypoints:main_process"
+iaiops-mcp-energy = "mcp_server.entrypoints:main_energy"
+iaiops-mcp-building = "mcp_server.entrypoints:main_building"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iaiops", "mcp_server"]

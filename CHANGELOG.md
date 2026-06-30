@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added — packaging / DX
+- **Per-protocol & per-edition named MCP entry points** — convenience console
+  scripts `iaiops-mcp-opcua`, `iaiops-mcp-modbus`, … (one per protocol) plus
+  `iaiops-mcp-fab` / `-factory` / `-process` / `-energy` / `-building` (named
+  profiles). Each is a thin shim (`mcp_server/entrypoints.py`) that injects the
+  equivalent `IAIOPS_MCP=<name>` selection then starts the **same** server via
+  `server.main` — no server logic duplicated. The shim set is generated
+  data-driven from `PROTOCOL_MODULES` + `NAMED_PROFILES`, so it can't drift from
+  the menu, and produces an identical registered tool set to `IAIOPS_MCP=<name>`.
+  Pure sugar — the `IAIOPS_MCP` env var already delivered the capability.
+
 ### Added — intelligence layer
 - **OPC-UA tag auto-discovery + semantic modeling** — `opcua_discover_tags` MCP tool
   + `iaiops opcua discover` CLI (`iaiops/connectors/opcua/discovery.py`): walks the
