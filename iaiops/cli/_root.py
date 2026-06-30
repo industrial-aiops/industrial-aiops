@@ -12,6 +12,7 @@ from iaiops.cli.dnp3 import dnp3_app
 from iaiops.cli.doctor import doctor_cmd
 from iaiops.cli.eip import eip_app
 from iaiops.cli.ethercat import ethercat_app
+from iaiops.cli.hart import hart_app
 from iaiops.cli.iec104 import iec104_app
 from iaiops.cli.iec61850 import iec61850_app
 from iaiops.cli.init import init_cmd
@@ -46,6 +47,7 @@ app.add_typer(iec104_app, name="iec104")
 app.add_typer(dnp3_app, name="dnp3")
 app.add_typer(iec61850_app, name="iec61850")
 app.add_typer(bacnet_app, name="bacnet")
+app.add_typer(hart_app, name="hart")
 app.add_typer(diag_app, name="diag")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(secret_app, name="secret")

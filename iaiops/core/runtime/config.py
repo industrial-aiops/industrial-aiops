@@ -61,6 +61,8 @@ SUPPORTED_PROTOCOLS = (
     "iec104", "dnp3", "iec61850",
     # Building edition (read-only): BACnet/IP (facility / HVAC / 厂务).
     "bacnet",
+    # Process edition (read-only): HART-IP process instrumentation.
+    "hart",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -75,6 +77,7 @@ DEFAULT_IEC104_PORT = 2404  # IEC 60870-5-104 (TCP)
 DEFAULT_DNP3_PORT = 20000  # DNP3 over TCP (IANA 20000)
 DEFAULT_IEC61850_PORT = 102  # IEC 61850 MMS (ISO-on-TCP / RFC1006)
 DEFAULT_BACNET_PORT = 47808  # BACnet/IP (UDP 0xBAC0)
+DEFAULT_HART_PORT = 5094  # HART-IP (UDP/TCP 5094)
 
 # Per-protocol default TCP port, used by load_config + the init wizard.
 _DEFAULT_PORTS = {
@@ -89,6 +92,7 @@ _DEFAULT_PORTS = {
     "dnp3": DEFAULT_DNP3_PORT,
     "iec61850": DEFAULT_IEC61850_PORT,
     "bacnet": DEFAULT_BACNET_PORT,
+    "hart": DEFAULT_HART_PORT,
 }
 
 
