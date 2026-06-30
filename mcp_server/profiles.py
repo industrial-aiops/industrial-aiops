@@ -31,6 +31,7 @@ PROTOCOL_MODULES = {
     "dnp3": "dnp3_tools",
     "iec61850": "iec61850_tools",
     "bacnet": "bacnet_tools",
+    "hart": "hart_tools",
 }
 
 # Always registered: the cross-protocol intelligence layer.
@@ -52,7 +53,7 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "fab": ("secsgem", "opcua", "s7", "modbus"),
     "factory": ("modbus", "s7", "eip", "mc", "ethercat", "profinet", "mtconnect",
                 "opcua", "sparkplug"),
-    "process": ("opcua", "modbus"),
+    "process": ("opcua", "modbus", "hart"),
     # Energy edition: electrical substation / utility telecontrol protocols.
     "energy": ("iec104", "dnp3", "iec61850", "modbus", "opcua"),
     # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).

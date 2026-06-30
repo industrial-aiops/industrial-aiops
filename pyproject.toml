@@ -66,6 +66,10 @@ iec61850 = ["pyiec61850>=1.5.2a1,<2; platform_system == 'Linux'"]
 # iec61850 just no-ops off-linux (its lazy import raises a teaching error if used).
 # Building edition (read-only facility/HVAC): BACnet/IP via BAC0 (over bacpypes3).
 bacnet = ["BAC0>=2023.6,<2026"]
+# Process edition (read-only): HART-IP process instrumentation. hart-protocol does
+# the HART command codec (framing/parsing); the HART-IP UDP transport is in-tree
+# (待核实). Pure-Python, cross-platform.
+hart = ["hart-protocol>=2023.6,<2025"]
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
 tdengine = ["taospy>=2.7,<3"]
 iotdb = ["apache-iotdb>=1.0,<3"]
@@ -102,7 +106,7 @@ factory = [
     "iaiops[ethercat]",
     "iaiops[profinet]",
 ]
-process = ["iaiops[opcua]", "iaiops[modbus]"]
+process = ["iaiops[opcua]", "iaiops[modbus]", "iaiops[hart]"]
 # Energy edition: substation / utility telecontrol (matches the IAIOPS_MCP=energy
 # profile). iec61850 needs libiec61850 built — see its extra's note.
 energy = ["iaiops[iec104]", "iaiops[dnp3]", "iaiops[iec61850]", "iaiops[modbus]",
