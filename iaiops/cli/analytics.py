@@ -13,6 +13,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import cli_errors, get_manager
+from iaiops.core.brain import alias_store as als
 from iaiops.core.brain import asset_inventory as asset
 from iaiops.core.brain import asset_model as amodel
 from iaiops.core.brain import oee
@@ -72,6 +73,42 @@ def asset_model_cmd(
 ) -> None:
     """Fuse per-protocol tag feeds into ONE cross-protocol asset/tag/alias model."""
     _emit(amodel.cross_protocol_asset_model(_load_json(input), site))
+
+
+@analytics_app.command("alias-adopt")
+@cli_errors
+def alias_adopt_cmd(
+    input: Path = typer.Option(..., "--input",
+                               help="JSON file: list of {protocol, source, asset?, tags:[...]}"),
+    site: str = typer.Option("site", "--site", help="Site label (a safe file leaf)"),
+) -> None:
+    """Adopt + persist the canonical alias map for a site (baseline for alias-diff)."""
+    model = amodel.cross_protocol_asset_model(_load_json(input), site)
+    adopted = als.extract_alias_map(model)
+    path = als.save_alias_map(site, adopted)
+    _emit({"site": model["site"], "path": str(path), "tag_count": len(adopted),
+           "adopted": adopted})
+
+
+@analytics_app.command("alias-diff")
+@cli_errors
+def alias_diff_cmd(
+    input: Path = typer.Option(..., "--input",
+                               help="JSON file: list of {protocol, source, asset?, tags:[...]}"),
+    site: str = typer.Option("site", "--site", help="Site label whose baseline to diff against"),
+) -> None:
+    """Diff a fresh discovery run against the adopted baseline for a site."""
+    previous = als.load_alias_map(site)
+    model = amodel.cross_protocol_asset_model(_load_json(input), site)
+    diff = als.diff_alias_map(previous, als.extract_alias_map(model))
+    _emit({"site": model["site"], **diff})
+
+
+@analytics_app.command("alias-sites")
+@cli_errors
+def alias_sites_cmd() -> None:
+    """List sites that have an adopted alias-map baseline."""
+    _emit({"sites": als.list_sites()})
 
 
 @analytics_app.command("asset")
