@@ -134,3 +134,35 @@ def test_hart_primary_variable_no_response(monkeypatch):
     monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
     out = ops.hart_primary_variable(TargetConfig(name="x", protocol="hart", host="10.0.0.7"))
     assert "error" in out
+
+
+def _hart_target_for(monkeypatch, response: bytes) -> TargetConfig:
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: _FakeSession(response))
+    return TargetConfig(name="xmtr-1", protocol="hart", host="10.0.0.7")
+
+
+@pytest.mark.unit
+def test_hart_device_identity_end_to_end(monkeypatch):
+    """cmd-0 fields the ops advertise must be POPULATED (guards fabricated reads)."""
+    from iaiops.connectors.hart import ops
+
+    payload = bytes([0, 0, 254, 0x60, 0x99, 4, 7, 5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+    out = ops.hart_device_identity(_hart_target_for(monkeypatch, _ack_frame(0, payload)))
+    assert out["manufacturer_id"] == 0x60
+    assert out["device_type"] == 0x99      # was always None (read 'device_type')
+    assert out["device_id"] is not None
+    assert out["hart_revision"] == 7       # was always None (read 'universal_revision')
+
+
+@pytest.mark.unit
+def test_hart_dynamic_variables_end_to_end(monkeypatch):
+    """cmd-3 loop current + PV/SV must be POPULATED (guards the fabricated read)."""
+    from iaiops.connectors.hart import ops
+
+    payload = (bytes([0, 0]) + struct.pack(">f", 4.2) + bytes([7])
+               + struct.pack(">f", 85.0) + bytes([12]) + struct.pack(">f", 55.0))
+    out = ops.hart_dynamic_variables(_hart_target_for(monkeypatch, _ack_frame(3, payload)))
+    assert out["loop_current_mA"] == pytest.approx(4.2, abs=1e-3)  # was always None
+    names = {v["name"]: v["value"] for v in out["variables"]}
+    assert names["primary"] == pytest.approx(85.0)
+    assert names["secondary"] == pytest.approx(55.0)
