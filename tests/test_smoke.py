@@ -16,6 +16,7 @@ EXPECTED_TOOLS = {
     # OPC-UA (read / digitalization, incl. Historical Access)
     "opcua_server_info", "opcua_browse", "opcua_read_node", "opcua_read_many",
     "opcua_subscribe_sample", "opcua_read_alarms", "opcua_read_history",
+    "opcua_discover_tags",
     # problem surfacing
     "health_summary", "anomaly_scan",
     # Modbus

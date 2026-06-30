@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added — intelligence layer
+- **OPC-UA tag auto-discovery + semantic modeling** — `opcua_discover_tags` MCP tool
+  + `iaiops opcua discover` CLI (`iaiops/connectors/opcua/discovery.py`): walks the
+  address space, collects every Variable node enriched with datatype / value /
+  engineering-unit, infers a heuristic semantic class (temperature / pressure / flow /
+  setpoint / alarm / state / …), groups tags into assets by browse path, and proposes
+  a clean canonical alias per tag with a naming-quality report (alias collisions /
+  cryptic names). Advisory + read-only — no server-side rename. Skips OPC-UA ns=0
+  infrastructure by default. Verified against a real in-process asyncua server.
+
 ## 0.6.0 — New verticals & protocols (PROFINET, energy, building, 信创) + intelligence
 
 Breadth release: new field protocols and per-industry editions, China-market entry

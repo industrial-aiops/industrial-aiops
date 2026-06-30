@@ -60,7 +60,10 @@ dnp3 = ["pydnp3>=0.1,<1"]
 # 'iec61850' exposes 0 of them). The pre-release alpha is pinned explicitly so the
 # resolver accepts it. Symbol-verified in a linux container; still 待核实 against a
 # live IED.
-iec61850 = ["pyiec61850>=1.5.2a1,<2"]
+iec61850 = ["pyiec61850>=1.5.2a1,<2; platform_system == 'Linux'"]
+# The platform marker keeps a non-linux `pip install iaiops[energy]` from failing
+# wholesale on this linux-only wheel — the other energy protocols still install and
+# iec61850 just no-ops off-linux (its lazy import raises a teaching error if used).
 # Building edition (read-only facility/HVAC): BACnet/IP via BAC0 (over bacpypes3).
 bacnet = ["BAC0>=2023.6,<2026"]
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
