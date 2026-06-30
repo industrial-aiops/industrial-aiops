@@ -1,0 +1,113 @@
+# Quality gate for industrial-aiops (uv-managed; uv.lock is committed).
+#
+# Two lanes:
+#   * gate                  — the release quality gate (pytest + ruff + bandit) on
+#                             Python 3.11 and 3.12, with only the cross-platform
+#                             connector libs (the `all` extra) installed. That set is
+#                             exactly what the non-integration suite imports for real
+#                             (asyncua / pymodbus / paho-mqtt / …); the energy / TSDB /
+#                             HART contract tests importorskip, so they self-skip here.
+#   * integration-contracts — installs the pure-python energy/TSDB/HART extras that
+#                             publish linux wheels and runs the `integration`-marked
+#                             library-API contract tests so the importorskip-gated
+#                             bindings actually execute on linux (see job comment).
+#
+# Action pins are floating major tags verified to exist:
+#   actions/checkout@v4, astral-sh/setup-uv@v6.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only token; this workflow never writes to the repo.
+permissions:
+  contents: read
+
+# One in-flight run per ref — a new push cancels the stale one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Release quality gate ────────────────────────────────────────────────────
+  # `uv sync` installs the locked base deps + the `dev` group (pytest, ruff);
+  # `--extra all` adds the cross-platform connector libs the base suite needs.
+  gate:
+    name: gate (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv + Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Sync env (base + dev tools + cross-platform connectors)
+        run: uv sync --extra all
+
+      # --no-sync: reuse the env synced above. A bare `uv run` re-syncs to the
+      # default (no extras), which would UNINSTALL the `all` connector libs that
+      # the base suite imports directly (asyncua / pymodbus / paho-mqtt …).
+      - name: pytest (base suite)
+        run: uv run --no-sync pytest -q
+
+      - name: ruff check
+        run: uv run --no-sync ruff check .
+
+      # bandit must report 0 Medium+ (it exits non-zero on any finding at/above
+      # the configured severity); pulled in ephemerally via `uvx`.
+      - name: bandit (static security scan, 0 Medium+)
+        run: uvx bandit -q -r iaiops mcp_server
+
+  # ── Integration contract tests (linux only) ─────────────────────────────────
+  # The base suite mocks every protocol library, so the preview/待核实 bindings can
+  # drift from the real library API and still pass. These `integration`-marked
+  # contract tests assert the real symbols/methods exist — but only when the actual
+  # optional library is importable. This lane installs the ones that publish linux
+  # wheels so those assertions run for real in CI.
+  #
+  # Installed: `all` (asyncua/BAC0/…) + iec104 (c104) + iotdb (apache-iotdb) +
+  # tdengine (taospy) + hart (hart-protocol) + pyiec61850 (1.5-series alpha,
+  # linux-only manylinux wheel → needs --prerelease=allow).
+  #
+  # Deliberately NOT installed / skipped, and why:
+  #   * pydnp3 (dnp3/energy) — builds a native C++ ext (no wheel); would break the
+  #     lane on every run. Its contract test importorskips, so it self-skips.
+  #   * ethercat (pysoem) / profinet (pnio-dcp) — need layer-2 raw sockets +
+  #     root/CAP_NET_RAW + real NIC/slaves; not runnable on a hosted runner.
+  #   * live serial (Modbus-RTU) — needs real RS-485/USB hardware.
+  #   * taospy's symbol test additionally needs the native libtaos client at
+  #     runtime; absent here it skips (the binding test handles that path).
+  integration-contracts:
+    name: integration contracts (linux, py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv + Python 3.12
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install all + pure-python energy/TSDB/HART extras (linux wheels)
+        run: |
+          uv venv --python 3.12
+          uv pip install -e '.[all,iec104,iotdb,tdengine,hart]' pytest
+          uv pip install --prerelease=allow 'pyiec61850>=1.5.2a1,<2'
+
+      # --no-sync: keep the ad-hoc `uv pip install` env above; don't re-sync from
+      # the lockfile (which has no energy/TSDB/HART extras).
+      - name: Integration contract tests (real library APIs)
+        run: >-
+          uv run --no-sync pytest -q -m integration
+          tests/test_binding_contracts.py tests/test_opcua_discovery.py

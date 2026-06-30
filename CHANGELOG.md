@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added — CI / DX
+- **GitHub Actions CI** (`.github/workflows/ci.yml`) — runs the release quality
+  gate on push to `main` and on every pull request. A `gate` job (Python 3.11 +
+  3.12 matrix, `uv sync --extra all`) runs `pytest -q`, `ruff check .`, and
+  `bandit -q -r iaiops mcp_server` (must stay 0 Medium+). A second
+  `integration-contracts` job (linux, 3.12) installs the pure-python energy/TSDB/
+  HART extras that ship linux wheels (`c104`, `pyiec61850` `--pre`, `apache-iotdb`,
+  `taospy`, `BAC0`, `hart-protocol`) and runs the `integration`-marked library-API
+  contract tests, so the `importorskip`-gated bindings actually execute on linux.
+  Hardware/root-only protocols (EtherCAT/PROFINET raw L2 sockets, live serial,
+  native-build `pydnp3`) self-skip — documented inline in the workflow.
+
 ## 0.7.0 — HART-IP, tag discovery, data-quality & Modbus depth (2026-06-30)
 
 New read-only **HART-IP** process-instrumentation connector, **OPC-UA tag
