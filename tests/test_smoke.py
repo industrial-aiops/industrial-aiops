@@ -22,6 +22,7 @@ EXPECTED_TOOLS = {
     # Modbus
     "modbus_read_holding", "modbus_read_input", "modbus_read_coils",
     "modbus_read_discrete", "modbus_health_summary",
+    "modbus_detect_byte_order", "modbus_list_templates", "modbus_apply_template",
     # S7comm (Siemens / 仿西门子)
     "s7_cpu_info", "s7_read_area", "s7_read_db", "s7_read_many", "s7_write_db",
     # Mitsubishi MC

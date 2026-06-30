@@ -227,6 +227,14 @@ class TargetConfig:
     host: str = ""
     port: int = 0
     unit_id: int = 1
+    # Modbus transport: "tcp" (default) or "rtu" (serial). When "rtu" the
+    # serial_* params below select pymodbus's ModbusSerialClient instead of TCP.
+    transport: str = "tcp"
+    serial_port: str = ""
+    baudrate: int = 19200
+    parity: str = "N"
+    stopbits: int = 1
+    bytesize: int = 8
     security_mode: str = "None"
     security_policy: str = "None"
     username: str = ""
@@ -339,6 +347,19 @@ def _default_port(protocol: str, given: object, use_tls: bool = False) -> int:
     return _DEFAULT_PORTS.get(protocol, DEFAULT_OPCUA_PORT)
 
 
+def _modbus_transport(d: dict) -> str:
+    """Resolve the Modbus transport: explicit 'transport', else inferred from serial."""
+    given = str(d.get("transport", "") or "").strip().lower()
+    if given in ("rtu", "serial"):
+        return "rtu"
+    if given == "tcp":
+        return "tcp"
+    # Infer: a serial port without an explicit transport implies RTU.
+    if d.get("serial_port") or d.get("com_port"):
+        return "rtu"
+    return "tcp"
+
+
 def _as_bool(value: object) -> bool:
     """Coerce a YAML scalar to bool (tolerates 'true'/'1'/'yes')."""
     if isinstance(value, bool):
@@ -379,6 +400,14 @@ def _parse_target(d: dict) -> TargetConfig:
         host=d.get("host", "") or d.get("broker", ""),
         port=_default_port(protocol, d.get("port"), use_tls),
         unit_id=int(d.get("unit_id", 1) or 1),
+        # Modbus transport (tcp|rtu) + serial params. 'serial_port' accepts the
+        # 'serial_port'/'com_port' aliases; presence of one implies rtu.
+        transport=_modbus_transport(d),
+        serial_port=str(d.get("serial_port", "") or d.get("com_port", "")),
+        baudrate=int(d.get("baudrate", 19200) or 19200),
+        parity=str(d.get("parity", "N") or "N").upper()[:1],
+        stopbits=int(d.get("stopbits", 1) or 1),
+        bytesize=int(d.get("bytesize", 8) or 8),
         security_mode=str(d.get("security_mode", "None")),
         security_policy=str(d.get("security_policy", "None")),
         username=str(d.get("username", "")),

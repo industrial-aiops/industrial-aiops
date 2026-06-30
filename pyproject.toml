@@ -32,7 +32,7 @@ dependencies = [
 # imports without any of these — a site installs only the 1-2 protocols it runs:
 #   pip install iaiops[opcua]        ·  pip install iaiops[opcua,modbus]
 opcua = ["asyncua>=1.0,<2"]
-modbus = ["pymodbus>=3.5,<4"]
+modbus = ["pymodbus>=3.5,<4", "pyserial>=3.5"]  # pyserial for Modbus-RTU (serial)
 s7 = ["pyS7>=2.8,<3"]
 mc = ["pymcprotocol>=0.3,<1"]
 eip = ["pycomm3>=1.2,<2"]
@@ -76,6 +76,7 @@ iotdb = ["apache-iotdb>=1.0,<3"]
 all = [
     "asyncua>=1.0,<2",
     "pymodbus>=3.5,<4",
+    "pyserial>=3.5",
     "pyS7>=2.8,<3",
     "pymcprotocol>=0.3,<1",
     "pycomm3>=1.2,<2",
