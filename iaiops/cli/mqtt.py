@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
-from iaiops.connectors.sparkplug import ops
+from iaiops.connectors.sparkplug import live, ops
 from iaiops.core.brain import uns_governance as uns
 
 mqtt_app = typer.Typer(help="MQTT / Sparkplug B / UNS consume-first telemetry.",
@@ -103,3 +103,47 @@ def uns_drift_cmd(
     base = json.loads(Path(baseline).read_text("utf-8"))
     curr = json.loads(Path(current).read_text("utf-8"))
     _emit(uns.uns_schema_drift(base, curr))
+
+
+@mqtt_app.command("uns-live-audit")
+@cli_errors
+def uns_live_audit_cmd(
+    endpoint: EndpointOption = None,
+    topic: str = typer.Option("#", "--topic"),
+    duration_s: int = typer.Option(10, "--duration-s"),
+    max_msgs: int = typer.Option(500, "--max-msgs"),
+    root: list[str] = typer.Option(None, "--root", help="Allowed top-level root (repeatable)"),
+    min_segments: int = typer.Option(0, "--min-segments"),
+    max_leaf_parents: int = typer.Option(5, "--max-leaf-parents"),
+) -> None:
+    """Capture the LIVE UNS topic tree (bounded) then audit naming + sprawl."""
+    _emit(live.uns_live_audit(
+        resolve_target(endpoint), topic, duration_s, max_msgs,
+        list(root) if root else None, min_segments, max_leaf_parents,
+    ))
+
+
+@mqtt_app.command("live-schema")
+@cli_errors
+def live_schema_cmd(
+    endpoint: EndpointOption = None,
+    topic: str = typer.Option("spBv1.0/#", "--topic"),
+    duration_s: int = typer.Option(10, "--duration-s"),
+    max_msgs: int = typer.Option(500, "--max-msgs"),
+) -> None:
+    """Capture a LIVE Sparkplug schema (bounded) → drift-ready {node:{metric:type}}."""
+    _emit(live.sparkplug_live_schema(resolve_target(endpoint), topic, duration_s, max_msgs))
+
+
+@mqtt_app.command("uns-live-drift")
+@cli_errors
+def uns_live_drift_cmd(
+    baseline: Path = typer.Option(..., "--baseline", help="JSON: baseline node/metric schema"),
+    endpoint: EndpointOption = None,
+    topic: str = typer.Option("spBv1.0/#", "--topic"),
+    duration_s: int = typer.Option(10, "--duration-s"),
+    max_msgs: int = typer.Option(500, "--max-msgs"),
+) -> None:
+    """Capture the LIVE Sparkplug schema (bounded) and diff it vs a baseline JSON."""
+    base = json.loads(Path(baseline).read_text("utf-8"))
+    _emit(live.uns_live_drift(resolve_target(endpoint), base, topic, duration_s, max_msgs))

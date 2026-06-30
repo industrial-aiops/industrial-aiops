@@ -65,7 +65,12 @@
 - ✅ **UNS governance** — shipped in v0.6.0: `uns_topic_audit` (naming conformance +
   topic-sprawl: casing collisions / scattered leaves / depth outliers) + `uns_schema_drift`
   (Sparkplug NBIRTH baseline-vs-current → none/additive/breaking). Governable neutral
-  source, not a broker. Follow-up: live MQTT/Sparkplug subscription to feed it.
+  source, not a broker. ✅ Follow-up shipped: **live MQTT/Sparkplug subscription** —
+  `uns_live_audit` / `sparkplug_live_schema` / `uns_live_drift`
+  (`iaiops/connectors/sparkplug/live.py` + `iaiops mqtt uns-live-audit` / `live-schema`
+  / `uns-live-drift`) capture topics/BIRTHs from a live broker over a bounded window
+  (msg-cap AND timeout) and feed the existing analyzers — closing the loop. Live-broker
+  end-to-end path 待核实 (validated vs eclipse-mosquitto locally; no broker in CI).
 - ✅ **Tag auto-discovery + semantic modeling + safe alias layer** — shipped:
   `opcua_discover_tags` (`iaiops/connectors/opcua/discovery.py` + `iaiops opcua
   discover`) walks the OPC-UA address space, collects Variable nodes enriched with

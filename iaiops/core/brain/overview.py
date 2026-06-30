@@ -84,6 +84,7 @@ PROTOCOLS: tuple[dict, ...] = (
             "mqtt_read_topic", "sparkplug_subscribe_sample",
             "sparkplug_decode_payload", "sparkplug_node_list", "uns_browse",
             "uns_topic_audit", "uns_schema_drift",
+            "uns_live_audit", "sparkplug_live_schema", "uns_live_drift",
         ],
         "write_tools": ["mqtt_publish (HIGH/MOC)"],
         "params": ["host/broker", "port(1883/8883)", "topic", "use_tls", "username"],
