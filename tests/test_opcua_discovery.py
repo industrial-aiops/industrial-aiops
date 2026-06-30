@@ -101,7 +101,8 @@ def disco_server():
     temp.add_property(idx, "EngineeringUnits", eu)
     line.add_variable(idx, "Pressure", 4.2)
     mixer = line.add_object(idx, "Mixer")
-    mixer.add_variable(idx, "SpeedSetpoint", 1500.0)
+    sp = mixer.add_variable(idx, "SpeedSetpoint", 1500.0)
+    sp.set_writable(True)  # so the discovery 'writable' flag is exercised both ways
     srv.start()
     try:
         yield url
@@ -126,9 +127,11 @@ def test_discover_tags_real(disco_server):
     assert temp["unit"] == "degC"
     assert temp["asset"] == "Line1"
     assert temp["suggested_alias"] == "line1.temperature"
-    # nested object → deeper asset path
+    assert temp["writable"] is False  # read-only variable
+    # nested object → deeper asset path; writable flag reads the real access level
     assert by_name["SpeedSetpoint"]["asset"] == "Line1/Mixer"
     assert by_name["SpeedSetpoint"]["class"] == "setpoint"
+    assert by_name["SpeedSetpoint"]["writable"] is True
 
 
 @pytest.mark.integration

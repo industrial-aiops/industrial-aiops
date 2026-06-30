@@ -33,7 +33,8 @@ _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("setpoint", ("setpoint", "_sp", "sptval", "target")),
     ("alarm", ("alarm", "alert", "fault", "trip", "fail")),
     ("state", ("state", "status", "running", "ready", "mode")),
-    ("command", ("command", "cmd", "start", "stop", "enable")),
+    # Physical quantities precede the generic 'command' class so a name like
+    # "Startup_Temperature" classifies by its quantity, not the bare verb.
     ("temperature", ("temp", "temperature", "_t_", "degc", "degf")),
     ("pressure", ("press", "pressure", "_p_", "bar", "psi")),
     ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h")),
@@ -48,6 +49,7 @@ _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("position", ("position", "_pos", "encoder")),
     ("counter", ("count", "counter", "total", "qty")),
     ("runtime", ("runtime", "hours", "uptime", "elapsed")),
+    ("command", ("command", "cmd", "start", "stop", "enable")),
 )
 
 
@@ -108,8 +110,11 @@ def _tag_descriptor(node: Any, path: tuple[str, ...], browse_name: str) -> dict:
     except Exception:  # noqa: BLE001 — value/datatype is best-effort
         pass
     try:
+        # get_access_level() returns a set of ua.AccessLevel IntEnum members;
+        # str(member) is its integer value ("1"), so match on the .name instead
+        # (CurrentWrite) — otherwise every tag reads as read-only.
         access = node.get_access_level()
-        writable = any("Write" in str(a) for a in access)
+        writable = any("Write" in getattr(a, "name", "") for a in access)
     except Exception:  # noqa: BLE001 — access level is best-effort
         writable = False
     return {
@@ -140,8 +145,13 @@ def _is_standard(node: Any) -> bool:
 
 
 def _walk_tags(node: Any, path: tuple[str, ...], depth: int, max_depth: int,
-               out: list[dict], include_standard: bool) -> None:
-    """Depth-first walk collecting Variable nodes (bounded by tag/depth caps)."""
+               out: list[dict], include_standard: bool, visited: set[str]) -> None:
+    """Depth-first walk collecting Variable nodes (bounded by tag/depth caps).
+
+    ``visited`` tracks node ids already emitted/descended so reference cycles and
+    shared/aliased nodes (legal in an OPC-UA address space) don't yield duplicate
+    rows or re-descend a subtree.
+    """
     if len(out) >= MAX_TAGS or depth > max_depth:
         return
     try:
@@ -154,14 +164,19 @@ def _walk_tags(node: Any, path: tuple[str, ...], depth: int, max_depth: int,
         if not include_standard and _is_standard(child):
             continue
         try:
+            nid = child.nodeid.to_string()
             name = child.read_browse_name().Name
             ncls = child.read_node_class().name
         except Exception:  # noqa: BLE001 — skip an unreadable child
             continue
+        if nid in visited:
+            continue
+        visited.add(nid)
         if ncls == "Variable":
             out.append(_tag_descriptor(child, path, name))
         elif ncls == "Object":
-            _walk_tags(child, (*path, name), depth + 1, max_depth, out, include_standard)
+            _walk_tags(child, (*path, name), depth + 1, max_depth, out,
+                       include_standard, visited)
 
 
 def discover_tags(target: Any, root: str = OBJECTS_NODE, max_depth: int = 6,
@@ -179,7 +194,7 @@ def discover_tags(target: Any, root: str = OBJECTS_NODE, max_depth: int = 6,
     with opcua_session(target) as client:
         root_node = client.get_node(root)
         _walk_tags(root_node, path=(), depth=1, max_depth=depth, out=out,
-                   include_standard=include_standard)
+                   include_standard=include_standard, visited=set())
     return out
 
 
