@@ -94,9 +94,10 @@
   assets by browse path, and proposes a clean canonical alias per tag with a
   naming-quality report (alias collisions / cryptic names). Advisory only — no
   server-side rename. Skips ns=0 infrastructure by default. Verified against a real
-  asyncua server. Follow-ups: extend the classifier (more domains / vendor profiles);
-  ~~cross-protocol model (Modbus register maps → same alias layer)~~; persist/diff the
-  adopted alias map over time.
+  asyncua server. Follow-ups: ~~extend the classifier (more domains)~~ ✅ (humidity /
+  conductivity / pH / turbidity / density added); ~~cross-protocol model (Modbus register
+  maps → same alias layer)~~ ✅; ~~persist/diff the adopted alias map over time~~ ✅
+  (`alias_store.py` + `adopt_alias_map` / `diff_alias_map`).
 - ✅ **Cross-protocol semantic / asset / alias layer** (the follow-up above) —
   `cross_protocol_asset_model` (`iaiops/core/brain/asset_model.py` + `iaiops analytics
   asset-model`) fuses per-protocol tag feeds (OPC-UA discovery + Modbus register

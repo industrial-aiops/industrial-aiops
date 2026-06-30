@@ -57,6 +57,19 @@
     (no gear). Unit-tested against a mocked network, incl. the bounded-termination
     guarantee and the always-unsubscribe invariant.
 
+### Added — tag intelligence
+- **Adopted alias-map persistence + cross-run diff** — `iaiops/core/brain/alias_store.py`
+  + MCP tools `adopt_alias_map` / `diff_alias_map` + `iaiops analytics` CLI. Persists the
+  adopted canonical alias map per site (JSON under `~/.iaiops/aliases/<site>.json`, dirs
+  created with safe perms) and `diff_alias_map` reports **added / removed / renamed**
+  (same ref, new alias) / **reclassified** (same ref, new class) tags between the stored
+  map and a fresh discovery / cross-protocol asset-model run → a stable/changed verdict.
+  Pure + bounded file I/O (validated at the boundary).
+- **Extended semantic classifier** — `_CLASS_HINTS` in `iaiops/core/brain/semantics.py`
+  gains humidity / conductivity / pH / turbidity / density (+ more unit/synonym hints) so
+  fewer real tags fall to `other`. Existing classifications are unchanged (ordering rules
+  intact; the OPC-UA discovery + asset-model classifier tests pass unmodified).
+
 ### Added — CI / DX
 - **GitHub Actions CI** (`.github/workflows/ci.yml`) — runs the release quality
   gate on push to `main` and on every pull request. A `gate` job (Python 3.11 +
