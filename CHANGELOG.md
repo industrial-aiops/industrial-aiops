@@ -14,6 +14,16 @@
   Pure sugar — the `IAIOPS_MCP` env var already delivered the capability.
 
 ### Added — intelligence layer
+- **Data-quality watchdog enhancements** (`iaiops/core/brain/dataquality.py`) — extends
+  the data-trust scorecard with: (1) **configurable staleness/gap per tag and per feed**
+  (`staleness_s` / `gap_threshold_s`, with a feed-level `staleness_s` default) so a slow
+  daily counter is not judged like a 1Hz sensor, plus `flatline_after_s` to flag a stuck
+  value by its longest stall; (2) **flatline / dead-heartbeat as a first-class scored
+  `liveness` section** in the scorecard output (no longer buried in per-tag flags),
+  reusing `_longest_stall`; (3) **cross-endpoint fleet rollup** — new
+  `data_quality_fleet_rollup` brain fn + MCP tool + `iaiops diag dataquality-fleet` CLI
+  that ranks endpoints by their single worst tag and aggregates bad-quality tag counts
+  across every endpoint (extends the per-endpoint `_rollup_endpoint`). Pure analysis.
 - **OPC-UA tag auto-discovery + semantic modeling** — `opcua_discover_tags` MCP tool
   + `iaiops opcua discover` CLI (`iaiops/connectors/opcua/discovery.py`): walks the
   address space, collects every Variable node enriched with datatype / value /

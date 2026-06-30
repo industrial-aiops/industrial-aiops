@@ -300,6 +300,45 @@ def data_quality_scorecard(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
+def data_quality_fleet_rollup(
+    feeds: list,
+    default_staleness_s: float = 300.0,
+    now: Optional[str] = None,
+    top_n: int = 10,
+) -> dict:
+    """[READ][risk=low] Cross-endpoint fleet rollup of data-TRUST: worst tags + bad quality.
+
+    Builds on data_quality_scorecard to give a fleet-wide view: endpoints ranked by
+    their single worst tag, bad-quality tag counts aggregated across every endpoint,
+    and a first-class liveness rollup (dead-heartbeat / flatline). Staleness and gap
+    budgets are configurable per tag (staleness_s / gap_threshold_s) and per feed,
+    so a slow daily counter is not judged like a 1Hz sensor. Pure analysis.
+
+    Args:
+        feeds: Per-endpoint feeds — {endpoint, staleness_s?, tags:[{ref, label?,
+            samples:[scalars or {value, good|quality, timestamp?}], expected_update_s?,
+            staleness_s?, gap_threshold_s?, flatline_after_s?, heartbeat?}]}.
+        default_staleness_s: Fallback max sample-age (seconds) before 'stale' when a
+            tag/feed sets no staleness_s/expected_update_s (default 300).
+        now: ISO-8601 reference time for staleness (deterministic); omit for now-UTC.
+        top_n: How many endpoints / bad-quality rows to return (default 10).
+
+    Returns dict: {evaluated_endpoints, evaluated_tags, fleet_score (0-100),
+        fleet_status, endpoints_ranked_by_worst_tag:[...], bad_quality_rollup:
+        {total_bad_quality_tags, endpoints_affected, by_endpoint:[{endpoint,
+        bad_quality_tags, fully_bad, partial_bad}]}, liveness_rollup:
+        {dead_heartbeat_count, flatline_count, dead_heartbeats[], flatlines[]},
+        issue_breakdown{}}.
+
+    Example: data_quality_fleet_rollup(feeds=[{"endpoint":"line1","tags":[{"ref":"t",
+        "samples":[{"value":None,"good":false}]}]}]).
+    """
+    return dq.data_quality_fleet_rollup(feeds, default_staleness_s, now, top_n)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
 def heartbeat_health(series: list, max_interval_s: Optional[float] = None) -> dict:
     """[READ][risk=low] Is a heartbeat/watchdog tag still alive? (liveness check).
 

@@ -43,9 +43,12 @@
   conditions for the window instead of requiring injection. Follow-ups: learned
   per-site cause weights, a maintenance-log corpus link, and pulling timestamped
   alarms from a live A&C event source (current OPC-UA surfacing is untimed).
-- **Data-quality watchdog enhancements** — configurable staleness, heartbeat /
-  flatline as first-class, bad-quality rollups across endpoints (extends
-  historian_health / tag_health).
+- ✅ **Data-quality watchdog enhancements** — shipped: configurable staleness/gap
+  per tag + per feed (`staleness_s` / `gap_threshold_s` / `flatline_after_s`),
+  flatline + dead-heartbeat surfaced as a first-class scored `liveness` section, and
+  a cross-endpoint **fleet rollup** (`data_quality_fleet_rollup` brain fn + MCP tool +
+  `iaiops diag dataquality-fleet`) that ranks endpoints by their worst tag and
+  aggregates bad-quality counts across endpoints (extends `_rollup_endpoint`).
 - **Modbus byte-order auto-detect + vendor register templates** (R4 community pain).
 - **UNS governance** — Sparkplug/MQTT schema-drift detection + topic-sprawl /
   naming control (position as a governable neutral data source, not a broker).

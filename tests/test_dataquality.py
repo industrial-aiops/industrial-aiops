@@ -104,6 +104,23 @@ def test_staleness_flagged_against_pinned_now():
 
 
 @pytest.mark.unit
+def test_pinned_zero_staleness_is_honored_not_overridden():
+    """staleness_s: 0 (demand real-time) must flag ANY age>0 — not fall through to a default.
+
+    Regression for the `num(x) or default` bug: num(0)==0.0 is falsy, so a pinned 0
+    was silently replaced by the looser feed/expected default (no stale flag).
+    """
+    feeds = [{"endpoint": "line1", "tags": [
+        {"ref": "rt", "staleness_s": 0,
+         "samples": [{"value": 1, "timestamp": _iso(NOW - timedelta(seconds=5))}]},
+    ]}]
+    out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
+    tag = out["worst_tags"][0]
+    assert tag["staleness_s"] == 0
+    assert "stale" in tag["flags"]  # 5s-old sample against a 0s budget
+
+
+@pytest.mark.unit
 def test_bad_quality_all_samples():
     feeds = [{"endpoint": "line1", "tags": [
         {"ref": "bad", "samples": [{"value": None, "good": False} for _ in range(4)]},
@@ -150,3 +167,107 @@ def test_gap_detection():
     feeds = [{"endpoint": "l", "tags": [{"ref": "g", "expected_update_s": 30, "samples": samples}]}]
     out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
     assert "gappy" in out["worst_tags"][0]["flags"]
+
+
+# ─── configurable staleness per tag / feed ───────────────────────────────────
+
+
+@pytest.mark.unit
+def test_tag_staleness_s_overrides_default_and_expected():
+    # A slow daily counter: 1h old is fine when it carries its own staleness budget.
+    feeds = [{"endpoint": "l", "tags": [
+        {"ref": "daily", "staleness_s": 90000, "expected_update_s": 30,
+         "samples": [{"value": 1, "timestamp": _iso(NOW - timedelta(seconds=3600))}]},
+    ]}]
+    out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
+    tag = out["endpoints"][0]["worst_tag"]
+    # 3600s old but staleness budget is 90000s → NOT stale, score stays 100.
+    assert out["fleet_score"] == 100.0
+    assert tag is None or "stale" not in tag["flags"]
+
+
+@pytest.mark.unit
+def test_feed_level_staleness_applies_when_tag_silent():
+    feeds = [{"endpoint": "l", "staleness_s": 10, "tags": [
+        {"ref": "t", "samples": [{"value": 1, "timestamp": _iso(NOW - timedelta(seconds=60))}]},
+    ]}]
+    out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
+    assert "stale" in out["worst_tags"][0]["flags"]
+    assert out["worst_tags"][0]["staleness_s"] == 10
+
+
+@pytest.mark.unit
+def test_tag_gap_threshold_s_overrides_factor():
+    base = NOW - timedelta(minutes=5)
+    samples = [
+        {"value": 1, "timestamp": _iso(base)},
+        {"value": 2, "timestamp": _iso(base + timedelta(seconds=40))},  # 40s gap
+    ]
+    feeds = [{"endpoint": "l", "tags": [
+        {"ref": "g", "staleness_s": 600, "gap_threshold_s": 20, "samples": samples}]}]
+    out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
+    assert "gappy" in out["worst_tags"][0]["flags"]
+    assert out["worst_tags"][0]["gap_threshold_s"] == 20
+
+
+# ─── flatline / heartbeat as first-class scored dimensions ───────────────────
+
+
+@pytest.mark.unit
+def test_liveness_section_surfaces_dead_heartbeat_and_flatline():
+    feeds = [{"endpoint": "l", "tags": [
+        {"ref": "hb", "heartbeat": True, "samples": [5, 5, 5, 5]},
+        {"ref": "flat", "samples": [9, 9, 9, 9]},
+    ]}]
+    out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
+    live = out["liveness"]
+    assert live["dead_heartbeat_count"] == 1
+    assert live["flatline_count"] == 1
+    assert any(e["ref"] == "hb" for e in live["dead_heartbeats"])
+    assert any(e["ref"] == "flat" for e in live["flatlines"])
+
+
+@pytest.mark.unit
+def test_flatline_after_s_threshold_uses_longest_stall():
+    base = NOW - timedelta(minutes=10)
+    # Value moves overall, but stalls 120s in the middle → flatline beyond a 60s budget.
+    samples = [
+        {"value": 1, "timestamp": _iso(base)},
+        {"value": 1, "timestamp": _iso(base + timedelta(seconds=120))},
+        {"value": 2, "timestamp": _iso(base + timedelta(seconds=121))},
+    ]
+    feeds = [{"endpoint": "l", "tags": [
+        {"ref": "stuck", "flatline_after_s": 60, "staleness_s": 9000, "samples": samples}]}]
+    out = dq.data_quality_scorecard(feeds, now=_iso(NOW))
+    tag = out["worst_tags"][0]
+    assert "flatline" in tag["flags"]
+    assert tag["longest_stall_s"] == 120.0
+
+
+# ─── cross-endpoint fleet rollup ─────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_fleet_rollup_empty_feeds_error():
+    assert "error" in dq.data_quality_fleet_rollup([])
+
+
+@pytest.mark.unit
+def test_fleet_rollup_ranks_by_worst_tag_and_aggregates_bad_quality():
+    feeds = [
+        {"endpoint": "good", "tags": [{"ref": "a", "samples": [1, 2, 3, 4]}]},
+        {"endpoint": "bad", "tags": [
+            {"ref": "b1", "samples": [{"value": None, "good": False} for _ in range(4)]},
+            {"ref": "b2", "samples": [{"value": 1, "good": False}, {"value": 2, "good": True},
+                                      {"value": 3, "good": True}, {"value": 4, "good": True}]},
+        ]},
+    ]
+    out = dq.data_quality_fleet_rollup(feeds, now=_iso(NOW))
+    assert out["endpoints_ranked_by_worst_tag"][0]["endpoint"] == "bad"
+    bq = out["bad_quality_rollup"]
+    assert bq["total_bad_quality_tags"] == 2  # one fully-bad + one partially-bad
+    assert bq["endpoints_affected"] == 1
+    assert bq["by_endpoint"][0]["endpoint"] == "bad"
+    assert bq["by_endpoint"][0]["fully_bad"] == 1
+    assert bq["by_endpoint"][0]["partial_bad"] == 1
+    assert out["liveness_rollup"]["dead_heartbeat_count"] == 0
