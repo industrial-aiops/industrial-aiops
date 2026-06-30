@@ -244,7 +244,7 @@ DIAGNOSTICS_TOOLS = (
 # Cross-protocol analytics (read-only): OEE/downtime, active asset inventory, CoV.
 ANALYTICS_TOOLS = (
     "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
-    "monitor_changes",
+    "cross_protocol_asset_model", "monitor_changes",
 )
 
 

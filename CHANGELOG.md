@@ -14,6 +14,29 @@
   Hardware/root-only protocols (EtherCAT/PROFINET raw L2 sockets, live serial,
   native-build `pydnp3`) self-skip — documented inline in the workflow.
 
+### Added — cross-protocol intelligence
+- **Cross-protocol semantic / asset / alias layer** — new pure brain module
+  `iaiops/core/brain/asset_model.py` (`cross_protocol_asset_model`), MCP brain
+  tool `cross_protocol_asset_model` (`@governed_tool(risk_level="low")`) and CLI
+  `iaiops analytics asset-model --input feeds.json --site <site>`. Fuses
+  per-protocol tag *feeds* (OPC-UA `opcua_discover_tags` descriptors + Modbus
+  `modbus_apply_template` tags, or any normalized tags) into ONE unified
+  asset/tag model: tags are grouped into assets **across** protocols (a `Line1`
+  OPC-UA folder + a `Line1` Modbus block become one asset), each is given a
+  canonical cross-protocol alias `<site>.<asset>.<class_or_name>`, and a
+  cross-protocol naming-quality view reports **alias collisions**, the **same
+  physical quantity exposed by two protocols** (`cross_protocol_overlaps`), and
+  **cryptic names**. Pure (inputs are tag dicts) and advisory only — aliases are
+  SUGGESTIONS, never a server-side rename (OT-dangerous).
+
+### Changed — shared semantics (no behaviour change)
+- Lifted the tag **semantic classifier** (`classify_tag`) and **alias scheme**
+  (`suggest_alias` / `alias_segment`) out of `iaiops/connectors/opcua/discovery.py`
+  into a shared home `iaiops/core/brain/semantics.py`. `opcua/discovery`
+  re-exports them so its public API is unchanged, and the cross-protocol layer
+  imports the SAME functions — one taxonomy, no divergent fork. Existing OPC-UA
+  discovery tests pass unchanged.
+
 ## 0.7.0 — HART-IP, tag discovery, data-quality & Modbus depth (2026-06-30)
 
 New read-only **HART-IP** process-instrumentation connector, **OPC-UA tag

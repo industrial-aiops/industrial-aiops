@@ -14,6 +14,7 @@ from rich.console import Console
 
 from iaiops.cli._common import cli_errors, get_manager
 from iaiops.core.brain import asset_inventory as asset
+from iaiops.core.brain import asset_model as amodel
 from iaiops.core.brain import oee
 
 analytics_app = typer.Typer(help="OEE / downtime / asset-inventory analytics (read-only).",
@@ -60,6 +61,17 @@ def oee_multidim_cmd(
 ) -> None:
     """Aggregate OEE across dimensions (machine × part × shift) from JSON records."""
     _emit(oee.oee_multidim(_load_json(input)))
+
+
+@analytics_app.command("asset-model")
+@cli_errors
+def asset_model_cmd(
+    input: Path = typer.Option(..., "--input",
+                               help="JSON file: list of {protocol, source, asset?, tags:[...]}"),
+    site: str = typer.Option("site", "--site", help="Site prefix for canonical aliases"),
+) -> None:
+    """Fuse per-protocol tag feeds into ONE cross-protocol asset/tag/alias model."""
+    _emit(amodel.cross_protocol_asset_model(_load_json(input), site))
 
 
 @analytics_app.command("asset")
