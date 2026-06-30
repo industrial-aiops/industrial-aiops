@@ -47,13 +47,24 @@ class RegisterTemplate:
     caveat: str = ""
 
     @property
+    def base_offset(self) -> int:
+        """Lowest register offset in the template (the block's natural start address)."""
+        return min((t.offset for t in self.tags), default=0)
+
+    @property
     def span(self) -> int:
-        """Number of registers the template's tags span from the base offset."""
+        """Register count from the template's base offset to its last tag's end.
+
+        Measured from ``base_offset`` (NOT from 0) so a template using absolute
+        vendor addresses (e.g. Schneider's 2999-3111) spans ~112 registers, not
+        ~3111 — otherwise a default read would blow past the Modbus 125-reg limit.
+        """
         if not self.tags:
             return 0
         from iaiops.connectors.modbus.byteorder import _TYPE_WIDTH
 
-        return max(t.offset + _TYPE_WIDTH.get(t.value_type, 2) for t in self.tags)
+        base = self.base_offset
+        return max(t.offset + _TYPE_WIDTH.get(t.value_type, 2) for t in self.tags) - base
 
 
 def _float_block(pairs: list[tuple[str, int, str, str]], order: str) -> tuple[TemplateTag, ...]:
