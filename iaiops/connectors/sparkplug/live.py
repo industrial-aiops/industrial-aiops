@@ -85,6 +85,10 @@ def sparkplug_live_schema(
     Returns ``schema`` as ``{node: {metric: datatype}}`` (node = group/edge[/device]),
     built from the decoded BIRTH metrics observed in the window. That dict is exactly
     the shape ``uns_schema_drift`` accepts — use it as a baseline or a current snapshot.
+
+    A Sparkplug BIRTH carries the node's FULL metric state, so when a node re-BIRTHs
+    within the window the LAST BIRTH wins (replaces, not unions) — otherwise a metric
+    REMOVED in a later BIRTH would linger and mask a real schema drift.
     """
     topic = topic or "spBv1.0/#"
     msgs = ops._collect(target, topic, max_msgs, duration_s)
@@ -97,11 +101,12 @@ def sparkplug_live_schema(
         decoded = ops.decode_sparkplug_payload(m["payload"])
         if decoded.get("encoding") != "sparkplug_b":
             continue
-        node = schema.setdefault(_node_id(parsed), {})
-        for metric in decoded["metrics"]:
-            name = metric.get("name")
-            if name:
-                node[s(name, 96)] = s(str(metric.get("datatype", "")), 32)
+        # Last BIRTH in the window wins — rebuild the node's metric set from scratch.
+        schema[_node_id(parsed)] = {
+            s(metric["name"], 96): s(str(metric.get("datatype", "")), 32)
+            for metric in decoded["metrics"]
+            if metric.get("name")
+        }
         birth_count += 1
     return {
         "endpoint": s(target.name, 64),
