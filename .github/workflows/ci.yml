@@ -54,11 +54,14 @@ jobs:
       - name: Sync env (base + dev tools + cross-platform connectors)
         run: uv sync --extra all
 
+      # --no-sync: reuse the env synced above. A bare `uv run` re-syncs to the
+      # default (no extras), which would UNINSTALL the `all` connector libs that
+      # the base suite imports directly (asyncua / pymodbus / paho-mqtt …).
       - name: pytest (base suite)
-        run: uv run pytest -q
+        run: uv run --no-sync pytest -q
 
       - name: ruff check
-        run: uv run ruff check .
+        run: uv run --no-sync ruff check .
 
       # bandit must report 0 Medium+ (it exits non-zero on any finding at/above
       # the configured severity); pulled in ephemerally via `uvx`.
