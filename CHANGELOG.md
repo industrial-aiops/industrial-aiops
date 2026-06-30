@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Added — UNS governance (live MQTT/Sparkplug subscription)
+- **Live UNS governance bridge** — closes the loop on UNS governance: until now
+  `uns_topic_audit` / `uns_schema_drift` only analyzed data the caller *provided*
+  (a topic list, two NBIRTH snapshots). New `iaiops/connectors/sparkplug/live.py`
+  captures those inputs from a LIVE broker over a BOUNDED window (the same
+  `ops._collect` collector — up to `max_msgs` messages OR `duration_s`, whichever
+  first; never an open-ended loop) and feeds them straight into the analyzers:
+  - `uns_live_audit(endpoint, topic, duration_s, max_msgs, …)` — captures the live
+    topic tree then runs the naming-conformance + topic-sprawl audit; returns the
+    audit plus a `capture` block (observed_messages / unique_topics / topics).
+  - `sparkplug_live_schema(endpoint, topic, duration_s, max_msgs)` — captures
+    NBIRTH/DBIRTH and builds the drift-ready `{node:{metric:datatype}}` dict
+    (node = group/edge[/device]) that `uns_schema_drift` accepts.
+  - `uns_live_drift(baseline, endpoint, …)` — captures the live schema and diffs it
+    against a provided baseline (none/additive/breaking).
+  All three are governed MCP tools (`@governed_tool(risk_level="low")`), exposed on
+  the CLI as `iaiops mqtt uns-live-audit` / `live-schema` / `uns-live-drift`, and
+  added to the `mqtt` protocol's overview catalog.
+- **paho 2.x verified** — the bounded collector runs through paho-mqtt 2.1.0's
+  `CallbackAPIVersion.VERSION2` callback surface (already used by the connection
+  layer). Unit tests INJECT messages through the assigned `on_message` callback and
+  assert the capture terminates on BOTH the message cap and the timeout (no live
+  broker needed). One opt-in `integration`-marked end-to-end test publishes to and
+  captures from a real broker — 待核实: validated locally against eclipse-mosquitto,
+  skipped in CI (no broker) and not validated against a production Sparkplug host.
+
 ## 0.7.0 — HART-IP, tag discovery, data-quality & Modbus depth (2026-06-30)
 
 New read-only **HART-IP** process-instrumentation connector, **OPC-UA tag
