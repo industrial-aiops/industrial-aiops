@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.connectors.opcua import discovery as disc
 from iaiops.connectors.opcua import ops
 from iaiops.core.brain import analysis
 from iaiops.core.brain import monitor as mon
@@ -116,6 +117,19 @@ def monitor_cmd(
     """Bounded change-of-value capture (only changes, never an open loop)."""
     _emit(mon.monitor_changes(
         resolve_target(endpoint), node_id, duration_s, interval_ms, deadband, max_changes))
+
+
+@opcua_app.command("discover")
+@cli_errors
+def discover_cmd(
+    endpoint: EndpointOption = None,
+    root: str = typer.Option("i=85", "--root", help="Root node id to discover from"),
+    depth: int = typer.Option(6, "--depth", help="Bounded recursion depth"),
+    include_standard: bool = typer.Option(
+        False, "--include-standard", help="Include OPC-UA ns=0 infrastructure"),
+) -> None:
+    """Auto-discover tags → semantic asset model (classes, units, suggested aliases)."""
+    _emit(disc.tag_discovery(resolve_target(endpoint), root, depth, include_standard))
 
 
 @opcua_app.command("anomaly")
