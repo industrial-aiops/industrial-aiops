@@ -16,7 +16,11 @@ from iaiops.cli._common import cli_errors, console
 from iaiops.core.runtime.config import (
     CONFIG_DIR,
     CONFIG_FILE,
+    DEFAULT_BACNET_PORT,
+    DEFAULT_DNP3_PORT,
     DEFAULT_EIP_PORT,
+    DEFAULT_IEC104_PORT,
+    DEFAULT_IEC61850_PORT,
     DEFAULT_MC_PORT,
     DEFAULT_MODBUS_PORT,
     DEFAULT_MQTT_PORT,
@@ -94,6 +98,50 @@ def _prompt_protocol(protocol: str, name: str, store):
         entry["expected_slaves"] = typer.prompt(
             "Expected slave count (0 = unknown / do not check)", default=0, type=int
         )
+    elif protocol == "profinet":
+        console.print(
+            "[yellow]PROFINET-DCP needs raw-socket access (root/admin/CAP_NET_RAW) on "
+            "the NIC on the PROFINET subnet, and the optional extra "
+            "'pip install iaiops[profinet]'. Read-only discovery/identify — no RT "
+            "cyclic data.[/]"
+        )
+        entry["host"] = typer.prompt(
+            "THIS machine's IP on the PROFINET subnet (DCP broadcast source)"
+        ).strip()
+    elif protocol == "iec104":
+        console.print(
+            "[yellow]IEC 60870-5-104 read-only monitoring — optional extra "
+            "'pip install iaiops[iec104]'. Preview: not yet validated against a live RTU.[/]"
+        )
+        entry["host"] = typer.prompt("IEC-104 RTU host (IP/FQDN)").strip()
+        entry["port"] = typer.prompt("Port", default=DEFAULT_IEC104_PORT, type=int)
+        entry["common_address"] = typer.prompt("ASDU common address (CA)", default=1, type=int)
+    elif protocol == "dnp3":
+        console.print(
+            "[yellow]DNP3 read-only monitoring — optional extra "
+            "'pip install iaiops[dnp3]'. Preview: not yet validated against a live outstation.[/]"
+        )
+        entry["host"] = typer.prompt("DNP3 outstation host (IP/FQDN)").strip()
+        entry["port"] = typer.prompt("Port", default=DEFAULT_DNP3_PORT, type=int)
+        entry["unit_id"] = typer.prompt("Outstation (link) address", default=1, type=int)
+        entry["master_address"] = typer.prompt("Master (link) address", default=1, type=int)
+    elif protocol == "iec61850":
+        console.print(
+            "[yellow]IEC 61850 MMS read-only browse/read — optional extra "
+            "'pip install iaiops[iec61850]' (needs libiec61850 built). Preview: not "
+            "yet validated against a live IED.[/]"
+        )
+        entry["host"] = typer.prompt("IEC-61850 IED host (IP/FQDN)").strip()
+        entry["port"] = typer.prompt("MMS port", default=DEFAULT_IEC61850_PORT, type=int)
+    elif protocol == "bacnet":
+        console.print(
+            "[yellow]BACnet/IP read-only facility/HVAC monitoring — optional extra "
+            "'pip install iaiops[bacnet]'. Preview: not yet validated against live gear.[/]"
+        )
+        entry["host"] = typer.prompt(
+            "THIS machine's BACnet/IP interface (ip or ip/mask, e.g. 10.0.0.5/24)"
+        ).strip()
+        entry["port"] = typer.prompt("Port", default=DEFAULT_BACNET_PORT, type=int)
     elif protocol == "mtconnect":
         entry["agent_url"] = typer.prompt(
             "MTConnect agent base URL", default="http://localhost:5000"
@@ -123,8 +171,8 @@ def _maybe_store_password(store, name: str):
 
 @cli_errors
 def init_cmd() -> None:
-    """Interactively set up your first OPC-UA or Modbus endpoint."""
-    console.print("[bold cyan]OPC-UA AIops — setup wizard[/]")
+    """Interactively set up your first OT endpoint (any supported protocol)."""
+    console.print("[bold cyan]Industrial-AIOps (iaiops) — setup wizard[/]")
     console.print(
         "Collects connection details (saved to config.yaml) and any password "
         "(saved [bold]encrypted[/] to secrets.enc). Read-only, preview.\n"

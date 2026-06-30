@@ -8,6 +8,7 @@ automatic inverse. 未经授权勿对生产控制系统下发指令.
 from typing import Optional
 
 from iaiops.connectors.sparkplug import ops
+from iaiops.core.brain import uns_governance as uns
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -180,3 +181,58 @@ def mqtt_publish(
     return ops.mqtt_publish(
         _target(endpoint), topic, payload, qos=qos, retain=retain, dry_run=dry_run
     )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def uns_topic_audit(
+    topics: list,
+    allowed_roots: Optional[list] = None,
+    min_segments: int = 0,
+    max_leaf_parents: int = 5,
+) -> dict:
+    """[READ][risk=low] Govern a UNS topic tree: naming conformance + topic sprawl.
+
+    Pure analysis over a provided list of UNS topic strings (no live broker). Flags
+    non-conforming roots, too-shallow topics, casing collisions of the same logical
+    name, leaf metrics scattered under many parents, depth outliers, and duplicates.
+
+    Args:
+        topics: UNS topic strings, e.g. ["Enterprise/Site/Area/Line1/temperature", ...].
+        allowed_roots: Permitted top-level segments; others are flagged (optional).
+        min_segments: Minimum namespace depth a well-formed topic must have.
+        max_leaf_parents: A leaf appearing under more than this many parents is scattered.
+
+    Returns dict: {topic_count, unique_topics, root_count, roots[], depth{min,max,mean},
+        verdict ('clean'|'minor'|'sprawling'), sprawl_findings, findings{
+        non_conforming_root[], too_shallow[], casing_collisions[], scattered_leaves[],
+        depth_outliers[], duplicate_topics[]}}.
+
+    Example: uns_topic_audit(topics=["Ent/Site/Line1/temp","Ent/site/Line1/Temp"],
+        allowed_roots=["Ent"], min_segments=3).
+    """
+    return uns.uns_topic_audit(topics, allowed_roots, min_segments, max_leaf_parents)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def uns_schema_drift(baseline: dict, current: dict) -> dict:
+    """[READ][risk=low] Detect Sparkplug/UNS schema drift between two snapshots.
+
+    Compares baseline vs current node/metric definitions (e.g. two NBIRTH snapshots)
+    and reports added / removed / type-changed metrics per node, with a verdict.
+
+    Args:
+        baseline: {node: {metric: datatype}} or [{node|topic, metrics:[{name, datatype}]}].
+        current: Same shape — the newer snapshot to compare against the baseline.
+
+    Returns dict: {baseline_nodes, current_nodes, changed_nodes,
+        verdict ('none'|'additive'|'breaking'), node_changes:[{node, node_status,
+        added[], removed[], type_changed:[{metric, from, to}]}]}.
+
+    Example: uns_schema_drift(baseline={"N1":{"temp":"Float"}},
+        current={"N1":{"temp":"Int32","rpm":"Float"}}).
+    """
+    return uns.uns_schema_drift(baseline, current)

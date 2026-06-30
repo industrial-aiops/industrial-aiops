@@ -674,6 +674,376 @@ def _translate_secsgem(exc: Exception, target: TargetConfig) -> OTConnectionErro
     )
 
 
+# ─── PROFINET (DCP discovery/identify via pnio-dcp — OPTIONAL extra, read-only) ─
+
+
+def _build_profinet_dcp(target: TargetConfig) -> Any:
+    """Construct a pnio-dcp ``DCP`` bound to the local interface for ``target``.
+
+    ``pnio-dcp`` is an OPTIONAL dependency (``pip install iaiops[profinet]``),
+    imported LAZILY so the package installs/imports without it. PROFINET-DCP is a
+    layer-2 (raw Ethernet) discovery protocol: the ``DCP`` is bound to the LOCAL
+    interface identified by its IP (``host``), and an IdentifyAll broadcast finds
+    every PROFINET station on that segment. It needs raw-socket access
+    (root / admin / CAP_NET_RAW). This is discovery + identify ONLY — no RT cyclic
+    process data. Module-level so tests monkeypatch it with a fake DCP.
+    """
+    try:
+        from pnio_dcp import DCP
+    except ImportError as exc:  # pragma: no cover — exercised only without pnio-dcp
+        raise OTConnectionError(
+            "The 'pnio-dcp' package is not installed. PROFINET is an OPTIONAL extra: "
+            "'pip install iaiops[profinet]'. It also needs layer-2 raw-socket access "
+            "(root/admin/CAP_NET_RAW) on the NIC connected to the PROFINET subnet. "
+            "Read-only DCP discovery/identify only — no RT cyclic data.",
+            endpoint=target.name,
+            protocol="profinet",
+        ) from exc
+
+    ip = target.host or target.nic
+    if not ip:
+        raise OTConnectionError(
+            f"PROFINET endpoint '{target.name}' has no host. Add 'host: <local-ip>' "
+            f"— the IP of THIS machine's interface on the PROFINET subnet (the DCP "
+            f"broadcast goes out on it) — to its config entry.",
+            endpoint=target.name,
+            protocol="profinet",
+        )
+    return DCP(ip)
+
+
+@contextmanager
+def profinet_dcp(target: TargetConfig) -> Iterator[Any]:
+    """Open a PROFINET-DCP handle on the local interface, yield it, always close.
+
+    Read-only: callers do IdentifyAll / Identify / Get. Never raises a raw pnio-dcp
+    traceback — failures become a teaching ``OTConnectionError``.
+    """
+    if target.protocol != "profinet":
+        raise OTConnectionError(
+            f"Endpoint '{target.name}' is protocol '{target.protocol}', not profinet.",
+            endpoint=target.name,
+            protocol=target.protocol,
+        )
+    # Build INSIDE the try: pnio_dcp.DCP(ip) binds an L2 raw socket in its
+    # constructor, so the common no-root / no-CAP_NET_RAW PermissionError must be
+    # routed through the teaching translator, not raised raw.
+    dcp = None
+    try:
+        dcp = _build_profinet_dcp(target)
+        yield dcp
+    except OTConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — translate any in-session failure
+        raise _translate_profinet(exc, target) from exc
+    finally:
+        close = getattr(dcp, "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:  # noqa: BLE001 — close must not mask the real error
+                pass
+
+
+def _translate_profinet(exc: Exception, target: TargetConfig) -> OTConnectionError:
+    """Map a pnio-dcp / OS exception to a teaching ``OTConnectionError``."""
+    detail = str(exc).strip()[:200]
+    ip = target.host or target.nic or "?"
+    lowered = detail.lower()
+    if isinstance(exc, PermissionError) or "permitted" in lowered or "permission" in lowered:
+        return OTConnectionError(
+            f"PROFINET-DCP on '{target.name}' (local ip={ip}) lacks raw-socket "
+            f"permission. Run as root/admin or grant CAP_NET_RAW. PROFINET-DCP is "
+            f"layer-2 and needs the NIC on the PROFINET subnet. {detail}",
+            endpoint=ip,
+            protocol="profinet",
+        )
+    return OTConnectionError(
+        f"PROFINET-DCP on '{target.name}' (local ip={ip}) failed: {detail}. Check the "
+        f"host is THIS machine's IP on the PROFINET subnet, that you have raw-socket "
+        f"access, and that stations are powered on the segment. Validate against a "
+        f"PROFINET device or a DCP simulator.",
+        endpoint=ip,
+        protocol="profinet",
+    )
+
+
+# ─── Energy edition: IEC 60870-5-104 (c104), DNP3 (dnp3), IEC 61850 MMS ───────
+#
+# These three are OPTIONAL extras (iaiops[iec104] / iaiops[dnp3] / iaiops[iec61850]),
+# imported LAZILY so the base package installs without them. They are READ-ONLY
+# monitoring connectors (no control writes in this preview). The library-specific
+# construction is isolated in each ``_build_*`` factory and is marked 待核实 — the
+# exact binding surface is documented against each library but UNVERIFIED against a
+# live RTU/IED here (preview), so the ops duck-type and tests monkeypatch the
+# factory. Failures degrade to a teaching ``OTConnectionError``.
+
+
+def _build_iec104_client(target: TargetConfig) -> Any:
+    """Construct (not start) an IEC 60870-5-104 client + connection (待核实).
+
+    Expected ``c104`` surface (iec104-python): ``c104.Client()`` →
+    ``client.add_connection(ip, port, init=c104.Init.INTERROGATION)`` → after
+    ``client.start()`` the connection auto-runs a general interrogation and its
+    stations' points populate. Module-level so tests monkeypatch it.
+    """
+    try:
+        import c104
+    except ImportError as exc:  # pragma: no cover — only without c104
+        raise OTConnectionError(
+            "The 'c104' package is not installed. IEC 60870-5-104 is an OPTIONAL "
+            "extra: 'pip install iaiops[iec104]'.",
+            endpoint=target.name,
+            protocol="iec104",
+        ) from exc
+    if not target.host:
+        raise OTConnectionError(
+            f"IEC-104 endpoint '{target.name}' has no host. Add 'host: <ip>' (and "
+            f"'common_address:' for the ASDU CA) to its config entry.",
+            endpoint=target.name,
+            protocol="iec104",
+        )
+    client = c104.Client()
+    init = getattr(getattr(c104, "Init", None), "INTERROGATION", None)
+    conn = client.add_connection(ip=target.host, port=target.port or 2404, init=init)
+    return client, conn
+
+
+@contextmanager
+def iec104_session(target: TargetConfig, *, timeout_s: float = 10.0) -> Iterator[Any]:
+    """Start an IEC-104 client, wait until connected, yield (client, conn), stop."""
+    if target.protocol != "iec104":
+        raise OTConnectionError(
+            f"Endpoint '{target.name}' is protocol '{target.protocol}', not iec104.",
+            endpoint=target.name, protocol=target.protocol,
+        )
+    # Build INSIDE the try so a 待核实 library/I-O failure in add_connection is
+    # translated (not a raw traceback) and the client is always stopped.
+    client = None
+    try:
+        client, conn = _build_iec104_client(target)
+        client.start()
+        if not _wait_until(lambda: bool(getattr(conn, "is_connected", False)), timeout_s):
+            raise OTConnectionError(
+                f"IEC-104 '{target.name}' ({target.host}:{target.port or 2404}) did not "
+                f"connect within {timeout_s}s (RTU offline / wrong CA / firewall).",
+                endpoint=target.host, protocol="iec104",
+            )
+        yield client, conn
+    except OTConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — translate any failure
+        raise _translate_energy(exc, target, "iec104", target.port or 2404) from exc
+    finally:
+        if client is not None:
+            try:
+                client.stop()
+            except Exception:  # noqa: BLE001 — stop must not mask the real error
+                pass
+
+
+def _build_dnp3_client(target: TargetConfig) -> Any:
+    """Construct a DNP3 master adapter for ``target`` (待核实).
+
+    DNP3 (pydnp3/opendnp3) is callback-based: a master is added to a TCP channel
+    with a SOEHandler that collects measurements on an integrity poll. The exact
+    binding is intricate and UNVERIFIED here; we expect a small adapter exposing
+    ``integrity_poll() -> list[point]`` and ``is_online() -> bool``. Module-level
+    so tests monkeypatch it with a fake adapter.
+    """
+    try:
+        import pydnp3  # noqa: F401
+    except ImportError as exc:  # pragma: no cover — only without pydnp3
+        raise OTConnectionError(
+            "The 'pydnp3' package is not installed. DNP3 is an OPTIONAL extra: "
+            "'pip install iaiops[dnp3]'.",
+            endpoint=target.name, protocol="dnp3",
+        ) from exc
+    if not target.host:
+        raise OTConnectionError(
+            f"DNP3 endpoint '{target.name}' has no host. Add 'host: <ip>' (and "
+            f"'unit_id:' = outstation address, 'master_address:') to its config.",
+            endpoint=target.name, protocol="dnp3",
+        )
+    from iaiops.connectors.dnp3.driver import build_master_adapter
+
+    return build_master_adapter(
+        host=target.host, port=target.port or 20000,
+        outstation=target.unit_id, master=target.master_address or 1,
+    )
+
+
+@contextmanager
+def dnp3_session(target: TargetConfig, *, timeout_s: float = 10.0) -> Iterator[Any]:
+    """Bring a DNP3 master online, yield the adapter, always shut it down."""
+    if target.protocol != "dnp3":
+        raise OTConnectionError(
+            f"Endpoint '{target.name}' is protocol '{target.protocol}', not dnp3.",
+            endpoint=target.name, protocol=target.protocol,
+        )
+    adapter = _build_dnp3_client(target)
+    try:
+        adapter.enable()
+        if not _wait_until(lambda: bool(adapter.is_online()), timeout_s):
+            raise OTConnectionError(
+                f"DNP3 '{target.name}' ({target.host}:{target.port or 20000}) did not "
+                f"come online within {timeout_s}s (outstation offline / wrong addr).",
+                endpoint=target.host, protocol="dnp3",
+            )
+        yield adapter
+    except OTConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — translate any failure
+        raise _translate_energy(exc, target, "dnp3", target.port or 20000) from exc
+    finally:
+        try:
+            adapter.shutdown()
+        except Exception:  # noqa: BLE001 — shutdown must not mask the real error
+            pass
+
+
+def _build_iec61850_client(target: TargetConfig) -> Any:
+    """Construct (not connect) an IEC 61850 MMS client for ``target`` (待核实).
+
+    Expected ``iec61850`` (libiec61850 SWIG) surface: an ``IedConnection`` created
+    and connected to ``host:port`` (MMS over ISO-on-TCP, port 102). We wrap the
+    raw connection in a small adapter exposing ``get_logical_devices()``,
+    ``get_data_directory(ld)`` and ``read(ref, fc)``. Module-level so tests
+    monkeypatch it with a fake adapter.
+    """
+    try:
+        import pyiec61850  # noqa: F401 — libiec61850 SWIG binding (NOT 'iec61850')
+    except ImportError as exc:  # pragma: no cover — only without the binding
+        raise OTConnectionError(
+            "The 'pyiec61850' (libiec61850 SWIG) binding is not installed. IEC 61850 "
+            "is an OPTIONAL extra: 'pip install iaiops[iec61850]' (linux-only wheel).",
+            endpoint=target.name, protocol="iec61850",
+        ) from exc
+    if not target.host:
+        raise OTConnectionError(
+            f"IEC-61850 endpoint '{target.name}' has no host. Add 'host: <ip>' (MMS "
+            f"port defaults to 102) to its config entry.",
+            endpoint=target.name, protocol="iec61850",
+        )
+    from iaiops.connectors.iec61850.driver import build_mms_adapter
+
+    return build_mms_adapter(host=target.host, port=target.port or 102)
+
+
+@contextmanager
+def iec61850_session(target: TargetConfig) -> Iterator[Any]:
+    """Connect an IEC 61850 MMS client, yield the adapter, always close."""
+    if target.protocol != "iec61850":
+        raise OTConnectionError(
+            f"Endpoint '{target.name}' is protocol '{target.protocol}', not iec61850.",
+            endpoint=target.name, protocol=target.protocol,
+        )
+    adapter = _build_iec61850_client(target)
+    try:
+        adapter.connect()
+        yield adapter
+    except OTConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — translate any failure
+        raise _translate_energy(exc, target, "iec61850", target.port or 102) from exc
+    finally:
+        try:
+            adapter.close()
+        except Exception:  # noqa: BLE001 — close must not mask the real error
+            pass
+
+
+# ─── Building edition: BACnet/IP (facility / HVAC) via BAC0 — OPTIONAL extra ───
+
+
+def _build_bacnet_network(target: TargetConfig) -> Any:
+    """Construct (and connect) a BAC0 network bound to the local interface (待核实).
+
+    ``BAC0`` (over bacpypes3) is an OPTIONAL extra (``pip install iaiops[bacnet]``)
+    imported LAZILY. ``BAC0.lite(ip=...)`` binds THIS machine's BACnet/IP interface
+    (``host``, optionally ``ip/mask``) and is the non-interactive variant suited to
+    a tool; remote devices are then addressed per call. Module-level so tests
+    monkeypatch it with a fake network object. The BAC0 surface (lite / whois /
+    read / disconnect) is UNVERIFIED against live gear here (preview).
+    """
+    try:
+        import BAC0
+    except ImportError as exc:  # pragma: no cover — only without BAC0
+        raise OTConnectionError(
+            "The 'BAC0' package is not installed. BACnet is an OPTIONAL extra: "
+            "'pip install iaiops[bacnet]'.",
+            endpoint=target.name, protocol="bacnet",
+        ) from exc
+    if not target.host:
+        raise OTConnectionError(
+            f"BACnet endpoint '{target.name}' has no host. Add 'host: <local-ip>' "
+            f"(THIS machine's BACnet/IP interface, optionally '<ip>/<mask>').",
+            endpoint=target.name, protocol="bacnet",
+        )
+    lite = getattr(BAC0, "lite", None) or BAC0.connect
+    return lite(ip=target.host)
+
+
+@contextmanager
+def bacnet_session(target: TargetConfig) -> Iterator[Any]:
+    """Bring up a BAC0 BACnet/IP network, yield it, always disconnect."""
+    if target.protocol != "bacnet":
+        raise OTConnectionError(
+            f"Endpoint '{target.name}' is protocol '{target.protocol}', not bacnet.",
+            endpoint=target.name, protocol=target.protocol,
+        )
+    # Build INSIDE the try: BAC0.lite(ip=...) brings up the stack and binds
+    # UDP/47808 in the constructor, so a bind/permission failure must be
+    # translated, not raised raw (consistent with the other session builders).
+    net = None
+    try:
+        net = _build_bacnet_network(target)
+        yield net
+    except OTConnectionError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — translate any in-session failure
+        raise _translate_energy(exc, target, "bacnet", target.port or 47808) from exc
+    finally:
+        disconnect = getattr(net, "disconnect", None)
+        if callable(disconnect):
+            try:
+                disconnect()
+            except Exception:  # noqa: BLE001 — disconnect must not mask the real error
+                pass
+
+
+def _wait_until(predicate, timeout_s: float, poll_s: float = 0.05) -> bool:
+    """Poll ``predicate`` until True or ``timeout_s`` elapses (bounded, never loops forever)."""
+    import time
+
+    deadline = time.monotonic() + max(0.0, timeout_s)
+    while time.monotonic() < deadline:
+        try:
+            if predicate():
+                return True
+        except Exception:  # noqa: BLE001 — a not-ready probe is just False
+            pass
+        time.sleep(poll_s)
+    try:
+        return bool(predicate())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _translate_energy(
+    exc: Exception, target: TargetConfig, protocol: str, port: int
+) -> OTConnectionError:
+    """Map an energy-protocol library/OS exception to a teaching error."""
+    detail = str(exc).strip()[:200]
+    where = f"{target.host}:{port}"
+    return OTConnectionError(
+        f"{protocol.upper()} operation on '{target.name}' ({where}) failed: {detail}. "
+        f"Check host/port/addressing and that the device is reachable. Preview — "
+        f"validate against a real RTU/IED or a protocol simulator.",
+        endpoint=where, protocol=protocol,
+    )
+
+
 # ─── manager ─────────────────────────────────────────────────────────────────
 
 
