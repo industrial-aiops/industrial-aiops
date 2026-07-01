@@ -877,7 +877,7 @@ def bacnet_session(target: TargetConfig) -> Iterator[Any]:
     except OTConnectionError:
         raise
     except Exception as exc:  # noqa: BLE001 — translate any in-session failure
-        raise _translate_energy(exc, target, "bacnet", target.port or 47808) from exc
+        raise _translate_endpoint_error(exc, target, "bacnet", target.port or 47808) from exc
     finally:
         disconnect = getattr(net, "disconnect", None)
         if callable(disconnect):
@@ -887,34 +887,16 @@ def bacnet_session(target: TargetConfig) -> Iterator[Any]:
                 pass
 
 
-def _wait_until(predicate, timeout_s: float, poll_s: float = 0.05) -> bool:
-    """Poll ``predicate`` until True or ``timeout_s`` elapses (bounded, never loops forever)."""
-    import time
-
-    deadline = time.monotonic() + max(0.0, timeout_s)
-    while time.monotonic() < deadline:
-        try:
-            if predicate():
-                return True
-        except Exception:  # noqa: BLE001 — a not-ready probe is just False
-            pass
-        time.sleep(poll_s)
-    try:
-        return bool(predicate())
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def _translate_energy(
+def _translate_endpoint_error(
     exc: Exception, target: TargetConfig, protocol: str, port: int
 ) -> OTConnectionError:
-    """Map an energy-protocol library/OS exception to a teaching error."""
+    """Map a preview/optional-protocol library/OS exception (BACnet) to a teaching error."""
     detail = str(exc).strip()[:200]
     where = f"{target.host}:{port}"
     return OTConnectionError(
         f"{protocol.upper()} operation on '{target.name}' ({where}) failed: {detail}. "
         f"Check host/port/addressing and that the device is reachable. Preview — "
-        f"validate against a real RTU/IED or a protocol simulator.",
+        f"validate against live gear or a protocol simulator.",
         endpoint=where, protocol=protocol,
     )
 

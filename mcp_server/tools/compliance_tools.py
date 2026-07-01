@@ -24,8 +24,10 @@ def compliance_mapping() -> dict:
     双向认证 / 最小权限 / 数据保护 / 自主可控. Each control names how iaiops addresses
     it, an honest status (addressed / partial / 待核实), and the remaining gap.
 
-    Returns dict: {framework, pillars[], control_count, status_summary{addressed,
-        partial, 待核实}, controls:[{pillar, requirement, iaiops, status, gap}]}.
+    Returns dict: {framework, frameworks[], pillars[], control_count, status_summary
+        {addressed, partial, 待核实}, controls:[{pillar, requirement, iaiops, status,
+        gap, crosswalk{dengbao, iec62443}}]}. See compliance_frameworks for the full
+        cross-framework 对照.
 
     Example: compliance_mapping().
     """
