@@ -5,6 +5,9 @@
 > architecture these slot into.
 
 ## Editions / connectors (new verticals)
+- 📦 **energy edition — split out to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)**
+  (`pip install iaiops-energy`; depends on `iaiops` core). Removed from this repo; see
+  `docs/ENERGY-SPINOUT.md`. History below is retained for context.
 - ✅ **energy edition** — shipped in v0.6.0 (read-only monitoring): IEC 60870-5-104
   (`c104`), DNP3 (`pydnp3`), IEC 61850 MMS (`pyiec61850`), with the `energy` MCP
   profile + `iaiops[energy]` bundle. **Binding verification pass (2026-06-30):**

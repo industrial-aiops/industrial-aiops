@@ -63,7 +63,7 @@ operator's own historian*, never a control-system write (low-risk, governed).
 ```bash
 pip install "iaiops[tdengine]"        # or iaiops[iotdb], or iaiops[xinchuang] for both
 
-# CLI: write a JSON list of points (e.g. from `iaiops iec104 interrogate`)
+# CLI: write a JSON list of points (e.g. from `iaiops modbus read-holding`)
 iaiops historian push --sink tdengine --input points.json \
   --host 10.0.0.20 --database iaiops
 ```

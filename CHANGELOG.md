@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Changed — energy edition split out
+- **The energy edition (变电/电力: IEC-104 / DNP3 / IEC-61850) moved to its own
+  package**, [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)
+  (`pip install iaiops-energy`), which depends on `iaiops` for the shared core (governance
+  / brain / runtime / normalized model) and MCP server. Removed from this repo: the three
+  connectors + their session builders (`connection.py`), MCP tool modules, CLI apps, the
+  `energy` MCP profile + `iaiops-mcp-energy` entrypoint + `iaiops[iec104|dnp3|iec61850|energy]`
+  extras, and `common_address`/`master_address` on `TargetConfig`. Base is now **12 field
+  protocols**. See `docs/ENERGY-SPINOUT.md`. Building edition + the rest are unchanged.
+
+### Added — Phoenix Contact PLCnext vPLC (虚拟化 PLC)
+- **Route-verified** over the existing OPC-UA + Modbus connectors (no new driver): a
+  dedicated `plcnext` MCP profile (`IAIOPS_MCP=plcnext`, `iaiops-mcp-plcnext`, `iaiops[plcnext]`),
+  a `phoenix_plcnext_process_be` Modbus register template, and `tests/test_plcnext_route.py`
+  (real in-process asyncua `Arp.Plc.Eclr` server + faked Modbus). Live PLCnext read stays 待核实.
+
+### Added — compliance crosswalk
+- **Compliance mapping expanded** with a 等保 2.0 (GB/T 22239) + IEC 62443 (FR1–6)
+  crosswalk: new governed `compliance_frameworks` MCP tool + `iaiops compliance --frameworks`
+  CLI; each control now carries a `crosswalk`. See `docs/CHINA.md §5.1`.
+
 ### Added — protocols
 - **HART-IP TCP transport** — the HART connector now speaks HART-IP over **TCP**
   (port 5094) in addition to UDP. An endpoint selects it with `transport: tcp`

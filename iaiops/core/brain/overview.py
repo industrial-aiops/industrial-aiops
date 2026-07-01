@@ -162,53 +162,6 @@ PROTOCOLS: tuple[dict, ...] = (
         "stack); DCP Set (set-name/set-ip/blink/factory-reset) = disruptive, not exposed.",
     },
     {
-        "protocol": "iec104",
-        "status": "implemented",
-        "library": "c104 / iec104-python (OPTIONAL extra: iaiops[iec104])",
-        "transport": "IEC 60870-5-104 (TCP 2404)",
-        "auth": "none (transport)",
-        "read_tools": [
-            "iec104_connection_info", "iec104_interrogate", "iec104_read_point",
-        ],
-        "write_tools": [],
-        "params": ["host", "port(2404)", "common_address"],
-        "requirements": "Energy edition extra. Binding verified against a c104 "
-        "loopback link (2026-06-30); live-RTU read still 待核实.",
-        "not_supported": "Control direction (C_SC/C_DC/C_RC/setpoints) = not exposed "
-        "(OT-dangerous).",
-    },
-    {
-        "protocol": "dnp3",
-        "status": "implemented",
-        "library": "pydnp3 / opendnp3 (OPTIONAL extra: iaiops[dnp3])",
-        "transport": "DNP3 over TCP (20000)",
-        "auth": "none (or DNP3-SA, not modelled)",
-        "read_tools": ["dnp3_link_status", "dnp3_integrity_poll"],
-        "write_tools": [],
-        "params": ["host", "port(20000)", "unit_id(outstation)", "master_address"],
-        "requirements": "Energy edition extra. PREVIEW — callback-based opendnp3 "
-        "binding 待核实 (pydnp3 has no wheel + needs a live outstation; not yet "
-        "verifiable in CI). is_online reflects enable(), not live link-state.",
-        "not_supported": "Control (CROB / analog output) = not exposed (OT-dangerous).",
-    },
-    {
-        "protocol": "iec61850",
-        "status": "implemented",
-        "library": "pyiec61850 — libiec61850 SWIG (OPTIONAL extra: iaiops[iec61850])",
-        "transport": "IEC 61850 MMS (ISO-on-TCP 102)",
-        "auth": "none (transport)",
-        "read_tools": [
-            "iec61850_device_directory", "iec61850_browse", "iec61850_read",
-        ],
-        "write_tools": [],
-        "params": ["host", "port(102)"],
-        "requirements": "Energy edition extra (pyiec61850, linux-only wheel). Driver "
-        "symbol surface verified against the real binding (2026-06-30); live-IED "
-        "read still 待核实.",
-        "not_supported": "Control blocks (Oper / select-before-operate), GOOSE, "
-        "Sampled Values = not exposed / out of scope.",
-    },
-    {
         "protocol": "bacnet",
         "status": "implemented",
         "library": "BAC0 / bacpypes3 (OPTIONAL extra: iaiops[bacnet])",

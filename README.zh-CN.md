@@ -4,7 +4,7 @@
 
 [English](README.md) · **中文**
 
-**面向 AI 智能体的「受治理、厂商中立」工业数据 tap + 智能排查 —— 15 种现场协议、98 个读优先工具：** OPC-UA（含历史访问 HDA + tag 自动发现）、Modbus-TCP/RTU（字节序自动探测 + 厂商寄存器模板）、S7comm、三菱 MC、MTConnect、MQTT/Sparkplug B（完整解码）、EtherNet/IP（罗克韦尔/AB Logix）、EtherCAT（pysoem/SOEM）、PROFINET（DCP 发现）、SECS/GEM（HSMS 半导体/面板设备）、HART-IP（过程仪表）、能源版（IEC-104/DNP3/IEC-61850）+ 楼宇版（BACnet/IP）—— 外加 AI 停机根因 copilot、数据质量看门狗、UNS 治理、OEE/停机分析、资产盘点，以及**信创**（TDengine/IoTDB 时序库下沉 + 合规对照）。
+**面向 AI 智能体的「受治理、厂商中立」工业数据 tap + 智能排查 —— 12 种现场协议、读优先工具：** OPC-UA（含历史访问 HDA + tag 自动发现）、Modbus-TCP/RTU（字节序自动探测 + 厂商寄存器模板）、S7comm、三菱 MC、MTConnect、MQTT/Sparkplug B（完整解码）、EtherNet/IP（罗克韦尔/AB Logix）、EtherCAT（pysoem/SOEM）、PROFINET（DCP 发现）、SECS/GEM（HSMS 半导体/面板设备）、HART-IP（过程仪表）、楼宇版（BACnet/IP）、菲尼克斯 PLCnext vPLC —— 外加 AI 停机根因 copilot、数据质量看门狗、UNS 治理、OEE/停机分析、资产盘点，以及**信创**（TDengine/IoTDB 时序库下沉 + 防护指南/等保2.0/IEC 62443 合规对照）。**能源版（变电/电力：IEC-104 / DNP3 / IEC-61850）已拆为独立包 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)。**
 
 Industrial-AIOps 是 [industrial-aiops](https://github.com/industrial-aiops) 组织下的 OT/工控线产品。它是一个**工厂级、厂商中立、受治理的数据 tap**：让 AI 智能体跨多种现场协议**安全地"读"**工业控制系统;再叠加一个**跨协议智能层**——定位"没数据"的断点、分析报警洪泛（ISA-18.2）、给数据可信度打分、排查不健康 tag、算 OEE / 分类停机、建主动资产台账、把 OPC-UA 地址空间自动发现成语义资产模型,以及旗舰能力 **AI 停机根因 copilot**(把证据关联成**带证据引用、仅建议**的结论)。
 

@@ -20,7 +20,7 @@ CONTROLS: tuple[dict, ...] = (
         "requirement": "Segment OT into security zones; restrict cross-zone access; "
         "no uncontrolled bridge between control and IT networks.",
         "iaiops": "Read-first single-purpose tap; per-site, per-protocol MCP exposure "
-        "via IAIOPS_MCP (e.g. IAIOPS_MCP=energy exposes only that zone's protocols); "
+        "via IAIOPS_MCP (e.g. IAIOPS_MCP=building exposes only that zone's protocols); "
         "connectors do not bridge or route between endpoints; no OT↔IT proxying.",
         "status": "addressed",
         "gap": "Deployment-time network zoning (firewall/diode placement) is the "
