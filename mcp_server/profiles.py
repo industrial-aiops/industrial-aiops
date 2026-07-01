@@ -60,6 +60,9 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "energy": ("iec104", "dnp3", "iec61850", "modbus", "opcua"),
     # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).
     "building": ("bacnet", "modbus", "opcua"),
+    # Phoenix Contact PLCnext vPLC (虚拟化 PLC): reached over its built-in OPC-UA
+    # server (opc.tcp 4840) + Modbus-TCP process-data server — no new connector.
+    "plcnext": ("opcua", "modbus"),
 }
 
 

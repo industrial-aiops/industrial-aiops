@@ -114,6 +114,9 @@ energy = ["iaiops[iec104]", "iaiops[dnp3]", "iaiops[iec61850]", "iaiops[modbus]"
           "iaiops[opcua]"]
 # Building edition: facility / HVAC / 厂务 (matches IAIOPS_MCP=building).
 building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]"]
+# Phoenix Contact PLCnext vPLC (虚拟化 PLC) — rides the existing OPC-UA + Modbus
+# connectors (its built-in OPC-UA server + Modbus-TCP); no dedicated driver.
+plcnext = ["iaiops[opcua]", "iaiops[modbus]"]
 # 信创 / China entry: domestic TSDB historian sinks (compliance mapping is built-in).
 xinchuang = ["iaiops[tdengine]", "iaiops[iotdb]"]
 
@@ -151,6 +154,7 @@ iaiops-mcp-factory = "mcp_server.entrypoints:main_factory"
 iaiops-mcp-process = "mcp_server.entrypoints:main_process"
 iaiops-mcp-energy = "mcp_server.entrypoints:main_energy"
 iaiops-mcp-building = "mcp_server.entrypoints:main_building"
+iaiops-mcp-plcnext = "mcp_server.entrypoints:main_plcnext"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iaiops", "mcp_server"]

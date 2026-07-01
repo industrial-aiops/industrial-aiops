@@ -79,7 +79,7 @@ real DDL bug (the `value` column is a TDengine reserved word — back-quoted in
 Design choice: we **do not build our own historian** and **do not bind InfluxDB** —
 the sink is a thin adapter so a site uses its existing domestic TSDB.
 
-## 5. 合规映射 — 《工控系统网络安全防护指南》
+## 5. 合规映射 — 《工控系统网络安全防护指南》 / 等保 2.0 / IEC 62443
 
 `iaiops compliance` (or the `compliance_mapping` MCP tool) prints an honest
 mapping of the iaiops governance posture to the guidance pillars:
@@ -95,6 +95,24 @@ mapping of the iaiops governance posture to the guidance pillars:
 
 > This is an **onboarding/sales self-assessment, not a certification**. The
 > `待核实` rows are the validation backlog for a China deployment engagement.
+
+### 5.1 跨框架对照 (等保 2.0 / IEC 62443)
+
+`compliance_frameworks` (MCP tool) 把同一治理支柱同时对到 **等保 2.0
+(GB/T 22239-2019)** 的控制类与 **IEC 62443** 的基础需求 (FR)，回答“这条满足哪条
+等保 / 62443 条款”：
+
+| 支柱 | 等保 2.0 控制类 | IEC 62443 基础需求 |
+|------|------------------|---------------------|
+| 分区隔离 | 安全通信网络·网络架构 / 安全区域边界 | FR5 受限数据流 (RDF) — zones & conduits |
+| 可审计 | 安全计算环境·安全审计 + 安全管理中心·集中管控 | FR6 事件及时响应 (TRE) — SR 2.8–2.12 |
+| 双向认证 | 安全计算环境·身份鉴别 / 通信传输加密 | FR1 标识与鉴别控制 (IAC) — SR 1.1–1.9 |
+| 最小权限 | 安全计算环境·访问控制 (最小权限) | FR2 使用控制 (UC) — SR 2.1 |
+| 数据保护 | 安全计算环境·数据保密性/完整性 | FR4 数据保密性 (DC) — SR 4.1–4.3 |
+| 自主可控 | 安全建设管理·产品采购和使用 | FR3 系统完整性 + IEC 62443-4-1 |
+
+> 对照为 onboarding/审计参考、非认证映射。逐项 gap 与状态仍以 `compliance_mapping`
+> 为准（每条 control 现也内嵌 `crosswalk` 字段）。
 
 ## 6. 验证债 (open items)
 

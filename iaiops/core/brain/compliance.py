@@ -89,23 +89,93 @@ CONTROLS: tuple[dict, ...] = (
 
 _STATUS_ORDER = {"addressed": 0, "partial": 1, "待核实": 2}
 
+# Cross-framework 对照: the 等保 2.0 (GB/T 22239-2019) control class and the IEC
+# 62443 foundational requirement that each 防护指南 pillar maps onto. Lets an
+# onboarding/audit engineer see the same governance control across all three
+# frameworks. Keyed by the exact CONTROLS[].pillar string.
+_CROSSWALK: dict[str, dict[str, str]] = {
+    "分区隔离 (zoning / isolation)": {
+        "dengbao": "安全通信网络·网络架构 / 安全区域边界·边界防护·访问控制",
+        "iec62443": "FR5 受限数据流 (RDF) — zones & conduits (IEC 62443-3-2 / -3-3 SR 5.x)",
+    },
+    "可审计 (auditability)": {
+        "dengbao": "安全计算环境·安全审计 + 安全管理中心·集中管控",
+        "iec62443": "FR6 事件及时响应 (TRE) — auditable events (SR 2.8–2.12)",
+    },
+    "双向认证 (mutual authentication)": {
+        "dengbao": "安全计算环境·身份鉴别 / 安全通信网络·通信传输(加密)",
+        "iec62443": "FR1 标识与鉴别控制 (IAC) — SR 1.1–1.9",
+    },
+    "最小权限 (least privilege)": {
+        "dengbao": "安全计算环境·访问控制 (最小权限·权限分离)",
+        "iec62443": "FR2 使用控制 (UC) — 授权强制 / 最小权限 (SR 2.1)",
+    },
+    "数据保护 (data protection)": {
+        "dengbao": "安全计算环境·数据保密性 / 数据完整性",
+        "iec62443": "FR4 数据保密性 (DC) — SR 4.1–4.3",
+    },
+    "供应链 / 自主可控 (supply-chain / domestic substitutability)": {
+        "dengbao": "安全建设管理·产品采购和使用 (信创 自主可控)",
+        "iec62443": "FR3 系统完整性 (SI) + IEC 62443-4-1 安全开发生命周期 / 组件来源",
+    },
+}
+
+# The frameworks iaiops maps its governance posture onto.
+FRAMEWORKS: tuple[dict, ...] = (
+    {"id": "gjzn", "name": "《工控系统网络安全防护指南》",
+     "region": "CN · 工信部", "kind": "指南 / guidance"},
+    {"id": "dengbao", "name": "网络安全等级保护 2.0 (GB/T 22239-2019)",
+     "region": "CN · 强制分级", "kind": "graded scheme"},
+    {"id": "iec62443", "name": "IEC 62443 (IACS 工控信息安全)",
+     "region": "international", "kind": "标准 / standard"},
+)
+
 
 def compliance_mapping() -> dict:
-    """[READ] 《工控系统网络安全防护指南》 ↔ iaiops governance mapping (honest status)."""
+    """[READ] 《工控系统网络安全防护指南》 ↔ iaiops governance mapping (honest status).
+
+    Each control now also carries a ``crosswalk`` to the matching 等保 2.0 control
+    class and IEC 62443 foundational requirement (see ``compliance_frameworks``).
+    """
     rows = sorted(CONTROLS, key=lambda c: _STATUS_ORDER.get(c["status"], 3))
+    rows = [{**c, "crosswalk": _CROSSWALK.get(c["pillar"], {})} for c in rows]
     summary = {s: sum(1 for c in CONTROLS if c["status"] == s)
                for s in ("addressed", "partial", "待核实")}
     return {
         "framework": "《工控系统网络安全防护指南》(industrial control system "
         "cybersecurity protection guidance)",
+        "frameworks": [f["id"] for f in FRAMEWORKS],
         "pillars": ["分区隔离", "可审计", "双向认证", "最小权限", "数据保护", "自主可控"],
         "control_count": len(CONTROLS),
         "status_summary": summary,
-        "controls": list(rows),
+        "controls": rows,
         "note": "Honest self-assessment for onboarding/sales, not a certification. "
-        "'待核实' = documented but not yet validated. See docs/CHINA.md for the "
-        "信创 (offline install / 国产 OS·芯·PLC validation) details.",
+        "'待核实' = documented but not yet validated. Each control maps across "
+        "防护指南 / 等保 2.0 / IEC 62443 (see compliance_frameworks). See docs/CHINA.md "
+        "for the 信创 (offline install / 国产 OS·芯·PLC validation) details.",
     }
 
 
-__all__ = ["compliance_mapping", "CONTROLS"]
+def compliance_frameworks() -> dict:
+    """[READ] 跨框架对照: 防护指南 ↔ 等保 2.0 ↔ IEC 62443, one row per pillar."""
+    crosswalk = []
+    for c in CONTROLS:
+        xw = _CROSSWALK.get(c["pillar"], {})
+        crosswalk.append({
+            "pillar": c["pillar"],
+            "gjzn": c["requirement"],
+            "dengbao": xw.get("dengbao", "待核实"),
+            "iec62443": xw.get("iec62443", "待核实"),
+            "iaiops_status": c["status"],
+        })
+    return {
+        "frameworks": list(FRAMEWORKS),
+        "framework_count": len(FRAMEWORKS),
+        "pillar_count": len(crosswalk),
+        "crosswalk": crosswalk,
+        "note": "跨框架对照 (onboarding / 审计参考，非认证)。防护指南为主映射，"
+        "等保 2.0 与 IEC 62443 为对照条款；逐项 gap / 状态见 compliance_mapping。",
+    }
+
+
+__all__ = ["compliance_mapping", "compliance_frameworks", "CONTROLS", "FRAMEWORKS"]

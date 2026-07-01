@@ -14,7 +14,7 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import cli_errors
-from iaiops.core.brain.compliance import compliance_mapping
+from iaiops.core.brain.compliance import compliance_frameworks, compliance_mapping
 from iaiops.core.sink.push import historian_push
 
 console = Console()
@@ -25,9 +25,16 @@ def _emit(data) -> None:
 
 
 @cli_errors
-def compliance_cmd() -> None:
-    """Print the 《工控系统网络安全防护指南》 ↔ iaiops governance mapping."""
-    _emit(compliance_mapping())
+def compliance_cmd(
+    frameworks: bool = typer.Option(
+        False, "--frameworks", help="Print the 防护指南 ↔ 等保 2.0 ↔ IEC 62443 crosswalk instead."
+    ),
+) -> None:
+    """Print the 《工控系统网络安全防护指南》 ↔ iaiops governance mapping.
+
+    With --frameworks, print the cross-framework 对照 (等保 2.0 / IEC 62443) instead.
+    """
+    _emit(compliance_frameworks() if frameworks else compliance_mapping())
 
 
 historian_app = typer.Typer(

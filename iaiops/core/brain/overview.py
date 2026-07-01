@@ -23,6 +23,10 @@ PROTOCOLS: tuple[dict, ...] = (
         ],
         "write_tools": [],
         "params": ["endpoint_url", "username", "security_mode", "security_policy"],
+        "requirements": "Phoenix Contact PLCnext vPLC (虚拟化 PLC) 覆盖：其内置 OPC-UA "
+        "服务器 (opc.tcp 4840) 经此连接器路由验证——in-process asyncua 服务器复现其 "
+        "GDS/PLC 地址空间 (tests/test_plcnext_route.py)；便捷 profile: IAIOPS_MCP=plcnext "
+        "(opcua+modbus) / iaiops[plcnext]；活体 PLCnext 设备读取仍 待核实。",
     },
     {
         "protocol": "modbus",
@@ -40,6 +44,10 @@ PROTOCOLS: tuple[dict, ...] = (
             "host", "port(502)", "unit_id",
             "transport(tcp|rtu)", "serial_port", "baudrate", "parity", "stopbits", "bytesize",
         ],
+        "requirements": "Phoenix Contact PLCnext vPLC (虚拟化 PLC) 覆盖：其 Modbus-TCP "
+        "服务器 (用户映射过程数据寄存器) 经此连接器路由验证 (tests/test_plcnext_route.py)；"
+        "自带 phoenix_plcnext_process_be 寄存器模板 + IAIOPS_MCP=plcnext profile；"
+        "寄存器映射随工程配置，活体 PLCnext 设备读取仍 待核实。",
     },
     {
         "protocol": "s7",
