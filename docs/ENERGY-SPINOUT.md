@@ -1,10 +1,10 @@
 # 能源 edition 独立仓 — 抽仓计划 (spin-out plan)
 
-> **Status: 仓内准备已完成 (in-repo prep done); 外部仓尚未创建 (awaiting go-ahead).**
-> Per HLD §3 D4 / §10 P6, the energy edition (变电 / 电力) will move into its own
-> repo under the `industrial-aiops` org. This doc is the extraction plan; the actual
-> repo creation + code move is an outward, hard-to-reverse org operation and is
-> **deliberately not done automatically** — it needs an explicit go-ahead.
+> **Status: DONE — energy edition split out.** The connectors, session builders, MCP
+> tools, and tests moved to **[industrial-aiops-energy](https://github.com/industrial-aiops/industrial-aiops-energy)**
+> (`pip install iaiops-energy`), which depends on `iaiops` for the shared core. They
+> were removed from this base repo (this PR); both repos stay green. This doc records
+> the plan that was followed (per HLD §3 D4 / §10 P6).
 
 ## Why split
 

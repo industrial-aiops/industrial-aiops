@@ -5,8 +5,8 @@ description: >-
   Read (and, gated, write) PLCs, controllers, machine tools and IIoT brokers over
   OPC-UA, Modbus-TCP, Siemens S7comm, Mitsubishi MC, MTConnect, MQTT/Sparkplug B,
   Allen-Bradley EtherNet/IP, EtherCAT (pysoem/SOEM), SECS/GEM (semiconductor /
-  display fab equipment over HSMS), PROFINET (DCP discovery), and the energy
-  edition (IEC 60870-5-104, DNP3, IEC 61850 MMS) — plus cross-protocol diagnostics
+  display fab equipment over HSMS), PROFINET (DCP discovery), the building edition
+  (BACnet/IP), and Phoenix Contact PLCnext vPLC — plus cross-protocol diagnostics
   ("no-data" dataflow diagnosis, OPC-UA connection self-diagnosis, subscription
   health, ISA-18.2 alarm bad-actors, tag/historian health, and the AI downtime
   root-cause copilot) and analytics (OEE/downtime, asset inventory, OPC-UA HDA,
@@ -21,7 +21,7 @@ description: >-
 
 # iaiops — industrial data tap + intelligent troubleshooting
 
-One governed MCP server exposing **90 tools** across 14 industrial protocols plus a
+One governed MCP server exposing read-first tools across 12 industrial protocols plus a
 cross-protocol intelligence layer. Narrow the exposed surface per site with
 `IAIOPS_MCP` (e.g. `IAIOPS_MCP=fab` or `IAIOPS_MCP=opcua,modbus`), or just launch the matching pre-scoped
 script (`iaiops-mcp-opcua`, `iaiops-mcp-fab`, … — sugar over `IAIOPS_MCP`). Every tool runs through the iaiops governance
@@ -138,16 +138,11 @@ disruptive DCP Set (set-name/ip/blink/reset).
 - `profinet_station_params` — targeted DCP Get by MAC (name + IP suite)
 - `profinet_asset_inventory` — register with IO-controller vs IO-device role decoding
 
-### Energy edition (read-only; electrical substation / utility telecontrol)
-Optional bundle `pip install iaiops[energy]` and `IAIOPS_MCP=energy`. **Monitor direction
-only** — no control commands. **⚠️ Preview / 待核实**: library bindings are mock-tested,
-not verified against live RTUs/IEDs (`iec61850` needs libiec61850 built).
-- **IEC 60870-5-104** (`iaiops[iec104]`): `iec104_connection_info` (link + ASDU CAs),
-  `iec104_interrogate` (general interrogation), `iec104_read_point` (one point by IOA)
-- **DNP3** (`iaiops[dnp3]`): `dnp3_link_status`, `dnp3_integrity_poll` (Class 0/1/2/3 →
-  outstation database grouped by binary/analog/counter)
-- **IEC 61850 MMS** (`iaiops[iec61850]`): `iec61850_device_directory` (model map),
-  `iec61850_browse` (LD/LN/DO children), `iec61850_read` (object-ref + functional constraint)
+### Energy edition (变电/电力) — ships separately
+The substation/utility telecontrol edition (IEC 60870-5-104 / DNP3 / IEC 61850 MMS)
+moved to its own package: `pip install iaiops-energy` then `iaiops-energy-mcp`
+(github.com/industrial-aiops/industrial-aiops-energy). It reuses this package's core +
+brain; monitor-direction only, preview/待核实 against live RTUs/IEDs.
 
 ### Building edition (read-only; facility / HVAC / 厂务 — BACnet/IP)
 Optional bundle `pip install iaiops[building]` and `IAIOPS_MCP=building`. `host` is THIS

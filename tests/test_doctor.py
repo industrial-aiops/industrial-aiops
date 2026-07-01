@@ -96,24 +96,6 @@ def _raise(msg):
     return _fn
 
 
-def test_probe_energy_each_protocol(monkeypatch):
-    import iaiops.connectors.dnp3.ops as b
-    import iaiops.connectors.iec104.ops as a
-    import iaiops.connectors.iec61850.ops as c
-    monkeypatch.setattr(a, "iec104_connection_info",
-                        lambda t: {"connected": True, "station_count": 1})
-    monkeypatch.setattr(b, "dnp3_link_status", lambda t: {"online": True})
-    monkeypatch.setattr(c, "iec61850_device_directory",
-                        lambda t: {"logical_device_count": 2})
-    assert doctor._probe_energy(_probe_target("iec104"))[0] is True
-    assert doctor._probe_energy(_probe_target("dnp3"))[0] is True
-    assert doctor._probe_energy(_probe_target("iec61850"))[0] is True
-    # a raising op degrades to (False, detail), never propagates
-    monkeypatch.setattr(b, "dnp3_link_status", _raise("offline"))
-    ok, detail = doctor._probe_energy(_probe_target("dnp3"))
-    assert ok is False and "offline" in detail
-
-
 def test_probe_bacnet_success_and_failure(monkeypatch):
     import iaiops.connectors.bacnet.ops as bn
     monkeypatch.setattr(bn, "bacnet_discover", lambda t: {"device_count": 4})
