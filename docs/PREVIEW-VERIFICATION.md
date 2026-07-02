@@ -105,7 +105,18 @@ kebab-case object types. `tests/test_bacnet_live.py` (integration-marked, gated 
 Who-Is discover + present-value read round-trip — passed 2026-07-02. Live BACnet
 **write / COV / trend-log** on real HVAC gear stays pending (not exercised live).
 
-The remaining rows stay **待核实 (live gear)** — no HART-IP/EtherCAT gear is on the
-bench in this environment. This runbook is the standing procedure; the loop does
-**not** fabricate a verified status. PLCnext is **route-verified** (in-process
+**The energy edition (`iaiops-energy` repo) is now verified for its whole read path.**
+Same container approach: **IEC-104** (real `c104` loopback, earlier), **DNP3** monitor
+path (real `opendnp3` outstation — `pydnp3` built in-container with a pybind11 swap;
+`tests/test_dnp3_live.py`), and **IEC-61850 MMS** monitor path (real in-process
+`libiec61850` server via the `pyiec61850` wheel's server API; `tests/test_iec61850_live.py`).
+Each surfaced and fixed genuine driver bugs (DNP3 SOE handler / GC lifetime; IEC-61850
+SWIG return-shape decode / browse-by-level / access-error detection) — those drivers were
+mock-only and non-functional against the real bindings before. Control/GOOSE/SV out of
+scope; live RTU/IED reads remain the only pending step there.
+
+**Remaining truly pending:** **EtherCAT** (no software simulator — hardware bus only) and
+**physical-device** passes (RS-485 for Modbus-RTU, live HVAC for BACnet write/COV/trend,
+live HART-IP gateway, live RTU/IED). This runbook is the standing procedure; nothing is
+marked verified without a real round-trip. PLCnext is **route-verified** (in-process
 asyncua + faked Modbus, `tests/test_plcnext_route.py`); its *live* row stays here.
