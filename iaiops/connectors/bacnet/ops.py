@@ -47,8 +47,40 @@ READABLE_TYPES = (
 )
 
 
+def _device_id_from_identifier(ident: Any) -> int | None:
+    """Extract the device instance from a BACnet object identifier.
+
+    bacpypes3 renders a device identifier as ``('device', 599)`` (tuple-like) or
+    the text ``device,599`` — the instance is the trailing integer either way.
+    """
+    if isinstance(ident, (list, tuple)) and len(ident) >= 2:
+        return _opt_int(ident[1])
+    inst = getattr(ident, "instance", None)
+    if inst is not None:
+        return _opt_int(inst)
+    text = str(ident)
+    for sep in (",", ":", " "):
+        if sep in text:
+            return _opt_int(text.rsplit(sep, 1)[-1])
+    return _opt_int(text)
+
+
 def _norm_device(item: Any) -> dict:
-    """Normalize a BAC0 who_is result (tuple/list/obj) to {device_id, address}."""
+    """Normalize a BAC0 who_is result to ``{device_id, address}``.
+
+    Modern BAC0 (async, over bacpypes3) returns ``IAmRequest`` APDU objects — the
+    device is ``iAmDeviceIdentifier`` and the responder is ``pduSource`` (verified
+    live against bacpypes3 0.0.106, 2026-07). Sync-era BAC0 and test doubles use a
+    ``(device_id, address)`` tuple or a ``.device_id``/``.address`` object; all
+    three shapes are handled.
+    """
+    # bacpypes3 IAmRequest (modern BAC0 who_is) — check first: it is the live shape.
+    ident = getattr(item, "iAmDeviceIdentifier", None)
+    if ident is not None:
+        return {
+            "device_id": _device_id_from_identifier(ident),
+            "address": s(getattr(item, "pduSource", None), 64),
+        }
     if isinstance(item, (list, tuple)) and len(item) >= 2:
         # BAC0 commonly yields (device_id, address) or (address, device_id).
         a, b = item[0], item[1]
@@ -76,12 +108,28 @@ def _opt_int(value: Any) -> int | None:
         return None
 
 
+def _camel_object_type(text: str) -> str:
+    """Normalize a BACnet object type to the camelCase form the ops use.
+
+    bacpypes3 renders object types kebab-cased (``analog-value``,
+    ``multi-state-value``); the connector's public shape — and ``READABLE_TYPES``
+    — is camelCase (``analogValue``, ``multiStateValue``). Converting here keeps a
+    single consistent object-type vocabulary regardless of the BAC0 build, and is
+    idempotent for input that is already camelCase (no dash → unchanged).
+    """
+    if "-" not in text:
+        return text
+    head, *rest = text.split("-")
+    return head + "".join(part[:1].upper() + part[1:] for part in rest)
+
+
 def _norm_object(item: Any) -> dict:
     """Normalize an object-list entry (objectType, instance) tuple/obj."""
     if isinstance(item, (list, tuple)) and len(item) >= 2:
-        return {"object_type": s(item[0], 32), "instance": _opt_int(item[1])}
+        return {"object_type": _camel_object_type(s(item[0], 32)), "instance": _opt_int(item[1])}
+    raw_type = s(getattr(item, "objectType", getattr(item, "object_type", "")), 32)
     return {
-        "object_type": s(getattr(item, "objectType", getattr(item, "object_type", "")), 32),
+        "object_type": _camel_object_type(raw_type),
         "instance": _opt_int(getattr(item, "instance", getattr(item, "objectInstance", None))),
     }
 

@@ -860,14 +860,20 @@ def _translate_profinet(exc: Exception, target: TargetConfig) -> OTConnectionErr
 
 
 def _build_bacnet_network(target: TargetConfig) -> Any:
-    """Construct (and connect) a BAC0 network bound to the local interface (待核实).
+    """Construct (and connect) a BAC0 network bound to the local interface.
 
     ``BAC0`` (over bacpypes3) is an OPTIONAL extra (``pip install iaiops[bacnet]``)
-    imported LAZILY. ``BAC0.lite(ip=...)`` binds THIS machine's BACnet/IP interface
-    (``host``, optionally ``ip/mask``) and is the non-interactive variant suited to
-    a tool; remote devices are then addressed per call. Module-level so tests
-    monkeypatch it with a fake network object. The BAC0 surface (lite / whois /
-    read / disconnect) is UNVERIFIED against live gear here (preview).
+    imported LAZILY. Modern BAC0 (2024+) is async-first: ``BAC0.lite(ip=...)`` must
+    be built inside a running event loop and ``who_is`` / ``read`` / ``readRange``
+    are coroutines. So we construct BAC0 on a dedicated background loop and return
+    a synchronous facade (:class:`~iaiops.core.runtime.bacnet_async.BacnetSyncNetwork`)
+    that marshals every call onto that loop — the same bridge pattern asyncua's sync
+    client uses. This keeps the broad pin (``BAC0>=2023.6,<2026``) and the sync ops
+    unchanged: sync-era and async-first builds both work through the facade.
+
+    ``lite(ip=...)`` binds THIS machine's BACnet/IP interface (``host``, optionally
+    ``ip/mask``); remote devices are addressed per call. Module-level so tests
+    monkeypatch it with a fake network object.
     """
     try:
         import BAC0
@@ -883,8 +889,10 @@ def _build_bacnet_network(target: TargetConfig) -> Any:
             f"(THIS machine's BACnet/IP interface, optionally '<ip>/<mask>').",
             endpoint=target.name, protocol="bacnet",
         )
+    from iaiops.core.runtime.bacnet_async import build_sync_network
+
     lite = getattr(BAC0, "lite", None) or BAC0.connect
-    return lite(ip=target.host)
+    return build_sync_network(lite, target.host)
 
 
 @contextmanager
