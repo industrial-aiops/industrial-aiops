@@ -20,6 +20,7 @@ from __future__ import annotations
 from iaiops.connectors.bacnet import transport as _bacnet_tx
 from iaiops.connectors.eip import transport as _eip_tx
 from iaiops.connectors.ethercat import transport as _ethercat_tx
+from iaiops.connectors.fins import transport as _fins_tx
 from iaiops.connectors.mc import transport as _mc_tx
 from iaiops.connectors.modbus import transport as _modbus_tx
 from iaiops.connectors.opcua import transport as _opcua_tx
@@ -32,7 +33,7 @@ from iaiops.core.runtime.session_factory import OTConnectionError, make_session
 
 __all__ = [
     "ConnectionManager", "OTConnectionError", "bacnet_session", "eip_session",
-    "ethercat_master", "make_session", "mc_session", "modbus_session",
+    "ethercat_master", "fins_session", "make_session", "mc_session", "modbus_session",
     "mqtt_session", "opcua_session", "profinet_dcp", "s7_session",
     "secsgem_session",
 ]
@@ -51,6 +52,8 @@ _build_s7_client = _s7_tx._build_s7_client
 _translate_s7 = _s7_tx._translate_s7
 _build_mc_client = _mc_tx._build_mc_client
 _translate_mc = _mc_tx._translate_mc
+_build_fins_client = _fins_tx._build_fins_client
+_translate_fins = _fins_tx._translate_fins
 _build_mqtt_client = _mqtt_tx._build_mqtt_client
 _translate_mqtt = _mqtt_tx._translate_mqtt
 _build_eip_client = _eip_tx._build_eip_client
@@ -97,6 +100,14 @@ mc_session = make_session(
     connect=_mc_tx._connect_mc,
     close=lambda client: client.close(),
     translate=_translate_mc,
+)
+
+fins_session = make_session(
+    protocol="fins",
+    build=lambda target: _build_fins_client(target),
+    connect=_fins_tx._connect_fins,
+    close=lambda client: client.close(),
+    translate=_translate_fins,
 )
 
 mqtt_session = make_session(
@@ -187,6 +198,7 @@ class ConnectionManager:
             "modbus": modbus_session,
             "s7": s7_session,
             "mc": mc_session,
+            "fins": fins_session,
             "mqtt": mqtt_session,
             "ethernetip": eip_session,
             "eip": eip_session,

@@ -61,6 +61,8 @@ SUPPORTED_PROTOCOLS = (
     "bacnet",
     # Process edition (read-only): HART-IP process instrumentation.
     "hart",
+    # Omron FINS (CS/CJ/CP/NX-via-FINS; in-repo stdlib client, UDP 9600 + TCP).
+    "fins",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -73,6 +75,7 @@ DEFAULT_EIP_PORT = 44818  # EtherNet/IP (CIP over TCP)
 DEFAULT_SECSGEM_PORT = 5000  # HSMS (SECS-II over TCP) default
 DEFAULT_BACNET_PORT = 47808  # BACnet/IP (UDP 0xBAC0)
 DEFAULT_HART_PORT = 5094  # HART-IP (UDP/TCP 5094)
+DEFAULT_FINS_PORT = 9600  # Omron FINS (UDP default; FINS/TCP same port)
 
 # Connect/request timeout applied to every TCP-based client builder so a dead
 # endpoint fails in seconds, not the OS TCP default (60-120s+). Override the
@@ -92,6 +95,7 @@ _DEFAULT_PORTS = {
     "secsgem": DEFAULT_SECSGEM_PORT,
     "bacnet": DEFAULT_BACNET_PORT,
     "hart": DEFAULT_HART_PORT,
+    "fins": DEFAULT_FINS_PORT,
 }
 
 
@@ -210,6 +214,9 @@ class TargetConfig:
                         out on, e.g. the IP of the NIC on the PROFINET subnet).
                         Read-only DCP discovery/identify via pnio-dcp; needs L2
                         raw-socket access (root/admin). NO RT cyclic data.
+      * ``fins``      — ``host`` / ``port`` (9600) / ``transport`` (``udp``
+                        default | ``tcp``) (Omron CS/CJ/CP/NX-via-FINS; in-repo
+                        stdlib client, W227/W342 framing).
       * ``bacnet``    — ``host`` (THIS machine's local BACnet/IP interface, optionally
                         ``ip/mask`` e.g. ``10.0.0.5/24``) / ``port`` (47808). Read-only
                         facility/HVAC monitoring via the ``bacnet`` (BAC0) extra.
@@ -442,10 +449,23 @@ def _hart_transport(d: dict) -> str:
     return "tcp" if given == "tcp" else "udp"
 
 
+def _fins_transport(d: dict) -> str:
+    """Resolve the FINS transport: 'tcp' only when explicitly requested, else 'udp'.
+
+    FINS runs over UDP (the historical default, port 9600) and FINS/TCP (same
+    port, extra 16-byte header + node handshake); anything that is not an
+    explicit 'tcp' resolves to 'udp' rather than silently switching transports.
+    """
+    given = str(d.get("transport", "") or "").strip().lower()
+    return "tcp" if given == "tcp" else "udp"
+
+
 def _resolve_transport(protocol: str, d: dict) -> str:
-    """Pick the per-protocol transport resolver (Modbus tcp/rtu vs HART udp/tcp)."""
+    """Pick the per-protocol transport resolver (Modbus tcp/rtu vs HART/FINS udp/tcp)."""
     if protocol == "hart":
         return _hart_transport(d)
+    if protocol == "fins":
+        return _fins_transport(d)
     return _modbus_transport(d)
 
 

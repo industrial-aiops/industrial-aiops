@@ -27,6 +27,9 @@ EXPECTED_TOOLS = {
     "s7_cpu_info", "s7_read_area", "s7_read_db", "s7_read_many", "s7_write_db",
     # Mitsubishi MC
     "mc_cpu_status", "mc_read_words", "mc_read_bits", "mc_read_many", "mc_write_words",
+    # Omron FINS (in-repo stdlib client)
+    "fins_cpu_info", "fins_cpu_status", "fins_read_words", "fins_read_bits",
+    "fins_read_many", "fins_write_words",
     # MTConnect (CNC machine tools)
     "mtconnect_probe", "mtconnect_current", "mtconnect_sample", "mtconnect_assets",
     "mtconnect_oee_snapshot",
@@ -69,7 +72,7 @@ EXPECTED_TOOLS = {
 
 # Tools that perform an OT-dangerous write/command — must be governed high-risk.
 WRITE_TOOLS = {
-    "s7_write_db", "mc_write_words", "mqtt_publish", "eip_write_tag",
+    "s7_write_db", "mc_write_words", "fins_write_words", "mqtt_publish", "eip_write_tag",
     "ethercat_write_sdo", "ethercat_set_state",
     "profinet_dcp_set", "bacnet_write_property",
 }
@@ -89,6 +92,9 @@ def test_all_modules_import():
         "iaiops.connectors.modbus.ops",
         "iaiops.connectors.s7.ops",
         "iaiops.connectors.mc.ops",
+        "iaiops.connectors.fins.client",
+        "iaiops.connectors.fins.transport",
+        "iaiops.connectors.fins.ops",
         "iaiops.connectors.mtconnect.ops",
         "iaiops.connectors.sparkplug.ops",
         "iaiops.connectors.sparkplug.live",
@@ -114,6 +120,7 @@ def test_all_modules_import():
         "iaiops.cli.modbus",
         "iaiops.cli.s7",
         "iaiops.cli.mc",
+        "iaiops.cli.fins",
         "iaiops.cli.mtconnect",
         "iaiops.cli.mqtt",
         "iaiops.cli.eip",
@@ -130,6 +137,7 @@ def test_all_modules_import():
         "mcp_server.tools.modbus_tools",
         "mcp_server.tools.s7_tools",
         "mcp_server.tools.mc_tools",
+        "mcp_server.tools.fins_tools",
         "mcp_server.tools.mtconnect_tools",
         "mcp_server.tools.sparkplug_tools",
         "mcp_server.tools.eip_tools",
@@ -164,8 +172,9 @@ def test_cli_app_builds_and_help_works():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for sub in ("opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "eip", "ethercat",
-                "diag", "analytics", "secret", "init", "doctor", "mcp", "protocols"):
+    for sub in ("opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "eip",
+                "ethercat", "diag", "analytics", "secret", "init", "doctor", "mcp",
+                "protocols"):
         assert sub in result.output
 
 
@@ -182,7 +191,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
     for cmd in (
         ["opcua", "--help"], ["modbus", "--help"], ["s7", "--help"],
-        ["mc", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
+        ["mc", "--help"], ["fins", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
         ["eip", "--help"], ["ethercat", "--help"], ["analytics", "--help"],
         ["diag", "--help"],
     ):
@@ -201,6 +210,9 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["s7", "read", "--help"], ["s7", "write-db", "--help"],
         ["mc", "cpu", "--help"], ["mc", "words", "--help"],
         ["mc", "bits", "--help"], ["mc", "write-words", "--help"],
+        ["fins", "cpu", "--help"], ["fins", "status", "--help"],
+        ["fins", "words", "--help"], ["fins", "bits", "--help"],
+        ["fins", "write-words", "--help"],
         ["mtconnect", "probe", "--help"], ["mtconnect", "current", "--help"],
         ["mtconnect", "sample", "--help"], ["mtconnect", "assets", "--help"],
         ["mtconnect", "oee", "--help"],
@@ -268,8 +280,8 @@ def test_unsupported_protocol_rejected():
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "protocol",
-    ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
-     "secsgem", "profinet", "bacnet", "hart"],
+    ["opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "ethernetip",
+     "ethercat", "secsgem", "profinet", "bacnet", "hart"],
 )
 def test_supported_protocols_accepted(protocol):
     from iaiops.core.runtime.config import TargetConfig
@@ -310,8 +322,8 @@ def test_protocols_supported_lists_all():
 
     out = protocols_supported()
     assert set(out["implemented_protocols"]) == {
-        "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
-        "secsgem", "profinet", "bacnet", "hart",
+        "opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "ethernetip",
+        "ethercat", "secsgem", "profinet", "bacnet", "hart",
     }
     assert set(out["roadmap_stubs"]) == set()
     assert "asset_inventory" in out["analytics"]

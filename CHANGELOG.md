@@ -75,6 +75,24 @@
   profile) or launch a pre-scoped `iaiops-mcp-<name>` entrypoint; to restore the old
   behavior exactly, set `IAIOPS_MCP=all` explicitly.
 
+### Added — Omron FINS connector (A5)
+- **Omron FINS** (backlog A5, APAC/华南 install base): new `fins` protocol —
+  in-repo **stdlib-only** FINS client (`iaiops/connectors/fins/client.py`, no
+  third-party dependency): 10-byte FINS header framing, FINS/UDP (default port
+  9600) + FINS/TCP (node-address handshake per W342), SID matching (mismatch
+  rejected, retries=0), bounded response parsing, end-code table per Omron
+  W227/W342. Commands: 0101 memory-area read (words/bits, DM/CIO/W/H/A/EM),
+  0102 memory-area write, 0501 controller data read, 0601 controller status.
+- MCP tools `fins_cpu_info` / `fins_cpu_status` / `fins_read_words` /
+  `fins_read_bits` / `fins_read_many` [READ, risk=low] + `fins_write_words`
+  [WRITE, risk=HIGH, MOC: dry-run default, BEFORE-value capture, undo
+  descriptor]; CLI `iaiops fins cpu|status|words|bits|write-words`
+  (double-confirm on `--apply`); `fins_session` via the B1 session factory;
+  `IAIOPS_MCP=fins` menu entry + `iaiops-mcp-fins` entrypoint; added to the
+  `factory` profile/extra (`fins = []` extra — stdlib, pins nothing).
+- Self-test: in-repo mock FINS UDP/TCP responder (tests/test_fins.py). Live
+  Omron PLC behaviour and banked-EM access remain 待核实.
+
 ## 0.9.0 — 2026-07-02
 
 ### Security — governance hardening (from full audit)

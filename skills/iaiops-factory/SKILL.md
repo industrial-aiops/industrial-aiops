@@ -2,7 +2,8 @@
 name: iaiops-factory
 description: >-
   Factory edition of iaiops — discrete-manufacturing lines: OPC-UA, Modbus-TCP/RTU,
-  Siemens S7comm (S7-300/400/1200/1500), Mitsubishi MC/MELSEC, Allen-Bradley
+  Siemens S7comm (S7-300/400/1200/1500), Mitsubishi MC/MELSEC, Omron FINS
+  (CS/CJ/CP/NX), Allen-Bradley
   EtherNet/IP (ControlLogix/CompactLogix), EtherCAT (CoE/SOEM), PROFINET (DCP
   discovery), MTConnect (CNC machine tools), MQTT/Sparkplug B/UNS, plus the
   cross-protocol brain (downtime root-cause, OEE, asset inventory). Use for PLC,
@@ -11,12 +12,12 @@ description: >-
   Phoenix Contact PLCnext vPLC (via its built-in OPC-UA + Modbus servers).
 ---
 
-# iaiops-factory — 离散制造 edition（9 协议 + 脑）
+# iaiops-factory — 离散制造 edition（10 协议 + 脑）
 
 启动：`IAIOPS_MCP=factory` / `iaiops-mcp-factory`。PLCnext vPLC 现场用精简
 `IAIOPS_MCP=plcnext` / `iaiops-mcp-plcnext`（= opcua+modbus，走 vPLC 内建服务）。
 单协议现场直接 `IAIOPS_MCP=<协议>`。EtherCAT 需 extra：`pip install iaiops[ethercat]`；
-PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）。
+PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Omron FINS 客户端为 in-repo 纯 stdlib 实现，无需第三方库。
 
 ## 工具
 
@@ -40,6 +41,12 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）。
 ### 三菱 MC（3E；Q/L/iQ）
 - `mc_cpu_status` `mc_read_words` `mc_read_bits` `mc_read_many`
 - `mc_write_words` — **[WRITE][HIGH][MOC]**（默认 off）
+
+### Omron FINS（in-repo stdlib 客户端；CS/CJ/CP/NX-via-FINS）
+- `fins_cpu_info`(0501 CPU 型号/版本) `fins_cpu_status`(0601 运行状态/模式/故障字)
+- `fins_read_words`(0101; DM/CIO/W/H/A/EM, ≤500 字) `fins_read_bits`
+  `fins_read_many`(单会话批量, ≤20 项)
+- `fins_write_words` — **[WRITE][HIGH][MOC]**（0102；默认 off）
 
 ### Allen-Bradley EtherNet/IP（pycomm3）
 - `eip_controller_info` `eip_list_tags` `eip_read_tag` `eip_read_many`
@@ -91,7 +98,7 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）。
    之类协议自检）→ 再读数。
 2. **Read-first**：browse/list → 单点读 → 批量/采样；"没数据"用 `diagnose_dataflow`，
    停机用 `downtime_root_cause_live`（advisory + 证据链）。
-3. **MOC 写**：本 edition 的 7 个写工具（s7/mc/eip/ethercat×2/profinet/mqtt）统一
+3. **MOC 写**：本 edition 的 8 个写工具（s7/mc/fins/eip/ethercat×2/profinet/mqtt）统一
    `risk=HIGH` + 默认 `dry_run=True` + 改前值 undo + `iaiops approve` 具名审批
    双确认。未经授权绝不写生产控制系统。
 
@@ -104,6 +111,7 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）。
 | Modbus-RTU | `pymodbus>=3.5,<4` + `pyserial>=3.5` | Modbus serial (RTU) | 串口从站 | RS-485/serial | ✅ socat PTY 真串口链路 verified 2026-07-02；物理 RS-485 待核实 |
 | S7comm | `pyS7>=2.8,<3` | ISO-on-TCP (RFC1006) | S7-300/400/1200/1500（后者需开 PUT/GET、关 optimized DB） | TCP/102 | ✅ |
 | 三菱 MC | `pymcprotocol>=0.3,<1` | MC/SLMP 3E（1E 待核实） | Q/L/iQ-R/iQ-F | TCP/UDP | ✅ |
+| Omron FINS | in-repo stdlib client（无第三方 pin） | FINS per Omron W227/W342（0101/0102/0501/0601 子集；CS/CJ-mode 区码） | CS/CJ/CP/NX(NJ via FINS) 家族（厂内覆盖 待核实） | UDP 9600（默认）+ FINS/TCP | ✅ in-repo mock responder 验证（tests/test_fins.py）；live PLC 待核实 |
 | EtherNet/IP | `pycomm3>=1.2,<2` | EtherNet/IP+CIP, tag-based | AB Logix：Control/Compact/Micro800 | TCP/44818 | ✅ |
 | EtherCAT | `pysoem>=1.1,<2`（extra） | EtherCAT；CoE SDO/PDO | SOEM 兼容主从 | Linux+root+真从站 | ⚠️ 无软仿真；真机 待核实 |
 | PROFINET | `pnio-dcp>=1.1,<3`（extra） | DCP 发现/诊断，**不碰 RT 循环** | 西门子系 PN 站 | L2 raw socket | ✅ mock；真机 待核实 |

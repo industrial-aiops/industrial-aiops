@@ -15,6 +15,7 @@ from iaiops.cli.doctor import doctor_cmd
 from iaiops.cli.eip import eip_app
 from iaiops.cli.ethercat import ethercat_app
 from iaiops.cli.export import export_cmd
+from iaiops.cli.fins import fins_app
 from iaiops.cli.hart import hart_app
 from iaiops.cli.historian import coverage_cmd, query_cmd
 from iaiops.cli.init import init_cmd
@@ -33,7 +34,7 @@ app = typer.Typer(
     name="iaiops",
     help="Governed, vendor-neutral OT data tap + intelligent troubleshooting for "
     "AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / "
-    "MQTT-Sparkplug / EtherNet-IP / EtherCAT) + OEE/asset analytics. Read-first; "
+    "MQTT-Sparkplug / EtherNet-IP / EtherCAT / Omron FINS) + OEE/asset analytics. Read-first; "
     "writes are MOC-gated.",
     no_args_is_help=True,
 )
@@ -42,6 +43,7 @@ app.add_typer(opcua_app, name="opcua")
 app.add_typer(modbus_app, name="modbus")
 app.add_typer(s7_app, name="s7")
 app.add_typer(mc_app, name="mc")
+app.add_typer(fins_app, name="fins")
 app.add_typer(mtconnect_app, name="mtconnect")
 app.add_typer(mqtt_app, name="mqtt")
 app.add_typer(eip_app, name="eip")

@@ -42,6 +42,7 @@ PROTOCOL_MODULES = {
     "profinet": "profinet_tools",
     "bacnet": "bacnet_tools",
     "hart": "hart_tools",
+    "fins": "fins_tools",
 }
 
 # Always registered, even under IAIOPS_MCP_NO_BRAIN: the self-description /
@@ -82,8 +83,8 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # Pair with IAIOPS_MCP_NO_BRAIN=1 protocol servers at multi-process sites.
     "brain": (),
     "fab": ("secsgem", "opcua", "s7", "modbus"),
-    "factory": ("modbus", "s7", "eip", "mc", "ethercat", "profinet", "mtconnect",
-                "opcua", "sparkplug"),
+    "factory": ("modbus", "s7", "eip", "mc", "fins", "ethercat", "profinet",
+                "mtconnect", "opcua", "sparkplug"),
     "process": ("opcua", "modbus", "hart"),
     # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).
     "building": ("bacnet", "modbus", "opcua"),
