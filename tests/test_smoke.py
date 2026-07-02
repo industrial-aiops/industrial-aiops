@@ -17,7 +17,9 @@ EXPECTED_TOOLS = {
     "opcua_server_info", "opcua_browse", "opcua_read_node", "opcua_read_many",
     "opcua_subscribe_sample", "opcua_read_alarms", "opcua_read_history",
     "opcua_discover_tags",
-    # problem surfacing
+    # OPC-UA problem surfacing (B4 rename)
+    "opcua_health_summary", "opcua_anomaly_scan",
+    # problem surfacing — DEPRECATED aliases (removed in 0.11)
     "health_summary", "anomaly_scan",
     # Modbus
     "modbus_read_holding", "modbus_read_input", "modbus_read_coils",
@@ -27,6 +29,9 @@ EXPECTED_TOOLS = {
     "s7_cpu_info", "s7_read_area", "s7_read_db", "s7_read_many", "s7_write_db",
     # Mitsubishi MC
     "mc_cpu_status", "mc_read_words", "mc_read_bits", "mc_read_many", "mc_write_words",
+    # Omron FINS (in-repo stdlib client)
+    "fins_cpu_info", "fins_cpu_status", "fins_read_words", "fins_read_bits",
+    "fins_read_many", "fins_write_words",
     # MTConnect (CNC machine tools)
     "mtconnect_probe", "mtconnect_current", "mtconnect_sample", "mtconnect_assets",
     "mtconnect_oee_snapshot",
@@ -55,15 +60,24 @@ EXPECTED_TOOLS = {
     # PROFINET (DCP discovery + MOC-gated Set)
     "profinet_discover", "profinet_identify_station", "profinet_station_params",
     "profinet_asset_inventory", "profinet_dcp_set",
+    # IO-Link (master JSON integration — read-only sensor visibility)
+    "iolink_master_info", "iolink_ports", "iolink_device_info",
+    "iolink_read_pdin", "iolink_read_isdu", "iolink_scan",
     # tag intelligence — adopted alias map persistence + diff
     "adopt_alias_map", "diff_alias_map",
+    # conservative baseline learning (A6) — change-log baseline
+    "baseline_learn", "baseline_check", "baseline_record_change", "baseline_status",
+    # historian READ integration (A7)
+    "historian_query", "historian_coverage",
+    # legacy PLC program explainer (A8) — exported ST/AWL/L5X files, read-only
+    "plc_program_outline", "plc_program_xref", "plc_program_section",
     # self-description
     "protocols_supported",
 }
 
 # Tools that perform an OT-dangerous write/command — must be governed high-risk.
 WRITE_TOOLS = {
-    "s7_write_db", "mc_write_words", "mqtt_publish", "eip_write_tag",
+    "s7_write_db", "mc_write_words", "fins_write_words", "mqtt_publish", "eip_write_tag",
     "ethercat_write_sdo", "ethercat_set_state",
     "profinet_dcp_set", "bacnet_write_property",
 }
@@ -83,7 +97,11 @@ def test_all_modules_import():
         "iaiops.connectors.modbus.ops",
         "iaiops.connectors.s7.ops",
         "iaiops.connectors.mc.ops",
+        "iaiops.connectors.fins.client",
+        "iaiops.connectors.fins.transport",
+        "iaiops.connectors.fins.ops",
         "iaiops.connectors.mtconnect.ops",
+        "iaiops.connectors.iolink.ops",
         "iaiops.connectors.sparkplug.ops",
         "iaiops.connectors.sparkplug.live",
         "iaiops.connectors.eip.ops",
@@ -94,6 +112,9 @@ def test_all_modules_import():
         "iaiops.core.brain.semantics",
         "iaiops.core.brain.monitor",
         "iaiops.core.brain.diagnostics",
+        "iaiops.core.brain.rca_history",
+        "iaiops.core.sink.reader",
+        "iaiops.cli.historian",
         "iaiops.core.brain.alarm_flood",
         "iaiops.core.brain.overview",
         "iaiops.connectors.ethercat.ops",
@@ -105,7 +126,9 @@ def test_all_modules_import():
         "iaiops.cli.modbus",
         "iaiops.cli.s7",
         "iaiops.cli.mc",
+        "iaiops.cli.fins",
         "iaiops.cli.mtconnect",
+        "iaiops.cli.iolink",
         "iaiops.cli.mqtt",
         "iaiops.cli.eip",
         "iaiops.cli.ethercat",
@@ -121,7 +144,9 @@ def test_all_modules_import():
         "mcp_server.tools.modbus_tools",
         "mcp_server.tools.s7_tools",
         "mcp_server.tools.mc_tools",
+        "mcp_server.tools.fins_tools",
         "mcp_server.tools.mtconnect_tools",
+        "mcp_server.tools.iolink_tools",
         "mcp_server.tools.sparkplug_tools",
         "mcp_server.tools.eip_tools",
         "mcp_server.tools.oee_tools",
@@ -155,8 +180,9 @@ def test_cli_app_builds_and_help_works():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for sub in ("opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "eip", "ethercat",
-                "diag", "analytics", "secret", "init", "doctor", "mcp", "protocols"):
+    for sub in ("opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "eip",
+                "ethercat", "iolink", "diag", "analytics", "secret", "init", "doctor",
+                "mcp", "protocols"):
         assert sub in result.output
 
 
@@ -173,9 +199,12 @@ def test_cli_leaf_help_triggers_lazy_imports():
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
     for cmd in (
         ["opcua", "--help"], ["modbus", "--help"], ["s7", "--help"],
-        ["mc", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
+        ["mc", "--help"], ["fins", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
         ["eip", "--help"], ["ethercat", "--help"], ["analytics", "--help"],
         ["diag", "--help"],
+        ["mc", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
+        ["eip", "--help"], ["ethercat", "--help"], ["iolink", "--help"],
+        ["analytics", "--help"], ["diag", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
@@ -192,9 +221,15 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["s7", "read", "--help"], ["s7", "write-db", "--help"],
         ["mc", "cpu", "--help"], ["mc", "words", "--help"],
         ["mc", "bits", "--help"], ["mc", "write-words", "--help"],
+        ["fins", "cpu", "--help"], ["fins", "status", "--help"],
+        ["fins", "words", "--help"], ["fins", "bits", "--help"],
+        ["fins", "write-words", "--help"],
         ["mtconnect", "probe", "--help"], ["mtconnect", "current", "--help"],
         ["mtconnect", "sample", "--help"], ["mtconnect", "assets", "--help"],
         ["mtconnect", "oee", "--help"],
+        ["iolink", "master", "--help"], ["iolink", "ports", "--help"],
+        ["iolink", "device", "--help"], ["iolink", "pdin", "--help"],
+        ["iolink", "isdu", "--help"], ["iolink", "scan", "--help"],
         ["mqtt", "read", "--help"], ["mqtt", "nodes", "--help"],
         ["mqtt", "browse", "--help"], ["mqtt", "publish", "--help"],
         ["eip", "info", "--help"], ["eip", "tags", "--help"],
@@ -259,8 +294,8 @@ def test_unsupported_protocol_rejected():
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "protocol",
-    ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
-     "secsgem", "profinet", "bacnet", "hart"],
+    ["opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "ethernetip",
+     "ethercat", "secsgem", "profinet", "bacnet", "hart", "iolink"],
 )
 def test_supported_protocols_accepted(protocol):
     from iaiops.core.runtime.config import TargetConfig
@@ -301,8 +336,10 @@ def test_protocols_supported_lists_all():
 
     out = protocols_supported()
     assert set(out["implemented_protocols"]) == {
+        "opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "ethernetip",
+        "ethercat", "secsgem", "profinet", "bacnet", "hart",
         "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
-        "secsgem", "profinet", "bacnet", "hart",
+        "secsgem", "profinet", "bacnet", "hart", "iolink",
     }
     assert set(out["roadmap_stubs"]) == set()
     assert "asset_inventory" in out["analytics"]

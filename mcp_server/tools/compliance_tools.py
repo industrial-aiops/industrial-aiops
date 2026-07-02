@@ -8,7 +8,7 @@ optional extras (``iaiops[tdengine]`` / ``iaiops[iotdb]``) imported lazily.
 """
 
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.core.brain.compliance import compliance_dengbao_levels as _compliance_dengbao_levels
 from iaiops.core.brain.compliance import compliance_frameworks as _compliance_frameworks
@@ -171,7 +171,7 @@ def compliance_evidence_bundle(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def historian_push(
-    points: list,
+    points: list[dict[str, Any]],
     sink: str,
     host: str = "localhost",
     port: int = 0,
@@ -179,7 +179,7 @@ def historian_push(
     password: str = "",
     database: str = "",
 ) -> dict:
-    """[WRITE→historian][risk=low] Push collected telemetry to a national TSDB.
+    """[WRITE][risk=low][→historian] Push collected telemetry to a national TSDB.
 
     Writes already-collected points to a domestic historian (信创) — TDengine or
     IoTDB — instead of binding InfluxDB. Data egress to the operator's OWN database,

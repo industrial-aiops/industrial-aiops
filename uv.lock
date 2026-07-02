@@ -498,7 +498,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.9.0"
+version = "0.10.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -533,6 +533,7 @@ building = [
     { name = "bac0" },
     { name = "pymodbus" },
     { name = "pyserial" },
+    { name = "requests" },
 ]
 eip = [
     { name = "pycomm3" },
@@ -565,6 +566,9 @@ factory = [
 ]
 hart = [
     { name = "hart-protocol" },
+]
+iolink = [
+    { name = "requests" },
 ]
 iotdb = [
     { name = "apache-iotdb" },
@@ -640,8 +644,11 @@ requires-dist = [
     { name = "iaiops", extras = ["bacnet"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["eip"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["ethercat"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["fins"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'water'" },
+    { name = "iaiops", extras = ["iolink"], marker = "extra == 'building'" },
+    { name = "iaiops", extras = ["iolink"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["iotdb"], marker = "extra == 'xinchuang'" },
     { name = "iaiops", extras = ["mc"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'building'" },
@@ -651,6 +658,7 @@ requires-dist = [
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'iolink'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'factory'" },
@@ -693,7 +701,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "tdengine", "iotdb", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [

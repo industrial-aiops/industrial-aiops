@@ -4,12 +4,12 @@ All diagnostics are non-destructive (risk_level='low'). They return structured,
 multi-dimensional JSON designed for an agent to visualize.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.core.brain import dataquality as dq
 from iaiops.core.brain import diagnostics as diag
 from iaiops.core.brain import rca as rca_brain
-from iaiops.core.brain import rca_collect, rca_weights
+from iaiops.core.brain import rca_collect, rca_history, rca_weights
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -21,7 +21,7 @@ def diagnose_dataflow(
     endpoint: Optional[str] = None,
     ref: Optional[str] = None,
     freshness_threshold_s: int = 60,
-    series: Optional[list] = None,
+    series: Optional[list[Any]] = None,
     flatline_eps: float = 1e-9,
 ) -> dict:
     """[READ][risk=low] Localize a 'no data' break across an endpoint's reachable hops.
@@ -55,7 +55,7 @@ def diagnose_dataflow(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def historian_health(
-    series: list, gap_threshold_s: float = 60.0, flatline_eps: float = 1e-9
+    series: list[Any], gap_threshold_s: float = 60.0, flatline_eps: float = 1e-9
 ) -> dict:
     """[READ][risk=low] Bad-tag / flatline / gap detection over a provided series.
 
@@ -80,7 +80,7 @@ def historian_health(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def alarm_bad_actors(
-    events: list,
+    events: list[dict[str, Any]],
     window_minutes: Optional[float] = None,
     chatter_window_s: float = 60.0,
     standing_s: float = 86400.0,
@@ -111,7 +111,10 @@ def alarm_bad_actors(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def tag_health(tags: list, thresholds: Optional[dict] = None) -> dict:
+def tag_health(
+    tags: list[dict[str, Any]],
+    thresholds: Optional[dict[str, dict[str, float]]] = None,
+) -> dict:
     """[READ][risk=low] Rank tag offenders by bad-quality / flatline / range / anomaly.
 
     Args:
@@ -133,10 +136,10 @@ def tag_health(tags: list, thresholds: Optional[dict] = None) -> dict:
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def subscription_health(
-    sequence: list,
+    sequence: list[int],
     republish_requested: int = 0,
     republish_rejected: int = 0,
-    tags_per_channel: Optional[dict] = None,
+    tags_per_channel: Optional[dict[str, int]] = None,
     max_tags_per_channel: int = 5000,
     wrap_at: Optional[int] = None,
 ) -> dict:
@@ -176,13 +179,13 @@ def subscription_health(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def downtime_root_cause(
-    window: dict,
-    alarms: Optional[list] = None,
-    tags: Optional[list] = None,
-    dataflow: Optional[dict] = None,
-    state_series: Optional[list] = None,
+    window: dict[str, Any],
+    alarms: Optional[list[dict[str, Any]]] = None,
+    tags: Optional[list[dict[str, Any]]] = None,
+    dataflow: Optional[dict[str, Any]] = None,
+    state_series: Optional[list[dict[str, Any]]] = None,
     lead_window_s: float = 300.0,
-    cause_weights: Optional[dict] = None,
+    cause_weights: Optional[dict[str, float]] = None,
 ) -> dict:
     """[READ][risk=low] AI downtime root-cause copilot — cited verdict, ADVISORY only.
 
@@ -210,6 +213,11 @@ def downtime_root_cause(
             default) before the noisy-OR. Unknown causes / non-numeric weights are
             rejected; values are clamped. Omit for the shipped default weighting.
 
+    When a per-site 'historian:' block is configured (~/.iaiops/config.yaml, A7),
+    the 2h pre-incident window is additionally pulled from that reader and scored
+    as historian trend evidence — cited with its source ('historian:<name>'),
+    window, and sample count. Without the config, behaviour is unchanged.
+
     Returns dict: {window, verdict ('root_cause_identified'|'multiple_candidates'|
         'insufficient_evidence'), primary_cause, hypotheses:[{cause, confidence (0..1),
         confidence_band, evidence:[{signal, ref, at?, lead_time_s?, detail, weight}],
@@ -220,8 +228,11 @@ def downtime_root_cause(
         alarms=[{"source":"M1_DRIVE","timestamp":"2026-06-28T09:59:50Z",
                  "message":"motor overload trip"}], dataflow={"verdict":"healthy"}).
     """
+    refs = [t.get("ref") for t in (tags or []) if isinstance(t, dict) and t.get("ref")]
+    historian = rca_history.gather_pre_incident(window, refs or None)
     return rca_brain.downtime_rca(
-        window, alarms, tags, dataflow, state_series, lead_window_s, cause_weights
+        window, alarms, tags, dataflow, state_series, lead_window_s, cause_weights,
+        historian=historian,
     )
 
 
@@ -230,8 +241,8 @@ def downtime_root_cause(
 @tool_errors("dict")
 def downtime_root_cause_live(
     endpoint: Optional[str] = None,
-    window: Optional[dict] = None,
-    refs: Optional[list] = None,
+    window: Optional[dict[str, Any]] = None,
+    refs: Optional[list[str]] = None,
     sample_count: int = 8,
     interval_ms: int = 200,
     include_alarms: bool = True,
@@ -276,7 +287,7 @@ def downtime_root_cause_live(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def learn_cause_weights(
-    history: list,
+    history: list[dict[str, Any]],
     min_samples: int = 8,
     smoothing: float = 1.0,
 ) -> dict:
@@ -313,7 +324,7 @@ def learn_cause_weights(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def data_quality_scorecard(
-    feeds: list, default_staleness_s: float = 300.0, now: Optional[str] = None
+    feeds: list[dict[str, Any]], default_staleness_s: float = 300.0, now: Optional[str] = None
 ) -> dict:
     """[READ][risk=low] Fleet data-TRUST scorecard across endpoints' tag feeds.
 
@@ -343,7 +354,7 @@ def data_quality_scorecard(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def data_quality_fleet_rollup(
-    feeds: list,
+    feeds: list[dict[str, Any]],
     default_staleness_s: float = 300.0,
     now: Optional[str] = None,
     top_n: int = 10,
@@ -381,7 +392,7 @@ def data_quality_fleet_rollup(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def heartbeat_health(series: list, max_interval_s: Optional[float] = None) -> dict:
+def heartbeat_health(series: list[Any], max_interval_s: Optional[float] = None) -> dict:
     """[READ][risk=low] Is a heartbeat/watchdog tag still alive? (liveness check).
 
     A heartbeat must keep CHANGING; a flatlined one means the upstream is dead even

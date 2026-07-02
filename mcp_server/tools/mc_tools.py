@@ -69,8 +69,8 @@ def mc_read_bits(headdevice: str, endpoint: Optional[str] = None, count: int = 1
 @tool_errors("dict")
 def mc_read_many(
     endpoint: Optional[str] = None,
-    word_devices: Optional[list] = None,
-    dword_devices: Optional[list] = None,
+    word_devices: Optional[list[str]] = None,
+    dword_devices: Optional[list[str]] = None,
 ) -> dict:
     """[READ][risk=low] Random-read scattered word + dword devices in one request.
 
@@ -86,7 +86,7 @@ def mc_read_many(
     return ops.mc_read_many(_target(endpoint), word_devices, dword_devices)
 
 
-def _mc_undo(params: dict, result: Any) -> Optional[dict]:
+def _mc_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied mc_write_words: restore captured BEFORE words."""
     if not isinstance(result, dict) or not result.get("applied"):
         return None
@@ -110,7 +110,7 @@ def _mc_undo(params: dict, result: Any) -> Optional[dict]:
 @tool_errors("dict")
 def mc_write_words(
     headdevice: str,
-    values: list,
+    values: list[int],
     endpoint: Optional[str] = None,
     dry_run: bool = True,
 ) -> dict:
