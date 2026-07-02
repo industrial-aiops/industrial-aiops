@@ -47,6 +47,8 @@ description: >-
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
   `health_summary` `anomaly_scan`
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
+- 基线：`baseline_learn` `baseline_check` `baseline_record_change` `baseline_status`
+  （change-log 基线：拒学薄历史、只报持续越带、每次告警必引基线样本 —— 非黑盒异常检测）
 - 合规/信创：`compliance_mapping` `compliance_frameworks` `compliance_dengbao_levels`
   `compliance_report` `compliance_evidence_bundle`
   `historian_push` `export_data`

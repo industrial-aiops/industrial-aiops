@@ -57,6 +57,8 @@ EXPECTED_TOOLS = {
     "profinet_asset_inventory", "profinet_dcp_set",
     # tag intelligence — adopted alias map persistence + diff
     "adopt_alias_map", "diff_alias_map",
+    # conservative baseline learning (A6) — change-log baseline
+    "baseline_learn", "baseline_check", "baseline_record_change", "baseline_status",
     # self-description
     "protocols_supported",
 }

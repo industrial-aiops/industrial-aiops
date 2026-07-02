@@ -10,6 +10,21 @@
   `_build_*`/`_translate_*` moved into its connector (`iaiops/connectors/<proto>/transport.py`),
   with `connection.py` reduced to a thin assembly module keeping the exact same public API,
   semantics, and test monkeypatch points (`connection._build_<proto>_*`). Zero behavior change.
+### Added — conservative baseline learning (A6)
+- **Change-log baseline — explicitly NOT black-box anomaly detection** (MARKET-INSIGHTS R6:
+  zero false positives or it is noise). New brain modules `iaiops.core.brain.baseline`
+  (pure: robust p1/p99 + median/MAD band, no ML deps) and `baseline_store`
+  (`~/.iaiops/baselines.json`, owner-only 0600, atomic writes).
+- Learning **refuses thin history** (< 100 usable samples or < 24h span) with an explicit
+  `insufficient_data` verdict listing exactly what is missing; operator changes recorded via
+  the change log restart learning at the latest change point (the band never mixes regimes).
+- Checking is **silent by default**: violations only beyond p1/p99 by > 3×MAD AND sustained
+  ≥ 3 consecutive samples (single spikes never flagged); every violation cites the baseline
+  window (from/to ts, n samples), the band values, and the offending samples' ts/values.
+- New governed MCP tools (all `[READ][risk=low]`, always exposed with the brain):
+  `baseline_learn` / `baseline_check` / `baseline_record_change` / `baseline_status`
+  (`no_baseline` / `learning` / `ok` / `violation` — never guesses; bounded outputs).
+- New CLI: `iaiops baseline learn|check|change|status` over the local SQLite history.
 
 ## 0.9.0 — 2026-07-02
 
