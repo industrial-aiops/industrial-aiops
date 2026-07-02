@@ -59,6 +59,8 @@ EXPECTED_TOOLS = {
     "adopt_alias_map", "diff_alias_map",
     # conservative baseline learning (A6) — change-log baseline
     "baseline_learn", "baseline_check", "baseline_record_change", "baseline_status",
+    # historian READ integration (A7)
+    "historian_query", "historian_coverage",
     # self-description
     "protocols_supported",
 }
@@ -96,6 +98,9 @@ def test_all_modules_import():
         "iaiops.core.brain.semantics",
         "iaiops.core.brain.monitor",
         "iaiops.core.brain.diagnostics",
+        "iaiops.core.brain.rca_history",
+        "iaiops.core.sink.reader",
+        "iaiops.cli.historian",
         "iaiops.core.brain.alarm_flood",
         "iaiops.core.brain.overview",
         "iaiops.connectors.ethercat.ops",

@@ -9,7 +9,7 @@ from typing import Optional
 from iaiops.core.brain import dataquality as dq
 from iaiops.core.brain import diagnostics as diag
 from iaiops.core.brain import rca as rca_brain
-from iaiops.core.brain import rca_collect, rca_weights
+from iaiops.core.brain import rca_collect, rca_history, rca_weights
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -210,6 +210,11 @@ def downtime_root_cause(
             default) before the noisy-OR. Unknown causes / non-numeric weights are
             rejected; values are clamped. Omit for the shipped default weighting.
 
+    When a per-site 'historian:' block is configured (~/.iaiops/config.yaml, A7),
+    the 2h pre-incident window is additionally pulled from that reader and scored
+    as historian trend evidence — cited with its source ('historian:<name>'),
+    window, and sample count. Without the config, behaviour is unchanged.
+
     Returns dict: {window, verdict ('root_cause_identified'|'multiple_candidates'|
         'insufficient_evidence'), primary_cause, hypotheses:[{cause, confidence (0..1),
         confidence_band, evidence:[{signal, ref, at?, lead_time_s?, detail, weight}],
@@ -220,8 +225,11 @@ def downtime_root_cause(
         alarms=[{"source":"M1_DRIVE","timestamp":"2026-06-28T09:59:50Z",
                  "message":"motor overload trip"}], dataflow={"verdict":"healthy"}).
     """
+    refs = [t.get("ref") for t in (tags or []) if isinstance(t, dict) and t.get("ref")]
+    historian = rca_history.gather_pre_incident(window, refs or None)
     return rca_brain.downtime_rca(
-        window, alarms, tags, dataflow, state_series, lead_window_s, cause_weights
+        window, alarms, tags, dataflow, state_series, lead_window_s, cause_weights,
+        historian=historian,
     )
 
 

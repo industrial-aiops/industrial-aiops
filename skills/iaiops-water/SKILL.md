@@ -52,7 +52,7 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
   （change-log 基线：拒学薄历史、只报持续越带、每次告警必引基线样本 —— 非黑盒异常检测）
 - 合规/信创：`compliance_mapping` `compliance_frameworks` `compliance_dengbao_levels`
   `compliance_report` `compliance_evidence_bundle`
-  `historian_push` `export_data`
+  `historian_push` `export_data` `historian_query` `historian_coverage`
 - 元：`protocols_supported`
 
 ## Workflows
