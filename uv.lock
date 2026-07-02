@@ -498,7 +498,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.7.0"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -607,6 +607,12 @@ tdengine = [
     { name = "taospy", version = "2.8.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "taospy", version = "2.8.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
+water = [
+    { name = "asyncua" },
+    { name = "hart-protocol" },
+    { name = "pymodbus" },
+    { name = "pyserial" },
+]
 xinchuang = [
     { name = "apache-iotdb" },
     { name = "taospy", version = "2.8.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -632,6 +638,7 @@ requires-dist = [
     { name = "iaiops", extras = ["eip"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["ethercat"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'process'" },
+    { name = "iaiops", extras = ["hart"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["iotdb"], marker = "extra == 'xinchuang'" },
     { name = "iaiops", extras = ["mc"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'building'" },
@@ -639,12 +646,14 @@ requires-dist = [
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'plcnext'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'process'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'plcnext'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'process'" },
+    { name = "iaiops", extras = ["opcua"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["profinet"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["s7"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["s7"], marker = "extra == 'factory'" },
@@ -680,7 +689,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "tdengine", "iotdb", "all", "fab", "factory", "process", "building", "plcnext", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "tdengine", "iotdb", "all", "fab", "factory", "process", "building", "plcnext", "water", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -41,6 +41,24 @@
 - `server.json`: title corrected to "Industrial-AIOps", `environmentVariables` declared
   (`IAIOPS_MCP`, `IAIOPS_CONFIG`, `IAIOPS_MASTER_PASSWORD`).
 
+### Added — water treatment edition (A9)
+- **`water` profile** (水处理): `IAIOPS_MCP=water` exposes exactly modbus + opcua + hart
+  (+ the always-on brain), with a matching `iaiops-mcp-water` console script and an
+  `iaiops[water]` extra that references the per-protocol extras (no duplicated pins).
+- **Water-domain semantics**: the tag classifier gains dissolved_oxygen (DO/溶解氧),
+  orp (氧化还原/redox), chlorine (余氯/总氯), ammonia (氨氮/NH3), suspended_solids
+  (TSS/MLSS/悬浮物), membrane_pressure (TMP/跨膜压差), uv_intensity (紫外), dosing
+  (加药) and aeration (曝气/风机/blower) classes, plus 流量/液位 hints on flow/level.
+  Ambiguous bare tokens (do/tmp/orp) stay underscore-/context-guarded — honest `other`
+  over a confident-but-wrong class.
+- **Water-industry Modbus register templates**: `eh_promag_flowmeter` (E+H Promag
+  process values), `hach_sc_controller` (pH/DO/turbidity sensor slots) and
+  `generic_dosing_pump` (加药泵 block). All three ship with explicit 待核实 caveats and
+  placeholder offsets where no fixed public vendor map exists — no invented "verified"
+  addresses.
+- New `tests/test_water_edition.py` pins the profile/entrypoint/extra contract, the
+  water tag classes and the template catalog.
+
 ## 0.8.0 — 2026-07-02
 
 ### Changed — energy edition split out
