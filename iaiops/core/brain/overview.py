@@ -177,9 +177,12 @@ PROTOCOLS: tuple[dict, ...] = (
         ],
         "write_tools": ["bacnet_write_property (HIGH/MOC)"],
         "params": ["host (local BACnet/IP interface, e.g. 10.0.0.5/24)", "port(47808)"],
-        "requirements": "Building edition extra. BAC0 who_is/read/write/cov/cancel_cov/"
-        "readRange/disconnect surface verified (2026-06-30); live building/HVAC "
-        "read + write + COV/trend behaviour still 待核实 (no gear).",
+        "requirements": "Building edition extra. The READ PATH — Who-Is discover + "
+        "present-value read + object-list/read-points — is VERIFIED live against a "
+        "real bacpypes3 virtual BACnet/IP device on a two-IP subnet in a Linux "
+        "container (2026-07-02, tests/test_bacnet_live.py); async BAC0 (2024+) "
+        "coroutines are bridged onto a dedicated event loop. Live COV/trend-log "
+        "reads + property WRITE on real HVAC gear still 待核实 (not exercised live).",
         "not_supported": "Property writes (present-value with priority/relinquish) are "
         "exposed (bacnet_write_property, HIGH/MOC); object create/delete + file "
         "transfer = out of scope.",
