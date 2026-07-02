@@ -192,6 +192,11 @@ machine's BACnet/IP interface (`ip` or `ip/mask`). Read-first; the one write,
 - `historian_health` — bad-tag / flatline / gap detection over a series
 - `alarm_bad_actors` — ISA-18.2 alarm-flood analysis (rate vs <6/12/30, Pareto
   offenders, chattering, standing) over an event list
+- `alarm_flood_analysis` — ISA-18.2 deep dive: flood *episodes* (start/end/peak
+  rate/top contributors), chattering cycles, stale/standing alarms, percent-time-in-flood
+  vs targets — over injected events or a live OPC-UA active-condition scan
+- `alarm_rationalization_worksheet` — per-alarm rationalization rows (count, share,
+  chattering?, in-flood?, recommendation) as bounded inline rows or a CSV file
 - `tag_health` — rank tag offenders by bad-quality / flatline / range / anomaly
 - `subscription_health` — sequenced-feed loss/reorder/overload (OPC-UA monitored items
   or Sparkplug B): sequence gaps, republish-rejection rate, overloaded channels
