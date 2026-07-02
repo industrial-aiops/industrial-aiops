@@ -50,6 +50,7 @@ description: >-
 - 合规/信创：`compliance_mapping` `compliance_frameworks` `compliance_dengbao_levels`
   `compliance_report` `compliance_evidence_bundle`
   `historian_push` `export_data`
+- 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
 - 元：`protocols_supported`
 
 ## Workflows

@@ -47,6 +47,9 @@ BRAIN_MODULES = (
     "compliance_tools",
     # Queryability layer (A2): export the local SQLite sink (CSV/SQLite/Parquet).
     "export_tools",
+    # Legacy PLC program explainer (A8): outline/xref/section over EXPORTED
+    # ST/AWL/L5X text files — read-only, cite-first, never a live PLC upload.
+    "plc_program_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are
