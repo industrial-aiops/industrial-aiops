@@ -81,7 +81,7 @@ def _tool_count(launch: str) -> int:
     return int(out.strip())
 
 
-@pytest.mark.parametrize("name", ["opcua", "modbus", "fab", "energy", "building"])
+@pytest.mark.parametrize("name", ["opcua", "modbus", "fab", "building"])
 def test_shim_tool_set_matches_env_var(name):
     via_env = _tool_count(
         f"import os; os.environ['IAIOPS_MCP'] = {name!r};"

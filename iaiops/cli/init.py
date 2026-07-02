@@ -17,10 +17,7 @@ from iaiops.core.runtime.config import (
     CONFIG_DIR,
     CONFIG_FILE,
     DEFAULT_BACNET_PORT,
-    DEFAULT_DNP3_PORT,
     DEFAULT_EIP_PORT,
-    DEFAULT_IEC104_PORT,
-    DEFAULT_IEC61850_PORT,
     DEFAULT_MC_PORT,
     DEFAULT_MODBUS_PORT,
     DEFAULT_MQTT_PORT,
@@ -108,31 +105,6 @@ def _prompt_protocol(protocol: str, name: str, store):
         entry["host"] = typer.prompt(
             "THIS machine's IP on the PROFINET subnet (DCP broadcast source)"
         ).strip()
-    elif protocol == "iec104":
-        console.print(
-            "[yellow]IEC 60870-5-104 read-only monitoring — optional extra "
-            "'pip install iaiops[iec104]'. Preview: not yet validated against a live RTU.[/]"
-        )
-        entry["host"] = typer.prompt("IEC-104 RTU host (IP/FQDN)").strip()
-        entry["port"] = typer.prompt("Port", default=DEFAULT_IEC104_PORT, type=int)
-        entry["common_address"] = typer.prompt("ASDU common address (CA)", default=1, type=int)
-    elif protocol == "dnp3":
-        console.print(
-            "[yellow]DNP3 read-only monitoring — optional extra "
-            "'pip install iaiops[dnp3]'. Preview: not yet validated against a live outstation.[/]"
-        )
-        entry["host"] = typer.prompt("DNP3 outstation host (IP/FQDN)").strip()
-        entry["port"] = typer.prompt("Port", default=DEFAULT_DNP3_PORT, type=int)
-        entry["unit_id"] = typer.prompt("Outstation (link) address", default=1, type=int)
-        entry["master_address"] = typer.prompt("Master (link) address", default=1, type=int)
-    elif protocol == "iec61850":
-        console.print(
-            "[yellow]IEC 61850 MMS read-only browse/read — optional extra "
-            "'pip install iaiops[iec61850]' (needs libiec61850 built). Preview: not "
-            "yet validated against a live IED.[/]"
-        )
-        entry["host"] = typer.prompt("IEC-61850 IED host (IP/FQDN)").strip()
-        entry["port"] = typer.prompt("MMS port", default=DEFAULT_IEC61850_PORT, type=int)
     elif protocol == "bacnet":
         console.print(
             "[yellow]BACnet/IP read-only facility/HVAC monitoring — optional extra "
