@@ -640,6 +640,7 @@ requires-dist = [
     { name = "iaiops", extras = ["bacnet"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["eip"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["ethercat"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["fins"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["iotdb"], marker = "extra == 'xinchuang'" },
@@ -693,7 +694,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "tdengine", "iotdb", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [
