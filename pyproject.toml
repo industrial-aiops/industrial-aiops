@@ -54,6 +54,10 @@ bacnet = ["BAC0>=2023.6,<2026"]
 # the HART command codec (framing/parsing); the HART-IP UDP transport is in-tree
 # (待核实). Pure-Python, cross-platform.
 hart = ["hart-protocol>=2023.6,<2025"]
+# Omron FINS (CS/CJ/CP/NX-via-FINS): the client is IN-REPO and stdlib-only
+# (socket/struct), so the extra pins nothing — it exists so `pip install
+# iaiops[fins]` and the edition bundles stay uniform across protocols.
+fins = []
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
 tdengine = ["taospy>=2.7,<3"]
 iotdb = ["apache-iotdb>=1.0,<3"]
@@ -87,6 +91,7 @@ factory = [
     "iaiops[modbus]",
     "iaiops[s7]",
     "iaiops[mc]",
+    "iaiops[fins]",
     "iaiops[eip]",
     "iaiops[mtconnect]",
     "iaiops[sparkplug]",
@@ -127,6 +132,7 @@ iaiops-mcp-opcua = "mcp_server.entrypoints:main_opcua"
 iaiops-mcp-modbus = "mcp_server.entrypoints:main_modbus"
 iaiops-mcp-s7 = "mcp_server.entrypoints:main_s7"
 iaiops-mcp-mc = "mcp_server.entrypoints:main_mc"
+iaiops-mcp-fins = "mcp_server.entrypoints:main_fins"
 iaiops-mcp-eip = "mcp_server.entrypoints:main_eip"
 iaiops-mcp-mtconnect = "mcp_server.entrypoints:main_mtconnect"
 iaiops-mcp-sparkplug = "mcp_server.entrypoints:main_sparkplug"
