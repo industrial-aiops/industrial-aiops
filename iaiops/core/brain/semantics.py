@@ -27,13 +27,37 @@ _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("setpoint", ("setpoint", "_sp", "sptval", "target")),
     ("alarm", ("alarm", "alert", "fault", "trip", "fail")),
     ("state", ("state", "status", "running", "ready", "mode")),
+    # ── water / process-treatment quantities (水处理; specific before generic) ──
+    # Guarded like pH: bare "do"/"tmp"/"orp" are ambiguous (cool_down, temperature
+    # abbreviations, torpedo…), so hints require underscore context or the full
+    # word — honest 'other' beats a confident-but-wrong class.
+    ("dissolved_oxygen",
+     ("dissolved_oxygen", "dissolvedoxygen", "溶解氧", "do_", "_do_")),
+    ("orp", ("_orp", "orp_", "oxidation_reduction", "redox", "氧化还原")),
+    ("chlorine", ("chlorine", "余氯", "总氯", "hypochlor", "_cl2", "cl2_",
+                  "free_cl", "total_cl")),
+    ("ammonia", ("ammonia", "氨氮", "nh3", "_nh4", "nh4_")),
+    ("suspended_solids", ("suspended_solids", "suspendedsolids", "悬浮物",
+                          "_tss", "tss_", "mlss", "_ss_")),
+    # Transmembrane pressure (跨膜压差, membrane filtration). Bare "tmp" is a
+    # common PLC abbreviation for temperature, so it is only matched alongside
+    # membrane context — must precede the generic 'pressure' class.
+    ("membrane_pressure", ("跨膜压差", "transmembrane", "trans_membrane",
+                           "membrane_press", "membranepress", "tmp_membrane",
+                           "membrane_tmp")),
+    ("uv_intensity", ("uv_intensity", "uvintensity", "uv_dose", "_uvi", "uvi_",
+                      "紫外")),
+    # water-plant equipment (dosing/加药 metering pumps, aeration blowers/曝气风机)
+    ("dosing", ("dosing", "加药", "metering_pump")),
+    ("aeration", ("aeration", "曝气", "blower", "风机")),
     # ── physical quantities (specific units help disambiguate) ──
     ("temperature",
      ("temp", "temperature", "_t_", "degc", "degf", "°c", "°f", "celsius", "fahrenheit")),
     ("humidity", ("humidity", "humid", "_rh", "rh_", "rh%", "%rh", "dewpoint", "dew_point")),
     ("pressure", ("press", "pressure", "_p_", "bar", "psi", "kpa", "mbar", "mmhg", "torr")),
-    ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h", "m³/h", "m3/h", "scfm", "cfm", "nm3")),
-    ("level", ("level", "_lv_", "tanklvl", "ullage")),
+    ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h", "m³/h", "m3/h", "scfm", "cfm", "nm3",
+              "流量")),
+    ("level", ("level", "_lv_", "tanklvl", "ullage", "液位")),
     # no bare "conduct" — it false-matches Conductor*; "conductivity" already covers it.
     ("conductivity", ("conductivity", "_ec_", "_ec", "us/cm", "µs/cm", "ms/cm")),
     ("ph", ("_ph", "ph_", "phval", "ph_value", "potential_hydrogen")),
