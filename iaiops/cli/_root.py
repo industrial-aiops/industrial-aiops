@@ -8,6 +8,7 @@ from iaiops.cli.analytics import analytics_app
 from iaiops.cli.approve import approve_cmd
 from iaiops.cli.audit import audit_app
 from iaiops.cli.bacnet import bacnet_app
+from iaiops.cli.baseline import baseline_app
 from iaiops.cli.compliance import compliance_app, historian_app
 from iaiops.cli.diagnostics import diag_app
 from iaiops.cli.doctor import doctor_cmd
@@ -52,6 +53,7 @@ app.add_typer(secret_app, name="secret")
 app.add_typer(audit_app, name="audit")
 app.add_typer(historian_app, name="historian")
 app.add_typer(metrics_app, name="metrics")
+app.add_typer(baseline_app, name="baseline")
 app.command("init")(init_cmd)
 app.command("export")(export_cmd)
 app.command("approve")(approve_cmd)
