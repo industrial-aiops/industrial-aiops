@@ -43,6 +43,7 @@ PROTOCOL_MODULES = {
     "bacnet": "bacnet_tools",
     "hart": "hart_tools",
     "fins": "fins_tools",
+    "iolink": "iolink_tools",
 }
 
 # Always registered, even under IAIOPS_MCP_NO_BRAIN: the self-description /
@@ -85,9 +86,11 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "fab": ("secsgem", "opcua", "s7", "modbus"),
     "factory": ("modbus", "s7", "eip", "mc", "fins", "ethercat", "profinet",
                 "mtconnect", "opcua", "sparkplug"),
+    "factory": ("modbus", "s7", "eip", "mc", "ethercat", "profinet", "mtconnect",
+                "opcua", "sparkplug", "iolink"),
     "process": ("opcua", "modbus", "hart"),
     # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).
-    "building": ("bacnet", "modbus", "opcua"),
+    "building": ("bacnet", "modbus", "opcua", "iolink"),
     # Phoenix Contact PLCnext vPLC (虚拟化 PLC): reached over its built-in OPC-UA
     # server (opc.tcp 4840) + Modbus-TCP process-data server — no new connector.
     "plcnext": ("opcua", "modbus"),

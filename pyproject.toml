@@ -14,7 +14,7 @@ keywords = [
     "opc-ua", "modbus", "s7comm", "siemens", "mitsubishi", "mtconnect", "mqtt",
     "sparkplug", "uns", "ethernet-ip", "rockwell", "allen-bradley", "ethercat",
     "pysoem", "soem", "secs-gem", "profinet",
-    "bacnet", "hvac", "oee", "ot", "scada", "plc", "industrial",
+    "bacnet", "hvac", "io-link", "iolink", "oee", "ot", "scada", "plc", "industrial",
     "ai-ops", "mcp",
 ]
 dependencies = [
@@ -37,6 +37,8 @@ s7 = ["pyS7>=2.8,<3"]
 mc = ["pymcprotocol>=0.3,<1"]
 eip = ["pycomm3>=1.2,<2"]
 mtconnect = ["requests>=2.31,<3"]
+# IO-Link master JSON integration — pure HTTP, same lib as MTConnect (no new pins).
+iolink = ["iaiops[mtconnect]"]
 sparkplug = ["paho-mqtt>=2.0,<3", "protobuf>=4.25,<8"]
 # SECS/GEM (semiconductor / display fab equipment ↔ host over HSMS).
 secsgem = ["secsgem>=0.3,<1"]
@@ -97,11 +99,12 @@ factory = [
     "iaiops[sparkplug]",
     "iaiops[ethercat]",
     "iaiops[profinet]",
+    "iaiops[iolink]",
 ]
 process = ["iaiops[opcua]", "iaiops[modbus]", "iaiops[hart]"]
 # Energy edition (substation / utility) now ships separately: `pip install iaiops-energy`.
 # Building edition: facility / HVAC / 厂务 (matches IAIOPS_MCP=building).
-building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]"]
+building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]", "iaiops[iolink]"]
 # Phoenix Contact PLCnext vPLC (虚拟化 PLC) — rides the existing OPC-UA + Modbus
 # connectors (its built-in OPC-UA server + Modbus-TCP); no dedicated driver.
 plcnext = ["iaiops[opcua]", "iaiops[modbus]"]
@@ -141,6 +144,7 @@ iaiops-mcp-secsgem = "mcp_server.entrypoints:main_secsgem"
 iaiops-mcp-profinet = "mcp_server.entrypoints:main_profinet"
 iaiops-mcp-bacnet = "mcp_server.entrypoints:main_bacnet"
 iaiops-mcp-hart = "mcp_server.entrypoints:main_hart"
+iaiops-mcp-iolink = "mcp_server.entrypoints:main_iolink"
 # Per-edition named profiles:
 iaiops-mcp-fab = "mcp_server.entrypoints:main_fab"
 iaiops-mcp-factory = "mcp_server.entrypoints:main_factory"

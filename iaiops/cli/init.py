@@ -171,6 +171,18 @@ def _prompt_protocol(protocol: str, name: str, store):
         entry["agent_url"] = typer.prompt(
             "MTConnect agent base URL", default="http://localhost:5000"
         ).strip()
+    elif protocol == "iolink":
+        console.print(
+            "[yellow]IO-Link master JSON interface (read-only sensor visibility) — "
+            "'pip install iaiops[iolink]'. flavor: iotcore (ifm IoT-Core, default) "
+            "or rest (plain-REST masters).[/]"
+        )
+        entry["agent_url"] = typer.prompt(
+            "IO-Link master base URL", default="http://192.168.0.10"
+        ).strip()
+        entry["flavor"] = typer.prompt(
+            "JSON flavor (iotcore|rest)", default="iotcore"
+        ).strip().lower()
     elif protocol == "mqtt":
         entry["host"] = typer.prompt("MQTT broker host (IP/FQDN)").strip()
         entry["use_tls"] = typer.confirm("Use TLS?", default=False)

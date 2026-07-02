@@ -103,6 +103,22 @@ PROTOCOLS: tuple[dict, ...] = (
         "params": ["agent_url"],
     },
     {
+        "protocol": "iolink",
+        "status": "implemented",
+        "library": "requests + json (IO-Link master JSON integration)",
+        "transport": "HTTP REST/JSON (ifm IoT-Core envelope | plain REST)",
+        "auth": "none (master-side; read-only v1)",
+        "read_tools": [
+            "iolink_master_info", "iolink_ports", "iolink_device_info",
+            "iolink_read_pdin", "iolink_read_isdu", "iolink_scan",
+        ],
+        "write_tools": [],
+        "params": ["agent_url", "flavor(iotcore|rest)"],
+        "requirements": "IO-Link 主站需开启 JSON/REST 接口（ifm IoT-Core 风格 POST "
+        "envelope 为默认 flavor；Balluff/Turck 类 plain-REST 走 flavor: rest）。"
+        "mock 主站验证（tests/test_iolink.py）；真机主站 datapoint 路径 待核实。",
+    },
+    {
         "protocol": "mqtt",
         "status": "implemented",
         "library": "paho-mqtt",

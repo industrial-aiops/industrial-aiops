@@ -21,6 +21,7 @@ from iaiops.connectors.bacnet import transport as _bacnet_tx
 from iaiops.connectors.eip import transport as _eip_tx
 from iaiops.connectors.ethercat import transport as _ethercat_tx
 from iaiops.connectors.fins import transport as _fins_tx
+from iaiops.connectors.iolink import transport as _iolink_tx
 from iaiops.connectors.mc import transport as _mc_tx
 from iaiops.connectors.modbus import transport as _modbus_tx
 from iaiops.connectors.opcua import transport as _opcua_tx
@@ -36,6 +37,9 @@ __all__ = [
     "ethercat_master", "fins_session", "make_session", "mc_session", "modbus_session",
     "mqtt_session", "opcua_session", "profinet_dcp", "s7_session",
     "secsgem_session",
+    "ethercat_master", "iolink_session", "make_session", "mc_session",
+    "modbus_session", "mqtt_session", "opcua_session", "profinet_dcp",
+    "s7_session", "secsgem_session",
 ]
 
 # Back-compat re-exports: the documented monkeypatch points for tests
@@ -66,6 +70,8 @@ _build_profinet_dcp = _profinet_tx._build_profinet_dcp
 _translate_profinet = _profinet_tx._translate_profinet
 _build_bacnet_network = _bacnet_tx._build_bacnet_network
 _translate_endpoint_error = _bacnet_tx._translate_endpoint_error
+_build_iolink_client = _iolink_tx._build_iolink_client
+_translate_iolink = _iolink_tx._translate_iolink
 
 # Session assembly. The ``build=lambda ...`` indirection resolves the factory
 # through THIS module's globals at call time, keeping the patch points working.
@@ -170,6 +176,14 @@ bacnet_session = make_session(
     translate=_bacnet_tx._translate_bacnet,
 )
 
+# Stateless HTTP (like MTConnect): build resolves base URL + flavor; no
+# connect/close. The session still guards the protocol and translates failures.
+iolink_session = make_session(
+    protocol="iolink",
+    build=lambda target: _build_iolink_client(target),
+    translate=_translate_iolink,
+)
+
 
 class ConnectionManager:
     """Resolves OT endpoint targets from an AppConfig."""
@@ -203,6 +217,7 @@ class ConnectionManager:
             "ethernetip": eip_session,
             "eip": eip_session,
             "secsgem": secsgem_session,
+            "iolink": iolink_session,
         }
         builder = builders.get(target.protocol, opcua_session)
         return builder(target)

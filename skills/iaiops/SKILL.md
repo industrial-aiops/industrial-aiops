@@ -37,6 +37,7 @@ description: >-
 | BACnet/BACnet-IP · HVAC/暖通 · BMS/楼宇自控 · 厂务/facility · Who-Is · TrendLog | **iaiops-building** | `IAIOPS_MCP=building` / `iaiops-mcp-building` |
 | 水处理/水厂 · pH · 浊度/turbidity · 电导率/conductivity · 加药/dosing · 泵站/pump station · 曝气 | **iaiops-water** | `IAIOPS_MCP=water` / `iaiops-mcp-water` |
 | Phoenix Contact PLCnext / vPLC（虚拟化 PLC，走内建 OPC-UA + Modbus-TCP） | **iaiops-factory** | `IAIOPS_MCP=plcnext` / `iaiops-mcp-plcnext` |
+| IO-Link · IO-Link master · IODD · 智能传感器/executor 参数 · pdin · ISDU（主站 JSON/REST 接口，只读） | **iaiops-factory**（楼宇传感器场景 **iaiops-building**） | `IAIOPS_MCP=factory` / 单协议 `IAIOPS_MCP=iolink` / `iaiops-mcp-iolink` |
 
 - 单协议深用（只有一种设备）：直接 `IAIOPS_MCP=opcua`（或 modbus/s7/mc/fins/eip/mtconnect/
   sparkplug/ethercat/secsgem/profinet/bacnet/hart），等价脚本 `iaiops-mcp-<协议>`。
