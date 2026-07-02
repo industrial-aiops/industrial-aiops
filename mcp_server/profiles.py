@@ -29,6 +29,7 @@ PROTOCOL_MODULES = {
     "profinet": "profinet_tools",
     "bacnet": "bacnet_tools",
     "hart": "hart_tools",
+    "iolink": "iolink_tools",
 }
 
 # Always registered: the cross-protocol intelligence layer.
@@ -55,10 +56,10 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "all": tuple(PROTOCOL_MODULES),
     "fab": ("secsgem", "opcua", "s7", "modbus"),
     "factory": ("modbus", "s7", "eip", "mc", "ethercat", "profinet", "mtconnect",
-                "opcua", "sparkplug"),
+                "opcua", "sparkplug", "iolink"),
     "process": ("opcua", "modbus", "hart"),
     # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).
-    "building": ("bacnet", "modbus", "opcua"),
+    "building": ("bacnet", "modbus", "opcua", "iolink"),
     # Phoenix Contact PLCnext vPLC (虚拟化 PLC): reached over its built-in OPC-UA
     # server (opc.tcp 4840) + Modbus-TCP process-data server — no new connector.
     "plcnext": ("opcua", "modbus"),

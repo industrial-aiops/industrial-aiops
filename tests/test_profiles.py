@@ -35,7 +35,7 @@ def test_named_profile_expands():
 
 
 def test_building_profile_resolves():
-    assert resolve_selection("building") == ["bacnet", "modbus", "opcua"]
+    assert resolve_selection("building") == ["bacnet", "modbus", "opcua", "iolink"]
 
 
 def test_unknown_token_fails_fast():

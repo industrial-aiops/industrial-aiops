@@ -240,6 +240,8 @@ def _where(target) -> str:
         return target.endpoint_url or "?"
     if target.protocol == "mtconnect":
         return target.agent_url or f"{target.host}:{target.port}"
+    if target.protocol == "iolink":
+        return target.agent_url or f"{target.host}:{target.port}"
     if target.protocol == "s7":
         return f"{target.host}:{target.port} rack={target.rack} slot={target.slot}"
     if target.protocol == "mc":
@@ -287,6 +289,11 @@ def _probe(target) -> tuple[bool, str]:
 
             cur = mtconnect_current(target)
             return True, f"MTConnect observations={cur.get('observation_count')}"
+        if target.protocol == "iolink":
+            from iaiops.connectors.iolink.ops import master_info
+
+            info = master_info(target)
+            return True, f"IO-Link master={info.get('master', {}).get('productcode', '?')}"
         if target.protocol == "mqtt":
             from iaiops.connectors.sparkplug.ops import mqtt_read_topic
 
