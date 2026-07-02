@@ -10,7 +10,12 @@ from __future__ import annotations
 
 import pytest
 
-from iaiops.core.brain.compliance import compliance_frameworks, compliance_mapping
+from iaiops.core.brain.compliance import (
+    DENGBAO_LEVELS,
+    compliance_dengbao_levels,
+    compliance_frameworks,
+    compliance_mapping,
+)
 from iaiops.core.sink import base as sink_base
 from iaiops.core.sink import push as sink_push
 from iaiops.core.sink.base import normalize_points
@@ -63,6 +68,65 @@ def test_compliance_frameworks_crosswalk_complete():
 @pytest.mark.unit
 def test_compliance_frameworks_tool_governed():
     from mcp_server.tools.compliance_tools import compliance_frameworks as tool
+
+    assert getattr(tool, "_is_governed_tool", False) is True
+    assert getattr(tool, "_risk_level", "") == "low"
+
+
+# ─── 等保 2.0 per-level deltas ─────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_dengbao_levels_both_shape():
+    out = compliance_dengbao_levels()
+    assert out["selected_level"] is None
+    assert out["pillar_count"] == len(DENGBAO_LEVELS)
+    assert {m["id"] for m in out["levels"]} == {"l2", "l3"}
+    # Both levels present → each delta carries the 二级 baseline and 三级 增量.
+    for d in out["deltas"]:
+        assert d["l2_requires"] and d["l3_adds"]
+        assert d["iaiops"] and d["iaiops_status"]
+        assert "gap" in d
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "given,expected,present,absent",
+    [
+        ("l2", "l2", "l2_requires", "l3_adds"),
+        ("三级", "l3", "l3_adds", "l2_requires"),
+        ("2", "l2", "l2_requires", "l3_adds"),
+        ("3", "l3", "l3_adds", "l2_requires"),
+    ],
+)
+def test_dengbao_levels_focus_one_level(given, expected, present, absent):
+    out = compliance_dengbao_levels(given)
+    assert out["selected_level"] == expected
+    assert {m["id"] for m in out["levels"]} == {expected}
+    for d in out["deltas"]:
+        assert present in d
+        assert absent not in d
+
+
+@pytest.mark.unit
+def test_dengbao_levels_status_matches_controls():
+    """The per-level view reuses the honest CONTROLS status (no fabricated claim)."""
+    from iaiops.core.brain.compliance import CONTROLS
+
+    status_by_pillar = {c["pillar"]: c["status"] for c in CONTROLS}
+    for d in compliance_dengbao_levels()["deltas"]:
+        assert d["iaiops_status"] == status_by_pillar[d["pillar"]]
+
+
+@pytest.mark.unit
+def test_dengbao_levels_unknown_level_raises():
+    with pytest.raises(ValueError, match="Unknown 等保 level"):
+        compliance_dengbao_levels("level9")
+
+
+@pytest.mark.unit
+def test_dengbao_levels_tool_governed_low():
+    from mcp_server.tools.compliance_tools import compliance_dengbao_levels as tool
 
     assert getattr(tool, "_is_governed_tool", False) is True
     assert getattr(tool, "_risk_level", "") == "low"

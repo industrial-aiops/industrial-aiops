@@ -75,6 +75,22 @@ def _float_block(pairs: list[tuple[str, int, str, str]], order: str) -> tuple[Te
     )
 
 
+def _typed_block(
+    rows: list[tuple[str, int, str, str, float, str]],
+) -> tuple[TemplateTag, ...]:
+    """Build TemplateTags of mixed integer/scaled types.
+
+    Each row: (tag, offset, value_type, order, scale, unit) — for vendor maps that
+    encode engineering values as scaled integers (e.g. deci-volts, milli-amps).
+    """
+    return tuple(
+        TemplateTag(
+            tag=tag, offset=off, value_type=vt, order=order, scale=scale, unit=unit, label=""
+        )
+        for (tag, off, vt, order, scale, unit) in rows
+    )
+
+
 # ── The curated template catalog (vendor-neutral; OT device families only) ──────
 
 _TEMPLATES: dict[str, RegisterTemplate] = {
@@ -157,6 +173,64 @@ _TEMPLATES: dict[str, RegisterTemplate] = {
                 ("cycletime_ms", 0x000A, "ms", "PLC cycle time"),
             ],
             order="ABCD",
+        ),
+    ),
+    # Carlo Gavazzi EM24-DIN — widely deployed 3-phase energy analyzer. Values are
+    # scaled INTEGERS on input registers (FC04): voltages in 0.1 V, currents in
+    # 0.001 A, power in 0.1 W. The EM24 stores int32 least-significant-word-first
+    # (word swap → CDAB); frequency is a single int16 word.
+    "carlo_gavazzi_em24": RegisterTemplate(
+        name="carlo_gavazzi_em24",
+        register_type="input",
+        description="Carlo Gavazzi EM24 3-phase energy analyzer (FC04, scaled int32, CDAB).",
+        caveat="待核实 — community register map; word order (CDAB) and scaling vary by "
+        "EM24 variant/firmware; confirm against the device manual.",
+        tags=_typed_block(
+            [
+                ("voltage_l1_n", 0x0000, "int32", "CDAB", 0.1, "V"),
+                ("voltage_l2_n", 0x0002, "int32", "CDAB", 0.1, "V"),
+                ("voltage_l3_n", 0x0004, "int32", "CDAB", 0.1, "V"),
+                ("current_l1", 0x000C, "int32", "CDAB", 0.001, "A"),
+                ("power_total", 0x0028, "int32", "CDAB", 0.1, "W"),
+                ("frequency", 0x0033, "int16", "AB", 0.1, "Hz"),
+            ]
+        ),
+    ),
+    # Huawei SUN2000 string inverter — a very common Modbus-TCP/RTU device (国产
+    # 友好). Holding registers (FC03), big-endian (ABCD). Power values are int32 in
+    # watts; frequency/efficiency are uint16 in 0.01 units; device status is uint16.
+    "huawei_sun2000_inverter": RegisterTemplate(
+        name="huawei_sun2000_inverter",
+        register_type="holding",
+        description="Huawei SUN2000 inverter core telemetry (FC03, int32/uint16, ABCD).",
+        caveat="待核实 — public register map; addresses/gains vary by SUN2000 model "
+        "and firmware; confirm against the Huawei Modbus interface definition.",
+        tags=_typed_block(
+            [
+                ("input_power", 32064, "int32", "ABCD", 1.0, "W"),
+                ("active_power", 32080, "int32", "ABCD", 1.0, "W"),
+                ("grid_frequency", 32085, "uint16", "AB", 0.01, "Hz"),
+                ("efficiency", 32086, "uint16", "AB", 0.01, "%"),
+                ("device_status", 32089, "uint16", "AB", 1.0, ""),
+            ]
+        ),
+    ),
+    # Growatt string inverter — another very common PV inverter (信创 friendly).
+    # Input registers (FC04), big-endian (ABCD). Power values are uint32 in 0.1 W;
+    # PV voltage / grid frequency are uint16 in 0.1 V / 0.01 Hz.
+    "growatt_inverter": RegisterTemplate(
+        name="growatt_inverter",
+        register_type="input",
+        description="Growatt PV inverter core telemetry (FC04, uint32/uint16, ABCD).",
+        caveat="待核实 — public RTU protocol map; addresses/scaling vary by Growatt "
+        "series/firmware; confirm against the Growatt Modbus RTU protocol doc.",
+        tags=_typed_block(
+            [
+                ("input_power", 1, "uint32", "ABCD", 0.1, "W"),
+                ("pv1_voltage", 3, "uint16", "AB", 0.1, "V"),
+                ("output_power", 35, "uint32", "ABCD", 0.1, "W"),
+                ("grid_frequency", 37, "uint16", "AB", 0.01, "Hz"),
+            ]
         ),
     ),
 }
