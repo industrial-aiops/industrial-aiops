@@ -1,13 +1,14 @@
-"""BACnet/IP MCP tools — read-only facility / HVAC monitoring (bacnet/BAC0 extra).
+"""BACnet/IP MCP tools — facility / HVAC monitoring + one MOC-gated write (BAC0 extra).
 
-Governed at risk_level='low' (read-only). Writes (present-value with priority) are
-intentionally NOT exposed — overriding a live building-control point is dangerous.
-BAC0 is an OPTIONAL extra (``pip install iaiops[bacnet]``) imported lazily; when
-missing, every tool returns a teaching error dict. Preview — binding/API shape
-unverified against live building gear.
+Read tools are governed at risk_level='low'. ``bacnet_write_property`` is
+risk_level='high' (MOC): overriding a live building-control point (present-value at a
+priority, or relinquishing it) is OT-dangerous — it captures the BEFORE value,
+records an undo descriptor, and defaults to dry_run. BAC0 is an OPTIONAL extra
+(``pip install iaiops[bacnet]``) imported lazily; when missing, every tool returns a
+teaching error dict. Preview — binding/API shape unverified against live gear.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.connectors.bacnet import ops
 from iaiops.core.governance import governed_tool
@@ -161,4 +162,75 @@ def bacnet_read_trend_log(
     """
     return ops.bacnet_read_trend_log(
         _target(endpoint), address, instance, count, newest_first
+    )
+
+
+def _bacnet_undo(params: dict, result: Any) -> Optional[dict]:
+    """Inverse of an applied bacnet_write_property: restore the captured BEFORE value."""
+    if not isinstance(result, dict) or not result.get("applied"):
+        return None
+    before = result.get("before")
+    if before is None:
+        return None
+    return {
+        "tool": "bacnet_write_property",
+        "params": {
+            "endpoint": params.get("endpoint"),
+            "address": params.get("address"),
+            "object_type": params.get("object_type"),
+            "instance": params.get("instance"),
+            "value": before,
+            "priority": params.get("priority"),
+            "bacnet_property": params.get("bacnet_property", "presentValue"),
+            "relinquish": False,
+            "dry_run": False,
+        },
+        "note": "Restore prior BACnet property value (undo of bacnet_write_property).",
+    }
+
+
+@mcp.tool()
+@governed_tool(risk_level="high", undo=_bacnet_undo)
+@tool_errors("dict")
+def bacnet_write_property(
+    address: str,
+    object_type: str,
+    instance: int,
+    value: Any,
+    priority: Optional[int] = None,
+    bacnet_property: str = "presentValue",
+    relinquish: bool = False,
+    endpoint: Optional[str] = None,
+    dry_run: bool = True,
+) -> dict:
+    """[WRITE][risk=HIGH][MOC] Write ONE BACnet object property (off by default).
+
+    OT-DANGEROUS. Defaults to dry_run=True (nothing written). Overriding a live
+    building-control point (present-value, optionally at a BACnet priority 1..16, or
+    relinquishing that priority) can move real HVAC/plant. Captures the BEFORE value
+    (read-back) and records an undo descriptor. Set dry_run=False AND record an
+    approver (OPCUA_AUDIT_APPROVED_BY) to apply. 未经授权勿对生产控制系统写入.
+
+    Args:
+        address: BACnet device address (from bacnet_discover), e.g. '192.168.1.10'.
+        object_type: BACnet object type, e.g. 'analogOutput', 'binaryValue'.
+        instance: Object instance number.
+        value: Value to write (ignored when relinquish=True).
+        priority: BACnet write priority 1..16 (omit for the device default).
+        bacnet_property: Property to write (default 'presentValue').
+        relinquish: When True, write 'null' to relinquish this priority slot.
+        endpoint: Endpoint name from config (protocol 'bacnet').
+        dry_run: When True (default) returns a preview without writing.
+
+    Returns dict: dry-run → {address, object_type, instance, property, priority,
+        relinquish, dry_run:true, before, would_write, request, note};
+        applied → {..., dry_run:false, before, written, applied:true, _undo_id}.
+
+    Example (preview): bacnet_write_property(address="192.168.1.10",
+        object_type="analogOutput", instance=1, value=21.0, priority=8).
+    """
+    return ops.bacnet_write_property(
+        _target(endpoint), address, object_type, instance, value,
+        priority=priority, bacnet_property=bacnet_property,
+        relinquish=relinquish, dry_run=dry_run,
     )
