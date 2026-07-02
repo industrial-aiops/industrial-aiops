@@ -69,6 +69,25 @@ def _build_opcua_client(target: TargetConfig) -> Any:
         client.set_user(username)
     if password:
         client.set_password(password)
+    # Mutual-TLS / application-certificate security. When a client cert + key are
+    # configured, apply asyncua's security string
+    # "Policy,Mode,cert,key[,server_cert]". No cert configured → anonymous /
+    # username-password path is UNCHANGED (back-compat).
+    if target.client_cert and target.client_key:
+        policy = (
+            target.security_policy
+            if target.security_policy and target.security_policy != "None"
+            else "Basic256Sha256"
+        )
+        mode = (
+            target.security_mode
+            if target.security_mode and target.security_mode != "None"
+            else "SignAndEncrypt"
+        )
+        sec = f"{policy},{mode},{target.client_cert},{target.client_key}"
+        if target.server_cert:
+            sec += f",{target.server_cert}"
+        client.set_security_string(sec)
     return client
 
 
@@ -420,8 +439,17 @@ def _build_mqtt_client(target: TargetConfig) -> Any:
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     if target.username:
         client.username_pw_set(target.username, target.password() or None)
-    if target.use_tls:
-        client.tls_set()  # system trust store; cert pinning is a roadmap item
+    # TLS: enabled by use_tls or by any cert path. A CA bundle verifies the broker;
+    # a client cert+key give mutual auth. With none, tls_set() uses the system trust
+    # store (server-auth only) — unchanged from before.
+    if target.use_tls or target.ca_cert or target.client_cert:
+        tls_kwargs: dict[str, str] = {}
+        if target.ca_cert:
+            tls_kwargs["ca_certs"] = target.ca_cert
+        if target.client_cert and target.client_key:
+            tls_kwargs["certfile"] = target.client_cert
+            tls_kwargs["keyfile"] = target.client_key
+        client.tls_set(**tls_kwargs)
     return client
 
 

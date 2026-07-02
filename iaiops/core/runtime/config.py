@@ -243,6 +243,12 @@ class TargetConfig:
     # MQTT / Sparkplug B / UNS
     topic: str = ""
     use_tls: bool = False
+    # Mutual-TLS / certificate auth (paths only — never key material inline):
+    # OPC-UA cert security mode + MQTT client certs. Empty = anonymous/no-cert.
+    ca_cert: str = ""       # CA bundle to verify the peer (MQTT ca_certs)
+    client_cert: str = ""   # our client certificate (OPC-UA + MQTT)
+    client_key: str = ""    # our client private key
+    server_cert: str = ""   # expected server certificate (OPC-UA, optional)
     # EtherCAT (pysoem/SOEM fieldbus master) — and PROFINET-DCP, which binds the
     # local interface by its IP via ``host`` (the NIC the DCP broadcast goes out on).
     nic: str = ""
@@ -427,6 +433,11 @@ def _parse_target(d: dict) -> TargetConfig:
         agent_url=str(d.get("agent_url", "")),
         topic=str(d.get("topic", "")),
         use_tls=use_tls,
+        # TLS / mutual-auth certificate paths (accept common aliases).
+        ca_cert=str(d.get("ca_cert", "") or d.get("ca_certs", "")),
+        client_cert=str(d.get("client_cert", "") or d.get("certfile", "")),
+        client_key=str(d.get("client_key", "") or d.get("keyfile", "")),
+        server_cert=str(d.get("server_cert", "")),
         # EtherCAT: NIC interface name (accept 'interface' as an alias).
         nic=str(d.get("nic", "") or d.get("interface", "")),
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
