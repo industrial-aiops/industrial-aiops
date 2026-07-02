@@ -73,6 +73,23 @@ PROTOCOLS: tuple[dict, ...] = (
         "params": ["host", "port(5007)", "plctype(Q|L|QnA|iQ-R|iQ-L)"],
     },
     {
+        "protocol": "fins",
+        "status": "implemented",
+        "library": "in-repo stdlib client (socket/struct, no third-party lib)",
+        "transport": "FINS/UDP (9600, default) + FINS/TCP (node handshake)",
+        "auth": "none (transport)",
+        "read_tools": [
+            "fins_cpu_info", "fins_cpu_status", "fins_read_words",
+            "fins_read_bits", "fins_read_many",
+        ],
+        "write_tools": ["fins_write_words (HIGH/MOC)"],
+        "params": ["host", "port(9600)", "transport(udp|tcp)"],
+        "requirements": "Omron CS/CJ/CP/NX(NJ via FINS) families per W227/W342 "
+        "manuals; areas DM/CIO/W/H/A/EM (EM=current bank, banked access 待核实). "
+        "Self-tested against the in-repo mock FINS responder "
+        "(tests/test_fins.py); live Omron PLC behaviour 待核实.",
+    },
+    {
         "protocol": "mtconnect",
         "status": "implemented",
         "library": "requests + xml.etree",
