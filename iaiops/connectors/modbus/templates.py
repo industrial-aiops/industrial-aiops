@@ -215,6 +215,79 @@ _TEMPLATES: dict[str, RegisterTemplate] = {
             ]
         ),
     ),
+    # ── Water treatment edition (水处理) device families ─────────────────────────
+    # Endress+Hauser Proline Promag electromagnetic flowmeter (Modbus RS485/TCP).
+    # The Proline Modbus interface exposes process values through a CONFIGURABLE
+    # "Modbus data map" — there is no universal fixed vendor block, so the offsets
+    # below are PLACEHOLDERS for the common practice of mapping the core process
+    # values as consecutive float32 pairs. 待核实 before use.
+    "eh_promag_flowmeter": RegisterTemplate(
+        name="eh_promag_flowmeter",
+        register_type="holding",
+        description="Endress+Hauser Promag flowmeter process values "
+        "(FC03, float32 ABCD; offsets per configured Modbus data map).",
+        caveat="待核实 — placeholder offsets: the Proline Modbus data map is "
+        "engineering-configured; confirm against the device's configured map "
+        "and the E+H Modbus register documentation.",
+        tags=_float_block(
+            [
+                ("volume_flow", 0x0000, "m3/h", "Volume flow"),
+                ("mass_flow", 0x0002, "kg/h", "Mass flow"),
+                ("conductivity", 0x0004, "µS/cm", "Medium conductivity"),
+                ("temperature", 0x0006, "°C", "Medium temperature"),
+                ("totalizer_1", 0x0008, "m3", "Totalizer 1"),
+            ],
+            order="ABCD",
+        ),
+    ),
+    # Hach SC-series controller (SC200/SC1000/SC4500) with pH / DO / turbidity
+    # probes. The controller exposes each sensor slot's measurement + sensor
+    # temperature over Modbus, but the PRECISE per-slot register layout varies by
+    # controller model / firmware / probe — offsets below are PLACEHOLDERS for a
+    # 2-slot float32 layout. 待核实 before use.
+    "hach_sc_controller": RegisterTemplate(
+        name="hach_sc_controller",
+        register_type="holding",
+        description="Hach SC-series controller, 2 sensor slots (e.g. pH + DO or "
+        "turbidity) (FC03, float32 ABCD; per-slot layout varies).",
+        caveat="待核实 — placeholder offsets: Hach SC Modbus register assignment "
+        "depends on controller model, firmware and attached probes; confirm "
+        "against the Hach Modbus register map for the installed configuration.",
+        tags=_float_block(
+            [
+                ("sensor1_value", 0x0000, "", "Slot 1 measurement (e.g. pH / NTU / mg/L)"),
+                ("sensor1_temperature", 0x0002, "°C", "Slot 1 sensor temperature"),
+                ("sensor2_value", 0x0004, "", "Slot 2 measurement (e.g. pH / NTU / mg/L)"),
+                ("sensor2_temperature", 0x0006, "°C", "Slot 2 sensor temperature"),
+            ],
+            order="ABCD",
+        ),
+    ),
+    # Generic chemical dosing pump (加药泵) block — metering pumps (e.g.
+    # ProMinent / Grundfos / 米顿罗 families) expose broadly similar process data
+    # over Modbus RTU, but each vendor uses its own addresses: this is a generic
+    # engineering-configured layout, NOT a verified vendor map.
+    "generic_dosing_pump": RegisterTemplate(
+        name="generic_dosing_pump",
+        register_type="holding",
+        description="Generic chemical dosing/metering pump block (加药泵) "
+        "(FC03, float32 ABCD + uint16 status; addresses per vendor/project).",
+        caveat="待核实 — generic placeholder layout; dosing-pump register maps are "
+        "vendor-specific (ProMinent/Grundfos/etc.): confirm against the pump's "
+        "Modbus manual before use.",
+        tags=(
+            TemplateTag(tag="dosing_flow", offset=0x0000, value_type="float32",
+                        order="ABCD", unit="L/h", label="Actual dosing flow"),
+            TemplateTag(tag="dosing_setpoint", offset=0x0002, value_type="float32",
+                        order="ABCD", unit="L/h", label="Dosing flow setpoint"),
+            TemplateTag(tag="stroke_rate", offset=0x0004, value_type="float32",
+                        order="ABCD", unit="%", label="Stroke rate / capacity"),
+            TemplateTag(tag="pump_status", offset=0x0006, value_type="uint16",
+                        order="AB", unit="", label="Running/stopped status word"),
+            TemplateTag(tag="alarm_word", offset=0x0007, value_type="uint16",
+                        order="AB", unit="", label="Alarm bit field"),
+        ),
+    ),
     # Growatt string inverter — another very common PV inverter (信创 friendly).
     # Input registers (FC04), big-endian (ABCD). Power values are uint32 in 0.1 W;
     # PV voltage / grid frequency are uint16 in 0.1 V / 0.01 Hz.

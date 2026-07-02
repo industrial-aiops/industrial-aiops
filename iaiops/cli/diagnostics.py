@@ -51,6 +51,50 @@ def alarms_cmd(
     _emit(diag.alarm_bad_actors(_load_json(input)))
 
 
+@diag_app.command("alarm-flood")
+@cli_errors
+def alarm_flood_cmd(
+    input: Path = typer.Option(..., "--input", help="JSON file: list of alarm events"),
+    window_s: float = typer.Option(600.0, "--window-s", help="ISA-18.2 flood window (s)"),
+    threshold: int = typer.Option(10, "--threshold", help="Annunciations/window starting a flood"),
+    stale_after_s: float = typer.Option(86400.0, "--stale-after-s"),
+    max_episodes: int = typer.Option(20, "--max-episodes"),
+    max_rows: int = typer.Option(50, "--max-rows"),
+) -> None:
+    """ISA-18.2 deep flood report: episodes + chattering + stale + summary."""
+    from iaiops.core.brain import alarm_flood as flood
+
+    _emit(flood.alarm_flood_report(
+        _load_json(input), window_s, threshold,
+        stale_after_s=stale_after_s, max_episodes=max_episodes, max_rows=max_rows,
+    ))
+
+
+@diag_app.command("alarm-worksheet")
+@cli_errors
+def alarm_worksheet_cmd(
+    input: Path = typer.Option(..., "--input", help="JSON file: list of alarm events"),
+    window_s: float = typer.Option(600.0, "--window-s", help="ISA-18.2 flood window (s)"),
+    threshold: int = typer.Option(10, "--threshold", help="Annunciations/window starting a flood"),
+    out: Path = typer.Option(None, "--out", help="Write the worksheet as CSV to this path"),
+) -> None:
+    """ISA-18.2 alarm-rationalization worksheet (JSON, or CSV via --out)."""
+    import csv
+
+    from iaiops.core.brain import alarm_flood as flood
+
+    rows = flood.rationalization_worksheet(_load_json(input), window_s, threshold)
+    dicts = flood.worksheet_rows_as_dicts(rows)
+    if out is not None:
+        with Path(out).expanduser().open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(flood.WORKSHEET_COLUMNS))
+            writer.writeheader()
+            writer.writerows(dicts)
+        console.print(f"Wrote {len(dicts)} worksheet rows to {out}")
+        return
+    _emit({"row_count": len(dicts), "columns": list(flood.WORKSHEET_COLUMNS), "rows": dicts})
+
+
 @diag_app.command("tags")
 @cli_errors
 def tags_cmd(

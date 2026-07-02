@@ -19,7 +19,9 @@ from typing import Any
 from iaiops.core.brain._shared import num, s
 
 MAX_POINTS = 100_000  # bounded batch (defensive)
-SUPPORTED_SINKS = ("tdengine", "iotdb")
+SUPPORTED_SINKS = ("tdengine", "iotdb", "sqlite")
+# Sinks whose value column keeps non-numeric values (as text) instead of skipping.
+TEXT_CAPABLE_SINKS = ("sqlite",)
 
 
 class SinkError(Exception):
@@ -72,15 +74,19 @@ def _metric_name(item: dict) -> str:
 def _tags(item: dict) -> dict:
     """Carry through a small, bounded set of identifying tags."""
     tags: dict[str, str] = {}
-    for key in ("quality", "type", "object_type", "common_address", "group"):
+    for key in ("quality", "type", "object_type", "common_address", "group", "unit"):
         if item.get(key) not in (None, ""):
             tags[key] = s(item[key], 48)
     return tags
 
 
 def get_sink(kind: str, **opts: Any) -> Any:
-    """Return a historian-sink adapter for ``kind`` (tdengine / iotdb)."""
+    """Return a historian-sink adapter for ``kind`` (tdengine / iotdb / sqlite)."""
     k = (kind or "").strip().lower()
+    if k == "sqlite":
+        from iaiops.core.sink.sqlite_local import SQLiteLocalSink
+
+        return SQLiteLocalSink(**opts)
     if k == "tdengine":
         from iaiops.core.sink.tdengine import TDengineSink
 
@@ -94,4 +100,11 @@ def get_sink(kind: str, **opts: Any) -> Any:
     )
 
 
-__all__ = ["SinkError", "normalize_points", "get_sink", "SUPPORTED_SINKS", "MAX_POINTS"]
+__all__ = [
+    "SinkError",
+    "normalize_points",
+    "get_sink",
+    "SUPPORTED_SINKS",
+    "TEXT_CAPABLE_SINKS",
+    "MAX_POINTS",
+]

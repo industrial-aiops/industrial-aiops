@@ -159,4 +159,8 @@ def _collect_alarms(target: Any) -> list[dict]:
     return events
 
 
-__all__ = ["collect_evidence", "downtime_rca_live"]
+# Public alias: the ISA-18.2 alarm tools reuse the SAME best-effort acquisition
+# path (OPC-UA active-condition scan) instead of inventing a second one.
+collect_active_alarms = _collect_alarms
+
+__all__ = ["collect_evidence", "downtime_rca_live", "collect_active_alarms"]

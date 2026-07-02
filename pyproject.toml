@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iaiops"
-version = "0.8.0"
+version = "0.9.0"
 description = "Governed, vendor-neutral OT data tap + intelligent troubleshooting for AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / MQTT-Sparkplug / EtherNet-IP / EtherCAT / SECS-GEM / PROFINET / IEC-104 / DNP3 / IEC-61850 / BACnet) with a built-in governance harness (audit, budget, risk tiers, MOC), an AI downtime root-cause copilot, plus OEE, downtime, and asset-inventory analytics"
 readme = "README.md"
 license = "MIT"
@@ -57,6 +57,9 @@ hart = ["hart-protocol>=2023.6,<2025"]
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
 tdengine = ["taospy>=2.7,<3"]
 iotdb = ["apache-iotdb>=1.0,<3"]
+# Queryability layer: Parquet export from the local SQLite sink (CSV/SQLite are
+# stdlib-only; only `iaiops export parquet` / export_data(fmt="parquet") need this).
+export = ["pyarrow>=15,<22"]
 # Convenience: install every pip-installable connector (full installs + the test
 # matrix). The energy edition (IEC-104 / DNP3 / IEC-61850) ships separately as
 # `iaiops-energy`, so its extras are not part of this package's `all`.
@@ -97,6 +100,10 @@ building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]"]
 # Phoenix Contact PLCnext vPLC (虚拟化 PLC) — rides the existing OPC-UA + Modbus
 # connectors (its built-in OPC-UA server + Modbus-TCP); no dedicated driver.
 plcnext = ["iaiops[opcua]", "iaiops[modbus]"]
+# Water treatment edition (水处理) — matches IAIOPS_MCP=water: Modbus field
+# devices + OPC-UA SCADA + HART-IP instrumentation. References the per-protocol
+# extras — no duplicated pins.
+water = ["iaiops[modbus]", "iaiops[opcua]", "iaiops[hart]"]
 # 信创 / China entry: domestic TSDB historian sinks (compliance mapping is built-in).
 xinchuang = ["iaiops[tdengine]", "iaiops[iotdb]"]
 
@@ -131,6 +138,7 @@ iaiops-mcp-factory = "mcp_server.entrypoints:main_factory"
 iaiops-mcp-process = "mcp_server.entrypoints:main_process"
 iaiops-mcp-building = "mcp_server.entrypoints:main_building"
 iaiops-mcp-plcnext = "mcp_server.entrypoints:main_plcnext"
+iaiops-mcp-water = "mcp_server.entrypoints:main_water"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iaiops", "mcp_server"]
