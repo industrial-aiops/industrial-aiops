@@ -63,6 +63,8 @@ SUPPORTED_PROTOCOLS = (
     "hart",
     # Omron FINS (CS/CJ/CP/NX-via-FINS; in-repo stdlib client, UDP 9600 + TCP).
     "fins",
+    # IO-Link master JSON integration (read-only sensor-level visibility).
+    "iolink",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -76,6 +78,7 @@ DEFAULT_SECSGEM_PORT = 5000  # HSMS (SECS-II over TCP) default
 DEFAULT_BACNET_PORT = 47808  # BACnet/IP (UDP 0xBAC0)
 DEFAULT_HART_PORT = 5094  # HART-IP (UDP/TCP 5094)
 DEFAULT_FINS_PORT = 9600  # Omron FINS (UDP default; FINS/TCP same port)
+DEFAULT_IOLINK_PORT = 80  # IO-Link master HTTP/JSON interface
 
 # Connect/request timeout applied to every TCP-based client builder so a dead
 # endpoint fails in seconds, not the OS TCP default (60-120s+). Override the
@@ -96,6 +99,7 @@ _DEFAULT_PORTS = {
     "bacnet": DEFAULT_BACNET_PORT,
     "hart": DEFAULT_HART_PORT,
     "fins": DEFAULT_FINS_PORT,
+    "iolink": DEFAULT_IOLINK_PORT,
 }
 
 
@@ -252,8 +256,11 @@ class TargetConfig:
     slot: int = 1
     # Mitsubishi MC
     plctype: str = "Q"
-    # MTConnect (HTTP)
+    # MTConnect + IO-Link master (HTTP): base URL of the agent/master.
     agent_url: str = ""
+    # IO-Link master JSON dialect: 'iotcore' (ifm IoT-Core POST envelope,
+    # default) or 'rest' (plain-REST GET). Empty = protocol default (iotcore).
+    flavor: str = ""
     # MQTT / Sparkplug B / UNS
     topic: str = ""
     use_tls: bool = False
@@ -582,6 +589,7 @@ def _parse_target(d: dict) -> TargetConfig:
         slot=int(d["slot"]) if d.get("slot") not in (None, "") else 1,
         plctype=str(d.get("plctype", "Q") or "Q"),
         agent_url=str(d.get("agent_url", "")),
+        flavor=str(d.get("flavor", "") or "").strip().lower(),
         topic=str(d.get("topic", "")),
         use_tls=use_tls,
         # TLS / mutual-auth certificate paths (accept common aliases).

@@ -93,6 +93,24 @@
 - Self-test: in-repo mock FINS UDP/TCP responder (tests/test_fins.py). Live
   Omron PLC behaviour and banked-EM access remain 待核实.
 
+### Added — IO-Link connector (A10)
+- **IO-Link connector** (`iaiops/connectors/iolink/`, read-only v1): sensor-level visibility via
+  the IO-Link master's HTTP/JSON interface (IO-Link consortium "JSON Integration"). Both dialects
+  selectable per endpoint via `flavor:` — `iotcore` (ifm IoT-Core POST envelope, default) and
+  `rest` (plain-REST GET, Balluff/Turck-style). Reads: master identity (`/deviceinfo/...`),
+  bounded ≤32-port sweep (mode/status + connected-device identity), per-port device identity,
+  process-data-in (raw hex + byte array), ISDU acyclic parameter read (`iolreadacyclic`). NO
+  write tools. Bounded/size-capped HTTP (response cap 256 KiB, timeout from `timeout_s`), JSON
+  schema-checked with teaching errors. Reuses the MTConnect HTTP pin (`iaiops[iolink]` →
+  `requests`); no new hard deps.
+- 6 governed MCP tools (all [READ][risk=low]): `iolink_master_info`, `iolink_ports`,
+  `iolink_device_info`, `iolink_read_pdin`, `iolink_read_isdu`, `iolink_scan`; registered in the
+  `factory` and `building` profiles + `iaiops-mcp-iolink` entrypoint; CLI `iaiops iolink
+  master|ports|device|pdin|isdu|scan`; doctor probe + init wizard support.
+- Self-test: in-process mock IO-Link master (both flavors) in `tests/test_iolink.py`
+  (identity/ports/pdin/isdu round-trips, size cap, malformed JSON, flavor switching,
+  governance markers). Live master datapoint paths 待核实.
+
 ## 0.9.0 — 2026-07-02
 
 ### Security — governance hardening (from full audit)

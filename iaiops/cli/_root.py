@@ -19,6 +19,7 @@ from iaiops.cli.fins import fins_app
 from iaiops.cli.hart import hart_app
 from iaiops.cli.historian import coverage_cmd, query_cmd
 from iaiops.cli.init import init_cmd
+from iaiops.cli.iolink import iolink_app
 from iaiops.cli.mc import mc_app
 from iaiops.cli.metrics import metrics_app
 from iaiops.cli.modbus import modbus_app
@@ -51,6 +52,7 @@ app.add_typer(ethercat_app, name="ethercat")
 app.add_typer(profinet_app, name="profinet")
 app.add_typer(bacnet_app, name="bacnet")
 app.add_typer(hart_app, name="hart")
+app.add_typer(iolink_app, name="iolink")
 app.add_typer(diag_app, name="diag")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(program_app, name="program")

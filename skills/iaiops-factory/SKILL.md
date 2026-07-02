@@ -5,7 +5,8 @@ description: >-
   Siemens S7comm (S7-300/400/1200/1500), Mitsubishi MC/MELSEC, Omron FINS
   (CS/CJ/CP/NX), Allen-Bradley
   EtherNet/IP (ControlLogix/CompactLogix), EtherCAT (CoE/SOEM), PROFINET (DCP
-  discovery), MTConnect (CNC machine tools), MQTT/Sparkplug B/UNS, plus the
+  discovery), MTConnect (CNC machine tools), IO-Link (master JSON — sensor-level
+  visibility), MQTT/Sparkplug B/UNS, plus the
   cross-protocol brain (downtime root-cause, OEE, asset inventory). Use for PLC,
   CNC, servo/drive bus, name-of-station, tag browse, Unified Namespace, or
   production-line troubleshooting tasks. Read-first, MOC-gated writes. Also covers
@@ -67,6 +68,16 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 - `mtconnect_probe` `mtconnect_current` `mtconnect_sample` `mtconnect_assets`
 - `mtconnect_oee_snapshot` — availability/execution/mode/program（OEE 输入）
 
+### IO-Link（只读；主站 JSON 接口 — 传感器级可见性）
+- `iolink_master_info` — 主站身份（/deviceinfo：productcode/serial/hw/sw）
+- `iolink_ports` — 有界端口扫描（≤32：mode/status + 在线设备身份）
+- `iolink_device_info` — 单端口设备身份（vendorid/deviceid/productname/serial/status）
+- `iolink_read_pdin` — 过程数据输入（raw hex + 字节数组；按 IODD 解码）
+- `iolink_read_isdu` — ISDU 参数读（iolreadacyclic，index/subindex 有界）
+- `iolink_scan` — 主站 + 全端口一次性快照
+- 配置 `flavor: iotcore`（ifm IoT-Core POST envelope，默认）或 `rest`
+  （plain-REST GET，Balluff/Turck 类）；v1 只读，无写工具
+
 ### MQTT / Sparkplug B / UNS（含裸 MQTT）
 - `mqtt_read_topic` `sparkplug_decode_payload` `sparkplug_subscribe_sample`
   `sparkplug_node_list`
@@ -116,5 +127,6 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 | EtherCAT | `pysoem>=1.1,<2`（extra） | EtherCAT；CoE SDO/PDO | SOEM 兼容主从 | Linux+root+真从站 | ⚠️ 无软仿真；真机 待核实 |
 | PROFINET | `pnio-dcp>=1.1,<3`（extra） | DCP 发现/诊断，**不碰 RT 循环** | 西门子系 PN 站 | L2 raw socket | ✅ mock；真机 待核实 |
 | MTConnect | `requests>=2.31,<3` | MTConnect 1.x | CNC/机床（agent） | HTTP REST | ✅ 静态XML |
+| IO-Link | `requests>=2.31,<3`（复用 MTConnect pin） | IO-Link Master JSON Integration（IOLINK-JSON）；ifm IoT-Core / plain-REST 双 flavor | 带 JSON/REST 接口的主站（ifm/Balluff/Turck 类） | HTTP REST/JSON | ✅ mock 主站（双 flavor）；live master 待核实 |
 | MQTT/Sparkplug B | `paho-mqtt>=2.0,<3` + `protobuf>=4.25,<8` | MQTT 3.1.1/5；SpB(Tahu)；亦支持裸 MQTT | SpB 边缘/Broker；UNS | TCP/1883/8883 | ✅ |
 | PLCnext vPLC | 复用 OPC-UA/Modbus pin | 菲尼克斯 PLCnext 内建 OPC-UA(4840)+Modbus-TCP | Phoenix Contact vPLC | opc.tcp+TCP/502 | ✅ 路由验证（`tests/test_plcnext_route.py`）；活体 待核实 |
