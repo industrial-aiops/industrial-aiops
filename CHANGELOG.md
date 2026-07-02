@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed — session factory refactor (B1)
+- `iaiops/core/runtime/connection.py` (982 lines) refactored: the shared guard → build →
+  connect/translate → yield → teardown-swallow lifecycle is now a single generic
+  `make_session()` factory in `iaiops/core/runtime/session_factory.py` (exported from
+  `iaiops.core.runtime` for downstream packages, e.g. iaiops-energy); each protocol's
+  `_build_*`/`_translate_*` moved into its connector (`iaiops/connectors/<proto>/transport.py`),
+  with `connection.py` reduced to a thin assembly module keeping the exact same public API,
+  semantics, and test monkeypatch points (`connection._build_<proto>_*`). Zero behavior change.
+
 ## 0.9.0 — 2026-07-02
 
 ### Security — governance hardening (from full audit)
