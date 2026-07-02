@@ -47,7 +47,10 @@ PROTOCOLS: tuple[dict, ...] = (
         "requirements": "Phoenix Contact PLCnext vPLC (虚拟化 PLC) 覆盖：其 Modbus-TCP "
         "服务器 (用户映射过程数据寄存器) 经此连接器路由验证 (tests/test_plcnext_route.py)；"
         "自带 phoenix_plcnext_process_be 寄存器模板 + IAIOPS_MCP=plcnext profile；"
-        "寄存器映射随工程配置，活体 PLCnext 设备读取仍 待核实。",
+        "寄存器映射随工程配置，活体 PLCnext 设备读取仍 待核实。"
+        "Modbus-RTU live serial verified 2026-07-02 via socat PTY pair + pymodbus RTU "
+        "server (tests/test_modbus_rtu_live.py): read_holding/input/coils/discrete round-"
+        "trip over real serial framing; not validated against a specific physical RS-485 device.",
     },
     {
         "protocol": "s7",

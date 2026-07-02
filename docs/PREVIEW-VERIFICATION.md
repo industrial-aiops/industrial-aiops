@@ -26,7 +26,7 @@ Only (3) flips the README banner from `待核实` to verified.
 | **IEC-61850** | live IED (substation relay) | MMS server + real dataset |
 | **BACnet/IP** | live HVAC / BMS controller | UDP 47808 device on-net |
 | **HART-IP** (wire) | live HART-IP gateway | only the codec is CI-verified |
-| **Modbus-RTU** | RS-485 / USB serial slave | serial bus, not socketable |
+| ~~**Modbus-RTU**~~ | ~~RS-485 / USB serial slave~~ | **verified 2026-07-02** (socat PTY + pymodbus RTU server, `tests/test_modbus_rtu_live.py`); physical RS-485 device still pending |
 | **EtherCAT** | real EtherCAT bus + Linux root | no software simulator exists |
 | **PLCnext vPLC** (live) | physical/virtual PLCnext | route-verified only (see below) |
 
@@ -75,9 +75,20 @@ Per `CLAUDE.md`: 支持版本是一等公民 — update every surface in the sam
 zero cross-brand banned words; any live write path stays HIGH risk / dry-run + MOC.
 Live verification never relaxes the read-first posture.
 
-## Current status (2026-07-01)
+## Current status (2026-07-02)
 
-All rows above remain **待核实 (live gear)** — none flipped, because no gear is on
-the bench in this environment. This runbook is the standing procedure; the loop
-does **not** fabricate a verified status. PLCnext is **route-verified** (in-process
+**Modbus-RTU is now verified over a real serial link.** Because RTU is serial (not
+socketable) it can be exercised WITHOUT physical hardware: `socat -d -d pty,raw,echo=0
+pty,raw,echo=0` creates a connected pseudo-terminal pair (a software null-modem), a
+`pymodbus` `ModbusSerialServer` (RTU framer) serves seeded registers on one PTY, and
+the connector's `ModbusSerialClient` reads them back over the other via
+`TargetConfig(transport="rtu", serial_port=...)`. `tests/test_modbus_rtu_live.py`
+(integration-marked, skips when `socat`/`pyserial` are absent) asserts
+holding/input/coil/discrete round-trips — real RTU framing, not a mocked client. Run
+2026-07-02 in a `python:3.12-slim` container (5/5 passed). This sits above ladder
+level 2 (real wire, in-process peer); a **physical RS-485 device** is still pending.
+
+The other rows remain **待核实 (live gear)** — no BACnet/HART-IP/EtherCAT gear is on
+the bench in this environment. This runbook is the standing procedure; the loop does
+**not** fabricate a verified status. PLCnext is **route-verified** (in-process
 asyncua + faked Modbus, `tests/test_plcnext_route.py`); its *live* row stays here.
