@@ -47,6 +47,8 @@ BRAIN_MODULES = (
     "compliance_tools",
     # Queryability layer (A2): export the local SQLite sink (CSV/SQLite/Parquet).
     "export_tools",
+    # Conservative baseline learning (A6): change-log baseline, silent by default.
+    "baseline_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are
