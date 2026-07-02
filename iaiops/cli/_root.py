@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from iaiops.cli.analytics import analytics_app
+from iaiops.cli.audit import audit_app
 from iaiops.cli.bacnet import bacnet_app
 from iaiops.cli.compliance import compliance_cmd, historian_app
 from iaiops.cli.diagnostics import diag_app
@@ -45,6 +46,7 @@ app.add_typer(hart_app, name="hart")
 app.add_typer(diag_app, name="diag")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(secret_app, name="secret")
+app.add_typer(audit_app, name="audit")
 app.add_typer(historian_app, name="historian")
 app.command("init")(init_cmd)
 app.command("doctor")(doctor_cmd)

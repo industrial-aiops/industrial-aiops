@@ -7,6 +7,9 @@ time-series DB (TDengine / IoTDB) — data egress to the operator's OWN historia
 optional extras (``iaiops[tdengine]`` / ``iaiops[iotdb]``) imported lazily.
 """
 
+from typing import Optional
+
+from iaiops.core.brain.compliance import compliance_dengbao_levels as _compliance_dengbao_levels
 from iaiops.core.brain.compliance import compliance_frameworks as _compliance_frameworks
 from iaiops.core.brain.compliance import compliance_mapping as _compliance_mapping
 from iaiops.core.governance import governed_tool
@@ -51,6 +54,28 @@ def compliance_frameworks() -> dict:
     Example: compliance_frameworks().
     """
     return _compliance_frameworks()
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def compliance_dengbao_levels(level: Optional[str] = None) -> dict:
+    """[READ][risk=low] 等保 2.0 二级 vs 三级 per-pillar deltas + honest iaiops posture.
+
+    等保 2.0 (GB/T 22239) is graded — the same control tightens as the level rises.
+    Per governance pillar this shows the 二级 baseline, what 三级 additionally requires,
+    and how far iaiops moves you toward it (with the honest per-control status/gap).
+    An onboarding/self-assessment aid, NOT a certification.
+
+    Args:
+        level: Focus on one level — 'l2'/'l3', '二级'/'三级', or '2'/'3'. Omit for both.
+
+    Returns dict: {framework, levels:[{id,name,note}], selected_level, pillar_count,
+        deltas:[{pillar, l2_requires?, l3_adds?, iaiops, iaiops_status, gap}], note}.
+
+    Example: compliance_dengbao_levels(level="三级").
+    """
+    return _compliance_dengbao_levels(level)
 
 
 @mcp.tool()

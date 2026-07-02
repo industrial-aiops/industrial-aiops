@@ -1,14 +1,15 @@
-"""PROFINET MCP tools — DCP discovery/identify/asset (READ-ONLY, via pnio-dcp).
+"""PROFINET MCP tools — DCP discovery/identify/asset + one MOC-gated Set (pnio-dcp).
 
-All tools are governed at risk_level='low' (non-destructive). PROFINET-DCP is a
-layer-2 broadcast: discovery + identify only — NO RT cyclic data, and the
-disruptive DCP *Set* services (set-name/set-ip/blink/reset) are intentionally not
-exposed. pnio-dcp is an OPTIONAL extra (``pip install iaiops[profinet]``) imported
-lazily; it also needs raw-socket access (root/admin/CAP_NET_RAW) on the NIC on the
-PROFINET subnet. When unavailable, every tool returns a teaching error dict.
+Read tools are governed at risk_level='low' (non-destructive). PROFINET-DCP is a
+layer-2 broadcast: discovery + identify — NO RT cyclic data. ``profinet_dcp_set`` is
+risk_level='high' (MOC): it re-addresses a live station's name/IP, captures the
+BEFORE addressing, records an undo descriptor, and defaults to dry_run. Blink/reset
+stay out of scope. pnio-dcp is an OPTIONAL extra (``pip install iaiops[profinet]``)
+imported lazily; it also needs raw-socket access (root/admin/CAP_NET_RAW) on the NIC
+on the PROFINET subnet. When unavailable, every tool returns a teaching error dict.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.connectors.profinet import ops
 from iaiops.core.governance import governed_tool
@@ -91,3 +92,65 @@ def profinet_asset_inventory(endpoint: Optional[str] = None) -> dict:
     Example: profinet_asset_inventory(endpoint="cell1").
     """
     return ops.profinet_asset_inventory(_target(endpoint))
+
+
+def _profinet_undo(params: dict, result: Any) -> Optional[dict]:
+    """Inverse of an applied profinet_dcp_set: restore the captured BEFORE addressing."""
+    if not isinstance(result, dict) or not result.get("applied"):
+        return None
+    before = result.get("before")
+    if not before:
+        return None
+    return {
+        "tool": "profinet_dcp_set",
+        "params": {
+            "endpoint": params.get("endpoint"),
+            "mac": params.get("mac"),
+            "set_name": before.get("name_of_station"),
+            "set_ip": before.get("ip"),
+            "netmask": before.get("netmask"),
+            "gateway": before.get("gateway"),
+            "dry_run": False,
+        },
+        "note": "Restore prior PROFINET station addressing (undo of profinet_dcp_set).",
+    }
+
+
+@mcp.tool()
+@governed_tool(risk_level="high", undo=_profinet_undo)
+@tool_errors("dict")
+def profinet_dcp_set(
+    mac: str,
+    set_name: Optional[str] = None,
+    set_ip: Optional[str] = None,
+    netmask: Optional[str] = None,
+    gateway: Optional[str] = None,
+    endpoint: Optional[str] = None,
+    dry_run: bool = True,
+) -> dict:
+    """[WRITE][risk=HIGH][MOC] DCP Set — re-address one PROFINET station (off by default).
+
+    OT-DANGEROUS. Defaults to dry_run=True (nothing set). Re-addresses a live
+    station's name-of-station and/or IP suite via a unicast DCP Set (can disrupt the
+    IO connection). Captures the BEFORE addressing (by MAC) and records an undo
+    descriptor. Set dry_run=False AND record an approver (OPCUA_AUDIT_APPROVED_BY) to
+    apply. 未经授权勿对生产控制系统写入.
+
+    Args:
+        mac: Target station MAC, e.g. '00:1b:1b:12:34:56' (from profinet_discover).
+        set_name: New name-of-station (omit to leave unchanged).
+        set_ip: New IP address (omit to leave the IP suite unchanged).
+        netmask: New subnet mask (used with set_ip).
+        gateway: New default gateway (used with set_ip).
+        endpoint: Endpoint name from config (protocol 'profinet').
+        dry_run: When True (default) returns a preview without setting anything.
+
+    Returns dict: dry-run → {mac, dry_run:true, before, would_set, note};
+        applied → {mac, dry_run:false, before, set, applied:true, _undo_id}.
+
+    Example (preview): profinet_dcp_set(mac="00:1b:1b:12:34:56", set_name="plc-new").
+    """
+    return ops.profinet_dcp_set(
+        _target(endpoint), mac, set_name=set_name, set_ip=set_ip,
+        netmask=netmask, gateway=gateway, dry_run=dry_run,
+    )

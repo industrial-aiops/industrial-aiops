@@ -1,10 +1,12 @@
 """BACnet/IP operations — read-only facility / HVAC monitoring (via the ``bacnet`` extra).
 
 BACnet/IP (ASHRAE 135) is the dominant building-automation protocol — HVAC,
-lighting, metering, 厂务/facility plant. This connector is **read-only monitoring**:
-device discovery (Who-Is), object-list browse, and property reads (present-value of
-analog/binary/multistate points). Writes (present-value with priority / relinquish)
-are OT-dangerous for live building control and intentionally NOT exposed here.
+lighting, metering, 厂务/facility plant. This connector is read-first: device
+discovery (Who-Is), object-list browse, and property reads (present-value of
+analog/binary/multistate points). Property writes (present-value with priority /
+relinquish) ARE exposed via :func:`bacnet_write_property` — an OT-DANGEROUS write
+for live building control: it is governed (high risk_tier), captures the BEFORE
+value for undo, and must run through dry-run + double-confirm.
 
 ``BAC0`` (over bacpypes3) is an OPTIONAL extra imported lazily in
 :func:`iaiops.core.runtime.connection._build_bacnet_network`. The BAC0 surface is
@@ -340,6 +342,84 @@ def bacnet_read_trend_log(
     }
 
 
+def _shown_value(value: Any, relinquish: bool) -> Any:
+    """JSON-safe display of a value to write ('null' when relinquishing priority)."""
+    if relinquish:
+        return "null"
+    return num(value) if num(value) is not None else s(value, 120)
+
+
+def bacnet_write_property(
+    target: Any,
+    address: str,
+    object_type: str,
+    instance: int,
+    value: Any,
+    priority: int | None = None,
+    bacnet_property: str = "presentValue",
+    relinquish: bool = False,
+    *,
+    dry_run: bool = True,
+) -> dict:
+    """[WRITE][HIGH RISK] Write one property of one BACnet object (off by default).
+
+    OT-dangerous — overriding a live building-control point (present-value, optionally
+    at a BACnet priority, or relinquishing that priority) can move real HVAC/plant.
+    Captures the BEFORE value (read-back) so the change is reversible, and refuses to
+    act unless ``dry_run`` is explicitly False. 未经授权勿对生产控制系统写入.
+    """
+    addr = str(address or "").strip()
+    otype = str(object_type or "").strip()
+    inst = _opt_int(instance)
+    prop = str(bacnet_property or "presentValue").strip()
+    if not addr or not otype or inst is None:
+        return {"error": "address, object_type and instance are required."}
+    prio = _opt_int(priority)
+    request = f"{addr} {otype} {inst} {prop} {'null' if relinquish else value}"
+    if prio is not None:
+        request += f" - {prio}"
+    shown = _shown_value(value, relinquish)
+    with bacnet_session(target) as net:
+        try:
+            raw_before = net.read(f"{addr} {otype} {inst} {prop}")
+            before = num(raw_before) if num(raw_before) is not None else s(raw_before, 200)
+            read_error = ""
+        except Exception as exc:  # noqa: BLE001 — record the read-back failure
+            before = None
+            read_error = s(str(exc), 160)
+        if dry_run:
+            return {
+                "endpoint": s(getattr(target, "name", ""), 64),
+                "address": s(addr, 64),
+                "object_type": s(otype, 32),
+                "instance": inst,
+                "property": s(prop, 48),
+                "priority": prio,
+                "relinquish": bool(relinquish),
+                "dry_run": True,
+                "before": before,
+                "would_write": shown,
+                "request": s(request, 200),
+                "read_back_error": read_error,
+                "note": "Dry run — nothing written. Re-run with dry_run=False AND a "
+                "recorded approver to apply. 未经授权勿对生产控制系统写入.",
+            }
+        net.write(request)
+    return {
+        "endpoint": s(getattr(target, "name", ""), 64),
+        "address": s(addr, 64),
+        "object_type": s(otype, 32),
+        "instance": inst,
+        "property": s(prop, 48),
+        "priority": prio,
+        "relinquish": bool(relinquish),
+        "dry_run": False,
+        "before": before,
+        "written": shown,
+        "applied": True,
+    }
+
+
 __all__ = [
     "bacnet_discover",
     "bacnet_object_list",
@@ -347,5 +427,6 @@ __all__ = [
     "bacnet_read_points",
     "bacnet_cov_subscribe",
     "bacnet_read_trend_log",
+    "bacnet_write_property",
     "OTConnectionError",
 ]

@@ -48,8 +48,11 @@ EXPECTED_TOOLS = {
     # cross-protocol analytics (OEE / downtime / asset / CoV)
     "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
     "cross_protocol_asset_model", "monitor_changes",
-    # BACnet/IP (building / HVAC — bounded COV + read-only trend log)
-    "bacnet_cov_subscribe", "bacnet_read_trend_log",
+    # BACnet/IP (building / HVAC — bounded COV + read-only trend log + MOC write)
+    "bacnet_cov_subscribe", "bacnet_read_trend_log", "bacnet_write_property",
+    # PROFINET (DCP discovery + MOC-gated Set)
+    "profinet_discover", "profinet_identify_station", "profinet_station_params",
+    "profinet_asset_inventory", "profinet_dcp_set",
     # tag intelligence — adopted alias map persistence + diff
     "adopt_alias_map", "diff_alias_map",
     # self-description
@@ -60,6 +63,7 @@ EXPECTED_TOOLS = {
 WRITE_TOOLS = {
     "s7_write_db", "mc_write_words", "mqtt_publish", "eip_write_tag",
     "ethercat_write_sdo", "ethercat_set_state",
+    "profinet_dcp_set", "bacnet_write_property",
 }
 
 
@@ -204,7 +208,8 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["diag", "tags", "--help"], ["diag", "historian", "--help"],
         ["secret", "set", "--help"], ["secret", "list", "--help"],
         ["secret", "rm", "--help"], ["secret", "migrate", "--help"],
-        ["secret", "rotate-password", "--help"],
+        ["secret", "rotate", "--help"], ["secret", "rotate-password", "--help"],
+        ["audit", "forward", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"

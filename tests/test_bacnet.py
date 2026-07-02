@@ -58,6 +58,10 @@ class _FakeNet:
             _FakeLogRecord("2026-06-30", "12:10:00", 21.8),
         ]
         self.range_calls: list[dict] = []
+        self.writes: list[str] = []
+
+    def write(self, request):
+        self.writes.append(request)
 
     def who_is(self, *args, **kwargs):
         return [(1001, "192.168.1.10"), (1002, "192.168.1.11")]
@@ -277,3 +281,101 @@ def test_construction_bind_error_is_translated(monkeypatch):
     target = TargetConfig(name="ahu-net", protocol="bacnet", host="192.168.1.5")
     with pytest.raises(conn.OTConnectionError, match="BACNET operation"):
         ops.bacnet_discover(target)
+
+
+# ─── write property (HIGH-risk, MOC-gated write) ──────────────────────────────
+
+
+@pytest.mark.unit
+def test_write_tool_is_high_risk_and_default_dry_run():
+    from mcp_server import _shared
+    from mcp_server.server import register_profile
+
+    register_profile("all")
+    fn = _shared.mcp._tool_manager._tools["bacnet_write_property"].fn
+    assert getattr(fn, "_risk_level", "") == "high"
+    import inspect
+
+    assert inspect.signature(fn).parameters["dry_run"].default is True
+
+
+@pytest.mark.unit
+def test_ops_write_dry_run_default_is_true():
+    import inspect
+
+    assert inspect.signature(ops.bacnet_write_property).parameters["dry_run"].default is True
+
+
+@pytest.mark.unit
+def test_write_dry_run_returns_plan_without_writing(bac):
+    target, net = bac
+    out = ops.bacnet_write_property(
+        target, "192.168.1.10", "analogInput", 1, 25.0, dry_run=True
+    )
+    assert out["dry_run"] is True
+    assert out["before"] == 21.5  # captured BEFORE value
+    assert out["would_write"] == 25.0
+    assert net.writes == []  # dry run NEVER writes
+
+
+@pytest.mark.unit
+def test_write_applied_captures_before_and_writes(bac):
+    target, net = bac
+    out = ops.bacnet_write_property(
+        target, "192.168.1.10", "analogInput", 1, 25.0, dry_run=False
+    )
+    assert out["applied"] is True
+    assert out["before"] == 21.5  # BEFORE value for undo
+    assert out["written"] == 25.0
+    assert net.writes == ["192.168.1.10 analogInput 1 presentValue 25.0"]
+
+
+@pytest.mark.unit
+def test_write_priority_appended_to_request(bac):
+    target, net = bac
+    ops.bacnet_write_property(
+        target, "192.168.1.10", "analogInput", 1, 25.0, priority=8, dry_run=False
+    )
+    assert net.writes == ["192.168.1.10 analogInput 1 presentValue 25.0 - 8"]
+
+
+@pytest.mark.unit
+def test_write_relinquish_writes_null(bac):
+    target, net = bac
+    out = ops.bacnet_write_property(
+        target, "192.168.1.10", "analogInput", 1, 25.0,
+        priority=8, relinquish=True, dry_run=False,
+    )
+    assert out["written"] == "null"
+    assert net.writes == ["192.168.1.10 analogInput 1 presentValue null - 8"]
+
+
+@pytest.mark.unit
+def test_write_requires_args(bac):
+    target, _ = bac
+    assert "error" in ops.bacnet_write_property(target, "192.168.1.10", "", 1, 25.0)
+
+
+@pytest.mark.unit
+def test_bacnet_undo_descriptor_restores_before():
+    from mcp_server.tools.bacnet_tools import _bacnet_undo
+
+    params = {
+        "endpoint": "ahu-net", "address": "192.168.1.10",
+        "object_type": "analogInput", "instance": 1, "priority": 8,
+    }
+    result = {"applied": True, "before": 21.5}
+    undo = _bacnet_undo(params, result)
+    assert undo["tool"] == "bacnet_write_property"
+    assert undo["params"]["value"] == 21.5
+    assert undo["params"]["priority"] == 8
+    assert undo["params"]["relinquish"] is False
+    assert undo["params"]["dry_run"] is False
+
+
+@pytest.mark.unit
+def test_bacnet_undo_skips_dry_run_and_missing_before():
+    from mcp_server.tools.bacnet_tools import _bacnet_undo
+
+    assert _bacnet_undo({}, {"applied": False}) is None
+    assert _bacnet_undo({}, {"applied": True, "before": None}) is None
