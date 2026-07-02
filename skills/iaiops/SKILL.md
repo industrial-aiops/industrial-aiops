@@ -40,9 +40,20 @@ description: >-
 - 单协议深用（只有一种设备）：直接 `IAIOPS_MCP=opcua`（或 modbus/s7/mc/eip/mtconnect/
   sparkplug/ethercat/secsgem/profinet/bacnet/hart），等价脚本 `iaiops-mcp-<协议>`。
 - 跨行业只问 OEE/停机根因/资产盘点/数据质量：任一 profile 均可 —— 跨协议脑
-  （诊断/OEE/资产/合规）**永远随 server 暴露**，选覆盖现场协议的 profile 即可。
+  （诊断/OEE/资产/合规）**默认随 server 暴露**，选覆盖现场协议的 profile 即可；
+  纯脑场景可用 `IAIOPS_MCP=brain` / `iaiops-mcp-brain`（只暴露脑，零协议）。
 - 说不清行业但报了协议名：按协议列选含它的最小 profile；都不沾 → `iaiops doctor` +
   `protocols_supported` 先看现场配置了什么。
+
+## 部署（0.10.0 起：无默认，必须选菜单）
+
+- **裸启动 `iaiops-mcp`（不设 `IAIOPS_MCP`）不再暴露全部工具**：打印选择菜单到
+  stderr 并 exit 2。必须设 `IAIOPS_MCP=<selection>` 或用预置入口 `iaiops-mcp-<name>`。
+  `IAIOPS_MCP=menu` 显式打印同一菜单（带各 selection 工具数）后退出。
+- `IAIOPS_MCP=all` 仍可**显式**使用（power user；>60 工具时启动日志给洪泛警告）。
+- **多进程站点（1 脑 + N 协议）**：跑一个 `iaiops-mcp-brain`（只脑），协议 server 各自
+  加 `IAIOPS_MCP_NO_BRAIN=1`（如 `IAIOPS_MCP_NO_BRAIN=1 iaiops-mcp-opcua`）去掉脑，
+  避免跨 server 工具重名；`protocols_supported`（发现工具）在 NO_BRAIN 下仍然保留。
 
 ## Energy 协议 → 另一个包（不在本 server）
 

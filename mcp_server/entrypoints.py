@@ -6,10 +6,11 @@ pure sugar: each injects the equivalent selection then starts the *same* server
 via :func:`mcp_server.server.main`. No server logic is duplicated.
 
 The shim set is generated data-driven from the profile menu — every protocol key
-in ``PROTOCOL_MODULES`` and every named profile in ``NAMED_PROFILES`` (except the
-default ``all``, already served by the plain ``iaiops-mcp``) — so it can never
+in ``PROTOCOL_MODULES`` and every named profile in ``NAMED_PROFILES`` (except
+``all``, reachable explicitly via ``IAIOPS_MCP=all iaiops-mcp``) — so it can never
 drift out of sync with the menu. ``server.main`` reads ``IAIOPS_MCP`` at run time,
-so the shim sets it *before* delegating.
+so the shim sets it *before* delegating. This includes ``iaiops-mcp-brain``
+(brain-only server, B3); protocol shims honour ``IAIOPS_MCP_NO_BRAIN=1``.
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from mcp_server.profiles import NAMED_PROFILES, PROTOCOL_MODULES
 
 __all__ = ["ENTRYPOINT_SELECTIONS"]
 
-# Every protocol + every named profile except the default 'all' (== plain iaiops-mcp).
+# Every protocol + every named profile except 'all' (explicit IAIOPS_MCP=all only).
 ENTRYPOINT_SELECTIONS: tuple[str, ...] = tuple(PROTOCOL_MODULES) + tuple(
     name for name in NAMED_PROFILES if name != "all"
 )

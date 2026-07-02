@@ -24,8 +24,8 @@ _PYPROJECT = Path(__file__).resolve().parent.parent / "pyproject.toml"
 
 
 def test_entrypoint_set_is_data_driven():
-    # Every protocol key and every named profile (except the default 'all', which
-    # is already served by the plain `iaiops-mcp`) gets a shim — and nothing else.
+    # Every protocol key and every named profile (except 'all', reachable only
+    # via an explicit IAIOPS_MCP=all) gets a shim — and nothing else.
     expected = set(PROTOCOL_MODULES) | (set(NAMED_PROFILES) - {"all"})
     assert set(entrypoints.ENTRYPOINT_SELECTIONS) == expected
     for name in expected:
@@ -81,7 +81,7 @@ def _tool_count(launch: str) -> int:
     return int(out.strip())
 
 
-@pytest.mark.parametrize("name", ["opcua", "modbus", "fab", "building"])
+@pytest.mark.parametrize("name", ["opcua", "modbus", "fab", "building", "brain"])
 def test_shim_tool_set_matches_env_var(name):
     via_env = _tool_count(
         f"import os; os.environ['IAIOPS_MCP'] = {name!r};"
@@ -91,3 +91,11 @@ def test_shim_tool_set_matches_env_var(name):
         f"from mcp_server.entrypoints import main_{name} as m; m()"
     )
     assert via_shim == via_env
+
+
+def test_brain_shim_and_console_script_exist():
+    # B3: the dedicated brain-only server ships as a first-class entrypoint.
+    assert "brain" in entrypoints.ENTRYPOINT_SELECTIONS
+    assert callable(entrypoints.main_brain)
+    scripts = tomllib.loads(_PYPROJECT.read_text())["project"]["scripts"]
+    assert scripts["iaiops-mcp-brain"] == "mcp_server.entrypoints:main_brain"
