@@ -13,7 +13,7 @@ from mcp_server._shared import _target, mcp, tool_errors
 def modbus_read_holding(
     address: int, endpoint: Optional[str] = None, count: int = 1, decode: str = "uint16"
 ) -> dict:
-    """[READ] Read holding registers (FC03) with a decode hint.
+    """[READ][risk=low] Read holding registers (FC03) with a decode hint.
 
     Args:
         address: Starting register address.
@@ -30,7 +30,7 @@ def modbus_read_holding(
 def modbus_read_input(
     address: int, endpoint: Optional[str] = None, count: int = 1, decode: str = "uint16"
 ) -> dict:
-    """[READ] Read input registers (FC04) with a decode hint.
+    """[READ][risk=low] Read input registers (FC04) with a decode hint.
 
     Args:
         address: Starting register address.
@@ -45,7 +45,7 @@ def modbus_read_input(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def modbus_read_coils(address: int, endpoint: Optional[str] = None, count: int = 1) -> dict:
-    """[READ] Read coils (FC01) — digital outputs, read-only here.
+    """[READ][risk=low] Read coils (FC01) — digital outputs, read-only here.
 
     Args:
         address: Starting coil address.
@@ -59,7 +59,7 @@ def modbus_read_coils(address: int, endpoint: Optional[str] = None, count: int =
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def modbus_read_discrete(address: int, endpoint: Optional[str] = None, count: int = 1) -> dict:
-    """[READ] Read discrete inputs (FC02) — read-only digital inputs.
+    """[READ][risk=low] Read discrete inputs (FC02) — read-only digital inputs.
 
     Args:
         address: Starting discrete-input address.
@@ -73,13 +73,13 @@ def modbus_read_discrete(address: int, endpoint: Optional[str] = None, count: in
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def modbus_detect_byte_order(
-    registers: list,
+    registers: list[int],
     value_type: str = "float32",
     hint: Optional[float] = None,
     value_min: Optional[float] = None,
     value_max: Optional[float] = None,
 ) -> dict:
-    """[READ] Auto-detect the word/byte order of a raw Modbus register block.
+    """[READ][risk=low] Auto-detect the word/byte order of a raw Modbus register block.
 
     Pure decode logic (no device): decodes the raw registers under every candidate
     order for the numeric type and scores them against a known/expected value
@@ -101,7 +101,7 @@ def modbus_detect_byte_order(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def modbus_list_templates() -> dict:
-    """[READ] List built-in vendor register-map templates (name / type / tags)."""
+    """[READ][risk=low] List built-in vendor register-map templates (name / type / tags)."""
     return ops.modbus_list_templates()
 
 
@@ -114,7 +114,7 @@ def modbus_apply_template(
     address: int = 0,
     count: Optional[int] = None,
 ) -> dict:
-    """[READ] Read a register block and decode it into named tags via a template.
+    """[READ][risk=low] Read a register block and decode it into named tags via a template.
 
     Args:
         template: Template name (see modbus_list_templates).
@@ -130,11 +130,11 @@ def modbus_apply_template(
 @tool_errors("dict")
 def modbus_health_summary(
     endpoint: Optional[str] = None,
-    addresses: Optional[list] = None,
-    thresholds: Optional[dict] = None,
+    addresses: Optional[list[int]] = None,
+    thresholds: Optional[dict[str, dict[str, float]]] = None,
     register_type: str = "holding",
 ) -> dict:
-    """[READ] Classify Modbus registers against warn/alarm thresholds.
+    """[READ][risk=low] Classify Modbus registers against warn/alarm thresholds.
 
     Mirrors the OPC-UA health_summary classifier. Returns ok/warn/alarm/unknown
     counts plus offenders.

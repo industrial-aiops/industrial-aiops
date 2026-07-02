@@ -85,7 +85,7 @@ def s7_read_db(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def s7_read_many(addresses: list, endpoint: Optional[str] = None) -> dict:
+def s7_read_many(addresses: list[str], endpoint: Optional[str] = None) -> dict:
     """[READ][risk=low] Batch-read raw pyS7 address strings in one request.
 
     Args:
@@ -99,7 +99,7 @@ def s7_read_many(addresses: list, endpoint: Optional[str] = None) -> dict:
     return ops.s7_read_many(_target(endpoint), addresses)
 
 
-def _s7_undo(params: dict, result: Any) -> Optional[dict]:
+def _s7_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied s7_write_db: restore the captured BEFORE value."""
     if not isinstance(result, dict) or not result.get("applied"):
         return None

@@ -9,4 +9,4 @@ governance harness (audit / budget / risk-tier / undo). Read-first: the few
 write/command tools are off by default (dry-run) and MOC-gated at high risk_tier.
 """
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"

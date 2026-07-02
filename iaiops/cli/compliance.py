@@ -108,7 +108,8 @@ def evidence_cmd(
 
 
 historian_app = typer.Typer(
-    help="信创 national-TSDB historian sink (push collected telemetry to TDengine/IoTDB).",
+    help="信创 national-TSDB historian: push collected telemetry (TDengine/IoTDB/"
+    "sqlite) and read it back (query/coverage — see iaiops/cli/historian.py).",
     no_args_is_help=True,
 )
 

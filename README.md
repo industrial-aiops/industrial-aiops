@@ -525,18 +525,24 @@ Two more pure-analysis layers — fully testable without live gear, and they fee
 
 ### MCP server
 ```bash
-iaiops mcp        # stdio transport; or the `iaiops-mcp` entry point
+IAIOPS_MCP=opcua iaiops-mcp   # stdio transport (`iaiops mcp` is equivalent)
 ```
 
 **Menu — expose only the protocols a site runs.** A fab usually runs 1–2 protocols;
-exposing all 13 floods the model with tools it can't use. Set `IAIOPS_MCP` to a
-comma-list of protocols and/or a named profile (default `all`). The cross-protocol
-brain (OEE / downtime / diagnostics / asset / analysis) is **always** exposed.
+exposing all 12 floods the model with tools it can't use. Set `IAIOPS_MCP` to a
+comma-list of protocols and/or a named profile. **There is no default** (since
+0.10.0): a bare `iaiops-mcp` prints the selection menu (profiles, protocol keys,
+tool counts) to stderr and exits 2 instead of silently exposing 100+ tools. The
+cross-protocol brain (OEE / downtime / diagnostics / asset / analysis) is included
+by default with every selection.
 
 ```bash
-IAIOPS_MCP=opcua,modbus iaiops-mcp   # 32 tools instead of 90
-IAIOPS_MCP=fab          iaiops-mcp   # named profile (opcua+s7+modbus)
+IAIOPS_MCP=menu         iaiops-mcp   # print the menu (selections + tool counts)
+IAIOPS_MCP=opcua,modbus iaiops-mcp   # two protocols + brain
+IAIOPS_MCP=fab          iaiops-mcp   # named profile (secsgem+opcua+s7+modbus)
 IAIOPS_MCP=opcua        iaiops-mcp   # effectively a single-protocol MCP
+IAIOPS_MCP=all          iaiops-mcp   # everything — explicit opt-in only
+                                     # (logs a tool-flood warning above 60 tools)
 ```
 
 **Named entry-point sugar.** For the common single-protocol / single-edition case
@@ -547,14 +553,26 @@ var to set. Each is a thin shim over the same server:
 iaiops-mcp-opcua     # == IAIOPS_MCP=opcua    iaiops-mcp
 iaiops-mcp-modbus    # == IAIOPS_MCP=modbus   iaiops-mcp
 iaiops-mcp-fab       # == IAIOPS_MCP=fab      iaiops-mcp  (per-edition)
-iaiops-mcp-energy    # == IAIOPS_MCP=energy   iaiops-mcp
 iaiops-mcp-building  # == IAIOPS_MCP=building iaiops-mcp
+iaiops-mcp-brain     # == IAIOPS_MCP=brain    iaiops-mcp  (brain only, 0 protocols)
 ```
 
-Named profiles: `all` · `fab` · `factory` · `process` · `energy` · `building`. In an
-MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per server entry — or point the
-entry straight at the matching `iaiops-mcp-<name>` script — one entry per site/line,
-each a lean single- or dual-protocol server.
+**Multi-process sites — 1 brain MCP + N protocol MCPs.** Running several protocol
+servers side by side (e.g. `iaiops-mcp-opcua` + `iaiops-mcp-modbus`) would duplicate
+the ~30 brain tools in every server. Instead run one dedicated `iaiops-mcp-brain`
+and set `IAIOPS_MCP_NO_BRAIN=1` on the protocol servers to strip the brain from
+them — the `protocols_supported` discovery tool stays exposed everywhere:
+
+```bash
+iaiops-mcp-brain                          # the one cross-protocol brain server
+IAIOPS_MCP_NO_BRAIN=1 iaiops-mcp-opcua    # lean protocol server, no brain
+IAIOPS_MCP_NO_BRAIN=1 iaiops-mcp-modbus
+```
+
+Named profiles: `all` · `brain` · `fab` · `factory` · `process` · `building` ·
+`water` · `plcnext`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
+server entry — or point the entry straight at the matching `iaiops-mcp-<name>`
+script — one entry per site/line, each a lean single- or dual-protocol server.
 
 ---
 

@@ -31,6 +31,7 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 - `opcua_subscribe_sample` `opcua_read_alarms` `opcua_read_history`(HDA)
 - `opcua_diagnose_connection` — 连接失败归因（证书/策略/认证/网络/配置）
 - `opcua_discover_tags` — 自动发现 + 语义资产建模（构筑物/工艺段/设备）
+- `opcua_health_summary` — tag vs 阈值分类；`opcua_anomaly_scan` — 有界统计异常扫描
 
 ### HART-IP（只读；水质/过程变送器，经网关，端口 5094）
 - `hart_device_identity` — 通用设备身份（command 0）
@@ -46,11 +47,15 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 - 数据质量：`data_quality_scorecard` `data_quality_fleet_rollup`（水质仪表重点：
   电极老化 flatline / staleness / 量程外 —— 坏数据绝不静默插值）
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
-  `health_summary` `anomaly_scan`
+  `health_summary` (deprecated) `anomaly_scan` (deprecated)
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
+- 基线：`baseline_learn` `baseline_check` `baseline_record_change` `baseline_status`
+  （change-log 基线：拒学薄历史、只报持续越带、每次告警必引基线样本 —— 非黑盒异常检测）
 - 合规/信创：`compliance_mapping` `compliance_frameworks` `compliance_dengbao_levels`
   `compliance_report` `compliance_evidence_bundle`
+  `historian_push` `export_data` `historian_query` `historian_coverage`
   `historian_push` `export_data`
+- 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
 - 元：`protocols_supported`
 
 ## Workflows
@@ -58,7 +63,7 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 1. **Doctor-first**：`protocols_supported` → `iaiops doctor` → HART 先
    `hart_device_identity`，OPC-UA 先 `opcua_diagnose_connection`。
 2. **Read-first**：水质巡检 = `modbus_apply_template`/`hart_primary_variable` 读
-   pH/浊度/电导率 → `health_summary` 对阈值 → 异常用 `anomaly_scan`；
+   pH/浊度/电导率 → `opcua_health_summary` 对阈值 → 异常用 `opcua_anomaly_scan`；
    泵站"没数据"用 `diagnose_dataflow`，停机用 `downtime_root_cause_live`。
 3. **MOC 写**：本 edition 工具表面**全只读**（加药量/泵启停不经本工具下发）。
    若现场确需写，须切到含写工具的 profile 并走统一 MOC：`risk=HIGH` +

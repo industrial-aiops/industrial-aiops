@@ -37,6 +37,7 @@ description: >-
 - `opcua_read_history` — HDA 历史读取（[start,end] 窗口）
 - `opcua_diagnose_connection` — 连不上时归因（证书/安全策略/认证/防火墙/DNS/端口/配置）
 - `opcua_discover_tags` — 自动发现 tag 并建语义资产模型
+- `opcua_health_summary` — tag vs 阈值分类；`opcua_anomaly_scan` — 有界统计异常扫描
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live`
@@ -45,11 +46,15 @@ description: >-
   `alarm_rationalization_worksheet`
 - 数据质量：`data_quality_scorecard` `data_quality_fleet_rollup`
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
-  `health_summary` `anomaly_scan`
+  `health_summary` (deprecated) `anomaly_scan` (deprecated)
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
+- 基线：`baseline_learn` `baseline_check` `baseline_record_change` `baseline_status`
+  （change-log 基线：拒学薄历史、只报持续越带、每次告警必引基线样本 —— 非黑盒异常检测）
 - 合规/信创：`compliance_mapping` `compliance_frameworks` `compliance_dengbao_levels`
   `compliance_report` `compliance_evidence_bundle`
+  `historian_push` `export_data` `historian_query` `historian_coverage`
   `historian_push` `export_data`
+- 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
 - 元：`protocols_supported`
 
 ## Workflows

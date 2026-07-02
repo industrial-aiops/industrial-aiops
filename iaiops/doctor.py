@@ -240,10 +240,14 @@ def _where(target) -> str:
         return target.endpoint_url or "?"
     if target.protocol == "mtconnect":
         return target.agent_url or f"{target.host}:{target.port}"
+    if target.protocol == "iolink":
+        return target.agent_url or f"{target.host}:{target.port}"
     if target.protocol == "s7":
         return f"{target.host}:{target.port} rack={target.rack} slot={target.slot}"
     if target.protocol == "mc":
         return f"{target.host}:{target.port} ({target.plctype})"
+    if target.protocol == "fins":
+        return f"{target.host}:{target.port} ({target.transport or 'udp'})"
     if target.protocol == "mqtt":
         topic = target.topic or "#"
         return f"{target.host}:{target.port} topic={topic} tls={target.use_tls}"
@@ -282,11 +286,21 @@ def _probe(target) -> tuple[bool, str]:
 
             info = mc_cpu_status(target)
             return True, f"MC cpu={info.get('cpu_type')}"
+        if target.protocol == "fins":
+            from iaiops.connectors.fins.ops import fins_cpu_info
+
+            info = fins_cpu_info(target)
+            return True, f"FINS cpu={info.get('model')}"
         if target.protocol == "mtconnect":
             from iaiops.connectors.mtconnect.ops import mtconnect_current
 
             cur = mtconnect_current(target)
             return True, f"MTConnect observations={cur.get('observation_count')}"
+        if target.protocol == "iolink":
+            from iaiops.connectors.iolink.ops import master_info
+
+            info = master_info(target)
+            return True, f"IO-Link master={info.get('master', {}).get('productcode', '?')}"
         if target.protocol == "mqtt":
             from iaiops.connectors.sparkplug.ops import mqtt_read_topic
 

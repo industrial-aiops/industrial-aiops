@@ -15,7 +15,7 @@ from mcp_server._shared import _manager, mcp, tool_errors
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def asset_inventory(endpoints: Optional[list] = None) -> dict:
+def asset_inventory(endpoints: Optional[list[str]] = None) -> dict:
     """[READ][risk=low] Actively fingerprint endpoints into an asset register.
 
     Connects to each target with our own protocol client and reads its identity

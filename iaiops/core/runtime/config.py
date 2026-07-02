@@ -61,6 +61,10 @@ SUPPORTED_PROTOCOLS = (
     "bacnet",
     # Process edition (read-only): HART-IP process instrumentation.
     "hart",
+    # Omron FINS (CS/CJ/CP/NX-via-FINS; in-repo stdlib client, UDP 9600 + TCP).
+    "fins",
+    # IO-Link master JSON integration (read-only sensor-level visibility).
+    "iolink",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -73,6 +77,8 @@ DEFAULT_EIP_PORT = 44818  # EtherNet/IP (CIP over TCP)
 DEFAULT_SECSGEM_PORT = 5000  # HSMS (SECS-II over TCP) default
 DEFAULT_BACNET_PORT = 47808  # BACnet/IP (UDP 0xBAC0)
 DEFAULT_HART_PORT = 5094  # HART-IP (UDP/TCP 5094)
+DEFAULT_FINS_PORT = 9600  # Omron FINS (UDP default; FINS/TCP same port)
+DEFAULT_IOLINK_PORT = 80  # IO-Link master HTTP/JSON interface
 
 # Connect/request timeout applied to every TCP-based client builder so a dead
 # endpoint fails in seconds, not the OS TCP default (60-120s+). Override the
@@ -92,6 +98,8 @@ _DEFAULT_PORTS = {
     "secsgem": DEFAULT_SECSGEM_PORT,
     "bacnet": DEFAULT_BACNET_PORT,
     "hart": DEFAULT_HART_PORT,
+    "fins": DEFAULT_FINS_PORT,
+    "iolink": DEFAULT_IOLINK_PORT,
 }
 
 
@@ -210,6 +218,9 @@ class TargetConfig:
                         out on, e.g. the IP of the NIC on the PROFINET subnet).
                         Read-only DCP discovery/identify via pnio-dcp; needs L2
                         raw-socket access (root/admin). NO RT cyclic data.
+      * ``fins``      — ``host`` / ``port`` (9600) / ``transport`` (``udp``
+                        default | ``tcp``) (Omron CS/CJ/CP/NX-via-FINS; in-repo
+                        stdlib client, W227/W342 framing).
       * ``bacnet``    — ``host`` (THIS machine's local BACnet/IP interface, optionally
                         ``ip/mask`` e.g. ``10.0.0.5/24``) / ``port`` (47808). Read-only
                         facility/HVAC monitoring via the ``bacnet`` (BAC0) extra.
@@ -245,8 +256,11 @@ class TargetConfig:
     slot: int = 1
     # Mitsubishi MC
     plctype: str = "Q"
-    # MTConnect (HTTP)
+    # MTConnect + IO-Link master (HTTP): base URL of the agent/master.
     agent_url: str = ""
+    # IO-Link master JSON dialect: 'iotcore' (ifm IoT-Core POST envelope,
+    # default) or 'rest' (plain-REST GET). Empty = protocol default (iotcore).
+    flavor: str = ""
     # MQTT / Sparkplug B / UNS
     topic: str = ""
     use_tls: bool = False
@@ -288,11 +302,76 @@ class TargetConfig:
         return None
 
 
+# Historian readers the optional per-site ``historian:`` block may select.
+SUPPORTED_HISTORIAN_READERS = ("sqlite", "tdengine", "iotdb")
+
+# Secret-store key holding the historian password (never stored in YAML).
+HISTORIAN_SECRET_NAME = "historian"  # nosec B105 — a key name, not a secret
+
+
+@dataclass(frozen=True)
+class HistorianConfig:
+    """Optional per-site historian READ source (A7).
+
+    Declared as a top-level ``historian:`` block in ``config.yaml``::
+
+        historian:
+          reader: tdengine          # sqlite | tdengine | iotdb
+          host: 10.0.0.20           # TSDB readers only
+          port: 6030
+          user: root
+          database: iaiops          # TDengine db / IoTDB storage group / sqlite path
+          db_path: ~/.iaiops/data.db   # sqlite reader only (optional override)
+
+    The password (TSDB readers) is resolved from the encrypted secret store
+    under the name ``historian`` — never stored here. Absent block ⇒ no
+    historian read source; the RCA copilot then behaves exactly as before.
+    """
+
+    reader: str
+    host: str = ""
+    port: int = 0
+    user: str = ""
+    database: str = ""
+    db_path: str = ""
+
+    def __post_init__(self) -> None:
+        if self.reader not in SUPPORTED_HISTORIAN_READERS:
+            raise ValueError(
+                f"historian.reader '{self.reader}' is unsupported. Supported: "
+                f"{', '.join(SUPPORTED_HISTORIAN_READERS)}."
+            )
+
+    def password(self) -> str:
+        """Resolve the historian password from the encrypted store (or env)."""
+        return _resolve_secret(HISTORIAN_SECRET_NAME)
+
+    def reader_opts(self) -> dict:
+        """Non-empty connection kwargs for ``get_reader(self.reader, **opts)``."""
+        opts: dict = {}
+        if self.host:
+            opts["host"] = self.host
+        if self.port:
+            opts["port"] = self.port
+        if self.user:
+            opts["user"] = self.user
+        if self.database:
+            opts["database"] = self.database
+        if self.db_path:
+            opts["db_path"] = self.db_path
+        if self.reader != "sqlite":
+            secret = self.password()
+            if secret:
+                opts["password"] = secret
+        return opts
+
+
 @dataclass(frozen=True)
 class AppConfig:
     """Top-level application config."""
 
     targets: tuple[TargetConfig, ...] = ()
+    historian: HistorianConfig | None = None
 
     def get_target(self, name: str) -> TargetConfig:
         for t in self.targets:
@@ -377,10 +456,23 @@ def _hart_transport(d: dict) -> str:
     return "tcp" if given == "tcp" else "udp"
 
 
+def _fins_transport(d: dict) -> str:
+    """Resolve the FINS transport: 'tcp' only when explicitly requested, else 'udp'.
+
+    FINS runs over UDP (the historical default, port 9600) and FINS/TCP (same
+    port, extra 16-byte header + node handshake); anything that is not an
+    explicit 'tcp' resolves to 'udp' rather than silently switching transports.
+    """
+    given = str(d.get("transport", "") or "").strip().lower()
+    return "tcp" if given == "tcp" else "udp"
+
+
 def _resolve_transport(protocol: str, d: dict) -> str:
-    """Pick the per-protocol transport resolver (Modbus tcp/rtu vs HART udp/tcp)."""
+    """Pick the per-protocol transport resolver (Modbus tcp/rtu vs HART/FINS udp/tcp)."""
     if protocol == "hart":
         return _hart_transport(d)
+    if protocol == "fins":
+        return _fins_transport(d)
     return _modbus_transport(d)
 
 
@@ -444,7 +536,27 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     entries = raw.get("endpoints", raw.get("targets", []))
 
     targets = tuple(_parse_target(d) for d in entries)
-    return AppConfig(targets=targets)
+    return AppConfig(targets=targets, historian=_parse_historian(raw.get("historian")))
+
+
+def load_config_env() -> AppConfig:
+    """Load config honoring the ``IAIOPS_CONFIG`` path override (MCP/tool paths)."""
+    override = os.environ.get("IAIOPS_CONFIG")
+    return load_config(Path(override) if override else None)
+
+
+def _parse_historian(raw: object) -> HistorianConfig | None:
+    """Build the optional per-site historian READ block; absent/blank ⇒ None."""
+    if not isinstance(raw, dict) or not str(raw.get("reader", "")).strip():
+        return None
+    return HistorianConfig(
+        reader=str(raw["reader"]).strip().lower(),
+        host=str(raw.get("host", "") or ""),
+        port=int(raw.get("port", 0) or 0),
+        user=str(raw.get("user", "") or ""),
+        database=str(raw.get("database", "") or ""),
+        db_path=str(raw.get("db_path", "") or ""),
+    )
 
 
 def _parse_target(d: dict) -> TargetConfig:
@@ -477,6 +589,7 @@ def _parse_target(d: dict) -> TargetConfig:
         slot=int(d["slot"]) if d.get("slot") not in (None, "") else 1,
         plctype=str(d.get("plctype", "Q") or "Q"),
         agent_url=str(d.get("agent_url", "")),
+        flavor=str(d.get("flavor", "") or "").strip().lower(),
         topic=str(d.get("topic", "")),
         use_tls=use_tls,
         # TLS / mutual-auth certificate paths (accept common aliases).

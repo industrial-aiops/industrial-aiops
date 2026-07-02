@@ -1,5 +1,136 @@
 # Changelog
 
+## 0.10.0 — 2026-07-02
+
+### Changed — session factory refactor (B1)
+- `iaiops/core/runtime/connection.py` (982 lines) refactored: the shared guard → build →
+  connect/translate → yield → teardown-swallow lifecycle is now a single generic
+  `make_session()` factory in `iaiops/core/runtime/session_factory.py` (exported from
+  `iaiops.core.runtime` for downstream packages, e.g. iaiops-energy); each protocol's
+  `_build_*`/`_translate_*` moved into its connector (`iaiops/connectors/<proto>/transport.py`),
+  with `connection.py` reduced to a thin assembly module keeping the exact same public API,
+  semantics, and test monkeypatch points (`connection._build_<proto>_*`). Zero behavior change.
+### Added — conservative baseline learning (A6)
+- **Change-log baseline — explicitly NOT black-box anomaly detection** (MARKET-INSIGHTS R6:
+  zero false positives or it is noise). New brain modules `iaiops.core.brain.baseline`
+  (pure: robust p1/p99 + median/MAD band, no ML deps) and `baseline_store`
+  (`~/.iaiops/baselines.json`, owner-only 0600, atomic writes).
+- Learning **refuses thin history** (< 100 usable samples or < 24h span) with an explicit
+  `insufficient_data` verdict listing exactly what is missing; operator changes recorded via
+  the change log restart learning at the latest change point (the band never mixes regimes).
+- Checking is **silent by default**: violations only beyond p1/p99 by > 3×MAD AND sustained
+  ≥ 3 consecutive samples (single spikes never flagged); every violation cites the baseline
+  window (from/to ts, n samples), the band values, and the offending samples' ts/values.
+- New governed MCP tools (all `[READ][risk=low]`, always exposed with the brain):
+  `baseline_learn` / `baseline_check` / `baseline_record_change` / `baseline_status`
+  (`no_baseline` / `learning` / `ok` / `violation` — never guesses; bounded outputs).
+- New CLI: `iaiops baseline learn|check|change|status` over the local SQLite history.
+### Added — historian read integration (A7)
+- **Historian readers** (`iaiops/core/sink/reader.py`): a `HistorianReader` protocol +
+  `get_reader()` registry mirroring `get_sink()`, with `sqlite` (delegates to the existing
+  local query layer), `tdengine`, and `iotdb` readers querying the SAME layout their sinks
+  write. Same lazy optional extras as the sinks (`iaiops[tdengine]` / `iaiops[iotdb]`) with
+  teaching errors; validated ISO time bounds, capped limits, parameterized/neutralized queries.
+- **RCA pre-incident evidence**: an optional per-site `historian:` config block
+  (`reader: sqlite|tdengine|iotdb`, password via the encrypted secret store) lets
+  `downtime_root_cause` / `downtime_root_cause_live` pull the 2h pre-incident window
+  (`iaiops/core/brain/rca_history.py`) and score tag trends as one more evidence class —
+  citations name the source (`historian:<name>`), window, and sample count. Strictly
+  additive: without the config, RCA output is byte-identical (test-proven).
+- **Governed MCP tools** (always-on brain module `historian_tools`): `historian_query`
+  (bounded rows + truncation flag) and `historian_coverage` (per-tag row counts +
+  first/last timestamps — "what history do we actually have"), both `[READ][risk=low]`.
+- **CLI**: `iaiops historian query` / `iaiops historian coverage` alongside the existing
+  `historian push`.
+- Edition skills (fab/factory/process/building/water) document the two new brain tools.
+### Added — legacy PLC program explainer (A8)
+- New brain package `iaiops/core/brain/plc_program/`: structural extraction over
+  **exported** program text files (Siemens SCL/ST `.scl`/`.st`, AWL/STL `.awl`,
+  Rockwell Studio 5000 `.L5X`) — never a live PLC upload. Every extracted element
+  carries `source_file` + `line` (rung number for L5X ladder) so the explaining
+  agent must cite real locations. L5X is parsed with stdlib `xml.etree` plus a
+  pre-parse DTD/entity rejection (XXE hardening); malformed/truncated files
+  degrade to `parse_errors` entries instead of crashing.
+- 3 governed READ tools (always-on brain module `plc_program_tools`):
+  `plc_program_outline` (blocks / VAR sections / IF-CASE branches /
+  timers-counters / call graph, bounded with truncation flags),
+  `plc_program_xref` (every read/write/call/declare site of a symbol or absolute
+  address with the source line quoted), `plc_program_section` (one named block's
+  source text, ≤200 lines). Path validation: file must exist, ≤5 MB,
+  extension allowlist, no directory walking.
+- CLI: `iaiops program outline|xref|section`.
+- All 5 edition skills document the 3 tools under 跨协议脑.
+### Changed — explicit tool menu by default + brain-only server (B2/B3) **BREAKING**
+- **No default tool selection**: a bare `iaiops-mcp` (no `IAIOPS_MCP` env) no longer
+  silently exposes the full 100+ tool surface — it prints the selection menu (named
+  profiles + protocol keys + per-selection tool counts + examples) to stderr and exits 2.
+  `IAIOPS_MCP=menu` prints the same menu explicitly; `IAIOPS_MCP=all` still works as an
+  explicit power-user opt-in (a tool-flood warning is logged above 60 tools).
+- **Brain-only server (B3)**: new named selection `IAIOPS_MCP=brain` (cross-protocol
+  brain, zero protocols) + `iaiops-mcp-brain` console script; new `IAIOPS_MCP_NO_BRAIN=1`
+  toggle registers protocol selections *without* the brain modules, so multi-process
+  sites run 1 brain MCP + N brain-less protocol MCPs with no duplicate tool names.
+  The `protocols_supported` discovery tool stays exposed even under NO_BRAIN.
+- **Migration**: set `IAIOPS_MCP=<selection>` (comma list of protocols and/or a named
+  profile) or launch a pre-scoped `iaiops-mcp-<name>` entrypoint; to restore the old
+  behavior exactly, set `IAIOPS_MCP=all` explicitly.
+
+### Added — Omron FINS connector (A5)
+- **Omron FINS** (backlog A5, APAC/华南 install base): new `fins` protocol —
+  in-repo **stdlib-only** FINS client (`iaiops/connectors/fins/client.py`, no
+  third-party dependency): 10-byte FINS header framing, FINS/UDP (default port
+  9600) + FINS/TCP (node-address handshake per W342), SID matching (mismatch
+  rejected, retries=0), bounded response parsing, end-code table per Omron
+  W227/W342. Commands: 0101 memory-area read (words/bits, DM/CIO/W/H/A/EM),
+  0102 memory-area write, 0501 controller data read, 0601 controller status.
+- MCP tools `fins_cpu_info` / `fins_cpu_status` / `fins_read_words` /
+  `fins_read_bits` / `fins_read_many` [READ, risk=low] + `fins_write_words`
+  [WRITE, risk=HIGH, MOC: dry-run default, BEFORE-value capture, undo
+  descriptor]; CLI `iaiops fins cpu|status|words|bits|write-words`
+  (double-confirm on `--apply`); `fins_session` via the B1 session factory;
+  `IAIOPS_MCP=fins` menu entry + `iaiops-mcp-fins` entrypoint; added to the
+  `factory` profile/extra (`fins = []` extra — stdlib, pins nothing).
+- Self-test: in-repo mock FINS UDP/TCP responder (tests/test_fins.py). Live
+  Omron PLC behaviour and banked-EM access remain 待核实.
+
+### Added — IO-Link connector (A10)
+- **IO-Link connector** (`iaiops/connectors/iolink/`, read-only v1): sensor-level visibility via
+  the IO-Link master's HTTP/JSON interface (IO-Link consortium "JSON Integration"). Both dialects
+  selectable per endpoint via `flavor:` — `iotcore` (ifm IoT-Core POST envelope, default) and
+  `rest` (plain-REST GET, Balluff/Turck-style). Reads: master identity (`/deviceinfo/...`),
+  bounded ≤32-port sweep (mode/status + connected-device identity), per-port device identity,
+  process-data-in (raw hex + byte array), ISDU acyclic parameter read (`iolreadacyclic`). NO
+  write tools. Bounded/size-capped HTTP (response cap 256 KiB, timeout from `timeout_s`), JSON
+  schema-checked with teaching errors. Reuses the MTConnect HTTP pin (`iaiops[iolink]` →
+  `requests`); no new hard deps.
+- 6 governed MCP tools (all [READ][risk=low]): `iolink_master_info`, `iolink_ports`,
+  `iolink_device_info`, `iolink_read_pdin`, `iolink_read_isdu`, `iolink_scan`; registered in the
+  `factory` and `building` profiles + `iaiops-mcp-iolink` entrypoint; CLI `iaiops iolink
+  master|ports|device|pdin|isdu|scan`; doctor probe + init wizard support.
+- Self-test: in-process mock IO-Link master (both flavors) in `tests/test_iolink.py`
+  (identity/ports/pdin/isdu round-trips, size cap, malformed JSON, flavor switching,
+  governance markers). Live master datapoint paths 待核实.
+### Changed — brain/opcua tool split, flagship function refactor, tool-signature polish (B4/B5/B7)
+- **B4 — DEPRECATED: `health_summary` / `anomaly_scan`** are OPC-UA-specific and moved out of
+  the always-on brain into the opcua protocol module as **`opcua_health_summary` /
+  `opcua_anomaly_scan`**. The old names remain registered in the brain for ONE release as
+  deprecated aliases: they delegate to the same implementation and their response gains
+  `"deprecated": "renamed to opcua_health_summary; this alias is removed in 0.11"`
+  (respectively `opcua_anomaly_scan`). **Both aliases are removed in 0.11** — switch to the
+  `opcua_*` names. Edition skills updated (new names in the OPC-UA section; old names marked
+  deprecated in the 跨协议脑 line).
+- **B5 — flagship brain function split (pure refactor, zero behavior change)**:
+  `diagnostics.py` `subscription_health` / `diagnose_dataflow` and `rca.py` `downtime_rca` /
+  `_score_alarms` decomposed into `_collect_*` / `_score_*` / `_render_*` helpers so each
+  public function is <50 lines of orchestration; worst nesting in
+  `iaiops/core/governance/patterns.py` (`PatternEngine._load` / `match`) flattened via
+  early-continues and an extracted `_evaluate_armable`.
+- **B7 — tool-signature polish**: all MCP tool parameters now use parameterized generics
+  (`list[str]`, `dict[str, float]`, … — no bare `list`/`dict`, so the LLM-facing JSON schema
+  carries element types); docstring risk tags unified — every read tool's first line starts
+  `[READ][risk=low]`, writes keep `[WRITE][risk=HIGH][MOC]`. Enforced by the new
+  `tests/test_tool_annotations.py` walking every registered tool.
+
 ## 0.9.0 — 2026-07-02
 
 ### Security — governance hardening (from full audit)

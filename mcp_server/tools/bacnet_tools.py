@@ -165,7 +165,7 @@ def bacnet_read_trend_log(
     )
 
 
-def _bacnet_undo(params: dict, result: Any) -> Optional[dict]:
+def _bacnet_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied bacnet_write_property: restore the captured BEFORE value."""
     if not isinstance(result, dict) or not result.get("applied"):
         return None
