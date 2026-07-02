@@ -45,13 +45,14 @@ CONTROLS: tuple[dict, ...] = (
         "pillar": "双向认证 (mutual authentication)",
         "requirement": "Authenticate both endpoints; protect credentials; encrypt "
         "sensitive channels.",
-        "iaiops": "OPC-UA username/password; MQTT TLS + credentials; secrets held in "
-        "an encrypted store (Fernet + scrypt master password, ~/.iaiops/secrets.enc), "
-        "never in plaintext config.",
-        "status": "partial",
-        "gap": "Full mutual TLS / certificate-based auth (OPC-UA cert security mode, "
-        "MQTT client certs) is 待核实 / roadmap; several OT transports are "
-        "natively unauthenticated (Modbus/S7/MC/EtherCAT) — defense is zoning.",
+        "iaiops": "OPC-UA username/password + certificate security mode "
+        "(Policy/Mode + client cert/key, optional server cert); MQTT TLS with CA + "
+        "client-cert mutual auth; secrets in an encrypted store (Fernet + scrypt "
+        "master password, ~/.iaiops/secrets.enc), never in plaintext config.",
+        "status": "addressed",
+        "gap": "Mutual TLS is wired from config for OPC-UA + MQTT; live certificate "
+        "validation against real gear is 待核实. Several OT transports "
+        "(Modbus/S7/MC/EtherCAT) are natively unauthenticated — defense is zoning.",
     },
     {
         "pillar": "最小权限 (least privilege)",
