@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 — 2026-07-02
 
 ### Changed — energy edition split out
 - **The energy edition (变电/电力: IEC-104 / DNP3 / IEC-61850) moved to its own
