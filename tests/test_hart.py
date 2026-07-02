@@ -170,6 +170,55 @@ def test_hart_dynamic_variables_end_to_end(monkeypatch):
     assert names["secondary"] == pytest.approx(55.0)
 
 
+@pytest.mark.unit
+def test_hart_burst_sample_collects_multiple(monkeypatch):
+    """Burst sampling reads the published (cmd-3) variables N times over one session."""
+    from iaiops.connectors.hart import ops
+
+    payload = (bytes([0, 0]) + struct.pack(">f", 4.2) + bytes([7])
+               + struct.pack(">f", 85.0) + bytes([12]) + struct.pack(">f", 55.0))
+    session = _FakeSession(_ack_frame(3, payload))
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
+    target = TargetConfig(name="xmtr-1", protocol="hart", host="10.0.0.7")
+
+    out = ops.hart_burst_sample(target, samples=3)
+    assert out["endpoint"] == "xmtr-1"
+    assert out["requested_samples"] == 3
+    assert out["received_samples"] == 3
+    assert len(out["samples"]) == 3
+    first = out["samples"][0]
+    assert first["index"] == 0
+    assert first["loop_current_mA"] == pytest.approx(4.2, abs=1e-3)
+    names = {v["name"]: v["value"] for v in first["variables"]}
+    assert names["primary"] == pytest.approx(85.0)
+    assert names["secondary"] == pytest.approx(55.0)
+    assert "待核实" in out["note"]
+    assert session.opened and session.closed  # one session for all samples
+
+
+@pytest.mark.unit
+def test_hart_burst_sample_bounds_and_reports_no_response(monkeypatch):
+    """Sample count is clamped (>=1) and unparseable reads are flagged, not dropped."""
+    from iaiops.connectors.hart import ops
+
+    session = _FakeSession(b"")  # gateway returns nothing parseable
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
+    target = TargetConfig(name="x", protocol="hart", host="10.0.0.7")
+
+    out = ops.hart_burst_sample(target, samples=0)  # clamped up to 1
+    assert out["requested_samples"] == 1
+    assert out["received_samples"] == 0
+    assert out["samples"][0]["error"]
+
+
+@pytest.mark.unit
+def test_hart_burst_sample_tool_is_governed_low():
+    from mcp_server.tools.hart_tools import hart_burst_sample as tool
+
+    assert getattr(tool, "_is_governed_tool", False) is True
+    assert getattr(tool, "_risk_level", "") == "low"
+
+
 # ── transport selection (udp default / tcp opt-in) ────────────────────────────
 
 @pytest.mark.unit
