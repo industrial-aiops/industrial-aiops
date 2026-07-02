@@ -13,9 +13,11 @@ from iaiops.cli.diagnostics import diag_app
 from iaiops.cli.doctor import doctor_cmd
 from iaiops.cli.eip import eip_app
 from iaiops.cli.ethercat import ethercat_app
+from iaiops.cli.export import export_cmd
 from iaiops.cli.hart import hart_app
 from iaiops.cli.init import init_cmd
 from iaiops.cli.mc import mc_app
+from iaiops.cli.metrics import metrics_app
 from iaiops.cli.modbus import modbus_app
 from iaiops.cli.mqtt import mqtt_app
 from iaiops.cli.mtconnect import mtconnect_app
@@ -49,7 +51,9 @@ app.add_typer(analytics_app, name="analytics")
 app.add_typer(secret_app, name="secret")
 app.add_typer(audit_app, name="audit")
 app.add_typer(historian_app, name="historian")
+app.add_typer(metrics_app, name="metrics")
 app.command("init")(init_cmd)
+app.command("export")(export_cmd)
 app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
 app.command("compliance")(compliance_cmd)

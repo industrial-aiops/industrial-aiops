@@ -57,6 +57,9 @@ hart = ["hart-protocol>=2023.6,<2025"]
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
 tdengine = ["taospy>=2.7,<3"]
 iotdb = ["apache-iotdb>=1.0,<3"]
+# Queryability layer: Parquet export from the local SQLite sink (CSV/SQLite are
+# stdlib-only; only `iaiops export parquet` / export_data(fmt="parquet") need this).
+export = ["pyarrow>=15,<22"]
 # Convenience: install every pip-installable connector (full installs + the test
 # matrix). The energy edition (IEC-104 / DNP3 / IEC-61850) ships separately as
 # `iaiops-energy`, so its extras are not part of this package's `all`.
