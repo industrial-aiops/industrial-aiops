@@ -62,6 +62,9 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # Phoenix Contact PLCnext vPLC (虚拟化 PLC): reached over its built-in OPC-UA
     # server (opc.tcp 4840) + Modbus-TCP process-data server — no new connector.
     "plcnext": ("opcua", "modbus"),
+    # Water treatment edition (水处理): plants run Modbus RTU/TCP field devices,
+    # OPC-UA SCADA gateways and HART-IP process instrumentation — all shipped.
+    "water": ("modbus", "opcua", "hart"),
 }
 
 
