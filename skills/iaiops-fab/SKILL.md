@@ -49,7 +49,7 @@ description: >-
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
 - 合规/信创：`compliance_mapping` `compliance_frameworks` `compliance_dengbao_levels`
   `compliance_report` `compliance_evidence_bundle`
-  `historian_push` `export_data`
+  `historian_push` `export_data` `historian_query` `historian_coverage`
 - 元：`protocols_supported`
 
 ## Workflows
