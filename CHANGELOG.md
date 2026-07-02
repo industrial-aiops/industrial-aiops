@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 — 2026-07-02
 
 ### Changed — session factory refactor (B1)
 - `iaiops/core/runtime/connection.py` (982 lines) refactored: the shared guard → build →
