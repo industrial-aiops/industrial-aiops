@@ -63,16 +63,35 @@ APPROVAL_TIERS = ("none", "confirm", "dual", "review")
 _TAG_PARAM_KEYS = ("tag", "tags", "folder", "resource_tag", "env_tier", "environment")
 
 
-def risk_requires_confirmation(risk_level: str, env: str = "") -> bool:
-    """Determine if a risk level requires human confirmation.
+# ── Kill-switch env handling ──────────────────────────────────────────
 
-    - critical: always requires confirmation + approval in production
-    - high: requires confirmation
-    - medium/low: no confirmation
+# Risk levels the policy kill switch must NEVER bypass: deny rules and
+# approver tiers stay enforced for these even when policy is "disabled".
+_BYPASS_EXEMPT_RISK = ("high", "critical")
+
+_POLICY_DISABLED_ENV = "IAIOPS_POLICY_DISABLED"
+_LEGACY_POLICY_DISABLED_ENV = "OPCUA_POLICY_DISABLED"
+
+_legacy_disable_warned = False
+
+
+def _policy_disabled() -> bool:
+    """True when the policy kill switch env var is set.
+
+    Accepts the new ``IAIOPS_POLICY_DISABLED`` name; the legacy
+    ``OPCUA_POLICY_DISABLED`` still works but logs a deprecation warning once
+    per process.
     """
-    if risk_level == "critical":
+    global _legacy_disable_warned
+    if os.environ.get(_POLICY_DISABLED_ENV) == "1":
         return True
-    if risk_level == "high":
+    if os.environ.get(_LEGACY_POLICY_DISABLED_ENV) == "1":
+        if not _legacy_disable_warned:
+            _legacy_disable_warned = True
+            _log.warning(
+                "%s is deprecated — use %s instead.",
+                _LEGACY_POLICY_DISABLED_ENV, _POLICY_DISABLED_ENV,
+            )
         return True
     return False
 
@@ -90,10 +109,17 @@ class PolicyEngine:
         self._path = Path(rules_path).expanduser() if rules_path else ops_path("rules.yaml")
         self._rules: dict[str, Any] = {}
         self._mtime: float = 0.0
+        self._deletion_warned = False
         self._load_rules()
 
     def _load_rules(self) -> None:
-        """Load rules from YAML file.  Missing file → empty rules (allow all)."""
+        """Load rules from YAML file.  Missing file → empty rules.
+
+        Fail CLOSED on a bad rules file: a parse failure RETAINS the previous
+        (last-known-good) rule set for the process lifetime instead of
+        degrading to allow-all, and the failure is recorded on the audit trail
+        (status ``policy_load_failed``) so operators notice.
+        """
         if not self._path.exists():
             self._rules = {}
             self._mtime = 0.0
@@ -103,19 +129,55 @@ class PolicyEngine:
 
             self._mtime = self._path.stat().st_mtime
             with open(self._path) as fh:
-                self._rules = yaml.safe_load(fh) or {}
+                loaded = yaml.safe_load(fh)
+            if loaded is not None and not isinstance(loaded, dict):
+                raise ValueError(f"rules.yaml must be a mapping, got {type(loaded).__name__}")
+            self._rules = loaded or {}
+            self._deletion_warned = False
             _log.debug("Loaded %d policy rules from %s", len(self._rules), self._path)
-        except Exception:
-            _log.warning("Failed to load policy rules from %s", self._path, exc_info=True)
-            self._rules = {}
+        except Exception as exc:
+            _log.error(
+                "Failed to load policy rules from %s — RETAINING previous rule "
+                "set (fail closed, not allow-all). Fix the file to re-enable "
+                "hot-reload of new rules.",
+                self._path, exc_info=True,
+            )
+            self._audit_load_failure(f"{type(exc).__name__}: {exc}")
+
+    def _audit_load_failure(self, error: str) -> None:
+        """Record a policy-load failure on the audit trail (best-effort)."""
+        try:
+            from iaiops.core.governance.audit import get_engine
+
+            get_engine().log(
+                skill="iaiops",
+                tool="policy_engine",
+                params={"rules_path": str(self._path)},
+                result={"error": error},
+                status="policy_load_failed",
+                risk_level="high",
+            )
+        except Exception:  # noqa: BLE001 — audit of the failure is best-effort
+            _log.warning("Could not audit policy load failure", exc_info=True)
 
     def _maybe_reload(self) -> None:
-        """Hot-reload if file changed."""
+        """Hot-reload if file changed.
+
+        Deleting the rules file does NOT clear the in-memory rules: the
+        last-known-good rule set stays enforced (fail closed) until the file
+        reappears with valid content.
+        """
         if not self._path.exists():
-            if self._rules:
-                _log.warning("Policy rules file deleted: %s — clearing rules (allow all)", self._path)
-                self._rules = {}
-                self._mtime = 0.0
+            if self._rules and not self._deletion_warned:
+                self._deletion_warned = True
+                _log.error(
+                    "Policy rules file deleted: %s — KEEPING last-known-good "
+                    "rules in memory (fail closed). Restore the file to change "
+                    "policy.",
+                    self._path,
+                )
+                self._audit_load_failure("rules file deleted — last-known-good rules retained")
+            self._mtime = 0.0
             return
         try:
             current_mtime = self._path.stat().st_mtime
@@ -146,13 +208,23 @@ class PolicyEngine:
         # Bypass mode — log context for audit trail. Log only parameter NAMES,
         # never values: param values may carry passwords/tokens, and this path
         # can be reached by callers that did not pre-redact.
-        if os.environ.get("OPCUA_POLICY_DISABLED") == "1":
-            param_names = sorted(params.keys()) if isinstance(params, dict) else []
-            _log.warning(
-                "Policy DISABLED — bypassing check: operation=%s env=%s risk=%s param_keys=%s",
-                operation, env, risk_level, param_names,
-            )
-            return PolicyResult(allowed=True, rule="policy_disabled")
+        # The kill switch is scoped: it NEVER bypasses high/critical-risk
+        # operations — deny rules, maintenance windows, and approver tiers
+        # stay enforced for those.
+        if _policy_disabled():
+            if risk_level in _BYPASS_EXEMPT_RISK:
+                _log.warning(
+                    "Policy disable requested but IGNORED for %s-risk operation "
+                    "%s — high/critical operations are never bypassed.",
+                    risk_level, operation,
+                )
+            else:
+                param_names = sorted(params.keys()) if isinstance(params, dict) else []
+                _log.warning(
+                    "Policy DISABLED — bypassing check: operation=%s env=%s risk=%s param_keys=%s",
+                    operation, env, risk_level, param_names,
+                )
+                return PolicyResult(allowed=True, rule="policy_disabled")
 
         self._maybe_reload()
 
@@ -225,11 +297,27 @@ class PolicyEngine:
         on operation glob / environment / resource tag / minimum risk and maps
         to a tier (none/confirm/dual/review). The FIRST matching, HIGHEST tier
         wins so a prod-tagged destructive op can't be down-graded by a looser
-        rule listed earlier. No config → tier ``none`` (backward compatible).
+        rule listed earlier.
+
+        No ``risk_tiers`` config → a hardcoded SAFE default applies: high /
+        critical risk operations require a named approver (tier ``dual``,
+        rule ``builtin_default``). Low/medium stay tier ``none``. Operators
+        tune this by declaring explicit ``risk_tiers`` (``iaiops init`` writes
+        a starter rules.yaml).
         """
         self._maybe_reload()
         tiers = self._rules.get("risk_tiers") if self._rules else None
         if not tiers:
+            if risk_level in _BYPASS_EXEMPT_RISK:
+                return TierDecision(
+                    tier="dual",
+                    rule="builtin_default",
+                    reason=(
+                        "No risk_tiers configured — builtin safe default: "
+                        "high/critical-risk operations require a named approver. "
+                        "Declare risk_tiers in rules.yaml to tune this."
+                    ),
+                )
             return TierDecision(tier="none", rule="no_tiers")
 
         tags = _extract_tags(params)

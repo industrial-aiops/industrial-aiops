@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import socket
 import time
 import urllib.parse
@@ -63,6 +64,12 @@ class SyslogUDPSink:
     def __init__(self, host: str, port: int = _DEFAULT_SYSLOG_PORT) -> None:
         if not host:
             raise ValueError("syslog sink requires --host")
+        _log.warning(
+            "SIEM forward over UDP syslog to %s is PLAINTEXT — audit rows "
+            "(tool params, endpoints) cross the network unencrypted. Prefer an "
+            "https collector, or keep this on a trusted management network.",
+            host,
+        )
         self._addr = (host, int(port) or _DEFAULT_SYSLOG_PORT)
         # UDP datagram socket to a caller-specified collector. It only ever
         # sends (never binds/listens), so there is no bind-to-all exposure.
@@ -78,23 +85,43 @@ class SyslogUDPSink:
     def close(self) -> None:
         try:
             self._sock.close()
-        except OSError:
-            pass
+        except OSError as exc:
+            _log.debug("Error closing syslog socket: %s", exc)
 
 
 class HttpSink:
-    """POST each JSON line to an HTTP(S) endpoint (one request per row)."""
+    """POST each JSON line to an HTTP(S) endpoint (one request per row).
 
-    def __init__(self, url: str, *, timeout: float = _DEFAULT_HTTP_TIMEOUT) -> None:
+    Optional bearer-token auth: set ``IAIOPS_FORWARD_TOKEN`` (or pass
+    ``token=``) to send an ``Authorization: Bearer ...`` header.
+    """
+
+    def __init__(
+        self,
+        url: str,
+        *,
+        timeout: float = _DEFAULT_HTTP_TIMEOUT,
+        token: str | None = None,
+    ) -> None:
         self._url = url
         self._timeout = timeout
+        self._token = token if token is not None else os.environ.get("IAIOPS_FORWARD_TOKEN", "")
+        if url.lower().startswith("http://"):
+            _log.warning(
+                "SIEM forward endpoint %s is PLAINTEXT http — audit rows (tool "
+                "params, endpoints%s) cross the network unencrypted. Use https.",
+                url, " and the bearer token" if self._token else "",
+            )
 
     def send(self, line: str) -> None:
+        headers = {"Content-Type": "application/json"}
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
         request = urllib.request.Request(
             self._url,
             data=line.encode("utf-8"),
             method="POST",
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
         # URL scheme is validated to http/https in _http_url (no file:/ftp:
         # local-resource read), so urlopen here cannot reach the filesystem.
@@ -110,12 +137,14 @@ def _http_url(host: str, port: int, path: str) -> str:
 
     ``host`` may be a bare host or a full URL; only http/https are accepted so
     the resulting :class:`HttpSink` can never be pointed at a local file.
+    A bare host defaults to **https** — pass an explicit ``http://`` URL to
+    opt into plaintext (loudly warned).
     """
     if not host:
         raise ValueError("http sink requires --host (host or base URL)")
-    raw = host if "://" in host else f"http://{host}"
+    raw = host if "://" in host else f"https://{host}"
     parsed = urllib.parse.urlparse(raw)
-    scheme = (parsed.scheme or "http").lower()
+    scheme = (parsed.scheme or "https").lower()
     if scheme not in ("http", "https"):
         raise ValueError(f"http sink requires an http/https URL, got scheme {scheme!r}")
     hostname = parsed.hostname

@@ -154,7 +154,8 @@ def test_build_sink_http_rejects_non_http_scheme():
 def test_build_sink_http_builds_url():
     sink = build_sink("http", host="siem.local", port=8088, path="/ingest")
     assert isinstance(sink, HttpSink)
-    assert sink._url == "http://siem.local:8088/ingest"
+    # Bare hosts default to https (M-5 hardening); explicit http:// still works.
+    assert sink._url == "https://siem.local:8088/ingest"
 
 
 @pytest.mark.unit

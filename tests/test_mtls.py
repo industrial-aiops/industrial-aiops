@@ -33,7 +33,7 @@ def fake_opcua(monkeypatch):
     sync = pytest.importorskip("asyncua.sync")
     created: list[_FakeOpcuaClient] = []
 
-    def _factory(url):
+    def _factory(url, timeout=4, **kwargs):
         c = _FakeOpcuaClient(url)
         created.append(c)
         return c

@@ -26,6 +26,59 @@ from iaiops.core.runtime.config import (
 )
 from iaiops.core.runtime.secretstore import SecretStore, resolve_master_password
 
+_DEFAULT_RULES_YAML = """\
+# iaiops governance rules — hot-reloaded from this file (~/.iaiops/rules.yaml).
+#
+# risk_tiers implement graduated autonomy: each entry maps matching operations
+# to an approval tier (none / confirm / dual / review). Tiers 'dual' and
+# 'review' require a named human approver — grant one-shot approvals with:
+#   iaiops approve <tool> --endpoint <ep> --by <name> [--ttl 600]
+#
+# NOTE: even WITHOUT this file a builtin safe default applies: high/critical
+# risk operations require an approver. This file makes the gate explicit and
+# tunable. Deleting it does NOT relax policy for a running server (last-known
+# -good rules are retained in memory, fail closed).
+risk_tiers:
+  - name: high_risk_needs_approver
+    min_risk_level: high
+    tier: dual
+    reason: High/critical-risk (write/command) operations require a named approver.
+
+# Optional examples (uncomment to use):
+# deny:
+#   - name: no_writes_in_prod
+#     operations: ["*_write*"]
+#     environments: [production]
+#     reason: Writes to production are forbidden outside change control.
+# maintenance_window:
+#   start: "22:00"
+#   end: "06:00"
+"""
+
+
+def _write_default_rules() -> None:
+    """Write a starter rules.yaml (explicit risk_tiers) if none exists yet.
+
+    Operators see and can tune the approver gate instead of only hitting the
+    builtin default. Never overwrites an existing file.
+    """
+    from iaiops.core.governance.paths import ops_path
+
+    rules_file = ops_path("rules.yaml")
+    if rules_file.exists():
+        return
+    rules_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        rules_file.parent.chmod(0o700)
+    except OSError:
+        pass
+    rules_file.write_text(_DEFAULT_RULES_YAML, "utf-8")
+    try:
+        rules_file.chmod(0o600)
+    except OSError:
+        pass
+    console.print(f"[green]✓ Wrote default governance rules:[/] {rules_file}")
+
 
 def _load_existing() -> list[dict]:
     if not CONFIG_FILE.exists():
@@ -149,6 +202,7 @@ def init_cmd() -> None:
         "Collects connection details (saved to config.yaml) and any password "
         "(saved [bold]encrypted[/] to secrets.enc). Read-only, preview.\n"
     )
+    _write_default_rules()
 
     console.print("[bold]Step 1 — master password[/]")
     console.print(
