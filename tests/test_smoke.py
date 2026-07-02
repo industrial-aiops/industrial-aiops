@@ -61,6 +61,8 @@ EXPECTED_TOOLS = {
     "baseline_learn", "baseline_check", "baseline_record_change", "baseline_status",
     # historian READ integration (A7)
     "historian_query", "historian_coverage",
+    # legacy PLC program explainer (A8) — exported ST/AWL/L5X files, read-only
+    "plc_program_outline", "plc_program_xref", "plc_program_section",
     # self-description
     "protocols_supported",
 }
