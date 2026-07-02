@@ -2,8 +2,10 @@
 
 Reads append-only rows from ``~/.iaiops/audit.db`` and emits each as one JSON
 line to a **syslog (UDP)** collector or an **HTTP POST** endpoint. A persisted
-*since-cursor* (the last forwarded ``id``) makes re-runs idempotent — a second
-run forwards only rows written since the first, so nothing is duplicated.
+*since-cursor* (the last forwarded ``id``) makes re-runs incremental — a second
+run forwards only rows written since the last successful send. Delivery is
+at-least-once: on a mid-batch failure the cursor keeps the rows already sent, so
+retry resumes after them (only the failing row may be re-sent; none are lost).
 
 This is egress of *governance metadata* the operator already owns, not a
 control-system write: it only ever reads the audit DB and sends copies out.
@@ -68,7 +70,10 @@ class SyslogUDPSink:
 
     def send(self, line: str) -> None:
         payload = f"<{_SYSLOG_PRI}>iaiops-audit: {line}".encode("utf-8", "replace")
-        self._sock.sendto(payload[:_SYSLOG_MAX_BYTES], self._addr)
+        if len(payload) > _SYSLOG_MAX_BYTES:
+            # Truncate on a UTF-8 boundary (never split a multibyte char).
+            payload = payload[:_SYSLOG_MAX_BYTES].decode("utf-8", "ignore").encode("utf-8")
+        self._sock.sendto(payload, self._addr)
 
     def close(self) -> None:
         try:
@@ -193,9 +198,11 @@ def forward_audit(
 ) -> dict[str, Any]:
     """Forward every audit row newer than the cursor to ``sink`` exactly once.
 
-    Rows are read in ascending id order, sent one JSON line each, and the cursor
-    is advanced to the max id sent (persisted only when at least one row went
-    out, so a failed send leaves the cursor untouched for a clean retry).
+    Rows are read in ascending id order and sent one JSON line each. Delivery is
+    **at-least-once**: the cursor is advanced (in a ``finally``) to the max id
+    that was successfully sent, so a mid-batch send failure resumes on the next
+    run after the last delivered row — only the row that failed can be re-sent, no
+    rows are skipped.
     """
     engine = engine or get_engine()
     cursor_path = cursor_path or _default_cursor_path()
@@ -204,13 +211,16 @@ def forward_audit(
 
     sent = 0
     last_id = start
-    for row in rows:
-        sink.send(row_to_line(row))
-        sent += 1
-        last_id = max(last_id, int(row.get("id", last_id)))
-
-    if sent:
-        write_cursor(cursor_path, last_id)
+    try:
+        for row in rows:
+            sink.send(row_to_line(row))
+            sent += 1
+            last_id = max(last_id, int(row.get("id", last_id)))
+    finally:
+        # Persist progress for rows that DID go out, even if a later send raised,
+        # so retry doesn't re-deliver the whole batch (at-least-once, not lost).
+        if last_id > start:
+            write_cursor(cursor_path, last_id)
     return {"forwarded": sent, "from_cursor": start, "cursor": last_id}
 
 

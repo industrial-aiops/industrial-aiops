@@ -87,17 +87,21 @@ def test_cursor_dedupe_rerun_forwards_only_new(tmp_path, engine):
 
 
 @pytest.mark.unit
-def test_cursor_not_advanced_when_send_fails(tmp_path, engine):
+def test_partial_failure_persists_delivered_rows_at_least_once(tmp_path, engine):
     _seed(engine, 3)
     cursor = tmp_path / "cur"
-    sink = _FakeSink(fail_after=1)
+    sink = _FakeSink(fail_after=1)  # row 1 sends, row 2's send raises
     with pytest.raises(RuntimeError):
         forward_audit(sink, engine=engine, cursor_path=cursor)
-    # First row delivered, but cursor never persisted → clean retry re-sends all.
-    assert read_cursor(cursor) == 0
+    assert sink.lines and len(sink.lines) == 1  # row 1 was delivered
+    # At-least-once: the delivered row's id is persisted so retry does NOT re-send it.
+    assert read_cursor(cursor) == 1
     retry = _FakeSink()
     out = forward_audit(retry, engine=engine, cursor_path=cursor)
-    assert out["forwarded"] == 3
+    # Retry resumes after the last delivered row: re-sends the failing row (2) + rest (3),
+    # never the already-delivered row 1.
+    assert out["forwarded"] == 2
+    assert out["from_cursor"] == 1 and out["cursor"] == 3
 
 
 @pytest.mark.unit
