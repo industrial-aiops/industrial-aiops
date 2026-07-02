@@ -41,6 +41,21 @@
 - `server.json`: title corrected to "Industrial-AIOps", `environmentVariables` declared
   (`IAIOPS_MCP`, `IAIOPS_CONFIG`, `IAIOPS_MASTER_PASSWORD`).
 
+### Added — compliance report generation (A3)
+- **`iaiops compliance report --out report.md [--html] [--site NAME] [--level l2|l3]`**:
+  renders the existing compliance crosswalk into a deliverable document — title-page
+  metadata (site / date / iaiops version), per-pillar 等保 2.0 L2/L3 status table,
+  IEC 62443 FR1–6 crosswalk, honest gap list, and a governance-controls appendix
+  (audit hash chain / approval tokens / dry-run+undo / mTLS). Markdown by default,
+  `--html` via a stdlib converter (no new deps). Onboarding aid, 非认证.
+- **`iaiops compliance evidence --out bundle.zip [--since ISO] [--until ISO]`**:
+  audit-evidence zip with deterministic member names — `audit_rows.jsonl` (secrets
+  already redacted upstream), `chain_verification.json` (hash-chain walk),
+  `rules.yaml` (if present), `doctor_summary.json`, `manifest.json`. Output paths
+  reject `..` traversal; parent dirs created 0700, bundle written 0600.
+- New governed MCP tools `compliance_report` (inline markdown capped at ~400 lines,
+  else write to `out_path`) and `compliance_evidence_bundle`, both [READ][risk=low].
+
 ## 0.8.0 — 2026-07-02
 
 ### Changed — energy edition split out

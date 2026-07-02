@@ -8,7 +8,7 @@ from iaiops.cli.analytics import analytics_app
 from iaiops.cli.approve import approve_cmd
 from iaiops.cli.audit import audit_app
 from iaiops.cli.bacnet import bacnet_app
-from iaiops.cli.compliance import compliance_cmd, historian_app
+from iaiops.cli.compliance import compliance_app, historian_app
 from iaiops.cli.diagnostics import diag_app
 from iaiops.cli.doctor import doctor_cmd
 from iaiops.cli.eip import eip_app
@@ -52,7 +52,7 @@ app.add_typer(historian_app, name="historian")
 app.command("init")(init_cmd)
 app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
-app.command("compliance")(compliance_cmd)
+app.add_typer(compliance_app, name="compliance")
 
 
 @app.command("protocols")

@@ -7,14 +7,22 @@ time-series DB (TDengine / IoTDB) — data egress to the operator's OWN historia
 optional extras (``iaiops[tdengine]`` / ``iaiops[iotdb]``) imported lazily.
 """
 
+from datetime import UTC, datetime
 from typing import Optional
 
 from iaiops.core.brain.compliance import compliance_dengbao_levels as _compliance_dengbao_levels
 from iaiops.core.brain.compliance import compliance_frameworks as _compliance_frameworks
 from iaiops.core.brain.compliance import compliance_mapping as _compliance_mapping
+from iaiops.core.brain.compliance_report import render_markdown_report as _render_markdown_report
 from iaiops.core.governance import governed_tool
+from iaiops.core.governance.evidence import export_evidence_bundle as _export_evidence_bundle
+from iaiops.core.governance.evidence import validate_output_path as _validate_output_path
 from iaiops.core.sink.push import historian_push as _historian_push
 from mcp_server._shared import mcp, tool_errors
+
+# Inline-response bound for compliance_report: above this the markdown must be
+# written to a file (out_path) instead of flooding the MCP response.
+_MAX_INLINE_LINES = 400
 
 
 @mcp.tool()
@@ -76,6 +84,87 @@ def compliance_dengbao_levels(level: Optional[str] = None) -> dict:
     Example: compliance_dengbao_levels(level="三级").
     """
     return _compliance_dengbao_levels(level)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def compliance_report(
+    level: Optional[str] = None,
+    site: str = "",
+    out_path: Optional[str] = None,
+) -> dict:
+    """[READ][risk=low] Render the 等保 2.0 / IEC 62443 compliance report (Markdown).
+
+    Turns the compliance crosswalk into a deliverable document a CISO can read:
+    title-page metadata (site / date / iaiops version), per-pillar 等保 L2/L3 status
+    table, IEC 62443 FR1–6 crosswalk, honest gap list, and a governance-controls
+    appendix (audit hash chain / approval tokens / dry-run+undo / mTLS). An
+    onboarding/self-assessment aid, NOT a certification.
+
+    Args:
+        level: 等保 2.0 target level — 'l2'/'l3', '二级'/'三级', '2'/'3'. Omit for both.
+        site: Site / plant name stamped on the title page.
+        out_path: Optional file to write the markdown to (.md). Required when the
+            report exceeds the inline bound (~400 lines): without it the inline
+            markdown is truncated with a note.
+
+    Returns dict: {format, level, line_count, path?} plus either the full inline
+        {markdown} (when within bounds and no out_path) or {markdown (truncated),
+        truncated: true} with a hint to pass out_path.
+
+    Example: compliance_report(level="三级", site="示例水厂",
+        out_path="/tmp/compliance-report.md").
+    """
+    markdown = _render_markdown_report(
+        site=site, date=datetime.now(tz=UTC).date().isoformat(), level=level
+    )
+    line_count = markdown.count("\n") + 1
+    result: dict = {"format": "markdown", "level": level, "line_count": line_count}
+    if out_path:
+        path = _validate_output_path(out_path, suffixes=(".md", ".markdown"))
+        path.write_text(markdown, encoding="utf-8")
+        return {**result, "path": str(path)}
+    if line_count > _MAX_INLINE_LINES:
+        head = "\n".join(markdown.split("\n")[:_MAX_INLINE_LINES])
+        return {
+            **result,
+            "markdown": head,
+            "truncated": True,
+            "hint": f"Report exceeds {_MAX_INLINE_LINES} lines inline — pass "
+            "out_path to write the full document to a file.",
+        }
+    return {**result, "markdown": markdown}
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def compliance_evidence_bundle(
+    out_path: str,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> dict:
+    """[READ][risk=low] Export the audit-evidence bundle (zip) for an auditor.
+
+    Packages the governance evidence trail into one deterministic zip:
+    audit_rows.jsonl (secrets already redacted upstream), chain_verification.json
+    (SHA-256 hash-chain walk result), rules.yaml (if present), doctor_summary.json
+    (non-probing config/secret-store facts), and manifest.json. Path is validated
+    (no '..' traversal; parent created 0700).
+
+    Args:
+        out_path: Destination zip path (must end in .zip).
+        since: Optional ISO-8601 floor on the audit row timestamp (inclusive).
+        until: Optional ISO-8601 ceiling on the audit row timestamp (inclusive).
+
+    Returns dict: {path, row_count, chain{ok, checked, unhashed, ...}, files[],
+        since, until}.
+
+    Example: compliance_evidence_bundle(out_path="/tmp/evidence.zip",
+        since="2026-06-01T00:00:00+00:00").
+    """
+    return _export_evidence_bundle(out_path, since=since, until=until)
 
 
 @mcp.tool()
