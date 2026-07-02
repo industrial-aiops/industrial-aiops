@@ -32,6 +32,7 @@ import traceback
 from functools import wraps
 from typing import Any
 
+from iaiops.core.governance.approvals import consume_approval
 from iaiops.core.governance.audit import detect_agent, get_engine
 from iaiops.core.governance.budget import BudgetExceeded, get_budget
 from iaiops.core.governance.patterns import PatternMatch, get_pattern_engine
@@ -39,6 +40,25 @@ from iaiops.core.governance.policy import PolicyResult, get_policy_engine
 from iaiops.core.governance.sanitize import sanitize
 
 _log = logging.getLogger("iaiops.decorators")
+
+# Risk levels for which governance fails CLOSED (audit must be writable,
+# approver tiers enforced even under the policy kill switch).
+_FAIL_CLOSED_RISK = ("high", "critical")
+
+_env_approver_warned = False
+_audit_degraded_warned = False
+
+
+def _warn_env_approver_once() -> None:
+    """Warn (once per process) that the static env-var approver is in use."""
+    global _env_approver_warned
+    if not _env_approver_warned:
+        _env_approver_warned = True
+        _log.warning(
+            "Approver taken from OPCUA_AUDIT_APPROVED_BY env var — this is a "
+            "STATIC approval that authorizes every call while set. Prefer "
+            "one-shot tokens: iaiops approve <tool> --endpoint <ep> --by <name>.",
+        )
 
 
 class PolicyDenied(Exception):
@@ -154,7 +174,7 @@ class _CallState:
         "skill", "tool_name", "agent", "start", "status", "result",
         "policy_result", "pattern_match", "audit", "policy",
         "safe_params", "env", "risk_level", "timeout_seconds",
-        "rationale", "approved_by", "risk_tier", "undo",
+        "rationale", "approved_by", "approver_source", "risk_tier", "undo",
     )
 
     def __init__(
@@ -195,6 +215,7 @@ class _CallState:
         # policy pre-check (graduated autonomy).
         self.rationale = os.environ.get("OPCUA_AUDIT_RATIONALE", "")
         self.approved_by = os.environ.get("OPCUA_AUDIT_APPROVED_BY", "")
+        self.approver_source = "env" if self.approved_by else ""
         self.risk_tier = ""
 
 
@@ -247,9 +268,18 @@ def _pre_check(state: _CallState) -> None:
         }
         raise PolicyDenied(state.policy_result)
 
+    # Audit availability gate — high/critical-risk tools MUST leave an audit
+    # trail. When the audit DB cannot be written, deny them (fail closed);
+    # low/medium reads proceed with a once-per-process warning (availability
+    # over auditability for reads). Checked BEFORE approval-token consumption
+    # so a one-shot token is not burned on a call that will be denied.
+    _check_audit_health(state)
+
     # Graduated autonomy — what approval tier does this op need? Record it on
     # the audit trail, and enforce: tiers that require a named approver (dual /
-    # review) are denied when none was recorded (OPCUA_AUDIT_APPROVED_BY).
+    # review) are denied when none was recorded. Approvers come from a one-shot
+    # token (``iaiops approve``, consumed on use) or, as a deprecated static
+    # fallback, the OPCUA_AUDIT_APPROVED_BY env var.
     tier = state.policy.required_approval_tier(
         state.tool_name,
         env=state.env,
@@ -257,20 +287,8 @@ def _pre_check(state: _CallState) -> None:
         params=state.safe_params,
     )
     state.risk_tier = tier.tier
-    if tier.requires_approver and not state.approved_by:
-        reason = (
-            f"Operation '{state.tool_name}' on '{state.env or 'target'}' requires "
-            f"'{tier.tier}' approval (rule: {tier.rule}) but no approver is recorded. "
-            f"Set OPCUA_AUDIT_APPROVED_BY to the authorizing human (and "
-            f"OPCUA_AUDIT_RATIONALE to why) before retrying."
-        )
-        if tier.reason:
-            reason += f" Policy note: {tier.reason}"
-        denial = PolicyResult(allowed=False, rule=f"approval_tier:{tier.tier}", reason=reason)
-        state.policy_result = denial
-        state.status = "denied"
-        state.result = {"error": reason, "rule": denial.rule}
-        raise PolicyDenied(denial)
+    if tier.requires_approver:
+        _resolve_approver(state, tier)
 
     # Budget / runaway guard — only for calls policy already allowed, so denied
     # calls do not count. A trip raises BudgetExceeded (a hard stop); record the
@@ -288,6 +306,70 @@ def _pre_check(state: _CallState) -> None:
         )
     except Exception:  # noqa: BLE001 — fail-open by design
         state.pattern_match = None
+
+
+def _check_audit_health(state: _CallState) -> None:
+    """Deny high/critical-risk calls when the audit trail cannot be written."""
+    global _audit_degraded_warned
+    if state.audit.healthy:
+        return
+    if state.risk_level in _FAIL_CLOSED_RISK:
+        reason = (
+            f"Operation '{state.tool_name}' is {state.risk_level}-risk but the "
+            f"audit log cannot be written — denied (fail closed). Restore the "
+            f"audit DB (see 'iaiops doctor' / IAIOPS_HOME) before retrying."
+        )
+        denial = PolicyResult(allowed=False, rule="audit_unavailable", reason=reason)
+        state.policy_result = denial
+        state.status = "denied"
+        state.result = {"error": reason, "rule": denial.rule}
+        raise PolicyDenied(denial)
+    if not _audit_degraded_warned:
+        _audit_degraded_warned = True
+        _log.warning(
+            "Audit log is unavailable — low/medium-risk calls proceed WITHOUT "
+            "an audit trail; high/critical-risk calls are denied until it is "
+            "restored.",
+        )
+
+
+def _resolve_approver(state: _CallState, tier: Any) -> None:
+    """Fill state.approved_by for an approver-gated tier, or deny.
+
+    Precedence: a matching one-shot approval token (consumed on use,
+    ``approver_source="token"``) wins over the deprecated static
+    OPCUA_AUDIT_APPROVED_BY env var (``approver_source="env"``, warned once).
+    """
+    approval = None
+    try:
+        approval = consume_approval(state.tool_name, state.env)
+    except Exception:  # noqa: BLE001 — token-store trouble falls back to env/deny
+        _log.warning("Approval token lookup failed for %s", state.tool_name, exc_info=True)
+    if approval is not None:
+        state.approved_by = approval.approved_by
+        state.approver_source = "token"
+        if approval.rationale and not state.rationale:
+            state.rationale = approval.rationale
+        return
+    if state.approved_by:
+        state.approver_source = "env"
+        _warn_env_approver_once()
+        return
+
+    reason = (
+        f"Operation '{state.tool_name}' on '{state.env or 'target'}' requires "
+        f"'{tier.tier}' approval (rule: {tier.rule}) but no approver is recorded. "
+        f"Grant a one-shot approval first: iaiops approve {state.tool_name}"
+        + (f" --endpoint {state.env}" if state.env else "")
+        + " --by <approver> [--ttl 600]."
+    )
+    if tier.reason:
+        reason += f" Policy note: {tier.reason}"
+    denial = PolicyResult(allowed=False, rule=f"approval_tier:{tier.tier}", reason=reason)
+    state.policy_result = denial
+    state.status = "denied"
+    state.result = {"error": reason, "rule": denial.rule}
+    raise PolicyDenied(denial)
 
 
 def _annotate_result(state: _CallState, result: Any) -> Any:
@@ -389,7 +471,7 @@ def _finalize(state: _CallState) -> None:
     pattern_id = state.pattern_match.pattern.pattern_id if state.pattern_match else ""
     pattern_armed = bool(state.pattern_match and state.pattern_match.armed)
 
-    state.audit.log(
+    written = state.audit.log(
         skill=state.skill,
         tool=state.tool_name,
         params=state.safe_params,
@@ -402,7 +484,18 @@ def _finalize(state: _CallState) -> None:
         rationale=state.rationale,
         approved_by=state.approved_by,
         risk_tier=state.risk_tier,
+        approver_source=state.approver_source if state.approved_by else "",
     )
+    if not written and state.risk_level in _FAIL_CLOSED_RISK:
+        # The pre-check gates high-risk calls on audit health, so reaching
+        # here means the DB failed mid-call. Surface loudly — the operation
+        # already ran, so raising would only mask its outcome.
+        _log.error(
+            "AUDIT WRITE FAILED for %s-risk call %s.%s (status=%s) — the "
+            "operation executed but left NO audit row. Investigate the audit "
+            "DB immediately.",
+            state.risk_level, state.skill, state.tool_name, final_status,
+        )
 
 
 def _infer_skill(func: Any) -> str:

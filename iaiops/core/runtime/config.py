@@ -74,6 +74,13 @@ DEFAULT_SECSGEM_PORT = 5000  # HSMS (SECS-II over TCP) default
 DEFAULT_BACNET_PORT = 47808  # BACnet/IP (UDP 0xBAC0)
 DEFAULT_HART_PORT = 5094  # HART-IP (UDP/TCP 5094)
 
+# Connect/request timeout applied to every TCP-based client builder so a dead
+# endpoint fails in seconds, not the OS TCP default (60-120s+). Override the
+# fleet default with the IAIOPS_TIMEOUT_S env var; override per endpoint with
+# 'timeout_s:' in its config entry.
+DEFAULT_TIMEOUT_S = 10.0
+TIMEOUT_ENV_VAR = "IAIOPS_TIMEOUT_S"
+
 # Per-protocol default TCP port, used by load_config + the init wizard.
 _DEFAULT_PORTS = {
     "opcua": DEFAULT_OPCUA_PORT,
@@ -253,6 +260,9 @@ class TargetConfig:
     # local interface by its IP via ``host`` (the NIC the DCP broadcast goes out on).
     nic: str = ""
     expected_slaves: int = 0
+    # Connect/request timeout (seconds) threaded into every client builder so a
+    # dead endpoint fails fast instead of hanging on the OS TCP timeout.
+    timeout_s: float = DEFAULT_TIMEOUT_S
     tags: tuple[MonitorTag, ...] = ()
 
     def __post_init__(self) -> None:
@@ -374,6 +384,42 @@ def _resolve_transport(protocol: str, d: dict) -> str:
     return _modbus_transport(d)
 
 
+def _default_timeout_s() -> float:
+    """Fleet-wide default connect timeout: IAIOPS_TIMEOUT_S env, else 10.0s."""
+    raw = os.environ.get(TIMEOUT_ENV_VAR, "").strip()
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                return value
+            _log.warning("Ignoring non-positive %s=%r.", TIMEOUT_ENV_VAR, raw)
+        except ValueError:
+            _log.warning(
+                "Ignoring invalid %s=%r (expected seconds, e.g. 10).",
+                TIMEOUT_ENV_VAR,
+                raw,
+            )
+    return DEFAULT_TIMEOUT_S
+
+
+def _parse_timeout_s(d: dict) -> float:
+    """Per-endpoint 'timeout_s' (alias 'timeout'), else the fleet default."""
+    given = d.get("timeout_s", d.get("timeout"))
+    if given not in (None, ""):
+        try:
+            value = float(given)  # type: ignore[arg-type]
+            if value > 0:
+                return value
+        except (TypeError, ValueError):
+            pass
+        _log.warning(
+            "Endpoint %r has invalid timeout_s=%r; using the default.",
+            d.get("name", "?"),
+            given,
+        )
+    return _default_timeout_s()
+
+
 def _as_bool(value: object) -> bool:
     """Coerce a YAML scalar to bool (tolerates 'true'/'1'/'yes')."""
     if isinstance(value, bool):
@@ -441,5 +487,6 @@ def _parse_target(d: dict) -> TargetConfig:
         # EtherCAT: NIC interface name (accept 'interface' as an alias).
         nic=str(d.get("nic", "") or d.get("interface", "")),
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
+        timeout_s=_parse_timeout_s(d),
         tags=_parse_tags(d.get("tags", [])),
     )

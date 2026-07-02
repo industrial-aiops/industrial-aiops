@@ -22,7 +22,14 @@ import os
 from mcp_server._shared import _safe_error, mcp, tool_errors
 from mcp_server.profiles import resolve_selection, selected_tool_modules
 
-__all__ = ["mcp", "main", "register_profile", "_safe_error", "tool_errors"]
+__all__ = [
+    "mcp",
+    "main",
+    "register_profile",
+    "assert_all_tools_governed",
+    "_safe_error",
+    "tool_errors",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +51,37 @@ def register_profile(spec: str | None) -> list[str]:
     return resolve_selection(spec)
 
 
+def assert_all_tools_governed() -> None:
+    """Fail startup if any registered MCP tool lacks the governance harness.
+
+    Every tool function must carry ``_is_governed_tool`` (set by
+    ``@governed_tool``) so no tool can ship without audit / policy / budget
+    coverage. Raises RuntimeError listing offenders — a hard startup gate.
+    """
+    manager = getattr(mcp, "_tool_manager", None)
+    tools = getattr(manager, "_tools", None)
+    if not isinstance(tools, dict):
+        raise RuntimeError(
+            "Cannot introspect the FastMCP tool registry to verify governance "
+            "(mcp._tool_manager._tools not found) — refusing to start ungoverned."
+        )
+    ungoverned = sorted(
+        name
+        for name, tool in tools.items()
+        if not getattr(getattr(tool, "fn", None), "_is_governed_tool", False)
+    )
+    if ungoverned:
+        raise RuntimeError(
+            "Ungoverned MCP tools registered (missing @governed_tool): "
+            + ", ".join(ungoverned)
+        )
+
+
 def main() -> None:
     """Run the MCP server over stdio, exposing the IAIOPS_MCP-selected protocols."""
     logging.basicConfig(level=logging.INFO)
     protocols = register_profile(os.environ.get("IAIOPS_MCP"))
+    assert_all_tools_governed()
     logger.info(
         "iaiops MCP up — protocols=[%s] + cross-protocol brain. Narrow with "
         "IAIOPS_MCP (e.g. IAIOPS_MCP=opcua,modbus or IAIOPS_MCP=fab).",

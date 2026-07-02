@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased
+
+### Security — governance hardening (from full audit)
+- **Approver gate now enforced out-of-the-box**: with no `risk_tiers` in `~/.iaiops/rules.yaml`,
+  high/critical risk operations default to tier `dual` (approver required, rule `builtin_default`)
+  instead of tier `none`. `iaiops init` writes a commented starter `rules.yaml` with an explicit
+  `risk_tiers` gate. Dead `risk_requires_confirmation()` removed.
+- **Policy engine fails closed**: a malformed or deleted `rules.yaml` now retains the
+  last-known-good rule set (audited as `policy_load_failed`) instead of silently reverting
+  to allow-all.
+- **Policy kill switch constrained**: renamed to `IAIOPS_POLICY_DISABLED` (legacy
+  `OPCUA_POLICY_DISABLED` still works with a deprecation warning) and it never bypasses
+  high/critical risk checks.
+- **One-shot approval tokens**: `iaiops approve <tool> --endpoint <ep> --by <name> [--ttl]`
+  writes a single-use, TTL-bound approval consumed by the next matching governed call
+  (`approver_source="token"` in audit). The static `OPCUA_AUDIT_APPROVED_BY` env var remains
+  as a deprecated fallback (`approver_source="env"`, once-per-process warning).
+- **Audit fails closed for writes**: high/critical operations are denied (`audit_unavailable`)
+  when the audit row cannot be written; low/medium proceed with a warning.
+- **Audit tamper-evidence**: SHA-256 hash chain (`prev_hash`/`row_hash`) on every audit row +
+  `iaiops audit verify` to walk the chain and report the first broken link.
+- **SIEM forwarding hardened**: bare hosts default to `https://`, loud warnings on plaintext
+  sinks, optional `Authorization: Bearer` via `IAIOPS_FORWARD_TOKEN`.
+- **Startup governance assertion**: the MCP server refuses to start if any registered tool
+  lacks `_is_governed_tool`.
+- **Plaintext secret remnants removed**: `.env.migrated` is rewritten with secret values
+  stripped after migration; `iaiops doctor` reports an ERROR while a plaintext `.env` is in
+  use and warns when an OPC-UA target pairs `username` with `security_mode: None`.
+
+### Fixed
+- **Connect timeouts**: new `TargetConfig.timeout_s` (default 10 s, `IAIOPS_TIMEOUT_S` fleet
+  override) threaded into the OPC-UA / S7 / MC / EtherNet-IP builders so an unroutable host
+  no longer blocks a tool call for the OS TCP timeout.
+- **SKILL.md brought back in sync with the code**: write-tool count corrected (8, not 6),
+  `profinet_dcp_set` and `bacnet_write_property` documented as MOC-gated high-risk writes
+  (the skill previously claimed they didn't exist), ~23 missing tools added incl. a HART-IP
+  section, energy-protocol triggers now redirect to `iaiops-energy`. A new
+  `tests/test_skill_sync.py` gate keeps skill and registered tools from drifting again.
+- `server.json`: title corrected to "Industrial-AIOps", `environmentVariables` declared
+  (`IAIOPS_MCP`, `IAIOPS_CONFIG`, `IAIOPS_MASTER_PASSWORD`).
+
 ## 0.8.0 — 2026-07-02
 
 ### Changed — energy edition split out

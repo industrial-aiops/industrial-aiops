@@ -15,9 +15,27 @@ from iaiops.core.governance.forward import build_sink, forward_audit, forward_fo
 
 audit_app = typer.Typer(
     name="audit",
-    help="Forward the audit log to an external SIEM (read-only egress).",
+    help="Audit-log egress and integrity: forward to a SIEM, verify the "
+    "tamper-evidence hash chain.",
     no_args_is_help=True,
 )
+
+
+@audit_app.command("verify")
+@cli_errors
+def audit_verify() -> None:
+    """Verify the audit log's hash chain; exit 1 at the first broken link.
+
+    Limitation: a plain hash chain detects in-place edits/deletions but not an
+    attacker who rewrites the whole chain suffix — forward rows off-host
+    (``iaiops audit forward``) for stronger guarantees.
+    """
+    from iaiops.core.governance.audit import get_engine
+
+    result = get_engine().verify_chain()
+    console.print_json(json.dumps(result, default=str))
+    if not result.get("ok"):
+        raise typer.Exit(1)
 
 
 @audit_app.command("forward")

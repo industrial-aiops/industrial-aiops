@@ -25,7 +25,7 @@ One governed MCP server exposing read-first tools across 12 industrial protocols
 cross-protocol intelligence layer. Narrow the exposed surface per site with
 `IAIOPS_MCP` (e.g. `IAIOPS_MCP=fab` or `IAIOPS_MCP=opcua,modbus`), or just launch the matching pre-scoped
 script (`iaiops-mcp-opcua`, `iaiops-mcp-fab`, … — sugar over `IAIOPS_MCP`). Every tool runs through the iaiops governance
-harness (audit / budget / risk-tier / undo). **Read-first.** The 6 write tools are
+harness (audit / budget / risk-tier / undo). **Read-first.** The 8 write tools are
 gated as Management-of-Change: `risk=HIGH`, `dry_run=True` by default, CLI requires
 a double-confirm, the before-value is captured for undo. **Never write to a
 production control system without authorization.** Preview / mock-or-sim validated —
@@ -37,12 +37,16 @@ Task mentions: OPC-UA / opc.tcp, Modbus, Siemens S7 / S7-1200/1500, Mitsubishi /
 MELSEC, MTConnect / CNC machine monitoring, MQTT / Sparkplug B / Unified Namespace,
 Allen-Bradley / ControlLogix / CompactLogix / EtherNet-IP, EtherCAT / CoE / SDO /
 PDO / SOEM, SECS/GEM / SECS-II / HSMS / semiconductor / display fab / wafer / panel
-/ MES equipment / SVID / ECID, PROFINET / DCP / name-of-station, IEC 60870-5-104 /
-IEC-104 / RTU / telecontrol, DNP3 / outstation, IEC 61850 / MMS / IED / substation,
-energy / power / utility SCADA, BACnet / BACnet-IP / building automation / HVAC /
+/ MES equipment / SVID / ECID, PROFINET / DCP / name-of-station, HART / HART-IP /
+process instrumentation / transmitter, BACnet / BACnet-IP / building automation / HVAC /
 facility / 厂务 / Who-Is, OEE / downtime, OT asset inventory, "no data / stale
 tag" diagnosis, **downtime root-cause / why did the line stop**, OPC-UA "won't
 connect", subscription drops, alarm flood / ISA-18.2.
+
+**Energy protocols route elsewhere:** IEC 60870-5-104 / IEC-104, DNP3 / outstation,
+IEC 61850 / MMS / IED, substation, energy / power / utility SCADA → use the
+**iaiops-energy** MCP server (`pip install iaiops-energy`, then `iaiops-energy-mcp`),
+not this one.
 
 ## Tools by protocol
 
@@ -56,12 +60,16 @@ connect", subscription drops, alarm flood / ISA-18.2.
 - `opcua_read_history` — Historical Access (HDA): raw history over a [start,end] window
 - `opcua_diagnose_connection` — classify *why* a connect fails (certificate / security
   policy / auth / firewall / dns / port / config) with the exact fix, not a raw error
+- `opcua_discover_tags` — auto-discover OPC-UA tags and build a semantic asset model
 - `health_summary` — classify node-ids vs warn/alarm thresholds
 - `anomaly_scan` — sample a node, flag statistical outliers
 
-### Modbus-TCP (read-only here)
+### Modbus-TCP / Modbus-RTU (read-only here)
 - `modbus_read_holding` (FC03), `modbus_read_input` (FC04), `modbus_read_coils`
   (FC01), `modbus_read_discrete` (FC02) — with decode hints
+- `modbus_detect_byte_order` — auto-detect the word/byte order of a register block
+- `modbus_list_templates` — built-in vendor register-map templates (name/type/tags)
+- `modbus_apply_template` — read a register block, decode into named tags via a template
 - `modbus_health_summary` — classify registers vs thresholds
 
 ### Siemens S7comm (pyS7; S7-300/400/1200/1500)
@@ -90,6 +98,9 @@ connect", subscription drops, alarm flood / ISA-18.2.
 - `sparkplug_subscribe_sample` — bounded sample w/ full decode + birth/death/seq
 - `sparkplug_node_list` — edge nodes/devices + online state + primary-host STATE
 - `uns_browse` — browse the live topic tree (UNS) under a filter (bounded)
+- `uns_live_audit` — capture the LIVE UNS topic tree (bounded), then audit it
+- `sparkplug_live_schema` — capture a LIVE Sparkplug schema (bounded) → drift-ready dict
+- `uns_live_drift` — capture the LIVE Sparkplug schema (bounded) and diff vs baseline
 - `mqtt_publish` — **[WRITE][HIGH][MOC]** publish/command to a topic (off by default)
 
 ### Allen-Bradley EtherNet/IP (pycomm3; ControlLogix/CompactLogix)
@@ -128,15 +139,26 @@ HOST (HSMS ACTIVE). SECS/GEM (SEMI E5 SECS-II · E30 GEM · E37 HSMS) is the fab
 > `IAIOPS_MCP=fab` (secsgem + opcua + s7 + modbus). Read-first: `secsgem_equipment_status`
 > to confirm the link, then SVID/ECID/alarms; the PLC layer via the S7/OPC-UA tools.
 
-### PROFINET (read-only DCP discovery; pnio-dcp, layer-2 raw socket)
+### PROFINET (DCP discovery + one gated DCP Set; pnio-dcp, layer-2 raw socket)
 Optional extra `pip install iaiops[profinet]` (or the `iaiops[factory]` bundle). Needs
 raw-socket access (root/admin/CAP_NET_RAW) on the NIC on the PROFINET subnet; `host` is
-THIS machine's IP on that subnet. **Discovery + identify only** — no RT cyclic data, no
-disruptive DCP Set (set-name/ip/blink/reset).
+THIS machine's IP on that subnet. Read-first discovery + identify — no RT cyclic data.
+The one write, `profinet_dcp_set`, is MOC-gated like every other write.
 - `profinet_discover` — DCP IdentifyAll: every station on the segment (name/MAC/IP/role)
 - `profinet_identify_station` — identify one station by its name-of-station
 - `profinet_station_params` — targeted DCP Get by MAC (name + IP suite)
 - `profinet_asset_inventory` — register with IO-controller vs IO-device role decoding
+- `profinet_dcp_set` — **[WRITE][HIGH][MOC]** DCP Set: re-address one station
+  (name-of-station / IP). `dry_run=True` by default + approver double-confirm;
+  re-addressing a live station can break its IO-controller relation
+
+### HART-IP (read-only; process instrumentation — transmitters, valve positioners)
+Part of the `process` profile (`IAIOPS_MCP=process` = opcua + modbus + hart).
+`transport` is `udp` (default) or `tcp` on port 5094.
+- `hart_device_identity` — universal device identity (command 0) via HART-IP
+- `hart_primary_variable` — primary variable (command 1): value + unit code
+- `hart_dynamic_variables` — dynamic variables + loop current (command 3)
+- `hart_burst_sample` — sample the periodically-published (burst) HART variables
 
 ### Energy edition (变电/电力) — ships separately
 The substation/utility telecontrol edition (IEC 60870-5-104 / DNP3 / IEC 61850 MMS)
@@ -144,14 +166,19 @@ moved to its own package: `pip install iaiops-energy` then `iaiops-energy-mcp`
 (github.com/industrial-aiops/industrial-aiops-energy). It reuses this package's core +
 brain; monitor-direction only, preview/待核实 against live RTUs/IEDs.
 
-### Building edition (read-only; facility / HVAC / 厂务 — BACnet/IP)
+### Building edition (read-first; facility / HVAC / 厂务 — BACnet/IP)
 Optional bundle `pip install iaiops[building]` and `IAIOPS_MCP=building`. `host` is THIS
-machine's BACnet/IP interface (`ip` or `ip/mask`). **Read-only** — no building-control
-writes. **⚠️ Preview / 待核实**: BAC0 binding not verified against live gear.
+machine's BACnet/IP interface (`ip` or `ip/mask`). Read-first; the one write,
+`bacnet_write_property`, is MOC-gated like every other write.
 - `bacnet_discover` — Who-Is: devices on the local BACnet/IP network
 - `bacnet_object_list` — a device's object/point list
 - `bacnet_read_property` — one object property (default presentValue)
 - `bacnet_read_points` — presentValue of all analog/binary/multistate points (HVAC snapshot)
+- `bacnet_cov_subscribe` — bounded Change-of-Value capture for one BACnet object
+- `bacnet_read_trend_log` — read buffered records from a device's TrendLog object
+- `bacnet_write_property` — **[WRITE][HIGH][MOC]** write ONE object property
+  (off by default: `dry_run=True` + approver double-confirm; can command
+  building equipment — setpoints, outputs)
 
 ## Cross-protocol intelligence
 
@@ -161,6 +188,7 @@ writes. **⚠️ Preview / 待核实**: BAC0 binding not verified against live g
   tags / dataflow / machine-state around an incident window into an evidence-cited,
   **advisory** verdict (read-only; cites only real signals; `insufficient_evidence` over
   guessing). `downtime_root_cause_live` gathers the evidence itself from an endpoint.
+- `learn_cause_weights` — learn a per-site RCA {cause: weight} profile from history
 - `historian_health` — bad-tag / flatline / gap detection over a series
 - `alarm_bad_actors` — ISA-18.2 alarm-flood analysis (rate vs <6/12/30, Pareto
   offenders, chattering, standing) over an event list
@@ -169,6 +197,8 @@ writes. **⚠️ Preview / 待核实**: BAC0 binding not verified against live g
   or Sparkplug B): sequence gaps, republish-rejection rate, overloaded channels
 - `data_quality_scorecard` — fleet data-TRUST rollup: scores each tag 0-100 on staleness /
   dead heartbeat / bad-quality / flatline / gaps / anomaly, per endpoint + fleet
+- `data_quality_fleet_rollup` — cross-endpoint fleet rollup of data-TRUST: worst tags +
+  bad quality across the fleet
 - `heartbeat_health` — first-class heartbeat/watchdog liveness (flatline = dead upstream)
 - `uns_topic_audit` — UNS naming conformance + topic-sprawl governance (casing collisions,
   scattered leaves, depth outliers, duplicates → clean/minor/sprawling)
@@ -182,9 +212,16 @@ writes. **⚠️ Preview / 待核实**: BAC0 binding not verified against live g
   into an asset register (active discovery, **not** passive SPAN/tap)
 - `monitor_changes` — capture only the value CHANGES of a point over a bounded window
 
+### Unified asset model / alias governance
+- `cross_protocol_asset_model` — fuse per-protocol tag feeds into ONE unified asset model
+- `adopt_alias_map` — adopt + persist the canonical alias map for a site (baseline)
+- `diff_alias_map` — diff a fresh discovery run against the adopted baseline
+
 ### 信创 / China entry + compliance
 - `compliance_mapping` — 《工控系统网络安全防护指南》 ↔ iaiops governance self-assessment
   (分区隔离 / 可审计 / 双向认证 / 最小权限 / 数据保护 / 自主可控) with honest status + gaps
+- `compliance_frameworks` — 跨框架对照: 防护指南 ↔ 等保 2.0 (GB/T 22239) ↔ IEC 62443
+- `compliance_dengbao_levels` — 等保 2.0 二级 vs 三级 per-pillar deltas + honest posture
 - `historian_push` — write collected telemetry to a domestic TSDB (TDengine / IoTDB);
   data egress to the operator's own historian, not a control write. See docs/CHINA.md
   for air-gapped install + 国产 OS/芯/PLC validation matrix (待核实).
@@ -202,8 +239,10 @@ writes. **⚠️ Preview / 待核实**: BAC0 binding not verified against live g
 connection params, simulator-test guide, and MCP JSON examples are in the README.
 
 ## Safety
-Read-first. The 6 write tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`,
-`eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`) default to `dry_run=True`,
-require a CLI double-confirm, and record an undo descriptor from the captured
-before-value/state. EtherCAT state changes can START or STOP machine motion. Do not
+Read-first. The 8 write tools (`s7_write_db`, `mc_write_words`, `mqtt_publish`,
+`eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`,
+`bacnet_write_property`) default to `dry_run=True`, require a CLI double-confirm
+(approver), and record an undo descriptor from the captured before-value/state.
+EtherCAT state changes can START or STOP machine motion; a PROFINET DCP Set can
+re-address a live station; a BACnet write can command building equipment. Do not
 point this at production control systems without authorization. No tool returns secrets.

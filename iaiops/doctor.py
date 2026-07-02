@@ -45,17 +45,21 @@ def run_doctor(skip_probe: bool = False) -> int:
         perm_warning = check_permissions()
         if perm_warning:
             _console.print(f"[yellow]! {perm_warning}[/]")
-    elif ENV_FILE.exists():
-        _console.print(
-            f"[yellow]! Using legacy plaintext .env ({ENV_FILE}). Migrate with "
-            f"'iaiops secret migrate'.[/]"
-        )
-    else:
+    elif not ENV_FILE.exists():
         _console.print(
             "[yellow]! No encrypted secret store yet. Run 'iaiops init' to set "
             "up credentials (stored encrypted). Many OT endpoints are anonymous "
             "and need no password.[/]"
         )
+    # A plaintext .env is loaded at import time whenever it exists — that is
+    # secrets-on-disk in cleartext, an ERROR (not a warning), even if the
+    # encrypted store also exists.
+    if ENV_FILE.exists():
+        _console.print(
+            f"[red]✗ Plaintext .env in use ({ENV_FILE}) — secrets are stored "
+            f"unencrypted on disk. Migrate with 'iaiops secret migrate'.[/]"
+        )
+        problems += 1
 
     if not config.targets:
         _console.print("[yellow]! No endpoints configured.[/]")
@@ -68,6 +72,9 @@ def run_doctor(skip_probe: bool = False) -> int:
             _console.print(
                 f"  [dim]{t.name} ({t.protocol} @ {_where(t)}) — password: {present} ({var})[/]"
             )
+            insecure = _opcua_insecure_auth_warning(t)
+            if insecure:
+                _console.print(f"[yellow]! {insecure}[/]")
 
     if skip_probe:
         _console.print("[dim]Skipping connectivity probe (--skip-probe).[/]")
@@ -138,6 +145,25 @@ def run_doctor(skip_probe: bool = False) -> int:
             problems += 1
 
     return 1 if problems else 0
+
+
+def _opcua_insecure_auth_warning(target) -> str | None:
+    """Warn when OPC-UA username auth rides an unencrypted channel.
+
+    ``security_mode: None`` means the session is neither signed nor encrypted, so
+    a configured username's password crosses the wire in cleartext.
+    """
+    if getattr(target, "protocol", "") != "opcua":
+        return None
+    username = getattr(target, "username", "")
+    security_mode = getattr(target, "security_mode", "None")
+    if username and security_mode == "None":
+        return (
+            f"OPC-UA '{target.name}': username is set but security_mode is 'None' — "
+            f"the password travels unencrypted. Set security_mode to 'Sign' or "
+            f"'SignAndEncrypt' (with a security_policy, e.g. Basic256Sha256)."
+        )
+    return None
 
 
 def _diagnose_opcua(target) -> dict:
