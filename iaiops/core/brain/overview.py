@@ -154,12 +154,13 @@ PROTOCOLS: tuple[dict, ...] = (
             "profinet_discover", "profinet_identify_station",
             "profinet_station_params", "profinet_asset_inventory",
         ],
-        "write_tools": [],
+        "write_tools": ["profinet_dcp_set (HIGH/MOC)"],
         "params": ["host (local NIC IP on the PROFINET subnet)"],
         "requirements": "Raw-socket access (root/admin/CAP_NET_RAW) on the NIC on the "
         "PROFINET subnet; pnio-dcp is an optional extra.",
         "not_supported": "RT cyclic process data = out of scope (needs an IO-controller "
-        "stack); DCP Set (set-name/set-ip/blink/factory-reset) = disruptive, not exposed.",
+        "stack); DCP Set name-of-station/IP is exposed (profinet_dcp_set, HIGH/MOC); "
+        "blink/factory-reset = out of scope (physical/destructive).",
     },
     {
         "protocol": "bacnet",
@@ -171,13 +172,14 @@ PROTOCOLS: tuple[dict, ...] = (
             "bacnet_discover", "bacnet_object_list", "bacnet_read_property",
             "bacnet_read_points", "bacnet_cov_subscribe", "bacnet_read_trend_log",
         ],
-        "write_tools": [],
+        "write_tools": ["bacnet_write_property (HIGH/MOC)"],
         "params": ["host (local BACnet/IP interface, e.g. 10.0.0.5/24)", "port(47808)"],
-        "requirements": "Building edition extra. BAC0 who_is/read/cov/cancel_cov/"
+        "requirements": "Building edition extra. BAC0 who_is/read/write/cov/cancel_cov/"
         "readRange/disconnect surface verified (2026-06-30); live building/HVAC "
-        "read + COV/trend behaviour still 待核实 (no gear).",
-        "not_supported": "Present-value writes (with priority/relinquish) = not "
-        "exposed (live building-control is OT-dangerous).",
+        "read + write + COV/trend behaviour still 待核实 (no gear).",
+        "not_supported": "Property writes (present-value with priority/relinquish) are "
+        "exposed (bacnet_write_property, HIGH/MOC); object create/delete + file "
+        "transfer = out of scope.",
     },
     {
         "protocol": "hart",
@@ -232,8 +234,9 @@ def protocols_supported() -> dict:
             "diagnostics": len(DIAGNOSTICS_TOOLS),
             "analytics": len(ANALYTICS_TOOLS),
         },
-        "safety": "Reads non-destructive. Writes (S7/MC/MQTT/EtherNet-IP/EtherCAT) "
-        "are HIGH risk_tier, MOC-gated (dry-run + double-confirm + undo capture). "
+        "safety": "Reads non-destructive. Writes (S7/MC/MQTT/EtherNet-IP/EtherCAT/"
+        "PROFINET/BACnet) are HIGH risk_tier, MOC-gated (dry-run + double-confirm + "
+        "undo capture). "
         "未经授权勿对生产控制系统写入. Preview — not validated against live "
         "PLCs/SCADA; EtherCAT is hardware-only (no simulator) and unverified.",
     }
