@@ -34,6 +34,8 @@ class _FakeDCP:
     def __init__(self, devices, with_get=False):
         self._devices = devices
         self.closed = False
+        self.set_name_calls: list = []
+        self.set_ip_calls: list = []
         if with_get:
             self.get_name_of_station = lambda mac: self._by_mac(mac).name_of_station
             self.get_ip_address = lambda mac: self._by_mac(mac).IP
@@ -46,6 +48,14 @@ class _FakeDCP:
 
     def identify_all(self):
         return list(self._devices)
+
+    def set_name_of_station(self, mac, name):
+        self.set_name_calls.append((mac, name))
+        self._by_mac(mac).name_of_station = name
+
+    def set_ip_address(self, mac, ip_suite):
+        self.set_ip_calls.append((mac, list(ip_suite)))
+        self._by_mac(mac).IP = ip_suite[0]
 
     def close(self):
         self.closed = True
@@ -188,3 +198,90 @@ def test_role_bitmask_decodes_multidevice(monkeypatch):
     out = ops.profinet_discover(_target())
     roles = out["stations"][0]["device_roles"]
     assert "io_device" in roles and "io_controller" in roles
+
+
+# ─── DCP Set (HIGH-risk, MOC-gated write) ─────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_dcp_set_tool_is_high_risk_and_default_dry_run():
+    from mcp_server import _shared
+    from mcp_server.server import register_profile
+
+    register_profile("all")
+    fn = _shared.mcp._tool_manager._tools["profinet_dcp_set"].fn
+    assert getattr(fn, "_risk_level", "") == "high"
+    import inspect
+
+    assert inspect.signature(fn).parameters["dry_run"].default is True
+
+
+@pytest.mark.unit
+def test_ops_dcp_set_dry_run_default_is_true():
+    import inspect
+
+    assert inspect.signature(ops.profinet_dcp_set).parameters["dry_run"].default is True
+
+
+@pytest.mark.unit
+def test_dcp_set_dry_run_returns_plan_without_setting(pn):
+    out = ops.profinet_dcp_set(
+        _target(), "00:1b:1b:00:00:01", set_name="plc-new", dry_run=True
+    )
+    assert out["dry_run"] is True
+    assert out["before"]["name_of_station"] == "plc1"  # captured BEFORE value
+    assert out["before"]["ip"] == "192.168.0.20"
+    assert out["would_set"]["name_of_station"] == "plc-new"
+    # Dry run must NEVER call a DCP Set service.
+    assert pn.set_name_calls == [] and pn.set_ip_calls == []
+
+
+@pytest.mark.unit
+def test_dcp_set_applied_captures_before_and_sets(pn):
+    out = ops.profinet_dcp_set(
+        _target(), "00:1b:1b:00:00:01", set_name="plc-new",
+        set_ip="192.168.0.99", netmask="255.255.255.0", gateway="192.168.0.1",
+        dry_run=False,
+    )
+    assert out["applied"] is True
+    assert out["before"]["name_of_station"] == "plc1"  # BEFORE value for undo
+    assert out["before"]["ip"] == "192.168.0.20"
+    assert pn.set_name_calls == [("00:1b:1b:00:00:01", "plc-new")]
+    assert pn.set_ip_calls == [
+        ("00:1b:1b:00:00:01", ["192.168.0.99", "255.255.255.0", "192.168.0.1"])
+    ]
+
+
+@pytest.mark.unit
+def test_dcp_set_requires_mac(pn):
+    assert "error" in ops.profinet_dcp_set(_target(), "", set_name="x")
+
+
+@pytest.mark.unit
+def test_dcp_set_requires_something_to_set(pn):
+    assert "error" in ops.profinet_dcp_set(_target(), "00:1b:1b:00:00:01")
+
+
+@pytest.mark.unit
+def test_profinet_undo_descriptor_restores_before():
+    from mcp_server.tools.profinet_tools import _profinet_undo
+
+    params = {"endpoint": "cell1", "mac": "00:1b:1b:00:00:01"}
+    result = {
+        "applied": True,
+        "before": {"name_of_station": "plc1", "ip": "192.168.0.20",
+                   "netmask": "255.255.255.0", "gateway": "192.168.0.1"},
+    }
+    undo = _profinet_undo(params, result)
+    assert undo["tool"] == "profinet_dcp_set"
+    assert undo["params"]["set_name"] == "plc1"
+    assert undo["params"]["set_ip"] == "192.168.0.20"
+    assert undo["params"]["dry_run"] is False
+
+
+@pytest.mark.unit
+def test_profinet_undo_skips_dry_run_and_missing_before():
+    from mcp_server.tools.profinet_tools import _profinet_undo
+
+    assert _profinet_undo({}, {"applied": False}) is None
+    assert _profinet_undo({}, {"applied": True, "before": None}) is None
