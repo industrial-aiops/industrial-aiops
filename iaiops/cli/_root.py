@@ -25,6 +25,7 @@ from iaiops.cli.mqtt import mqtt_app
 from iaiops.cli.mtconnect import mtconnect_app
 from iaiops.cli.opcua import opcua_app
 from iaiops.cli.profinet import profinet_app
+from iaiops.cli.program import program_app
 from iaiops.cli.s7 import s7_app
 from iaiops.cli.secret import secret_app
 
@@ -50,6 +51,7 @@ app.add_typer(bacnet_app, name="bacnet")
 app.add_typer(hart_app, name="hart")
 app.add_typer(diag_app, name="diag")
 app.add_typer(analytics_app, name="analytics")
+app.add_typer(program_app, name="program")
 app.add_typer(secret_app, name="secret")
 app.add_typer(audit_app, name="audit")
 # Historian READ side (A7) lives in iaiops/cli/historian.py; registered onto
