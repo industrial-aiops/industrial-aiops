@@ -105,61 +105,81 @@ def diagnose_dataflow(
             "running. Point at a simulator to isolate network vs device.",
         )
 
-    read_desc: dict | None = None
     if ref:
-        read_desc = _read_ref(target, ref)
-        readable = "error" not in read_desc
-        hops.append(
-            {"hop": "read_tag", "ref": s(ref, 96), "ok": readable,
-             "detail": s(str(read_desc.get("error", read_desc.get("value", ""))), 160)}
-        )
-        if not readable:
-            return _verdict(
-                hops, "comms_ok_value_unreadable",
-                "Connected, but the tag/node could not be read — wrong address/node "
-                "id, or the point does not exist on this device.",
-                "Verify the ref against a browse/probe of the device's address space.",
-            )
+        broken = _score_read_hops(target, ref, freshness_threshold_s, hops)
+        if broken is not None:
+            return broken
 
-        good = read_desc.get("good")
-        if good is False:
-            return _verdict(
-                hops, "comms_ok_bad_quality",
-                "Connected and read, but the value's quality/status is BAD — a "
-                "sensor, field wiring, or source-side fault.",
-                "Inspect the field device / sensor and the source system feeding "
-                "this tag; the comms path itself is healthy.",
-            )
-
-        fresh = _check_freshness(read_desc.get("source_timestamp"), freshness_threshold_s)
-        hops.append({"hop": "freshness", **fresh})
-        if fresh["evaluated"] and fresh["stale"]:
-            return _verdict(
-                hops, "comms_ok_value_stale",
-                f"Connected with good status, but the value is STALE (age "
-                f"{fresh['age_seconds']}s > {freshness_threshold_s}s) — the source/field "
-                f"upstream has stopped updating this point.",
-                "Trace upstream: the device serves the last value fine, so suspect "
-                "the source/scanner/field signal that should refresh it.",
-            )
-
-    var = _check_variance(series, flatline_eps)
-    if var["evaluated"]:
-        hops.append({"hop": "variance", **var})
-        if var["flatline"]:
-            return _verdict(
-                hops, "comms_ok_flatline",
-                "Good status but the value is FLATLINE (zero variance over the "
-                "window) — a stuck sensor or a frozen source value.",
-                "Compare against a known-changing reference; a flatline with good "
-                "quality usually means the source is stuck, not the comms.",
-            )
+    broken = _score_variance_hop(series, flatline_eps, hops)
+    if broken is not None:
+        return broken
 
     return _verdict(
         hops, "healthy",
         "All reachable hops look healthy (connected, readable, fresh, varying).",
         "No data-flow break found at the layers reachable from here.",
     )
+
+
+def _score_read_hops(
+    target: Any, ref: str, freshness_threshold_s: int, hops: list[dict]
+) -> dict | None:
+    """Probe read(ref) + freshness hops; return an early verdict or None if OK."""
+    read_desc = _read_ref(target, ref)
+    readable = "error" not in read_desc
+    hops.append(
+        {"hop": "read_tag", "ref": s(ref, 96), "ok": readable,
+         "detail": s(str(read_desc.get("error", read_desc.get("value", ""))), 160)}
+    )
+    if not readable:
+        return _verdict(
+            hops, "comms_ok_value_unreadable",
+            "Connected, but the tag/node could not be read — wrong address/node "
+            "id, or the point does not exist on this device.",
+            "Verify the ref against a browse/probe of the device's address space.",
+        )
+
+    good = read_desc.get("good")
+    if good is False:
+        return _verdict(
+            hops, "comms_ok_bad_quality",
+            "Connected and read, but the value's quality/status is BAD — a "
+            "sensor, field wiring, or source-side fault.",
+            "Inspect the field device / sensor and the source system feeding "
+            "this tag; the comms path itself is healthy.",
+        )
+
+    fresh = _check_freshness(read_desc.get("source_timestamp"), freshness_threshold_s)
+    hops.append({"hop": "freshness", **fresh})
+    if fresh["evaluated"] and fresh["stale"]:
+        return _verdict(
+            hops, "comms_ok_value_stale",
+            f"Connected with good status, but the value is STALE (age "
+            f"{fresh['age_seconds']}s > {freshness_threshold_s}s) — the source/field "
+            f"upstream has stopped updating this point.",
+            "Trace upstream: the device serves the last value fine, so suspect "
+            "the source/scanner/field signal that should refresh it.",
+        )
+    return None
+
+
+def _score_variance_hop(
+    series: list[Any] | None, flatline_eps: float, hops: list[dict]
+) -> dict | None:
+    """Score the injected-series variance hop; return a flatline verdict or None."""
+    var = _check_variance(series, flatline_eps)
+    if not var["evaluated"]:
+        return None
+    hops.append({"hop": "variance", **var})
+    if var["flatline"]:
+        return _verdict(
+            hops, "comms_ok_flatline",
+            "Good status but the value is FLATLINE (zero variance over the "
+            "window) — a stuck sensor or a frozen source value.",
+            "Compare against a known-changing reference; a flatline with good "
+            "quality usually means the source is stuck, not the comms.",
+        )
+    return None
 
 
 def _verdict(hops: list[dict], verdict: str, diagnosis: str, action: str) -> dict:
@@ -618,6 +638,34 @@ def subscription_health(
     ``max_tags_per_channel`` is flagged (the #1 cause of Kepware large-subscription
     dropouts). Pure analysis over injected telemetry — no live subscription needed.
     """
+    seqs = _collect_seq_numbers(sequence)
+    channels = tags_per_channel or {}
+    error = _sub_input_error(seqs, channels, republish_requested, wrap_at)
+    if error is not None:
+        return error
+
+    missed, duplicates, out_of_order = _score_seq_anomalies(seqs, wrap_at)
+    reject_rate = republish_rejected / republish_requested if republish_requested > 0 else 0.0
+    overloaded = _collect_overloaded_channels(channels, max_tags_per_channel)
+    verdict = _sub_verdict(overloaded, reject_rate, missed, duplicates, out_of_order)
+
+    return {
+        "received": len(seqs),
+        "missed_count": missed,
+        "duplicate_count": duplicates,
+        "out_of_order_count": out_of_order,
+        "republish_requested": republish_requested,
+        "republish_rejected": republish_rejected,
+        "republish_reject_rate": round(reject_rate, 4),
+        "overloaded_channels": overloaded[:50],
+        "max_tags_per_channel": max_tags_per_channel,
+        "verdict": verdict,
+        "recommendation": _sub_recommendation(verdict, overloaded, reject_rate),
+    }
+
+
+def _collect_seq_numbers(sequence: list[Any]) -> list[int]:
+    """Extract integer sequence numbers from the received-sequence input."""
     seqs: list[int] = []
     for x in list(sequence or [])[:MAX_SERIES]:
         if isinstance(x, bool):  # a sequence number is never boolean
@@ -625,8 +673,13 @@ def subscription_health(
         n = num(x)
         if n is not None:
             seqs.append(int(n))
+    return seqs
 
-    channels = tags_per_channel or {}
+
+def _sub_input_error(
+    seqs: list[int], channels: dict[str, Any], republish_requested: int, wrap_at: int | None
+) -> dict | None:
+    """Teach on empty/invalid subscription-health inputs; None when evaluable."""
     if not seqs and not channels and not republish_requested:
         return {
             "error": "Nothing to evaluate. Pass `sequence` (received seq numbers) "
@@ -637,10 +690,14 @@ def subscription_health(
             "error": "wrap_at must be > 1 (the rolling-counter modulus, e.g. 256 for "
             "Sparkplug B)."
         }
+    return None
 
+
+def _score_seq_anomalies(seqs: list[int], wrap_at: int | None) -> tuple[int, int, int]:
+    """Count (missed, duplicates, out_of_order) over consecutive sequence pairs."""
     missed = duplicates = out_of_order = 0
     for prev, cur in zip(seqs, seqs[1:]):
-        if wrap_at:  # validated > 1 above
+        if wrap_at:  # validated > 1 by _sub_input_error
             step = (cur - prev) % wrap_at
             if step == 0:
                 duplicates += 1
@@ -660,36 +717,32 @@ def subscription_health(
                 out_of_order += 1
             elif cur > prev + 1:
                 missed += cur - prev - 1
+    return missed, duplicates, out_of_order
 
-    reject_rate = republish_rejected / republish_requested if republish_requested > 0 else 0.0
 
+def _collect_overloaded_channels(
+    channels: dict[str, Any], max_tags_per_channel: int
+) -> list[dict]:
+    """Channels whose tag count exceeds the per-channel density cap."""
     overloaded: list[dict] = []
     for ch, cnt in channels.items():
         c = num(cnt)
         if c is not None and c > max_tags_per_channel:
             overloaded.append({"channel": s(str(ch), 60), "tags": int(c)})
+    return overloaded
 
-    verdict = "ok"
+
+def _sub_verdict(
+    overloaded: list[dict], reject_rate: float, missed: int, duplicates: int, out_of_order: int
+) -> str:
+    """Map the counted anomalies to the subscription-health verdict band."""
     if overloaded or reject_rate > 0.2:
-        verdict = "overloaded"
-    elif missed:
-        verdict = "lossy"
-    elif out_of_order or duplicates:
-        verdict = "reordered"
-
-    return {
-        "received": len(seqs),
-        "missed_count": missed,
-        "duplicate_count": duplicates,
-        "out_of_order_count": out_of_order,
-        "republish_requested": republish_requested,
-        "republish_rejected": republish_rejected,
-        "republish_reject_rate": round(reject_rate, 4),
-        "overloaded_channels": overloaded[:50],
-        "max_tags_per_channel": max_tags_per_channel,
-        "verdict": verdict,
-        "recommendation": _sub_recommendation(verdict, overloaded, reject_rate),
-    }
+        return "overloaded"
+    if missed:
+        return "lossy"
+    if out_of_order or duplicates:
+        return "reordered"
+    return "ok"
 
 
 __all__ = [

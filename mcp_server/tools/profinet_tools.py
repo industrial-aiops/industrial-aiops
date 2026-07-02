@@ -94,7 +94,7 @@ def profinet_asset_inventory(endpoint: Optional[str] = None) -> dict:
     return ops.profinet_asset_inventory(_target(endpoint))
 
 
-def _profinet_undo(params: dict, result: Any) -> Optional[dict]:
+def _profinet_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied profinet_dcp_set: restore the captured BEFORE addressing."""
     if not isinstance(result, dict) or not result.get("applied"):
         return None

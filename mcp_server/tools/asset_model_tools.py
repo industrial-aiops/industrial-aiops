@@ -6,7 +6,7 @@ and fuses them into ONE asset/tag model with canonical cross-protocol aliases an
 a naming-quality view. No device connection — inputs are plain tag dicts.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.core.brain import asset_model as am
 from iaiops.core.governance import governed_tool
@@ -16,7 +16,7 @@ from mcp_server._shared import mcp, tool_errors
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def cross_protocol_asset_model(feeds: list, site: Optional[str] = None) -> dict:
+def cross_protocol_asset_model(feeds: list[dict[str, Any]], site: Optional[str] = None) -> dict:
     """[READ][risk=low] Fuse per-protocol tag feeds into ONE unified asset model.
 
     Unifies the two per-protocol tag models (OPC-UA address-space discovery +

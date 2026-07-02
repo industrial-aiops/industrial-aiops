@@ -10,6 +10,7 @@ from typing import Optional
 from iaiops.connectors.opcua import diagnostics as diag
 from iaiops.connectors.opcua import discovery as disc
 from iaiops.connectors.opcua import ops
+from iaiops.core.brain import analysis
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -18,7 +19,7 @@ from mcp_server._shared import _target, mcp, tool_errors
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def opcua_server_info(endpoint: Optional[str] = None) -> dict:
-    """[READ] OPC-UA server status, build info, and namespace array.
+    """[READ][risk=low] OPC-UA server status, build info, and namespace array.
 
     Args:
         endpoint: Endpoint name from config; omit to use the default endpoint.
@@ -32,7 +33,7 @@ def opcua_server_info(endpoint: Optional[str] = None) -> dict:
 def opcua_browse(
     node_id: str = "i=85", endpoint: Optional[str] = None, depth: int = 2
 ) -> list:
-    """[READ] Browse the OPC-UA node tree from a node id (bounded depth).
+    """[READ][risk=low] Browse the OPC-UA node tree from a node id (bounded depth).
 
     Args:
         node_id: Root node id (default i=85, the Objects folder).
@@ -46,7 +47,7 @@ def opcua_browse(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def opcua_read_node(node_id: str, endpoint: Optional[str] = None) -> dict:
-    """[READ] Read one node: value, datatype, source timestamp, status code.
+    """[READ][risk=low] Read one node: value, datatype, source timestamp, status code.
 
     Args:
         node_id: The OPC-UA node id to read (e.g. ns=2;i=5).
@@ -58,8 +59,8 @@ def opcua_read_node(node_id: str, endpoint: Optional[str] = None) -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("list")
-def opcua_read_many(node_ids: list, endpoint: Optional[str] = None) -> list:
-    """[READ] Batch-read multiple node ids in one session (bounded count).
+def opcua_read_many(node_ids: list[str], endpoint: Optional[str] = None) -> list:
+    """[READ][risk=low] Batch-read multiple node ids in one session (bounded count).
 
     Args:
         node_ids: List of OPC-UA node ids to read.
@@ -78,7 +79,7 @@ def opcua_subscribe_sample(
     interval_ms: int = 500,
     timeout_s: int = 30,
 ) -> dict:
-    """[READ] Sample a node a BOUNDED number of times, then return (never loops).
+    """[READ][risk=low] Sample a node a BOUNDED number of times, then return (never loops).
 
     Args:
         node_id: The OPC-UA node id to sample.
@@ -96,7 +97,7 @@ def opcua_subscribe_sample(
 def opcua_read_alarms(
     endpoint: Optional[str] = None, node_id: str = "i=85", depth: int = 4
 ) -> dict:
-    """[READ] Best-effort surfacing of active alarm/condition booleans.
+    """[READ][risk=low] Best-effort surfacing of active alarm/condition booleans.
 
     Browses the address space (bounded) for alarm-like boolean nodes reading
     True. Full OPC-UA Alarms & Conditions event subscriptions are not modelled
@@ -120,7 +121,7 @@ def opcua_read_history(
     end: Optional[str] = None,
     max_points: int = 1000,
 ) -> dict:
-    """[READ] OPC-UA Historical Access (HDA): raw historical values over a window.
+    """[READ][risk=low] OPC-UA Historical Access (HDA): raw historical values over a window.
 
     Reads stored history for a node via the server's HistoryRead service, bounded
     by ``max_points``. Returns a clear 'unsupported' note when the server does not
@@ -145,7 +146,7 @@ def opcua_read_history(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def opcua_diagnose_connection(endpoint: Optional[str] = None) -> dict:
-    """[READ] Diagnose why an OPC-UA endpoint won't connect — a classified verdict.
+    """[READ][risk=low] Diagnose why an OPC-UA endpoint won't connect — a classified verdict.
 
     Attempts a connect (no writes, disconnects immediately) and classifies any
     failure into the well-known OPC-UA buckets instead of returning a raw error,
@@ -169,7 +170,7 @@ def opcua_discover_tags(
     endpoint: Optional[str] = None, root: str = "i=85", max_depth: int = 6,
     include_standard: bool = False,
 ) -> dict:
-    """[READ] Auto-discover OPC-UA tags and build a semantic asset model.
+    """[READ][risk=low] Auto-discover OPC-UA tags and build a semantic asset model.
 
     Walks the address space, collects every Variable node, and enriches each with
     datatype / value / engineering-unit / a heuristic semantic class (temperature,
@@ -191,3 +192,49 @@ def opcua_discover_tags(
         naming_quality:{alias_collisions, cryptic_names, verdict}}.
     """
     return disc.tag_discovery(_target(endpoint), root, max_depth, include_standard)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def opcua_health_summary(
+    endpoint: Optional[str] = None,
+    node_ids: Optional[list[str]] = None,
+    thresholds: Optional[dict[str, dict[str, float]]] = None,
+) -> dict:
+    """[READ][risk=low] Classify OPC-UA tag node-ids against warn/alarm thresholds.
+
+    Returns ok/warn/alarm/unknown counts plus the offending tags. Thresholds
+    come from config tags, or per-ref overrides in ``thresholds``.
+
+    Args:
+        endpoint: Endpoint name from config.
+        node_ids: Tag node ids to evaluate; omit to use configured tags.
+        thresholds: Optional {ref: {warn_high, alarm_high, warn_low, alarm_low}}.
+    """
+    return analysis.health_summary(_target(endpoint), node_ids, thresholds)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def opcua_anomaly_scan(
+    node_id: str,
+    endpoint: Optional[str] = None,
+    samples: int = 20,
+    interval_ms: int = 200,
+    sigma: float = 3.0,
+) -> dict:
+    """[READ][risk=low] Sample a node over a bounded window and flag statistical outliers.
+
+    Computes mean/stddev/min/max and flags samples outside mean ± sigma*stddev.
+    Simple statistics only — no ML, no persisted model.
+
+    Args:
+        node_id: The OPC-UA node id to scan.
+        endpoint: Endpoint name from config.
+        samples: Max samples (capped server-side).
+        interval_ms: Delay between samples in milliseconds.
+        sigma: Outlier band width in standard deviations.
+    """
+    return analysis.anomaly_scan(_target(endpoint), node_id, samples, interval_ms, sigma)
