@@ -4,6 +4,25 @@
 > ideas land; pull items into a release when picked up. See `docs/HLD.md` for the
 > architecture these slot into.
 
+## Status — 2026-07-02 (what's actually left)
+
+Feature development is essentially **complete and published** (base `iaiops 0.8.0`,
+energy `iaiops-energy 0.1.2` — PyPI + GitHub Release + MCP registry). Read paths for
+Modbus-RTU / BACnet / DNP3 / IEC-61850 are **live-verified** (container simulators;
+each found + fixed real connector bugs). What genuinely remains is NOT feature work:
+
+- **Hardware-in-the-loop verification** (needs physical gear, can't be coded): EtherCAT
+  (no software simulator — hardware-only), physical RS-485 (Modbus-RTU), live HVAC
+  (BACnet write/COV/trend), live HART-IP gateway, live RTU/IED, live PLCnext.
+- **信创 hardware**: 国产 OS (麒麟/统信) · 芯 (鲲鹏/海光) · PLC (汇川/台达/信捷) on-target passes.
+- **Out of scope (won't do)**: CC-Link / PROFIBUS-DP / FL-net; IEC-61850 GOOSE/SV;
+  PROFINET RT cyclic.
+- **Optional depth (nice-to-have, not core)**: DNP3 master link-layer status
+  (channel-level done); HART true unsolicited burst subscription (periodic sampling done);
+  SIEM forwarder auth header; OPC-UA FX/TSN (2026 cert watch).
+
+Everything below is the detailed backlog with per-item status.
+
 ## Editions / connectors (new verticals)
 - 📦 **energy edition — split out to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)**
   (`pip install iaiops-energy`; depends on `iaiops` core). Removed from this repo; see
@@ -18,13 +37,11 @@
   present. **Still 待核实:** DNP3 (`pydnp3` ships no wheel + needs a live outstation;
   not yet CI-verifiable) and live-RTU/IED reads. Follow-ups: DNP3 `is_online` live
   link-state via OnStateChange; live-device pass; IEC-61850 GOOSE/SV (out of scope).
-  - 🔜 **独立仓 spin-out — in-repo prep done.** Energy is slated to move into its own
-    repo (HLD §3 D4 / §10 P6). Extraction-readiness is now machine-checked:
-    `tests/test_energy_isolation.py` proves the energy connectors depend on **only**
-    `iaiops.core` (no sibling connectors). Full plan (what moves, dependency
-    direction, the plugin-discovery enabling change, phased migration) in
-    `docs/ENERGY-SPINOUT.md`. **Creating the external repo is pending go-ahead** —
-    an outward org operation, not auto-done.
+  - ✅ **独立仓 spin-out DONE** (HLD §3 D4 / §10 P6): moved to the standalone
+    [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) repo
+    (published **0.1.2** — PyPI + MCP registry), depending on `iaiops` core. DNP3 +
+    IEC-61850 monitor paths were then **live-verified** in that repo. See
+    `docs/ENERGY-SPINOUT.md`.
 - ✅ **building edition** — shipped in v0.6.0 (read-only): BACnet/IP via `BAC0`
   (discover / object-list / read-property / read-points), `building` MCP profile +
   `iaiops[building]` bundle. **Verified 2026-06-30:** fixed a fabricated `whois()`
@@ -39,8 +56,8 @@
   bounded COV subscriptions (`bacnet_cov_subscribe` — count+timeout capped, always
   unsubscribes) and read-only trend-log reads (`bacnet_read_trend_log` via
   `readRange`); BAC0 `cov`/`cancel_cov`/`readRange` surface contract-verified, live
-  COV/trend behaviour still 待核实 (no gear). Follow-ups: present-value writes
-  behind the MOC gate.
+  COV/trend behaviour still 待核实 (no gear). ✅ present-value write shipped behind the
+  MOC gate (`bacnet_write_property`, priority/relinquish, HIGH / dry-run / undo).
 - ✅ **process edition — HART-IP connector** — shipped (read-only): `hart_device_identity`
   / `hart_primary_variable` / `hart_dynamic_variables` over HART-IP (UDP/TCP 5094) via the
   `hart` extra (`hart-protocol`), added to the `process` profile/bundle. The HART command
@@ -50,18 +67,20 @@
   - ✅ **TCP transport** — `transport: tcp` selects a stream session (`HartIpTcpSession`)
     alongside the UDP default; reuses the 8-byte framing and **length-delimits** the
     stream by the header `byte_count`. Loopback-verified against an in-process HART-IP
-    TCP server (real ACK → real ops/codec). Follow-ups: live-gateway validation;
-    burst-mode subscribe.
+    TCP server (real ACK → real ops/codec). ✅ burst-mode sampling shipped
+    (`hart_burst_sample`); live-gateway validation still 待核实; a true unsolicited
+    burst subscription stays optional.
 - ✅ **PROFINET (read-only)** — shipped in v0.6.0: DCP discovery / identify / asset
   via `pnio-dcp` (`profinet_discover` / `profinet_identify_station` /
   `profinet_station_params` / `profinet_asset_inventory`). No RT cyclic data; DCP
-  *Set* (set-name/ip/blink/reset) intentionally not exposed. Follow-up: add DCP Set
-  behind the MOC write gate if demand appears.
+  *Set* — ✅ `profinet_dcp_set` (set-name / set-ip) shipped behind the MOC write gate
+  (HIGH risk, `dry_run` default True, undo captures the prior name/ip).
 - ✅ **Modbus-RTU (serial)** — shipped: the Modbus connector now selects pymodbus's
   `ModbusSerialClient` when an endpoint sets `transport: rtu` (or a `serial_port:`),
   with `baudrate`/`parity`/`stopbits`/`bytesize` config; the same read ops work over
-  RTU and TCP. Client construction + config plumbing unit-verified. 待核实: live-serial
-  round-trip (needs real RS-485/USB hardware, not CI-verifiable).
+  RTU and TCP. ✅ **live-serial round-trip VERIFIED 2026-07-02** (socat PTY pair +
+  pymodbus RTU server in a container, `tests/test_modbus_rtu_live.py`); a physical
+  RS-485/USB device is the only remaining step.
 - ✅ **Phoenix Contact PLCnext vPLC (虚拟化 PLC) — route-verified** (no new connector):
   PLCnext exposes its process data over a built-in OPC-UA server (opc.tcp 4840) and a
   Modbus-TCP server, both of which the existing `opcua` + `modbus` connectors already
@@ -164,8 +183,19 @@
   `crosswalk` to the matching 等保 2.0 (GB/T 22239-2019) control class and IEC 62443
   foundational requirement (FR1–FR6); surfaced by a new `compliance_frameworks` MCP tool
   (governed, read-only) and `docs/CHINA.md §5.1`. Onboarding/audit reference, not a
-  certification. Follow-up: per-level (等保 二级/三级) control deltas if a graded
-  engagement needs it.
+  certification. ✅ per-level (等保 二级/三级) control deltas shipped
+  (`compliance_dengbao_levels` MCP tool + `iaiops compliance --dengbao-level`).
+
+## Security / governance (shipped 0.8.0)
+- ✅ **双向认证 mTLS** — OPC-UA certificate security mode (`set_security_string`
+  policy/mode + client cert/key, optional server cert) + MQTT CA/client-cert
+  (`tls_set`); `TargetConfig` cert path fields; compliance「双向认证」→ addressed.
+  Live cert validation on real gear 待核实.
+- ✅ **Audit → SIEM forwarding** — `iaiops/core/governance/forward.py` +
+  `iaiops audit forward --sink syslog|http` (at-least-once since-cursor). Follow-up:
+  auth header / bearer token for authenticated SIEM collectors.
+- ✅ **Secret rotation** — `iaiops secret rotate` re-encrypts the store under a new
+  master password (read from `IAIOPS_NEW_MASTER_PASSWORD`, never argv).
 
 ## Packaging / DX
 - ✅ **Per-protocol named MCP entry points** (`iaiops-mcp-opcua` … + per-edition
@@ -175,8 +205,10 @@
 - **OPC-UA FX / TSN** roadmap watch (2026 certification) as a future credibility point.
 
 ## Standing release debt
-- ⚠️ **PyPI token** — the token used for the 0.7.0 publish was exposed (pasted in a
-  chat) and MUST be revoked; give industrial-aiops its own fresh token/account, never
-  pasted into a conversation.
-- ✅ Listed on PyPI / GitHub Release / MCP Registry / ClawHub / skills.sh under the
-  industrial-aiops org namespace (v0.7.0, 2026-06-30).
+- ⚠️ **PyPI token** — the same token was re-exposed in chat for the 0.7.0 AND 0.8.0
+  publishes and MUST be revoked; mint a fresh industrial-aiops token, keep it in
+  `~/.pypirc` / a secret manager, never paste it into a conversation.
+- ✅ Published all channels: **iaiops 0.8.0** + **iaiops-energy 0.1.2** on PyPI, GitHub
+  Releases (v0.8.0 / v0.1.2), and the MCP registry (`io.github.industrial-aiops/iaiops`
+  + `…/iaiops-energy`) under the industrial-aiops org (2026-07-02). Base 0.7.0 was also
+  on ClawHub / skills.sh (2026-06-30).
