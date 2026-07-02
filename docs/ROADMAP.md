@@ -29,7 +29,13 @@
   (discover / object-list / read-property / read-points), `building` MCP profile +
   `iaiops[building]` bundle. **Verified 2026-06-30:** fixed a fabricated `whois()`
   call → BAC0's real `who_is()`; who_is/read/disconnect surface verified present
-  (contract test guards it). 待核实: live building/HVAC read. **Unreleased:** added
+  (contract test guards it). **Read path verified live 2026-07-02:** a genuine Who-Is
+  discover + present-value read round-trip against a real bacpypes3 virtual BACnet/IP
+  device on a two-IP subnet in a Linux container (`tests/test_bacnet_live.py`) — this
+  also caught + fixed that modern BAC0 (2024+) is async-first (bridged onto a dedicated
+  loop, `iaiops/core/runtime/bacnet_async.py`) and that `_norm_device`/`_norm_object`
+  must parse bacpypes3's real `IAmRequest` + kebab-case object types. 待核实: live
+  building/HVAC read on physical gear (write/COV/trend). **Unreleased:** added
   bounded COV subscriptions (`bacnet_cov_subscribe` — count+timeout capped, always
   unsubscribes) and read-only trend-log reads (`bacnet_read_trend_log` via
   `readRange`); BAC0 `cov`/`cancel_cov`/`readRange` surface contract-verified, live

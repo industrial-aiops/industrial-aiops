@@ -24,7 +24,7 @@ Only (3) flips the README banner from `待核实` to verified.
 |----------|-------------|---------------|
 | **DNP3** | live outstation (or hardware sim) | `pydnp3` no wheel; needs a real link |
 | **IEC-61850** | live IED (substation relay) | MMS server + real dataset |
-| **BACnet/IP** | live HVAC / BMS controller | UDP 47808 device on-net |
+| ~~**BACnet/IP** (read)~~ | ~~live HVAC / BMS controller~~ | **read path verified 2026-07-02** (real bacpypes3 virtual device, two-IP subnet in a Linux container, `tests/test_bacnet_live.py`); live HVAC write/COV/trend still pending |
 | **HART-IP** (wire) | live HART-IP gateway | only the codec is CI-verified |
 | ~~**Modbus-RTU**~~ | ~~RS-485 / USB serial slave~~ | **verified 2026-07-02** (socat PTY + pymodbus RTU server, `tests/test_modbus_rtu_live.py`); physical RS-485 device still pending |
 | **EtherCAT** | real EtherCAT bus + Linux root | no software simulator exists |
@@ -88,7 +88,24 @@ holding/input/coil/discrete round-trips — real RTU framing, not a mocked clien
 2026-07-02 in a `python:3.12-slim` container (5/5 passed). This sits above ladder
 level 2 (real wire, in-process peer); a **physical RS-485 device** is still pending.
 
-The other rows remain **待核实 (live gear)** — no BACnet/HART-IP/EtherCAT gear is on
-the bench in this environment. This runbook is the standing procedure; the loop does
+**The BACnet/IP read path is now verified against a real (virtual) device.** BACnet/IP
+discovery is UDP broadcast, which loopback does not carry — so the device and the
+connector must sit on two IPs of one real subnet (that is why an earlier macOS-host
+attempt was blocked). In a Linux `python:3.12-slim` container with `NET_ADMIN`, a
+second IP is added to `eth0` (`ip addr add 172.17.240.240/16 dev eth0`); a real
+`bacpypes3` device (DeviceObject + NetworkPortObject + analog/binary Value objects)
+binds the alias IP, and the **actual connector ops** run against it bound to the
+primary IP. This surfaced (and fixed) the real bug: modern BAC0 (2024+) is async-first
+(`BAC0.lite()` needs a running loop; `who_is`/`read`/`readRange` are coroutines), so
+the connector now bridges BAC0 onto a dedicated event loop
+(`iaiops/core/runtime/bacnet_async.py`), and `_norm_device`/`_norm_object` were fixed
+to parse bacpypes3's real `IAmRequest` (`iAmDeviceIdentifier`/`pduSource`) and
+kebab-case object types. `tests/test_bacnet_live.py` (integration-marked, gated on
+`IAIOPS_BACNET_CLIENT_IP`+`IAIOPS_BACNET_DEVICE_IP`, skips otherwise) asserts a genuine
+Who-Is discover + present-value read round-trip — passed 2026-07-02. Live BACnet
+**write / COV / trend-log** on real HVAC gear stays pending (not exercised live).
+
+The remaining rows stay **待核实 (live gear)** — no HART-IP/EtherCAT gear is on the
+bench in this environment. This runbook is the standing procedure; the loop does
 **not** fabricate a verified status. PLCnext is **route-verified** (in-process
 asyncua + faked Modbus, `tests/test_plcnext_route.py`); its *live* row stays here.
