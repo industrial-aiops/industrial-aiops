@@ -136,6 +136,29 @@ _TEMPLATES: dict[str, RegisterTemplate] = {
             order="ABCD",
         ),
     ),
+    # Phoenix Contact PLCnext vPLC — its Modbus-TCP server maps GDS / process data
+    # into holding registers, but the exact addresses are set per engineering
+    # project (no fixed vendor block). This is a documented DEFAULT float32 process
+    # block (ABCD, the PLCnext default word order) — a starting point to adapt.
+    "phoenix_plcnext_process_be": RegisterTemplate(
+        name="phoenix_plcnext_process_be",
+        register_type="holding",
+        description="Phoenix Contact PLCnext vPLC default process-data block "
+        "(FC03 holding, float32 ABCD; addresses per engineering project).",
+        caveat="待核实 — PLCnext Modbus register mapping is engineering-configured; "
+        "confirm base addresses against the project's GDS / Modbus port map.",
+        tags=_float_block(
+            [
+                ("pv1", 0x0000, "", "Process value 1"),
+                ("pv2", 0x0002, "", "Process value 2"),
+                ("pv3", 0x0004, "", "Process value 3"),
+                ("pv4", 0x0006, "", "Process value 4"),
+                ("setpoint", 0x0008, "", "Setpoint"),
+                ("cycletime_ms", 0x000A, "ms", "PLC cycle time"),
+            ],
+            order="ABCD",
+        ),
+    ),
 }
 
 

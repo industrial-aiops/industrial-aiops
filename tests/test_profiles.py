@@ -34,8 +34,7 @@ def test_named_profile_expands():
     assert resolve_selection("fab,eip") == ["secsgem", "opcua", "s7", "modbus", "eip"]
 
 
-def test_energy_and_building_profiles_resolve():
-    assert resolve_selection("energy") == ["iec104", "dnp3", "iec61850", "modbus", "opcua"]
+def test_building_profile_resolves():
     assert resolve_selection("building") == ["bacnet", "modbus", "opcua"]
 
 

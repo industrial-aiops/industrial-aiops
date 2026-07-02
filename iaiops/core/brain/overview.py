@@ -23,6 +23,10 @@ PROTOCOLS: tuple[dict, ...] = (
         ],
         "write_tools": [],
         "params": ["endpoint_url", "username", "security_mode", "security_policy"],
+        "requirements": "Phoenix Contact PLCnext vPLC (虚拟化 PLC) 覆盖：其内置 OPC-UA "
+        "服务器 (opc.tcp 4840) 经此连接器路由验证——in-process asyncua 服务器复现其 "
+        "GDS/PLC 地址空间 (tests/test_plcnext_route.py)；便捷 profile: IAIOPS_MCP=plcnext "
+        "(opcua+modbus) / iaiops[plcnext]；活体 PLCnext 设备读取仍 待核实。",
     },
     {
         "protocol": "modbus",
@@ -40,6 +44,10 @@ PROTOCOLS: tuple[dict, ...] = (
             "host", "port(502)", "unit_id",
             "transport(tcp|rtu)", "serial_port", "baudrate", "parity", "stopbits", "bytesize",
         ],
+        "requirements": "Phoenix Contact PLCnext vPLC (虚拟化 PLC) 覆盖：其 Modbus-TCP "
+        "服务器 (用户映射过程数据寄存器) 经此连接器路由验证 (tests/test_plcnext_route.py)；"
+        "自带 phoenix_plcnext_process_be 寄存器模板 + IAIOPS_MCP=plcnext profile；"
+        "寄存器映射随工程配置，活体 PLCnext 设备读取仍 待核实。",
     },
     {
         "protocol": "s7",
@@ -152,53 +160,6 @@ PROTOCOLS: tuple[dict, ...] = (
         "PROFINET subnet; pnio-dcp is an optional extra.",
         "not_supported": "RT cyclic process data = out of scope (needs an IO-controller "
         "stack); DCP Set (set-name/set-ip/blink/factory-reset) = disruptive, not exposed.",
-    },
-    {
-        "protocol": "iec104",
-        "status": "implemented",
-        "library": "c104 / iec104-python (OPTIONAL extra: iaiops[iec104])",
-        "transport": "IEC 60870-5-104 (TCP 2404)",
-        "auth": "none (transport)",
-        "read_tools": [
-            "iec104_connection_info", "iec104_interrogate", "iec104_read_point",
-        ],
-        "write_tools": [],
-        "params": ["host", "port(2404)", "common_address"],
-        "requirements": "Energy edition extra. Binding verified against a c104 "
-        "loopback link (2026-06-30); live-RTU read still 待核实.",
-        "not_supported": "Control direction (C_SC/C_DC/C_RC/setpoints) = not exposed "
-        "(OT-dangerous).",
-    },
-    {
-        "protocol": "dnp3",
-        "status": "implemented",
-        "library": "pydnp3 / opendnp3 (OPTIONAL extra: iaiops[dnp3])",
-        "transport": "DNP3 over TCP (20000)",
-        "auth": "none (or DNP3-SA, not modelled)",
-        "read_tools": ["dnp3_link_status", "dnp3_integrity_poll"],
-        "write_tools": [],
-        "params": ["host", "port(20000)", "unit_id(outstation)", "master_address"],
-        "requirements": "Energy edition extra. PREVIEW — callback-based opendnp3 "
-        "binding 待核实 (pydnp3 has no wheel + needs a live outstation; not yet "
-        "verifiable in CI). is_online reflects enable(), not live link-state.",
-        "not_supported": "Control (CROB / analog output) = not exposed (OT-dangerous).",
-    },
-    {
-        "protocol": "iec61850",
-        "status": "implemented",
-        "library": "pyiec61850 — libiec61850 SWIG (OPTIONAL extra: iaiops[iec61850])",
-        "transport": "IEC 61850 MMS (ISO-on-TCP 102)",
-        "auth": "none (transport)",
-        "read_tools": [
-            "iec61850_device_directory", "iec61850_browse", "iec61850_read",
-        ],
-        "write_tools": [],
-        "params": ["host", "port(102)"],
-        "requirements": "Energy edition extra (pyiec61850, linux-only wheel). Driver "
-        "symbol surface verified against the real binding (2026-06-30); live-IED "
-        "read still 待核实.",
-        "not_supported": "Control blocks (Oper / select-before-operate), GOOSE, "
-        "Sampled Values = not exposed / out of scope.",
     },
     {
         "protocol": "bacnet",

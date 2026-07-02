@@ -100,17 +100,6 @@ def run_doctor(skip_probe: bool = False) -> int:
             else:
                 _console.print(f"[yellow]! PROFINET '{target.name}' — {detail}[/]")
             continue
-        # Energy edition (iec104/dnp3/iec61850) needs optional native libs that may
-        # be absent; treat an environmental miss as informational, not a hard fail.
-        if target.protocol in ("iec104", "dnp3", "iec61850"):
-            ok, detail = _probe_energy(target)
-            if ok:
-                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
-            else:
-                _console.print(
-                    f"[yellow]! {target.protocol.upper()} '{target.name}' — {detail}[/]"
-                )
-            continue
         # BACnet/IP needs the optional BAC0 lib + a live segment; informational miss.
         if target.protocol == "bacnet":
             ok, detail = _probe_bacnet(target)
@@ -184,33 +173,6 @@ def _probe_ethercat(target) -> tuple[bool, str]:
             f"EtherCAT master_state={info.get('master_state')} "
             f"slaves_found={info.get('slaves_found')}"
         )
-    except Exception as exc:  # noqa: BLE001 — environmental miss is a status, not a crash
-        return False, str(exc)[:200]
-
-
-def _probe_energy(target) -> tuple[bool, str]:
-    """Probe an energy-edition endpoint (iec104/dnp3/iec61850); never raises.
-
-    These need optional native libraries (c104 / pydnp3 / libiec61850) and live
-    RTUs/IEDs to fully verify; an environmental miss returns a teaching status
-    instead of crashing. Preview — connectors are not yet validated against live gear.
-    """
-    try:
-        if target.protocol == "iec104":
-            from iaiops.connectors.iec104.ops import iec104_connection_info
-
-            info = iec104_connection_info(target)
-            return True, (f"IEC-104 connected={info.get('connected')} "
-                          f"stations={info.get('station_count')}")
-        if target.protocol == "dnp3":
-            from iaiops.connectors.dnp3.ops import dnp3_link_status
-
-            info = dnp3_link_status(target)
-            return True, f"DNP3 online={info.get('online')}"
-        from iaiops.connectors.iec61850.ops import iec61850_device_directory
-
-        info = iec61850_device_directory(target)
-        return True, f"IEC-61850 logical_devices={info.get('logical_device_count')}"
     except Exception as exc:  # noqa: BLE001 — environmental miss is a status, not a crash
         return False, str(exc)[:200]
 
