@@ -57,6 +57,8 @@ EXPECTED_TOOLS = {
     "profinet_asset_inventory", "profinet_dcp_set",
     # tag intelligence — adopted alias map persistence + diff
     "adopt_alias_map", "diff_alias_map",
+    # legacy PLC program explainer (A8) — exported ST/AWL/L5X files, read-only
+    "plc_program_outline", "plc_program_xref", "plc_program_section",
     # self-description
     "protocols_supported",
 }

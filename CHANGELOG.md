@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Added — legacy PLC program explainer (A8)
+- New brain package `iaiops/core/brain/plc_program/`: structural extraction over
+  **exported** program text files (Siemens SCL/ST `.scl`/`.st`, AWL/STL `.awl`,
+  Rockwell Studio 5000 `.L5X`) — never a live PLC upload. Every extracted element
+  carries `source_file` + `line` (rung number for L5X ladder) so the explaining
+  agent must cite real locations. L5X is parsed with stdlib `xml.etree` plus a
+  pre-parse DTD/entity rejection (XXE hardening); malformed/truncated files
+  degrade to `parse_errors` entries instead of crashing.
+- 3 governed READ tools (always-on brain module `plc_program_tools`):
+  `plc_program_outline` (blocks / VAR sections / IF-CASE branches /
+  timers-counters / call graph, bounded with truncation flags),
+  `plc_program_xref` (every read/write/call/declare site of a symbol or absolute
+  address with the source line quoted), `plc_program_section` (one named block's
+  source text, ≤200 lines). Path validation: file must exist, ≤5 MB,
+  extension allowlist, no directory walking.
+- CLI: `iaiops program outline|xref|section`.
+- All 5 edition skills document the 3 tools under 跨协议脑.
+
 ## 0.9.0 — 2026-07-02
 
 ### Security — governance hardening (from full audit)
