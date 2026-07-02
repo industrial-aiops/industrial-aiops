@@ -7,6 +7,7 @@ master password via scrypt). Nothing here ever prints a secret value.
 from __future__ import annotations
 
 import getpass
+import os
 from typing import Annotated
 
 import typer
@@ -89,22 +90,18 @@ def secret_migrate() -> None:
 
 @secret_app.command("rotate")
 @cli_errors
-def secret_rotate(
-    new_password: Annotated[
-        str | None,
-        typer.Option(
-            "--new-password",
-            help="New master password (omit to be prompted, hidden). Never echoed.",
-        ),
-    ] = None,
-) -> None:
+def secret_rotate() -> None:
     """Re-encrypt secrets.enc under a NEW master password (decrypt old → re-encrypt).
 
     Unlocks with the CURRENT master password, then rewrites the store under the
-    new one. Secret values are never printed and never written in plaintext.
+    new one. Interactive by default (hidden prompt). For non-interactive use set
+    ``IAIOPS_NEW_MASTER_PASSWORD`` in the environment — the password is read from
+    there, NOT from a CLI flag (a flag value would leak via argv / ps / shell
+    history). Secret values are never printed and never written in plaintext.
     """
     console.print("[bold]Unlock with the CURRENT master password:[/]")
     store = SecretStore.unlock()
+    new_password = os.environ.get("IAIOPS_NEW_MASTER_PASSWORD")
     if new_password is None:
         new_password = getpass.getpass("New master password: ")
         confirm = getpass.getpass("Confirm new master password: ")
