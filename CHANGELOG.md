@@ -41,6 +41,22 @@
 - `server.json`: title corrected to "Industrial-AIOps", `environmentVariables` declared
   (`IAIOPS_MCP`, `IAIOPS_CONFIG`, `IAIOPS_MASTER_PASSWORD`).
 
+### Added — queryability layer (A2)
+- **Local SQLite sink** (`historian_push(sink="sqlite")` / `iaiops historian push --sink
+  sqlite`): normalized samples land in a queryable on-box store `~/.iaiops/data.db`
+  (WAL, 0600/0700 hardening, `samples(ts, endpoint, protocol, tag, value, quality, unit)`
+  + indexes); keeps non-numeric values as text (the TSDB sinks stay numeric-only).
+- **`iaiops export csv|sqlite|parquet`** — open-format export FROM the local store with
+  `--since/--until/--endpoint/--tag/--limit` filters (fail-fast validation). CSV/SQLite
+  are stdlib-only; Parquet via the new optional extra `iaiops[export]` (pyarrow, lazy
+  import with a teaching error). Governed MCP counterpart: `export_data` ([READ][risk=low],
+  bounded ≤200-row inline preview, returns path + row count).
+- **Prometheus/Grafana bridge** — `iaiops metrics serve --port 9184` exposes `/metrics`
+  (text format 0.0.4, stdlib http.server): `iaiops_tag_value{endpoint,protocol,tag,unit}`
+  gauges (latest value per tag) + `iaiops_samples_written_total` /
+  `iaiops_audit_events_total` / `iaiops_tool_errors_total` counters. Binds 127.0.0.1 by
+  default; explicit `--host 0.0.0.0` warns loudly. Recipe: `docs/GRAFANA.md`.
+
 ## 0.8.0 — 2026-07-02
 
 ### Changed — energy edition split out

@@ -43,6 +43,8 @@ BRAIN_MODULES = (
     "monitor_tools",
     # 信创 / compliance self-assessment + national-TSDB historian sink.
     "compliance_tools",
+    # Queryability layer (A2): export the local SQLite sink (CSV/SQLite/Parquet).
+    "export_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are

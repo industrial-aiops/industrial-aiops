@@ -222,9 +222,16 @@ machine's BACnet/IP interface (`ip` or `ip/mask`). Read-first; the one write,
   (分区隔离 / 可审计 / 双向认证 / 最小权限 / 数据保护 / 自主可控) with honest status + gaps
 - `compliance_frameworks` — 跨框架对照: 防护指南 ↔ 等保 2.0 (GB/T 22239) ↔ IEC 62443
 - `compliance_dengbao_levels` — 等保 2.0 二级 vs 三级 per-pillar deltas + honest posture
-- `historian_push` — write collected telemetry to a domestic TSDB (TDengine / IoTDB);
+- `historian_push` — write collected telemetry to a domestic TSDB (TDengine / IoTDB)
+  or the local queryable SQLite store (sink="sqlite" → ~/.iaiops/data.db);
   data egress to the operator's own historian, not a control write. See docs/CHINA.md
   for air-gapped install + 国产 OS/芯/PLC validation matrix (待核实).
+
+### Queryability / export (get the data OUT)
+- `export_data` — export samples from the LOCAL SQLite sink (data.db) to CSV /
+  SQLite / Parquet for Excel / Power BI / SQL (bounded ≤200-row inline preview;
+  parquet needs `pip install 'iaiops[export]'`). CLI: `iaiops export`; Grafana:
+  `iaiops metrics serve` (Prometheus /metrics, see docs/GRAFANA.md).
 
 ### Meta / roadmap
 - `protocols_supported` — capability map (protocols, status, tools, connection params)
