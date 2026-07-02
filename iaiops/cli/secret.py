@@ -87,10 +87,43 @@ def secret_migrate() -> None:
     console.print("[dim]The old .env was renamed to .env.migrated — delete it once verified.[/]")
 
 
-@secret_app.command("rotate-password")
+@secret_app.command("rotate")
+@cli_errors
+def secret_rotate(
+    new_password: Annotated[
+        str | None,
+        typer.Option(
+            "--new-password",
+            help="New master password (omit to be prompted, hidden). Never echoed.",
+        ),
+    ] = None,
+) -> None:
+    """Re-encrypt secrets.enc under a NEW master password (decrypt old → re-encrypt).
+
+    Unlocks with the CURRENT master password, then rewrites the store under the
+    new one. Secret values are never printed and never written in plaintext.
+    """
+    console.print("[bold]Unlock with the CURRENT master password:[/]")
+    store = SecretStore.unlock()
+    if new_password is None:
+        new_password = getpass.getpass("New master password: ")
+        confirm = getpass.getpass("Confirm new master password: ")
+        if new_password != confirm:
+            console.print("[red]Passwords did not match. Aborted.[/]")
+            raise typer.Exit(1)
+    if not new_password:
+        console.print("[red]New master password must not be empty. Aborted.[/]")
+        raise typer.Exit(1)
+    count = len(store.names())
+    store.with_password(new_password)
+    console.print(f"[green]✓ Re-encrypted {count} secret(s) under the new master password.[/]")
+    console.print("[dim]Update IAIOPS_MASTER_PASSWORD to the new password.[/]")
+
+
+@secret_app.command("rotate-password", hidden=True)
 @cli_errors
 def secret_rotate_password() -> None:
-    """Re-encrypt the whole store under a new master password."""
+    """Deprecated alias for ``secret rotate`` (interactive-only)."""
     console.print("[bold]Unlock with the current master password:[/]")
     store = SecretStore.unlock()
     new_pw = getpass.getpass("New master password: ")
