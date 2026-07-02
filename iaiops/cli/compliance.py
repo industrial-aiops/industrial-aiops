@@ -14,7 +14,11 @@ import typer
 from rich.console import Console
 
 from iaiops.cli._common import cli_errors
-from iaiops.core.brain.compliance import compliance_frameworks, compliance_mapping
+from iaiops.core.brain.compliance import (
+    compliance_dengbao_levels,
+    compliance_frameworks,
+    compliance_mapping,
+)
 from iaiops.core.sink.push import historian_push
 
 console = Console()
@@ -29,11 +33,20 @@ def compliance_cmd(
     frameworks: bool = typer.Option(
         False, "--frameworks", help="Print the 防护指南 ↔ 等保 2.0 ↔ IEC 62443 crosswalk instead."
     ),
+    dengbao_level: str = typer.Option(
+        "", "--dengbao-level",
+        help="Print 等保 2.0 二级 vs 三级 per-pillar deltas (l2/l3, 二级/三级, 2/3; empty=both).",
+    ),
 ) -> None:
     """Print the 《工控系统网络安全防护指南》 ↔ iaiops governance mapping.
 
     With --frameworks, print the cross-framework 对照 (等保 2.0 / IEC 62443) instead.
+    With --dengbao-level, print the 等保 2.0 二级/三级 per-pillar deltas (pass a level
+    to focus, or leave blank for both).
     """
+    if dengbao_level:
+        _emit(compliance_dengbao_levels(dengbao_level))
+        return
     _emit(compliance_frameworks() if frameworks else compliance_mapping())
 
 

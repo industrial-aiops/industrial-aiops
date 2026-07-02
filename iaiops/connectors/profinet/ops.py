@@ -7,12 +7,13 @@ them — closer to passive discovery than the active per-device fingerprint othe
 connectors use. ``pnio-dcp`` is an OPTIONAL extra (``pip install iaiops[profinet]``)
 imported LAZILY in :func:`iaiops.core.runtime.connection._build_profinet_dcp`.
 
-SCOPE (deliberate): **read-only discovery + identify ONLY**. We do NOT do RT
-cyclic process data (that needs an IO-controller/IO-device stack and hard
-real-time, which is out of scope and unsafe to tap), and we do NOT expose the
-DCP *Set* services (set-name / set-ip / blink / factory-reset) — those are
-disruptive writes that re-address or physically signal a live device. If you need
-them, open an issue/PR so they can be added behind the MOC write gate.
+SCOPE (deliberate): read-only discovery + identify, PLUS one MOC-gated DCP *Set*
+write. We do NOT do RT cyclic process data (that needs an IO-controller/IO-device
+stack and hard real-time, which is out of scope and unsafe to tap). The DCP *Set*
+services for name-of-station / IP suite ARE exposed via :func:`profinet_dcp_set` —
+an OT-DANGEROUS write that re-addresses a live device: it is governed (high
+risk_tier), captures the BEFORE addressing for undo, and must run through dry-run +
+double-confirm. Blink / factory-reset remain out of scope (physical/destructive).
 
 HARD REQUIREMENTS: raw-socket access (root / admin / CAP_NET_RAW) on the NIC
 cabled to the PROFINET subnet; ``host`` is THIS machine's IP on that subnet. No
@@ -213,10 +214,84 @@ def profinet_asset_inventory(target: Any) -> dict:
     }
 
 
+def _station_before(dcp: Any, mac: str) -> dict | None:
+    """Capture one station's current addressing (name + IP suite) by MAC, or None.
+
+    Prefers the library's unicast DCP Get helpers; falls back to filtering an
+    IdentifyAll sweep. Used to record the BEFORE state so a DCP Set is reversible.
+    """
+    wanted = str(mac or "").strip().lower()
+    direct = _get_by_mac(dcp, mac)
+    if direct is not None:
+        return {k: direct.get(k) for k in ("name_of_station", "ip", "netmask", "gateway")}
+    for d in list(dcp.identify_all() or [])[:MAX_STATIONS]:
+        brief = _device_brief(d)
+        if brief["mac"].strip().lower() == wanted:
+            return {k: brief.get(k) for k in ("name_of_station", "ip", "netmask", "gateway")}
+    return None
+
+
+def profinet_dcp_set(
+    target: Any,
+    mac: str,
+    set_name: str | None = None,
+    set_ip: str | None = None,
+    netmask: str | None = None,
+    gateway: str | None = None,
+    *,
+    dry_run: bool = True,
+) -> dict:
+    """[WRITE][HIGH RISK] DCP Set: re-address one PROFINET station (name and/or IP).
+
+    OT-dangerous — this changes a live device's name-of-station and/or IP suite via a
+    unicast DCP Set, which can disrupt the IO connection. Captures the BEFORE
+    addressing (by MAC) so the change is reversible, and refuses to act unless
+    ``dry_run`` is explicitly False. 未经授权勿对生产控制系统写入.
+    """
+    wanted = str(mac or "").strip()
+    if not wanted:
+        return {"error": "mac is required (the station's MAC, e.g. '00:1b:1b:12:34:56')."}
+    if not set_name and not set_ip:
+        return {"error": "Nothing to set — provide set_name and/or set_ip."}
+    endpoint = s(getattr(target, "name", ""), 64)
+    would_set: dict = {}
+    if set_name:
+        would_set["name_of_station"] = s(set_name, 240)
+    if set_ip:
+        would_set["ip"] = s(set_ip, 40)
+        would_set["netmask"] = s(netmask or "", 40)
+        would_set["gateway"] = s(gateway or "", 40)
+    with profinet_dcp(target) as dcp:
+        before = _station_before(dcp, wanted)
+        if dry_run:
+            return {
+                "endpoint": endpoint,
+                "mac": s(mac, 24),
+                "dry_run": True,
+                "before": before,
+                "would_set": would_set,
+                "note": "Dry run — nothing set. Re-run with dry_run=False AND a "
+                "recorded approver to apply. 未经授权勿对生产控制系统写入.",
+            }
+        if set_name:
+            dcp.set_name_of_station(wanted, set_name)
+        if set_ip:
+            dcp.set_ip_address(wanted, [set_ip, netmask or "", gateway or ""])
+    return {
+        "endpoint": endpoint,
+        "mac": s(mac, 24),
+        "dry_run": False,
+        "before": before,
+        "set": would_set,
+        "applied": True,
+    }
+
+
 __all__ = [
     "profinet_discover",
     "profinet_identify_station",
     "profinet_station_params",
     "profinet_asset_inventory",
+    "profinet_dcp_set",
     "OTConnectionError",
 ]

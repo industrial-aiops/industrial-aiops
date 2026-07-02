@@ -22,6 +22,19 @@
 - **Compliance mapping expanded** with a 等保 2.0 (GB/T 22239) + IEC 62443 (FR1–6)
   crosswalk: new governed `compliance_frameworks` MCP tool + `iaiops compliance --frameworks`
   CLI; each control now carries a `crosswalk`. See `docs/CHINA.md §5.1`.
+- **等保 2.0 per-level deltas** — new governed `compliance_dengbao_levels` MCP tool +
+  `iaiops compliance --dengbao-level <l2|l3|二级|三级>` CLI show, per pillar, the 二级
+  baseline vs the 三级 增量 and how far iaiops moves you toward it (honest status/gap
+  reused from `CONTROLS`). Onboarding aid, not a certification.
+
+### Added — connector depth
+- **HART `hart_burst_sample`** (governed, read-only, risk=low) — actively samples the
+  periodically-published (burst) variables (command 3) N times over one session; a
+  true unsolicited HART-IP burst subscription stays 待核实.
+- **Modbus vendor register templates** — added `carlo_gavazzi_em24` (scaled int32,
+  CDAB), `huawei_sun2000_inverter` and `growatt_inverter` (int32/uint32/uint16 with
+  scaling); each carries a `待核实` caveat and a base-relative span within the 125-reg
+  read limit.
 
 ### Added — protocols
 - **HART-IP TCP transport** — the HART connector now speaks HART-IP over **TCP**

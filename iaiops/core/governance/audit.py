@@ -276,6 +276,32 @@ class AuditEngine:
         finally:
             conn.close()
 
+    def rows_after(
+        self, cursor_id: int, *, since: str | None = None, limit: int = 1000
+    ) -> list[dict[str, Any]]:
+        """Return audit rows with ``id > cursor_id`` in ascending id order.
+
+        Used by the forwarder to stream new records to a SIEM exactly once: the
+        caller persists the max id it saw as the next cursor. ``since`` adds an
+        optional ``ts >=`` floor for the very first run.
+        """
+        clauses = ["id > ?"]
+        values: list[Any] = [int(cursor_id)]
+        if since:
+            clauses.append("ts >= ?")
+            values.append(since)
+        # ``clauses`` are hardcoded fragments; user values are bound parameters.
+        where = " AND ".join(clauses)
+        sql = f"SELECT * FROM audit_log WHERE {where} ORDER BY id ASC LIMIT ?"  # nosec B608
+        values.append(int(limit))
+        conn = self._connect()
+        try:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(sql, values).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
     def stats(self, days: int = 7) -> dict[str, Any]:
         """Aggregate statistics over the last N days."""
         since = (datetime.now(tz=UTC) - timedelta(days=days)).isoformat()
