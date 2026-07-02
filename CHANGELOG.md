@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0 — 2026-07-02
 
 ### Security — governance hardening (from full audit)
 - **Approver gate now enforced out-of-the-box**: with no `risk_tiers` in `~/.iaiops/rules.yaml`,
@@ -40,6 +40,66 @@
   `tests/test_skill_sync.py` gate keeps skill and registered tools from drifting again.
 - `server.json`: title corrected to "Industrial-AIOps", `environmentVariables` declared
   (`IAIOPS_MCP`, `IAIOPS_CONFIG`, `IAIOPS_MASTER_PASSWORD`).
+
+### Added — queryability layer (A2)
+- **Local SQLite sink** (`historian_push(sink="sqlite")` / `iaiops historian push --sink
+  sqlite`): normalized samples land in a queryable on-box store `~/.iaiops/data.db`
+  (WAL, 0600/0700 hardening, `samples(ts, endpoint, protocol, tag, value, quality, unit)`
+  + indexes); keeps non-numeric values as text (the TSDB sinks stay numeric-only).
+- **`iaiops export csv|sqlite|parquet`** — open-format export FROM the local store with
+  `--since/--until/--endpoint/--tag/--limit` filters (fail-fast validation). CSV/SQLite
+  are stdlib-only; Parquet via the new optional extra `iaiops[export]` (pyarrow, lazy
+  import with a teaching error). Governed MCP counterpart: `export_data` ([READ][risk=low],
+  bounded ≤200-row inline preview, returns path + row count).
+- **Prometheus/Grafana bridge** — `iaiops metrics serve --port 9184` exposes `/metrics`
+  (text format 0.0.4, stdlib http.server): `iaiops_tag_value{endpoint,protocol,tag,unit}`
+  gauges (latest value per tag) + `iaiops_samples_written_total` /
+  `iaiops_audit_events_total` / `iaiops_tool_errors_total` counters. Binds 127.0.0.1 by
+  default; explicit `--host 0.0.0.0` warns loudly. Recipe: `docs/GRAFANA.md`.
+### Added — compliance report generation (A3)
+- **`iaiops compliance report --out report.md [--html] [--site NAME] [--level l2|l3]`**:
+  renders the existing compliance crosswalk into a deliverable document — title-page
+  metadata (site / date / iaiops version), per-pillar 等保 2.0 L2/L3 status table,
+  IEC 62443 FR1–6 crosswalk, honest gap list, and a governance-controls appendix
+  (audit hash chain / approval tokens / dry-run+undo / mTLS). Markdown by default,
+  `--html` via a stdlib converter (no new deps). Onboarding aid, 非认证.
+- **`iaiops compliance evidence --out bundle.zip [--since ISO] [--until ISO]`**:
+  audit-evidence zip with deterministic member names — `audit_rows.jsonl` (secrets
+  already redacted upstream), `chain_verification.json` (hash-chain walk),
+  `rules.yaml` (if present), `doctor_summary.json`, `manifest.json`. Output paths
+  reject `..` traversal; parent dirs created 0700, bundle written 0600.
+- New governed MCP tools `compliance_report` (inline markdown capped at ~400 lines,
+  else write to `out_path`) and `compliance_evidence_bundle`, both [READ][risk=low].
+### Added — ISA-18.2 alarm flood analysis (A4)
+- **New brain module `iaiops.core.brain.alarm_flood`** (pure, no I/O): `detect_floods`
+  (flood *episodes* — start/end/count/peak rate/top contributors, per ISA-18.2's
+  ≥10 alarms/10 min per operator), `chattering_alarms` (ACTIVE↔CLEARED cycle counting),
+  `stale_standing_alarms` (continuously active > 24 h), `flood_summary`
+  (percent-time-in-flood + avg/peak rate vs the ~1-2 alarms/10 min target, honest
+  `insufficient_data` handling), and `rationalization_worksheet` (CSV-exportable rows).
+- **New governed MCP tools** (`alarm_flood_analysis`, `alarm_rationalization_worksheet`,
+  both `[READ][risk=low]`, bounded output with truncation flags): analyze injected events
+  or collect live via the same OPC-UA active-condition scan the RCA copilot uses
+  (`rca_collect.collect_active_alarms`, polled over `duration_s`).
+- **New CLI commands**: `iaiops diag alarm-flood` and `iaiops diag alarm-worksheet`
+  (JSON events in; deep report out, or a CSV worksheet via `--out`).
+### Added — water treatment edition (A9)
+- **`water` profile** (水处理): `IAIOPS_MCP=water` exposes exactly modbus + opcua + hart
+  (+ the always-on brain), with a matching `iaiops-mcp-water` console script and an
+  `iaiops[water]` extra that references the per-protocol extras (no duplicated pins).
+- **Water-domain semantics**: the tag classifier gains dissolved_oxygen (DO/溶解氧),
+  orp (氧化还原/redox), chlorine (余氯/总氯), ammonia (氨氮/NH3), suspended_solids
+  (TSS/MLSS/悬浮物), membrane_pressure (TMP/跨膜压差), uv_intensity (紫外), dosing
+  (加药) and aeration (曝气/风机/blower) classes, plus 流量/液位 hints on flow/level.
+  Ambiguous bare tokens (do/tmp/orp) stay underscore-/context-guarded — honest `other`
+  over a confident-but-wrong class.
+- **Water-industry Modbus register templates**: `eh_promag_flowmeter` (E+H Promag
+  process values), `hach_sc_controller` (pH/DO/turbidity sensor slots) and
+  `generic_dosing_pump` (加药泵 block). All three ship with explicit 待核实 caveats and
+  placeholder offsets where no fixed public vendor map exists — no invented "verified"
+  addresses.
+- New `tests/test_water_edition.py` pins the profile/entrypoint/extra contract, the
+  water tag classes and the template catalog.
 
 ## 0.8.0 — 2026-07-02
 

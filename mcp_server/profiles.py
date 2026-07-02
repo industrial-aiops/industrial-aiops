@@ -36,6 +36,8 @@ BRAIN_MODULES = (
     "overview_tools",
     "analysis_tools",
     "diagnostics_tools",
+    # ISA-18.2 alarm-flood deepening (episodes / chattering / stale / worksheet).
+    "alarm_tools",
     "asset_tools",
     "asset_model_tools",
     "alias_store_tools",
@@ -43,6 +45,8 @@ BRAIN_MODULES = (
     "monitor_tools",
     # 信创 / compliance self-assessment + national-TSDB historian sink.
     "compliance_tools",
+    # Queryability layer (A2): export the local SQLite sink (CSV/SQLite/Parquet).
+    "export_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are
@@ -58,6 +62,9 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # Phoenix Contact PLCnext vPLC (虚拟化 PLC): reached over its built-in OPC-UA
     # server (opc.tcp 4840) + Modbus-TCP process-data server — no new connector.
     "plcnext": ("opcua", "modbus"),
+    # Water treatment edition (水处理): plants run Modbus RTU/TCP field devices,
+    # OPC-UA SCADA gateways and HART-IP process instrumentation — all shipped.
+    "water": ("modbus", "opcua", "hart"),
 }
 
 
