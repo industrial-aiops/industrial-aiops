@@ -62,7 +62,9 @@ def _build_opcua_client(target: TargetConfig) -> Any:
             endpoint=target.name,
             protocol="opcua",
         )
-    client = Client(target.endpoint_url)
+    # asyncua's sync Client takes a per-request timeout in seconds; without it a
+    # dead endpoint blocks on the OS TCP timeout (60-120s+) instead of failing fast.
+    client = Client(target.endpoint_url, timeout=target.timeout_s)
     username = target.username
     password = target.password()
     if username:
@@ -301,8 +303,14 @@ def _build_s7_client(target: TargetConfig) -> Any:
             endpoint=target.name,
             protocol="s7",
         )
+    # pyS7's socket timeout (seconds) makes a dead PLC fail fast instead of
+    # hanging on the OS TCP timeout.
     return S7Client(
-        target.host, rack=target.rack, slot=target.slot, port=target.port or 102
+        target.host,
+        rack=target.rack,
+        slot=target.slot,
+        port=target.port or 102,
+        timeout=target.timeout_s,
     )
 
 
@@ -369,7 +377,11 @@ def _build_mc_client(target: TargetConfig) -> Any:
             endpoint=target.name,
             protocol="mc",
         )
-    return pymcprotocol.Type3E(plctype=target.plctype or "Q")
+    client = pymcprotocol.Type3E(plctype=target.plctype or "Q")
+    # pymcprotocol (0.3.x) has no constructor timeout; ``soc_timeout`` is its
+    # public socket-timeout knob (seconds), applied via settimeout() in connect().
+    client.soc_timeout = target.timeout_s
+    return client
 
 
 @contextmanager
@@ -527,7 +539,11 @@ def _build_eip_client(target: TargetConfig) -> Any:
             protocol="ethernetip",
         )
     path = f"{target.host}/{target.slot}" if target.slot else target.host
-    return LogixDriver(path)
+    driver = LogixDriver(path)
+    # pycomm3 (1.2.x) ignores constructor kwargs for this; ``socket_timeout`` is
+    # its public property for the socket open/receive timeout (seconds).
+    driver.socket_timeout = target.timeout_s
+    return driver
 
 
 @contextmanager

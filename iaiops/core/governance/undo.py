@@ -86,15 +86,15 @@ class UndoStore:
     def _harden(self) -> None:
         try:
             os.chmod(self._path.parent, 0o700)
-        except OSError:
-            pass
+        except OSError as exc:
+            _log.debug("Could not chmod undo dir %s: %s", self._path.parent, exc)
         for suffix in ("", "-wal", "-shm"):
             candidate = self._path.with_name(self._path.name + suffix)
             try:
                 if candidate.exists():
                     os.chmod(candidate, 0o600)
-            except OSError:
-                pass
+            except OSError as exc:
+                _log.debug("Could not chmod undo file %s: %s", candidate, exc)
 
     def record(
         self,
