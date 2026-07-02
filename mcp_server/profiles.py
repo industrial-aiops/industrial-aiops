@@ -47,6 +47,8 @@ BRAIN_MODULES = (
     "compliance_tools",
     # Queryability layer (A2): export the local SQLite sink (CSV/SQLite/Parquet).
     "export_tools",
+    # Historian READ integration (A7): query history back out of the sinks.
+    "historian_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are

@@ -15,6 +15,7 @@ from iaiops.cli.eip import eip_app
 from iaiops.cli.ethercat import ethercat_app
 from iaiops.cli.export import export_cmd
 from iaiops.cli.hart import hart_app
+from iaiops.cli.historian import coverage_cmd, query_cmd
 from iaiops.cli.init import init_cmd
 from iaiops.cli.mc import mc_app
 from iaiops.cli.metrics import metrics_app
@@ -50,6 +51,10 @@ app.add_typer(diag_app, name="diag")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(secret_app, name="secret")
 app.add_typer(audit_app, name="audit")
+# Historian READ side (A7) lives in iaiops/cli/historian.py; registered onto
+# the same `iaiops historian` app as the write side (`push`).
+historian_app.command("query")(query_cmd)
+historian_app.command("coverage")(coverage_cmd)
 app.add_typer(historian_app, name="historian")
 app.add_typer(metrics_app, name="metrics")
 app.command("init")(init_cmd)

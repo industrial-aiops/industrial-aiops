@@ -69,6 +69,10 @@ W_ALARM_FLOOD_CONTEXT = 0.2
 W_TAG_SEVERE = 0.45
 W_TAG_MINOR = 0.2
 W_DOWNTIME_CATEGORY_PRIOR = 0.25
+# Historian pre-incident trends (A7): real but retrospective context, weighted
+# slightly below the equivalent live tag evidence.
+W_HISTORIAN_SEVERE = 0.4
+W_HISTORIAN_MINOR = 0.18
 
 # Stoppage / alarm text → a cause category. Ordered: first hit wins.
 CAUSE_KEYWORDS: dict[str, tuple[str, ...]] = {
@@ -126,6 +130,7 @@ def downtime_rca(
     state_series: list[dict] | None = None,
     lead_window_s: float = DEFAULT_LEAD_WINDOW_S,
     cause_weights: dict[str, float] | None = None,
+    historian: dict | None = None,
 ) -> dict:
     """[READ] Correlate evidence around a downtime window into a cited root cause.
 
@@ -140,6 +145,13 @@ def downtime_rca(
     can up-/down-weight causes its history has shown to be more/less reliable.
     Unknown causes or non-numeric weights raise; values are clamped to
     ``[MIN_CAUSE_WEIGHT, MAX_CAUSE_WEIGHT]``. Absent ⇒ no behaviour change.
+
+    ``historian`` is an optional pre-incident evidence bundle (from
+    :func:`iaiops.core.brain.rca_history.gather_pre_incident`) — ``{source,
+    window:{since, until}, tags:[{ref, samples}], ...}``. Its tag trends are
+    scored as one more evidence class with citations naming the source
+    (``historian:<name>``), window, and sample count. Absent ⇒ byte-identical
+    behaviour to before.
 
     Returns a structured verdict: ranked ``hypotheses`` (each with a confidence,
     band, and real-signal ``evidence`` citations + an advisory action),
@@ -159,12 +171,15 @@ def downtime_rca(
     _score_dataflow(dataflow, contributions)
     alarm_ctx = _score_alarms(alarms, onset, lead, win["end_dt"], contributions)
     _score_tags(tags, contributions)
+    _score_historian(historian, contributions)
     _score_category_prior(win.get("category"), contributions)
 
     contributions = _apply_cause_weights(contributions, weights)
     hypotheses = _build_hypotheses(contributions)
     verdict, primary = _decide(hypotheses)
     summary = _evidence_summary(alarm_ctx, tags, dataflow, contributions)
+    if historian is not None:
+        summary = {**summary, **_historian_summary(historian)}
     out = {
         "window": {k: win[k] for k in ("start", "end", "duration_s", "asset", "category")},
         "verdict": verdict,
@@ -411,6 +426,64 @@ def _score_tags(tags: list[dict] | None, contributions: dict[str, list[dict]]) -
             "ref": s(str(off.get("ref", "")), 96),
             "detail": s(f"flags={','.join(flags)} severity={off.get('severity')}", 160),
         })
+
+
+def _score_historian(historian: dict | None, contributions: dict[str, list[dict]]) -> None:
+    """Score pre-incident historian trends (A7) as one more evidence class.
+
+    Same flag→cause mapping as live tags, at a slightly lower base weight
+    (retrospective context). Every citation names the real source
+    (``historian:<name>``), the pulled window, and the tag's sample count —
+    nothing is invented; ``None``/empty/error bundles contribute nothing.
+    """
+    if not isinstance(historian, dict):
+        return
+    rows = [t for t in (historian.get("tags") or []) if isinstance(t, dict)]
+    if not rows:
+        return
+    source = s(str(historian.get("source", "historian")), 64)
+    win = historian.get("window") if isinstance(historian.get("window"), dict) else {}
+    window_cite = {
+        "since": s(str(win.get("since", "")), 40),
+        "until": s(str(win.get("until", "")), 40),
+    }
+    counts = {t.get("ref"): len(t.get("samples") or []) for t in rows}
+    health = tag_health(rows)
+    for off in health.get("offenders", []):
+        flags = off.get("flags", [])
+        severe = off.get("severity", 0) >= 2
+        weight = W_HISTORIAN_SEVERE if severe else W_HISTORIAN_MINOR
+        if {"flatline", "bad_quality", "some_bad_quality"} & set(flags):
+            cause = "sensor_fault"
+        elif {"out_of_range_alarm", "out_of_range_warn", "statistical_anomaly"} & set(flags):
+            cause = "mechanical_fault"
+        else:
+            continue
+        ref = s(str(off.get("ref", "")), 96)
+        _add(contributions, cause, weight, {
+            "signal": "historian_trend",
+            "ref": ref,
+            "source": source,
+            "window": window_cite,
+            "sample_count": int(counts.get(off.get("ref"), 0)),
+            "detail": s(
+                f"pre-incident trend flags={','.join(flags)} "
+                f"severity={off.get('severity')}", 160,
+            ),
+        })
+
+
+def _historian_summary(historian: dict) -> dict:
+    """Honest historian tally merged into evidence_summary (only when supplied)."""
+    rows = [t for t in (historian.get("tags") or []) if isinstance(t, dict)]
+    out = {
+        "historian_source": s(str(historian.get("source", "historian")), 64),
+        "historian_tags_supplied": len(rows),
+        "historian_sample_count": int(historian.get("sample_count", 0) or 0),
+    }
+    if historian.get("error"):
+        out["historian_error"] = s(str(historian["error"]), 200)
+    return out
 
 
 def _score_category_prior(category: str | None, contributions: dict[str, list[dict]]) -> None:
