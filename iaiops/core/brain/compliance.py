@@ -33,10 +33,13 @@ CONTROLS: tuple[dict, ...] = (
         "iaiops": "Every MCP tool runs through the governance harness: append-only "
         "SQLite audit log (~/.iaiops/audit.db), token/call budget with runaway "
         "circuit-breaker, undo-token records for any write, and prompt-injection "
-        "sanitization of device-returned text.",
+        "sanitization of device-returned text. 'iaiops audit forward' streams new "
+        "records as JSON lines to a syslog (UDP) or HTTP SIEM collector, with a "
+        "persisted since-cursor so re-runs never duplicate.",
         "status": "addressed",
-        "gap": "Audit forwarding to a central SIEM is not built in (export the DB / "
-        "tail it externally).",
+        "gap": "Forwarding is best-effort/at-least-once: syslog UDP and per-line "
+        "HTTP POST have no delivery ACK, and TLS-syslog / Kafka sinks are 待核实 / "
+        "roadmap — pair with a collector on a trusted segment.",
     },
     {
         "pillar": "双向认证 (mutual authentication)",
@@ -67,11 +70,14 @@ CONTROLS: tuple[dict, ...] = (
         "pillar": "数据保护 (data protection)",
         "requirement": "Protect stored credentials and sensitive configuration; "
         "fail safe on missing secrets.",
-        "iaiops": "Encrypted secret store (secrets.enc); config directory permission "
-        "warnings (700); master password via IAIOPS_AIOPS_MASTER_PASSWORD for "
-        "non-interactive/MCP use; secrets never logged.",
+        "iaiops": "Encrypted secret store (secrets.enc, Fernet + scrypt); config "
+        "directory permission warnings (700); master password via "
+        "IAIOPS_MASTER_PASSWORD for non-interactive/MCP use; 'iaiops secret rotate' "
+        "re-encrypts the whole store under a new master password (decrypt old → "
+        "re-encrypt new); secrets never logged or printed.",
         "status": "addressed",
-        "gap": "Key management / rotation is manual (no HSM/KMS integration).",
+        "gap": "Master-password rotation is operator-driven (no HSM/KMS-backed keys "
+        "or automatic scheduled rotation).",
     },
     {
         "pillar": "供应链 / 自主可控 (supply-chain / domestic substitutability)",

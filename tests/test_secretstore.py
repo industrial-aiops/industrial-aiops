@@ -80,6 +80,36 @@ def test_rotate_password(store_dir):
 
 
 @pytest.mark.unit
+def test_rotate_roundtrip_all_secrets_reencrypted(store_dir):
+    # Seed several secrets under the old password.
+    store = ss.SecretStore.unlock("old-pw").set("line1", "pw1").set("line2", "pw2")
+    assert store.names() == ("line1", "line2")
+
+    # Rotate to a new password (decrypt old → re-encrypt new).
+    ss.SecretStore.unlock("old-pw").with_password("new-pw")
+
+    # Every secret decrypts under the new password with identical values.
+    rotated = ss.SecretStore.unlock("new-pw")
+    assert rotated.get("line1") == "pw1"
+    assert rotated.get("line2") == "pw2"
+
+    # The old password no longer opens the store.
+    with pytest.raises(ss.MasterPasswordError):
+        ss.SecretStore.unlock("old-pw")
+
+    # Values are still not in plaintext after rotation.
+    blob = (store_dir / "secrets.enc").read_text()
+    assert "pw1" not in blob and "pw2" not in blob
+
+
+@pytest.mark.unit
+def test_rotate_rejects_empty_new_password(store_dir):
+    ss.SecretStore.unlock("old-pw").set("a", "1")
+    with pytest.raises(ss.SecretStoreError):
+        ss.SecretStore.unlock("old-pw").with_password("")
+
+
+@pytest.mark.unit
 def test_migrate_legacy_env(store_dir):
     (store_dir / ".env").write_text(
         "OT_LINE1_PASSWORD=legacy-pw\n# comment\nFOO=bar\n"

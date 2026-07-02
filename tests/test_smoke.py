@@ -204,7 +204,8 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["diag", "tags", "--help"], ["diag", "historian", "--help"],
         ["secret", "set", "--help"], ["secret", "list", "--help"],
         ["secret", "rm", "--help"], ["secret", "migrate", "--help"],
-        ["secret", "rotate-password", "--help"],
+        ["secret", "rotate", "--help"], ["secret", "rotate-password", "--help"],
+        ["audit", "forward", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
