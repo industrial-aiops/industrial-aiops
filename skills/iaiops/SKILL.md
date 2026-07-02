@@ -224,6 +224,11 @@ machine's BACnet/IP interface (`ip` or `ip/mask`). Read-first; the one write,
 - `compliance_dengbao_levels` — 等保 2.0 二级 vs 三级 per-pillar deltas + honest posture
 - `historian_push` — write collected telemetry to a domestic TSDB (TDengine / IoTDB)
   or the local queryable SQLite store (sink="sqlite" → ~/.iaiops/data.db);
+- `compliance_report` — render the crosswalk into a deliverable 等保/62443 Markdown report
+  (per-pillar L2/L3 status, FR1–6 crosswalk, honest gap list; onboarding aid, 非认证)
+- `compliance_evidence_bundle` — export the audit-evidence zip (audit rows JSONL + hash-chain
+  verification + rules.yaml + doctor summary) for an auditor
+- `historian_push` — write collected telemetry to a domestic TSDB (TDengine / IoTDB);
   data egress to the operator's own historian, not a control write. See docs/CHINA.md
   for air-gapped install + 国产 OS/芯/PLC validation matrix (待核实).
 
