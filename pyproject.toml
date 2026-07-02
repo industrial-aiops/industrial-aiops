@@ -100,6 +100,10 @@ building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]"]
 # Phoenix Contact PLCnext vPLC (虚拟化 PLC) — rides the existing OPC-UA + Modbus
 # connectors (its built-in OPC-UA server + Modbus-TCP); no dedicated driver.
 plcnext = ["iaiops[opcua]", "iaiops[modbus]"]
+# Water treatment edition (水处理) — matches IAIOPS_MCP=water: Modbus field
+# devices + OPC-UA SCADA + HART-IP instrumentation. References the per-protocol
+# extras — no duplicated pins.
+water = ["iaiops[modbus]", "iaiops[opcua]", "iaiops[hart]"]
 # 信创 / China entry: domestic TSDB historian sinks (compliance mapping is built-in).
 xinchuang = ["iaiops[tdengine]", "iaiops[iotdb]"]
 
@@ -134,6 +138,7 @@ iaiops-mcp-factory = "mcp_server.entrypoints:main_factory"
 iaiops-mcp-process = "mcp_server.entrypoints:main_process"
 iaiops-mcp-building = "mcp_server.entrypoints:main_building"
 iaiops-mcp-plcnext = "mcp_server.entrypoints:main_plcnext"
+iaiops-mcp-water = "mcp_server.entrypoints:main_water"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iaiops", "mcp_server"]
