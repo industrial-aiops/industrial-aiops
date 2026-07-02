@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.industrial-aiops/iaiops",
-  "title": "OT AIops",
+  "title": "Industrial-AIOps",
   "description": "Governed OT data tap: 12 field protocols + cross-protocol RCA brain; audit + MOC gating.",
   "repository": {
     "url": "https://github.com/industrial-aiops/industrial-aiops",
@@ -15,7 +15,27 @@
       "version": "0.8.0",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "environmentVariables": [
+        {
+          "name": "IAIOPS_MCP",
+          "description": "Tool-menu selection: comma-separated protocols or a named profile (e.g. 'fab', 'process', 'building', 'opcua,modbus'). Default: all.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "IAIOPS_CONFIG",
+          "description": "Path to the endpoints config YAML (default: ~/.iaiops/config.yaml).",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "IAIOPS_MASTER_PASSWORD",
+          "description": "Master password unlocking the encrypted secret store (~/.iaiops/secrets.enc).",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
     }
   ]
 }

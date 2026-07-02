@@ -2,11 +2,19 @@
 
 Replaces 7 per-skill JSON Lines audit loggers with one shared ``~/.iaiops/audit.db``.
 Framework-agnostic: works with Claude, Codex, local agents, or any MCP client.
+
+Tamper evidence: every row carries a SHA-256 hash chain (``prev_hash`` /
+``row_hash``) — ``iaiops audit verify`` walks the chain and reports the first
+broken link. Limitation: a plain hash chain (no HMAC key) detects in-place
+edits and deletions, but NOT an attacker who rewrites the entire suffix of the
+chain after the tampered row. For stronger guarantees, forward rows to an
+external SIEM (``iaiops audit forward``) so an off-host copy exists.
 """
 
 from __future__ import annotations
 
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -46,24 +54,45 @@ CREATE TABLE IF NOT EXISTS audit_log (
     risk_level  TEXT    NOT NULL DEFAULT 'low',
     rationale   TEXT    NOT NULL DEFAULT '',
     approved_by TEXT    NOT NULL DEFAULT '',
-    risk_tier   TEXT    NOT NULL DEFAULT ''
+    risk_tier   TEXT    NOT NULL DEFAULT '',
+    approver_source TEXT NOT NULL DEFAULT '',
+    prev_hash   TEXT    NOT NULL DEFAULT '',
+    row_hash    TEXT    NOT NULL DEFAULT ''
 )
 """
 
 # Columns added after the original schema shipped. Each is applied with an
 # idempotent ALTER TABLE so pre-existing audit.db files migrate in place (a
 # fresh DB already has them via _CREATE_TABLE). Accountability fields per the
-# SOC2 / 等保 "who authorized this, and why" requirement.
+# SOC2 / 等保 "who authorized this, and why" requirement; prev_hash/row_hash
+# form the tamper-evidence hash chain (historical rows keep '' = unhashed).
 _MIGRATIONS = (
     ("rationale", "TEXT NOT NULL DEFAULT ''"),
     ("approved_by", "TEXT NOT NULL DEFAULT ''"),
     ("risk_tier", "TEXT NOT NULL DEFAULT ''"),
+    ("approver_source", "TEXT NOT NULL DEFAULT ''"),
+    ("prev_hash", "TEXT NOT NULL DEFAULT ''"),
+    ("row_hash", "TEXT NOT NULL DEFAULT ''"),
 )
 
 _INSERT = """\
-INSERT INTO audit_log (ts, skill, tool, params, result, status, duration_ms, agent, workflow_id, user, risk_level, rationale, approved_by, risk_tier)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO audit_log (ts, skill, tool, params, result, status, duration_ms, agent, workflow_id, user, risk_level, rationale, approved_by, risk_tier, approver_source, prev_hash, row_hash)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
+
+# Ordered fields hashed into row_hash (as stored in the row, all as text).
+_HASHED_FIELDS = (
+    "ts", "skill", "tool", "params", "result", "status", "duration_ms",
+    "agent", "workflow_id", "user", "risk_level", "rationale", "approved_by",
+    "risk_tier", "approver_source",
+)
+_HASH_SEP = "\x1f"
+
+
+def compute_row_hash(prev_hash: str, fields: dict[str, Any]) -> str:
+    """SHA-256 over prev_hash + canonical (ordered, text) row fields."""
+    canon = _HASH_SEP.join(str(fields.get(name, "")) for name in _HASHED_FIELDS)
+    return hashlib.sha256((prev_hash + _HASH_SEP + canon).encode("utf-8")).hexdigest()
 
 
 class AuditEngine:
@@ -113,20 +142,42 @@ class AuditEngine:
         Best-effort: never raises (audit must not break the tool call)."""
         try:
             os.chmod(self._path.parent, 0o700)
-        except OSError:
-            pass
+        except OSError as exc:
+            _log.debug("Could not chmod audit dir %s: %s", self._path.parent, exc)
         for suffix in ("", "-wal", "-shm"):
             candidate = self._path.with_name(self._path.name + suffix)
             try:
                 if candidate.exists():
                     os.chmod(candidate, 0o600)
-            except OSError:
-                pass
+            except OSError as exc:
+                _log.debug("Could not chmod audit file %s: %s", candidate, exc)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self._path), timeout=_BUSY_TIMEOUT_MS / 1000)
         conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS}")
         return conn
+
+    @property
+    def healthy(self) -> bool:
+        """True when the audit DB is initialized and currently writable.
+
+        Used by the ``@governed_tool`` pre-check: high/critical-risk tools are
+        DENIED when the audit trail cannot be written (fail closed for writes;
+        low/medium reads proceed with a warning — availability over
+        auditability for reads).
+        """
+        if not self._ok:
+            return False
+        try:
+            conn = self._connect()
+            try:
+                conn.execute("SELECT 1 FROM audit_log LIMIT 1")
+            finally:
+                conn.close()
+            return True
+        except Exception:  # noqa: BLE001 — any DB error means "not healthy"
+            _log.warning("Audit DB health probe failed for %s", self._path, exc_info=True)
+            return False
 
     def log(
         self,
@@ -144,43 +195,107 @@ class AuditEngine:
         rationale: str = "",
         approved_by: str = "",
         risk_tier: str = "",
-    ) -> None:
-        """Write one audit record.  Never raises — swallows errors to avoid
-        disrupting the actual tool execution.
+        approver_source: str = "",
+    ) -> bool:
+        """Write one audit record. Returns True when the row was committed.
 
-        rationale / approved_by / risk_tier carry the accountability trail:
-        *why* a change was made, *who* signed off, and the *approval tier* the
-        policy engine assigned (none/confirm/dual/review).
+        Never raises — swallows errors to avoid disrupting the actual tool
+        execution — but the boolean return lets callers (the decorator) treat
+        a failed write on a high-risk call as an error to surface.
+
+        rationale / approved_by / risk_tier / approver_source carry the
+        accountability trail: *why* a change was made, *who* signed off, the
+        *approval tier* the policy engine assigned (none/confirm/dual/review),
+        and where the approver came from ("token" one-shot grant vs "env" var).
+
+        Each row is chained to its predecessor via prev_hash/row_hash
+        (SHA-256) for tamper evidence. ``BEGIN IMMEDIATE`` serializes writers
+        so concurrent processes cannot fork the chain.
         """
         if not self._ok:
-            return
+            return False
         try:
             self._maybe_rotate()
+            fields: dict[str, Any] = {
+                "ts": datetime.now(tz=UTC).isoformat(),
+                "skill": skill,
+                "tool": tool,
+                "params": _safe_json(params),
+                "result": _safe_json(result),
+                "status": status,
+                "duration_ms": duration_ms,
+                "agent": agent,
+                "workflow_id": workflow_id,
+                "user": user or _current_user(),
+                "risk_level": risk_level,
+                "rationale": rationale,
+                "approved_by": approved_by,
+                "risk_tier": risk_tier,
+                "approver_source": approver_source,
+            }
             conn = self._connect()
-            conn.execute(
-                _INSERT,
-                (
-                    datetime.now(tz=UTC).isoformat(),
-                    skill,
-                    tool,
-                    _safe_json(params),
-                    _safe_json(result),
-                    status,
-                    duration_ms,
-                    agent,
-                    workflow_id,
-                    user or _current_user(),
-                    risk_level,
-                    rationale,
-                    approved_by,
-                    risk_tier,
-                ),
-            )
-            conn.commit()
-            conn.close()
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                prev = conn.execute(
+                    "SELECT row_hash FROM audit_log ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+                prev_hash = prev[0] if prev and prev[0] else ""
+                row_hash = compute_row_hash(prev_hash, fields)
+                conn.execute(
+                    _INSERT,
+                    (*(fields[name] for name in _HASHED_FIELDS), prev_hash, row_hash),
+                )
+                conn.commit()
+            finally:
+                conn.close()
             _log.debug("[AUDIT] %s.%s -> %s (%dms)", skill, tool, status, duration_ms)
+            return True
         except Exception:
             _log.warning("Failed to write audit log", exc_info=True)
+            return False
+
+    def verify_chain(self) -> dict[str, Any]:
+        """Walk the hash chain and report the first broken link, if any.
+
+        Rows written before the chain migration (empty row_hash) are counted
+        as ``unhashed`` and skipped. Returns an immutable-style summary dict:
+        ``{ok, checked, unhashed, first_broken_id?, reason?}``.
+        """
+        if not self._ok:
+            return {"ok": False, "checked": 0, "unhashed": 0,
+                    "reason": "audit DB not initialized"}
+        conn = self._connect()
+        try:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("SELECT * FROM audit_log ORDER BY id ASC").fetchall()
+        finally:
+            conn.close()
+
+        expected_prev = ""
+        checked = 0
+        unhashed = 0
+        for row in rows:
+            record = dict(row)
+            if not record.get("row_hash"):
+                unhashed += 1
+                continue
+            if record.get("prev_hash", "") != expected_prev:
+                return {
+                    "ok": False, "checked": checked, "unhashed": unhashed,
+                    "first_broken_id": record["id"],
+                    "reason": "prev_hash does not match preceding row_hash "
+                              "(row inserted/deleted/reordered)",
+                }
+            recomputed = compute_row_hash(record.get("prev_hash", ""), record)
+            if recomputed != record["row_hash"]:
+                return {
+                    "ok": False, "checked": checked, "unhashed": unhashed,
+                    "first_broken_id": record["id"],
+                    "reason": "row_hash mismatch (row fields modified)",
+                }
+            expected_prev = record["row_hash"]
+            checked += 1
+        return {"ok": True, "checked": checked, "unhashed": unhashed}
 
     # ── Rotation ──────────────────────────────────────────────────────
 

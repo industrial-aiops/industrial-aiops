@@ -284,8 +284,10 @@ def migrate_legacy_env(prefix: str, suffix: str, password: str | None = None) ->
 
     Per-endpoint legacy keys look like ``OT_<NAME>_PASSWORD``;
     ``prefix='OPCUA_'`` and ``suffix='_PASSWORD'`` map them back to a target
-    name. The plaintext ``.env`` is renamed to ``.env.migrated`` (chmod 600) so
-    nothing is silently lost. Returns the list of imported secret names.
+    name. After a confirmed import the plaintext ``.env`` is replaced by a
+    ``.env.migrated`` marker (chmod 600) that keeps the KEY NAMES but strips
+    every secret VALUE — no plaintext secret survives the migration on disk.
+    Returns the list of imported secret names.
     """
     if not LEGACY_ENV_FILE.exists():
         return []
@@ -306,6 +308,28 @@ def migrate_legacy_env(prefix: str, suffix: str, password: str | None = None) ->
                 imported.append(target)
     if imported:
         backup = LEGACY_ENV_FILE.with_name(".env.migrated")
-        LEGACY_ENV_FILE.replace(backup)
+        sanitized = _strip_env_values(LEGACY_ENV_FILE.read_text("utf-8"))
+        backup.write_text(sanitized, "utf-8")
         _chmod_600(backup)
+        LEGACY_ENV_FILE.unlink()
     return imported
+
+
+def _strip_env_values(raw: str) -> str:
+    """Return the ``.env`` text with every ``KEY=value`` VALUE stripped.
+
+    Key names, comments and blank lines are kept (so the operator can still see
+    WHAT was migrated); the plaintext secret values are gone.
+    """
+    lines = [
+        "# Migrated to the encrypted secret store (~/.iaiops/secrets.enc).",
+        "# Secret values were stripped from this file; only key names remain.",
+    ]
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            lines.append(line)
+            continue
+        key, _, _value = stripped.partition("=")
+        lines.append(f"{key.strip()}=")
+    return "\n".join(lines) + "\n"
