@@ -179,11 +179,8 @@ def test_cli_app_builds_and_help_works():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     for sub in ("opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "eip",
-                "ethercat", "diag", "analytics", "secret", "init", "doctor", "mcp",
-                "protocols"):
-    for sub in ("opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "eip", "ethercat",
-                "iolink",
-                "diag", "analytics", "secret", "init", "doctor", "mcp", "protocols"):
+                "ethercat", "iolink", "diag", "analytics", "secret", "init", "doctor",
+                "mcp", "protocols"):
         assert sub in result.output
 
 
@@ -296,9 +293,7 @@ def test_unsupported_protocol_rejected():
 @pytest.mark.parametrize(
     "protocol",
     ["opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "ethernetip",
-     "ethercat", "secsgem", "profinet", "bacnet", "hart"],
-    ["opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
-     "secsgem", "profinet", "bacnet", "hart", "iolink"],
+     "ethercat", "secsgem", "profinet", "bacnet", "hart", "iolink"],
 )
 def test_supported_protocols_accepted(protocol):
     from iaiops.core.runtime.config import TargetConfig

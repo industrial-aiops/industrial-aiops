@@ -85,9 +85,7 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "brain": (),
     "fab": ("secsgem", "opcua", "s7", "modbus"),
     "factory": ("modbus", "s7", "eip", "mc", "fins", "ethercat", "profinet",
-                "mtconnect", "opcua", "sparkplug"),
-    "factory": ("modbus", "s7", "eip", "mc", "ethercat", "profinet", "mtconnect",
-                "opcua", "sparkplug", "iolink"),
+                "mtconnect", "opcua", "sparkplug", "iolink"),
     "process": ("opcua", "modbus", "hart"),
     # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).
     "building": ("bacnet", "modbus", "opcua", "iolink"),
