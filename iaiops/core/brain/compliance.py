@@ -126,6 +126,84 @@ _CROSSWALK: dict[str, dict[str, str]] = {
     },
 }
 
+# 等保 2.0 (GB/T 22239-2019) is a GRADED scheme: the same control class tightens as
+# the level rises. Most 工控 critical systems target 三级 (第三级). For each governance
+# pillar this records the 二级 baseline, what 三级 ADDITIONALLY requires, and — honestly
+# — how far iaiops moves you toward 三级 (the per-control gap/status lives in CONTROLS).
+# Keyed by the exact CONTROLS[].pillar string. Onboarding aid, NOT a certification.
+DENGBAO_LEVELS: dict[str, dict[str, str]] = {
+    "分区隔离 (zoning / isolation)": {
+        "l2": "划分安全区域并在区域边界部署访问控制设备 (基于地址/端口的包过滤)。",
+        "l3": "关键区域与其他网络之间采用可靠技术隔离 (工控网↔管理网单向隔离/网闸或等效)；"
+        "访问控制细化到应用协议/会话级；严格管控无线/拨号等旁路接入。",
+        "iaiops": "Read-first 单向数据 tap；按区域最小暴露 (IAIOPS_MCP 只开该区协议)；"
+        "connector 不在端点间桥接/路由。物理隔离/网闸部署两级都仍由运维负责。",
+    },
+    "可审计 (auditability)": {
+        "l2": "对重要用户行为与安全事件审计；审计记录含时间/主体/事件/结果并防增删改。",
+        "l3": "额外要求安全管理中心·集中管控：审计记录集中收集与分析、留存≥6个月、"
+        "审计进程受保护并可对异常实时报警。",
+        "iaiops": "Append-only SQLite 审计 + 预算熔断满足留痕/防篡改(基础)；三级的集中管控/"
+        "SIEM 转发/≥6个月留存需外部对接 (导出或外部 tail)。",
+    },
+    "双向认证 (mutual authentication)": {
+        "l2": "口令身份鉴别 + 复杂度与登录失败处理。",
+        "l3": "额外要求两种及以上组合鉴别 (双因素，且含不可伪造因素)；远程管理/网络设备"
+        "采用加密防鉴别信息窃听；通信过程的完整性与保密性 (加密)。",
+        "iaiops": "OPC-UA/MQTT 凭据 + 加密 secret store；三级的双因素与全链路双向 TLS/证书"
+        "为 待核实/roadmap；多数 OT 传输本身无认证 → 依赖分区隔离补偿。",
+    },
+    "最小权限 (least privilege)": {
+        "l2": "账户按最小权限分配；处置默认账户/口令；及时清理多余账户。",
+        "l3": "额外要求基于安全标记的强制访问控制；特权权限分离 (系统/审计/安全三权分立)；"
+        "关键操作双人/审批。",
+        "iaiops": "Read-first + 写操作 HIGH risk_tier (dry-run+双确认+记录审批 MOC) 覆盖关键"
+        "操作审批；三级的强制访问控制/三权分立 (per-user RBAC/角色分离) 委托宿主/MCP 客户端。",
+    },
+    "数据保护 (data protection)": {
+        "l2": "鉴别信息与重要数据的传输/存储保密性；重要数据可备份恢复。",
+        "l3": "额外要求以密码技术保证重要数据 (鉴别/业务/审计) 存储与传输的完整性与保密性；"
+        "本地+异地备份恢复；剩余信息保护。",
+        "iaiops": "加密 secret store (Fernet+scrypt)、secrets 不落日志；业务遥测完整性校验/"
+        "异地备份/剩余信息清除为 待核实；密钥管理手动 (无 HSM/KMS)。",
+    },
+    "供应链 / 自主可控 (supply-chain / domestic substitutability)": {
+        "l2": "采购渠道可控；使用正版且受支持的组件。",
+        "l3": "额外要求关键设备/安全产品通过国家认证或选用国产可控；具备离线/自主运维能力；"
+        "供应链来源与完整性验证。",
+        "iaiops": "纯 Python core + 按需 extras + 离线 wheel 安装 + 国产 TSDB (TDengine/IoTDB)；"
+        "国产 OS/芯/PLC 验证为 待核实 (见 docs/CHINA.md)。",
+    },
+}
+
+_DENGBAO_LEVEL_META: tuple[dict, ...] = (
+    {"id": "l2", "name": "第二级 (S2A2G2 系统审计保护级)",
+     "note": "一般商用/非关键系统的常见目标。"},
+    {"id": "l3", "name": "第三级 (S3A3G3 安全标记保护级)",
+     "note": "工控关键信息基础设施的常见强制目标。"},
+)
+
+# Accepts l2/l3, 二级/三级, 2/3, level2/level3 — normalized to 'l2'/'l3'.
+_DENGBAO_LEVEL_ALIASES: dict[str, str] = {
+    "l2": "l2", "2": "l2", "二级": "l2", "二": "l2", "level2": "l2", "s2a2g2": "l2",
+    "l3": "l3", "3": "l3", "三级": "l3", "三": "l3", "level3": "l3", "s3a3g3": "l3",
+}
+
+
+def _normalize_dengbao_level(level: str | None) -> str | None:
+    """Map a user-supplied level string to 'l2'/'l3', or None for 'both'."""
+    if level is None:
+        return None
+    key = str(level).strip().lower()
+    if not key:
+        return None
+    resolved = _DENGBAO_LEVEL_ALIASES.get(key)
+    if resolved is None:
+        known = "l2/l3, 二级/三级, 2/3"
+        raise ValueError(f"Unknown 等保 level {level!r}. Use one of: {known}.")
+    return resolved
+
+
 # The frameworks iaiops maps its governance posture onto.
 FRAMEWORKS: tuple[dict, ...] = (
     {"id": "gjzn", "name": "《工控系统网络安全防护指南》",
@@ -184,4 +262,49 @@ def compliance_frameworks() -> dict:
     }
 
 
-__all__ = ["compliance_mapping", "compliance_frameworks", "CONTROLS", "FRAMEWORKS"]
+def compliance_dengbao_levels(level: str | None = None) -> dict:
+    """[READ] 等保 2.0 二级 vs 三级 per-pillar deltas + honest iaiops posture.
+
+    等保 2.0 is graded: the same control tightens with the level. For each governance
+    pillar this shows the 二级 baseline, what 三级 additionally requires, and how far
+    iaiops moves you toward it (per-control status/gap from CONTROLS). Pass ``level``
+    (l2/l3, 二级/三级, 2/3) to focus on one level; omit for both. Onboarding aid, not
+    a certification.
+    """
+    selected = _normalize_dengbao_level(level)
+    status_by_pillar = {c["pillar"]: c for c in CONTROLS}
+    deltas = []
+    for pillar, spec in DENGBAO_LEVELS.items():
+        control = status_by_pillar.get(pillar, {})
+        row = {
+            "pillar": pillar,
+            "iaiops": spec["iaiops"],
+            "iaiops_status": control.get("status", "待核实"),
+            "gap": control.get("gap", ""),
+        }
+        if selected in (None, "l2"):
+            row["l2_requires"] = spec["l2"]
+        if selected in (None, "l3"):
+            row["l3_adds"] = spec["l3"]
+        deltas.append(row)
+    levels = [m for m in _DENGBAO_LEVEL_META if selected in (None, m["id"])]
+    return {
+        "framework": "网络安全等级保护 2.0 (GB/T 22239-2019)",
+        "levels": levels,
+        "selected_level": selected,
+        "pillar_count": len(deltas),
+        "deltas": deltas,
+        "note": "二级为基线，三级为在其之上的增量要求 (onboarding / 自评参考，非认证)。"
+        "'待核实' = 已文档化但尚未验证；逐项 gap 见 compliance_mapping。工控关键系统"
+        "通常以三级为目标。",
+    }
+
+
+__all__ = [
+    "compliance_mapping",
+    "compliance_frameworks",
+    "compliance_dengbao_levels",
+    "CONTROLS",
+    "FRAMEWORKS",
+    "DENGBAO_LEVELS",
+]

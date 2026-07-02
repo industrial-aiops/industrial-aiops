@@ -226,6 +226,71 @@ def test_apply_template_defaults_to_base_offset(monkeypatch):
     assert seen["count"] == 112
 
 
+def _encode_regs(value, value_type: str, order: str) -> list[int]:
+    """Encode a scalar into Modbus registers that decode back to it under ``order``.
+
+    Inverse of ``byteorder.decode_value``: builds the raw register bytes such that
+    reordering them by the order map yields the big-endian representation of ``value``.
+    """
+    from iaiops.connectors.modbus.byteorder import _ORDER_MAP, _TYPE_WIDTH
+
+    fmt = {"uint16": ">H", "int16": ">h", "uint32": ">I", "int32": ">i", "float32": ">f"}
+    be = struct.pack(fmt[value_type], value)
+    mapping = _ORDER_MAP[order]
+    src = bytes(be[mapping.index(j)] for j in range(2 * _TYPE_WIDTH[value_type]))
+    return [struct.unpack(">H", src[i : i + 2])[0] for i in range(0, len(src), 2)]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "template,tag,raw,value_type,order,expected",
+    [
+        ("carlo_gavazzi_em24", "voltage_l1_n", 2301, "int32", "CDAB", 230.1),
+        ("carlo_gavazzi_em24", "frequency", 500, "int16", "AB", 50.0),
+        ("huawei_sun2000_inverter", "active_power", 4200, "int32", "ABCD", 4200.0),
+        ("huawei_sun2000_inverter", "grid_frequency", 5001, "uint16", "AB", 50.01),
+        ("growatt_inverter", "input_power", 12345, "uint32", "ABCD", 1234.5),
+        ("growatt_inverter", "grid_frequency", 5000, "uint16", "AB", 50.0),
+    ],
+)
+def test_new_vendor_templates_decode_round_trip(
+    template, tag, raw, value_type, order, expected
+):
+    """Each new vendor template decodes its tags back to scaled engineering values."""
+    from iaiops.connectors.modbus import templates
+
+    tmpl = templates.get_template(template)
+    spec = next(t for t in tmpl.tags if t.tag == tag)
+    assert spec.value_type == value_type and spec.order == order
+    # Build a full block; place the encoded value at the tag's base-relative index.
+    block = [0] * tmpl.span
+    idx = spec.offset - tmpl.base_offset
+    for k, reg in enumerate(_encode_regs(raw, value_type, order)):
+        block[idx + k] = reg
+    out = templates.apply_template(template, block, start_address=tmpl.base_offset)
+    decoded = {t["tag"]: t for t in out["tags"]}
+    assert decoded[tag]["value"] == pytest.approx(expected)
+    assert decoded[tag]["out_of_range"] is False
+    assert "待核实" in tmpl.caveat
+
+
+@pytest.mark.unit
+def test_new_vendor_templates_span_within_modbus_limit():
+    """Every new template's span fits inside the Modbus 125-register read limit."""
+    from iaiops.connectors.modbus import templates
+
+    for name in ("carlo_gavazzi_em24", "huawei_sun2000_inverter", "growatt_inverter"):
+        tmpl = templates.get_template(name)
+        assert 0 < tmpl.span <= 125, f"{name} span {tmpl.span} exceeds 125-reg limit"
+
+
+@pytest.mark.unit
+def test_new_vendor_templates_listed():
+    out = ops.modbus_list_templates()
+    names = {t["name"] for t in out["templates"]}
+    assert {"carlo_gavazzi_em24", "huawei_sun2000_inverter", "growatt_inverter"} <= names
+
+
 @pytest.mark.unit
 def test_apply_template_unknown_raises():
     from iaiops.connectors.modbus import templates

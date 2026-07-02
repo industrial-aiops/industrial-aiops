@@ -64,12 +64,12 @@ def hart_primary_variable(target: Any) -> dict:
     }
 
 
-def hart_dynamic_variables(target: Any) -> dict:
-    """[READ] Read dynamic variables + loop current (command 3)."""
-    msg = _read(target, "dynamic_variables")
-    base = {"endpoint": s(getattr(target, "name", ""), 64), "host": s(target.host, 48)}
-    if msg is None:
-        return {**base, "error": "no HART response (device/gateway unreachable)"}
+def _dynamic_payload(msg: Any) -> dict:
+    """Decode a parsed command-3 message into loop current + dynamic variables.
+
+    Shared by :func:`hart_dynamic_variables` (single read) and
+    :func:`hart_burst_sample` (repeated reads), so both present identical shapes.
+    """
     variables = []
     for label in ("primary", "secondary", "tertiary", "quaternary"):
         val = getattr(msg, f"{label}_variable", None)
@@ -84,7 +84,6 @@ def hart_dynamic_variables(target: Any) -> dict:
     # (verified 2026-06-30); it decodes primary + secondary dynamic variables.
     loop = getattr(msg, "analog_signal", None)
     return {
-        **base,
         "command": getattr(msg, "command", None),
         "loop_current_mA": num(loop) if num(loop) is not None else None,
         "variable_count": len(variables),
@@ -92,9 +91,57 @@ def hart_dynamic_variables(target: Any) -> dict:
     }
 
 
+def hart_dynamic_variables(target: Any) -> dict:
+    """[READ] Read dynamic variables + loop current (command 3)."""
+    msg = _read(target, "dynamic_variables")
+    base = {"endpoint": s(getattr(target, "name", ""), 64), "host": s(target.host, 48)}
+    if msg is None:
+        return {**base, "error": "no HART response (device/gateway unreachable)"}
+    return {**base, **_dynamic_payload(msg)}
+
+
+# Sampling is bounded so a caller can't ask an MCP tool to hold a session open
+# for an unbounded number of round-trips.
+_MAX_BURST_SAMPLES = 20
+
+
+def hart_burst_sample(target: Any, samples: int = 3) -> dict:
+    """[READ] Sample the periodically-published (burst) HART variables.
+
+    In HART *burst mode* the field device publishes its dynamic variables
+    periodically without being polled. A true unsolicited HART-IP burst
+    subscription is 待核实 (not validated against a live gateway here); this instead
+    actively samples the same published variable set — command 3 (dynamic variables
+    + loop current) — ``samples`` times over ONE session, so an agent can see the
+    published set and spot a stuck/frozen reading. Read-only; no burst-mode config
+    is written.
+    """
+    base = {"endpoint": s(getattr(target, "name", ""), 64), "host": s(target.host, 48)}
+    n = max(1, min(int(samples), _MAX_BURST_SAMPLES))
+    collected: list[dict] = []
+    with hart_session(target) as session:
+        pdu = codec.build_command("dynamic_variables")
+        for index in range(n):
+            msg = _first_response(session.send_hart_pdu(pdu))
+            if msg is None:
+                collected.append({"index": index, "error": "no HART response"})
+                continue
+            collected.append({"index": index, **_dynamic_payload(msg)})
+    received = [c for c in collected if "error" not in c]
+    return {
+        **base,
+        "requested_samples": n,
+        "received_samples": len(received),
+        "samples": collected,
+        "note": "Actively sampled the burst/published variables (command 3). A true "
+        "unsolicited HART-IP burst subscription is 待核实 — no live-gateway validation.",
+    }
+
+
 __all__ = [
     "hart_device_identity",
     "hart_primary_variable",
     "hart_dynamic_variables",
+    "hart_burst_sample",
     "OTConnectionError",
 ]

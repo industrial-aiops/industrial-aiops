@@ -56,3 +56,26 @@ def hart_dynamic_variables(endpoint: Optional[str] = None) -> dict:
         variables:[{name, value, unit_code}]}.
     """
     return ops.hart_dynamic_variables(_target(endpoint))
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def hart_burst_sample(endpoint: Optional[str] = None, samples: int = 3) -> dict:
+    """[READ][risk=low] Sample the periodically-published (burst) HART variables.
+
+    HART burst mode has the field device publish its dynamic variables periodically.
+    A true unsolicited HART-IP burst subscription is 待核实 (no live gateway); this
+    actively samples the same published set (command 3 — dynamic variables + loop
+    current) ``samples`` times over one session, so an agent can see the published
+    variables and spot a stuck/frozen reading. Read-only; no burst config is written.
+
+    Args:
+        endpoint: Endpoint name from config (protocol 'hart'); omit for default.
+        samples: Number of samples to collect (1..20; default 3).
+
+    Returns dict: {endpoint, host, requested_samples, received_samples,
+        samples:[{index, command, loop_current_mA, variable_count,
+        variables:[{name, value, unit_code}]}], note}.
+    """
+    return ops.hart_burst_sample(_target(endpoint), samples=samples)

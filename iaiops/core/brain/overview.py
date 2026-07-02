@@ -189,6 +189,7 @@ PROTOCOLS: tuple[dict, ...] = (
         "auth": "none (transport)",
         "read_tools": [
             "hart_device_identity", "hart_primary_variable", "hart_dynamic_variables",
+            "hart_burst_sample",
         ],
         "write_tools": [],
         "params": ["host (HART-IP server/gateway)", "port(5094)"],
