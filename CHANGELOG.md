@@ -60,6 +60,20 @@
   extension allowlist, no directory walking.
 - CLI: `iaiops program outline|xref|section`.
 - All 5 edition skills document the 3 tools under 跨协议脑.
+### Changed — explicit tool menu by default + brain-only server (B2/B3) **BREAKING**
+- **No default tool selection**: a bare `iaiops-mcp` (no `IAIOPS_MCP` env) no longer
+  silently exposes the full 100+ tool surface — it prints the selection menu (named
+  profiles + protocol keys + per-selection tool counts + examples) to stderr and exits 2.
+  `IAIOPS_MCP=menu` prints the same menu explicitly; `IAIOPS_MCP=all` still works as an
+  explicit power-user opt-in (a tool-flood warning is logged above 60 tools).
+- **Brain-only server (B3)**: new named selection `IAIOPS_MCP=brain` (cross-protocol
+  brain, zero protocols) + `iaiops-mcp-brain` console script; new `IAIOPS_MCP_NO_BRAIN=1`
+  toggle registers protocol selections *without* the brain modules, so multi-process
+  sites run 1 brain MCP + N brain-less protocol MCPs with no duplicate tool names.
+  The `protocols_supported` discovery tool stays exposed even under NO_BRAIN.
+- **Migration**: set `IAIOPS_MCP=<selection>` (comma list of protocols and/or a named
+  profile) or launch a pre-scoped `iaiops-mcp-<name>` entrypoint; to restore the old
+  behavior exactly, set `IAIOPS_MCP=all` explicitly.
 
 ## 0.9.0 — 2026-07-02
 

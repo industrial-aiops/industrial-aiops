@@ -124,13 +124,18 @@ iaiops s7 write-db 1 INT 0 42 -e press1 --apply    # 二次确认提示
 ### MCP server
 
 ```bash
-iaiops-mcp                                  # 暴露全部工具(stdio)
-IAIOPS_MCP=opcua,modbus iaiops-mcp          # 按协议/profile 选择性暴露(菜单式)
+IAIOPS_MCP=opcua,modbus iaiops-mcp          # 按协议/profile 选择性暴露(菜单式, stdio)
+IAIOPS_MCP=menu iaiops-mcp                  # 打印菜单(各 selection 工具数)后退出
 iaiops-mcp-opcua                            # 等价的命名入口(每协议一个)
-iaiops-mcp-energy                           # 按 edition profile(energy/building/fab/…)
+iaiops-mcp-fab                              # 按 edition profile(fab/factory/building/…)
+iaiops-mcp-brain                            # 只暴露跨协议脑(零协议)
+IAIOPS_MCP=all iaiops-mcp                   # 显式全量(>60 工具会警告洪泛)
 ```
 
-MCP 客户端按产线给每个 server 配一个 `IAIOPS_MCP` 菜单 = 现场只暴露该站点的 1–2 个协议 + 始终在的"脑"工具。
+**0.10.0 起无默认值**:裸 `iaiops-mcp`(不设 `IAIOPS_MCP`)打印菜单到 stderr 并 exit 2,
+不再静默暴露 100+ 工具。多进程站点(1 脑 + N 协议):跑一个 `iaiops-mcp-brain`,协议
+server 各自加 `IAIOPS_MCP_NO_BRAIN=1` 去掉脑避免重名(`protocols_supported` 仍保留)。
+MCP 客户端按产线给每个 server 配一个 `IAIOPS_MCP` 菜单 = 现场只暴露该站点的 1–2 个协议 + 默认随附的"脑"工具。
 
 ---
 
