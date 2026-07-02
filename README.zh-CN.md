@@ -10,7 +10,7 @@ Industrial-AIOps 是 [industrial-aiops](https://github.com/industrial-aiops) 组
 
 设计上**读优先**;少数写/命令路径属 OT 高危,受 **MOC(变更管理)纪律**门控。所有工具都经过一套内置治理 harness(审计 / 预算 / 风险分级 / 回滚)。
 
-> **v0.7.0 — 验证状态(诚实标注)。** 纯分析 + OPC-UA 路径用**真实 in-process asyncua 服务器**测;能源/信创绑定在 2026-06-30 的验证轮里用**真库 + 容器**跑过:**IEC-104**(真 c104 loopback)、**IoTDB** + **TDengine**(真容器写→读 round-trip)**已验证**;HART 命令编解码层对 `hart-protocol` 已验证。**仍 `待核实`(预览、未经硬件验证):** DNP3、IEC-61850(真 IED)、BACnet(真 HVAC)、HART-IP 线传输(真网关)、Modbus-RTU(真串口)、EtherCAT(无软件仿真器——仅 Linux + root + 真总线)。S7/MC/EtherNet-IP/SECS-GEM 用 mock 客户端;MTConnect 用静态 XML;Sparkplug 用合成 protobuf。详见**安全与治理**。
+> **v0.7.0 — 验证状态(诚实标注)。** 纯分析 + OPC-UA 路径用**真实 in-process asyncua 服务器**测;能源/信创绑定在 2026-06-30 的验证轮里用**真库 + 容器**跑过:**IEC-104**(真 c104 loopback)、**IoTDB** + **TDengine**(真容器写→读 round-trip)**已验证**;HART 命令编解码层对 `hart-protocol` 已验证。**Modbus-RTU(真串口)现已验证**(2026-07-02):用 `socat` PTY 对(软件级 null-modem)+ `pymodbus` RTU 服务器搭真串口链路,连接器的 holding/input/coil/discrete 读操作经真实 RTU 帧 round-trip(`tests/test_modbus_rtu_live.py`);尚未对具体物理 RS-485 设备验证。**仍 `待核实`(预览、未经硬件验证):** DNP3、IEC-61850(真 IED)、BACnet(真 HVAC)、HART-IP 线传输(真网关)、EtherCAT(无软件仿真器——仅 Linux + root + 真总线)。S7/MC/EtherNet-IP/SECS-GEM 用 mock 客户端;MTConnect 用静态 XML;Sparkplug 用合成 protobuf。详见**安全与治理**。
 
 ---
 
