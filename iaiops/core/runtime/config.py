@@ -61,6 +61,8 @@ SUPPORTED_PROTOCOLS = (
     "bacnet",
     # Process edition (read-only): HART-IP process instrumentation.
     "hart",
+    # IO-Link master JSON integration (read-only sensor-level visibility).
+    "iolink",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -73,6 +75,7 @@ DEFAULT_EIP_PORT = 44818  # EtherNet/IP (CIP over TCP)
 DEFAULT_SECSGEM_PORT = 5000  # HSMS (SECS-II over TCP) default
 DEFAULT_BACNET_PORT = 47808  # BACnet/IP (UDP 0xBAC0)
 DEFAULT_HART_PORT = 5094  # HART-IP (UDP/TCP 5094)
+DEFAULT_IOLINK_PORT = 80  # IO-Link master HTTP/JSON interface
 
 # Connect/request timeout applied to every TCP-based client builder so a dead
 # endpoint fails in seconds, not the OS TCP default (60-120s+). Override the
@@ -92,6 +95,7 @@ _DEFAULT_PORTS = {
     "secsgem": DEFAULT_SECSGEM_PORT,
     "bacnet": DEFAULT_BACNET_PORT,
     "hart": DEFAULT_HART_PORT,
+    "iolink": DEFAULT_IOLINK_PORT,
 }
 
 
@@ -245,8 +249,11 @@ class TargetConfig:
     slot: int = 1
     # Mitsubishi MC
     plctype: str = "Q"
-    # MTConnect (HTTP)
+    # MTConnect + IO-Link master (HTTP): base URL of the agent/master.
     agent_url: str = ""
+    # IO-Link master JSON dialect: 'iotcore' (ifm IoT-Core POST envelope,
+    # default) or 'rest' (plain-REST GET). Empty = protocol default (iotcore).
+    flavor: str = ""
     # MQTT / Sparkplug B / UNS
     topic: str = ""
     use_tls: bool = False
@@ -477,6 +484,7 @@ def _parse_target(d: dict) -> TargetConfig:
         slot=int(d["slot"]) if d.get("slot") not in (None, "") else 1,
         plctype=str(d.get("plctype", "Q") or "Q"),
         agent_url=str(d.get("agent_url", "")),
+        flavor=str(d.get("flavor", "") or "").strip().lower(),
         topic=str(d.get("topic", "")),
         use_tls=use_tls,
         # TLS / mutual-auth certificate paths (accept common aliases).
