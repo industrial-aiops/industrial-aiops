@@ -288,11 +288,76 @@ class TargetConfig:
         return None
 
 
+# Historian readers the optional per-site ``historian:`` block may select.
+SUPPORTED_HISTORIAN_READERS = ("sqlite", "tdengine", "iotdb")
+
+# Secret-store key holding the historian password (never stored in YAML).
+HISTORIAN_SECRET_NAME = "historian"  # nosec B105 — a key name, not a secret
+
+
+@dataclass(frozen=True)
+class HistorianConfig:
+    """Optional per-site historian READ source (A7).
+
+    Declared as a top-level ``historian:`` block in ``config.yaml``::
+
+        historian:
+          reader: tdengine          # sqlite | tdengine | iotdb
+          host: 10.0.0.20           # TSDB readers only
+          port: 6030
+          user: root
+          database: iaiops          # TDengine db / IoTDB storage group / sqlite path
+          db_path: ~/.iaiops/data.db   # sqlite reader only (optional override)
+
+    The password (TSDB readers) is resolved from the encrypted secret store
+    under the name ``historian`` — never stored here. Absent block ⇒ no
+    historian read source; the RCA copilot then behaves exactly as before.
+    """
+
+    reader: str
+    host: str = ""
+    port: int = 0
+    user: str = ""
+    database: str = ""
+    db_path: str = ""
+
+    def __post_init__(self) -> None:
+        if self.reader not in SUPPORTED_HISTORIAN_READERS:
+            raise ValueError(
+                f"historian.reader '{self.reader}' is unsupported. Supported: "
+                f"{', '.join(SUPPORTED_HISTORIAN_READERS)}."
+            )
+
+    def password(self) -> str:
+        """Resolve the historian password from the encrypted store (or env)."""
+        return _resolve_secret(HISTORIAN_SECRET_NAME)
+
+    def reader_opts(self) -> dict:
+        """Non-empty connection kwargs for ``get_reader(self.reader, **opts)``."""
+        opts: dict = {}
+        if self.host:
+            opts["host"] = self.host
+        if self.port:
+            opts["port"] = self.port
+        if self.user:
+            opts["user"] = self.user
+        if self.database:
+            opts["database"] = self.database
+        if self.db_path:
+            opts["db_path"] = self.db_path
+        if self.reader != "sqlite":
+            secret = self.password()
+            if secret:
+                opts["password"] = secret
+        return opts
+
+
 @dataclass(frozen=True)
 class AppConfig:
     """Top-level application config."""
 
     targets: tuple[TargetConfig, ...] = ()
+    historian: HistorianConfig | None = None
 
     def get_target(self, name: str) -> TargetConfig:
         for t in self.targets:
@@ -444,7 +509,27 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     entries = raw.get("endpoints", raw.get("targets", []))
 
     targets = tuple(_parse_target(d) for d in entries)
-    return AppConfig(targets=targets)
+    return AppConfig(targets=targets, historian=_parse_historian(raw.get("historian")))
+
+
+def load_config_env() -> AppConfig:
+    """Load config honoring the ``IAIOPS_CONFIG`` path override (MCP/tool paths)."""
+    override = os.environ.get("IAIOPS_CONFIG")
+    return load_config(Path(override) if override else None)
+
+
+def _parse_historian(raw: object) -> HistorianConfig | None:
+    """Build the optional per-site historian READ block; absent/blank ⇒ None."""
+    if not isinstance(raw, dict) or not str(raw.get("reader", "")).strip():
+        return None
+    return HistorianConfig(
+        reader=str(raw["reader"]).strip().lower(),
+        host=str(raw.get("host", "") or ""),
+        port=int(raw.get("port", 0) or 0),
+        user=str(raw.get("user", "") or ""),
+        database=str(raw.get("database", "") or ""),
+        db_path=str(raw.get("db_path", "") or ""),
+    )
 
 
 def _parse_target(d: dict) -> TargetConfig:

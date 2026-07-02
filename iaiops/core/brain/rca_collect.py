@@ -27,6 +27,7 @@ from iaiops.core.brain._shared import s
 from iaiops.core.brain.diagnostics import diagnose_dataflow
 from iaiops.core.brain.monitor import MIN_INTERVAL_MS, _read_point
 from iaiops.core.brain.rca import downtime_rca
+from iaiops.core.brain.rca_history import gather_pre_incident
 
 MAX_REFS = 20
 MAX_SAMPLES_PER_REF = 60
@@ -84,18 +85,25 @@ def downtime_rca_live(
     read-only, evidence-cited contract — the only difference is the evidence is
     pulled from the device instead of injected. The gathered bundle is echoed
     back under ``collected_evidence`` for transparency (no hidden inputs).
+
+    When a per-site ``historian:`` block is configured (A7), the pre-incident
+    window is additionally pulled from that reader and scored as historian
+    evidence (cited with source/window/sample count). Without the config the
+    behaviour is byte-identical to before.
     """
     bundle = collect_evidence(
         target, refs, sample_count, interval_ms, include_alarms,
         freshness_threshold_s=int(window.get("freshness_threshold_s", 60))
         if isinstance(window, dict) else 60,
     )
+    historian = gather_pre_incident(window if isinstance(window, dict) else {}, refs)
     verdict = downtime_rca(
         window,
         alarms=bundle["alarms"],
         tags=bundle["tags"],
         dataflow=bundle["dataflow"],
         lead_window_s=lead_window_s,
+        historian=historian,
     )
     verdict["collected_evidence"] = bundle["collected"]
     return verdict

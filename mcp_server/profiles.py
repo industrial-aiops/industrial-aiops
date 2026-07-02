@@ -49,6 +49,8 @@ BRAIN_MODULES = (
     "export_tools",
     # Conservative baseline learning (A6): change-log baseline, silent by default.
     "baseline_tools",
+    # Historian READ integration (A7): query history back out of the sinks.
+    "historian_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are

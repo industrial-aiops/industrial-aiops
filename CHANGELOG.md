@@ -25,6 +25,24 @@
   `baseline_learn` / `baseline_check` / `baseline_record_change` / `baseline_status`
   (`no_baseline` / `learning` / `ok` / `violation` — never guesses; bounded outputs).
 - New CLI: `iaiops baseline learn|check|change|status` over the local SQLite history.
+### Added — historian read integration (A7)
+- **Historian readers** (`iaiops/core/sink/reader.py`): a `HistorianReader` protocol +
+  `get_reader()` registry mirroring `get_sink()`, with `sqlite` (delegates to the existing
+  local query layer), `tdengine`, and `iotdb` readers querying the SAME layout their sinks
+  write. Same lazy optional extras as the sinks (`iaiops[tdengine]` / `iaiops[iotdb]`) with
+  teaching errors; validated ISO time bounds, capped limits, parameterized/neutralized queries.
+- **RCA pre-incident evidence**: an optional per-site `historian:` config block
+  (`reader: sqlite|tdengine|iotdb`, password via the encrypted secret store) lets
+  `downtime_root_cause` / `downtime_root_cause_live` pull the 2h pre-incident window
+  (`iaiops/core/brain/rca_history.py`) and score tag trends as one more evidence class —
+  citations name the source (`historian:<name>`), window, and sample count. Strictly
+  additive: without the config, RCA output is byte-identical (test-proven).
+- **Governed MCP tools** (always-on brain module `historian_tools`): `historian_query`
+  (bounded rows + truncation flag) and `historian_coverage` (per-tag row counts +
+  first/last timestamps — "what history do we actually have"), both `[READ][risk=low]`.
+- **CLI**: `iaiops historian query` / `iaiops historian coverage` alongside the existing
+  `historian push`.
+- Edition skills (fab/factory/process/building/water) document the two new brain tools.
 
 ## 0.9.0 — 2026-07-02
 
