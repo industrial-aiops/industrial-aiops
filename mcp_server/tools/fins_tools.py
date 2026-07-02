@@ -142,7 +142,7 @@ def _fins_undo(params: dict, result: Any) -> Optional[dict]:
 def fins_write_words(
     area: str,
     address: int,
-    values: list,
+    values: list[int],
     endpoint: Optional[str] = None,
     dry_run: bool = True,
 ) -> dict:
