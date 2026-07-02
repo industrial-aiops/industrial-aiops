@@ -73,7 +73,12 @@ def protocols_cmd() -> None:
 
 @app.command("mcp")
 def mcp_cmd() -> None:
-    """Start the MCP server (stdio transport)."""
+    """Start the MCP server (stdio transport).
+
+    Requires a tool selection: set IAIOPS_MCP=<protocols and/or profile>
+    (IAIOPS_MCP=menu prints the menu). IAIOPS_MCP_NO_BRAIN=1 strips the
+    cross-protocol brain for multi-process sites with an iaiops-mcp-brain server.
+    """
     import sys
 
     if sys.version_info < (3, 11):

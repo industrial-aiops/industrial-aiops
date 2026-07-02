@@ -119,6 +119,9 @@ iaiops-mcp = "mcp_server.server:main"
 # Convenience named entry points — sugar over IAIOPS_MCP=<name> iaiops-mcp. Each
 # targets a data-driven shim in mcp_server.entrypoints (kept in sync with the
 # PROTOCOL_MODULES / NAMED_PROFILES menu; see tests/test_entrypoints.py).
+# Brain-only server (B3): cross-protocol brain, zero protocols — pair with
+# IAIOPS_MCP_NO_BRAIN=1 protocol servers at multi-process sites.
+iaiops-mcp-brain = "mcp_server.entrypoints:main_brain"
 # Per-protocol:
 iaiops-mcp-opcua = "mcp_server.entrypoints:main_opcua"
 iaiops-mcp-modbus = "mcp_server.entrypoints:main_modbus"
