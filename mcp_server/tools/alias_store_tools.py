@@ -8,7 +8,7 @@ owner-only JSON file under the iaiops home (``<home>/aliases/<site>.json``); it 
 advisory, never a server-side rename.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.core.brain import alias_store as als
 from iaiops.core.brain import asset_model as am
@@ -19,8 +19,8 @@ from mcp_server._shared import mcp, tool_errors
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def adopt_alias_map(feeds: list, site: Optional[str] = None) -> dict:
-    """[READ+PERSIST][risk=low] Adopt + persist the canonical alias map for a site.
+def adopt_alias_map(feeds: list[dict[str, Any]], site: Optional[str] = None) -> dict:
+    """[READ][risk=low][PERSIST] Adopt + persist the canonical alias map for a site.
 
     Writes a local owner-only advisory JSON file (NOT an OT-device write — hence
     risk=low); see the persistence note below.
@@ -56,7 +56,7 @@ def adopt_alias_map(feeds: list, site: Optional[str] = None) -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def diff_alias_map(feeds: list, site: Optional[str] = None) -> dict:
+def diff_alias_map(feeds: list[dict[str, Any]], site: Optional[str] = None) -> dict:
     """[READ][risk=low] Diff a fresh discovery run against the adopted baseline.
 
     Loads the site's previously adopted alias map, re-runs the cross-protocol

@@ -164,22 +164,48 @@ def downtime_rca(
         return {"verdict": "insufficient_evidence", **win,
                 "anti_hallucination": _AH_NOTE}
 
-    onset = win["_onset"]
     lead = max(0.0, float(lead_window_s))
-
-    contributions: dict[str, list[dict]] = {}
-    _score_dataflow(dataflow, contributions)
-    alarm_ctx = _score_alarms(alarms, onset, lead, win["end_dt"], contributions)
-    _score_tags(tags, contributions)
-    _score_historian(historian, contributions)
-    _score_category_prior(win.get("category"), contributions)
-
+    contributions, alarm_ctx = _collect_contributions(
+        dataflow, alarms, tags, historian, win, lead
+    )
     contributions = _apply_cause_weights(contributions, weights)
     hypotheses = _build_hypotheses(contributions)
     verdict, primary = _decide(hypotheses)
     summary = _evidence_summary(alarm_ctx, tags, dataflow, contributions)
     if historian is not None:
         summary = {**summary, **_historian_summary(historian)}
+    return _render_rca(win, verdict, primary, hypotheses, summary, alarm_ctx, tags, dataflow)
+
+
+def _collect_contributions(
+    dataflow: dict | None,
+    alarms: list[dict] | None,
+    tags: list[dict] | None,
+    historian: dict | None,
+    win: dict,
+    lead: float,
+) -> tuple[dict[str, list[dict]], dict]:
+    """Score every supplied evidence stream into per-cause contributions."""
+    contributions: dict[str, list[dict]] = {}
+    _score_dataflow(dataflow, contributions)
+    alarm_ctx = _score_alarms(alarms, win["_onset"], lead, win["end_dt"], contributions)
+    _score_tags(tags, contributions)
+    _score_historian(historian, contributions)
+    _score_category_prior(win.get("category"), contributions)
+    return contributions, alarm_ctx
+
+
+def _render_rca(
+    win: dict,
+    verdict: str,
+    primary: dict | None,
+    hypotheses: list[dict],
+    summary: dict,
+    alarm_ctx: dict,
+    tags: list[dict] | None,
+    dataflow: dict | None,
+) -> dict:
+    """Assemble the structured RCA verdict (plus next-data guidance when thin)."""
     out = {
         "window": {k: win[k] for k in ("start", "end", "duration_s", "asset", "category")},
         "verdict": verdict,
@@ -366,16 +392,33 @@ def _score_alarms(
     if not evts:
         return {"count": 0}
     flood = alarm_bad_actors(evts)
+    _score_alarm_flood(flood, contributions)
+    best = _collect_alarm_triggers(evts, onset, lead, end_dt or onset)
+    for entry in best.values():
+        weight = entry["cite"].pop("_weight")
+        _add(contributions, entry["cause"], weight, entry["cite"])
+    return {"count": len(evts), "flood": flood if isinstance(flood, dict) else None}
+
+
+def _score_alarm_flood(flood: Any, contributions: dict[str, list[dict]]) -> None:
+    """Add the ISA-18.2 flood context contribution when the rate reads as a flood."""
     if isinstance(flood, dict) and flood.get("flood_verdict") == "flood":
         _add(contributions, "alarm_flood", W_ALARM_FLOOD_CONTEXT, {
             "signal": "alarm_rate",
             "ref": "flood",
             "detail": s(f"{flood.get('alarms_per_hour')} alarms/hour (ISA-18.2 flood)", 120),
         })
-    horizon = end_dt or onset
-    # Dedupe per (source, cause): a single source chattering N times is ONE piece
-    # of evidence, not N independent ones — keep only its strongest (closest to
-    # onset) hit so noisy-OR can't manufacture confidence from a repeating alarm.
+
+
+def _collect_alarm_triggers(
+    evts: list[dict], onset: datetime, lead: float, horizon: datetime
+) -> dict[tuple[str, str], dict]:
+    """Best trigger citation per (source, cause), proximity-weighted.
+
+    Dedupe per (source, cause): a single source chattering N times is ONE piece
+    of evidence, not N independent ones — keep only its strongest (closest to
+    onset) hit so noisy-OR can't manufacture confidence from a repeating alarm.
+    """
     best: dict[tuple[str, str], dict] = {}
     for e in evts:
         at = _parse_ts(e.get("timestamp"))
@@ -399,10 +442,7 @@ def _score_alarms(
         key = (source, cause)
         if key not in best or weight > best[key]["cite"]["_weight"]:
             best[key] = {"cause": cause, "cite": cite}
-    for entry in best.values():
-        weight = entry["cite"].pop("_weight")
-        _add(contributions, entry["cause"], weight, entry["cite"])
-    return {"count": len(evts), "flood": flood if isinstance(flood, dict) else None}
+    return best
 
 
 def _score_tags(tags: list[dict] | None, contributions: dict[str, list[dict]]) -> None:

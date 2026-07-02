@@ -4,7 +4,7 @@ All analytics are non-destructive (risk_level='low') and operate over provided /
 collected inputs, so they need no live plant. Structured JSON for agent visuals.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.core.brain import oee as ops
 from iaiops.core.governance import governed_tool
@@ -45,8 +45,8 @@ def oee_compute(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def downtime_events(
-    series: list,
-    category_map: Optional[dict] = None,
+    series: list[dict[str, Any]],
+    category_map: Optional[dict[str, str]] = None,
     min_duration_s: float = 0.0,
 ) -> dict:
     """[READ][risk=low] Detect running→stopped transitions and categorize stoppages.
@@ -70,7 +70,9 @@ def downtime_events(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def oee_multidim(records: list, dimensions: Optional[list] = None) -> dict:
+def oee_multidim(
+    records: list[dict[str, Any]], dimensions: Optional[list[str]] = None
+) -> dict:
     """[READ][risk=low] Aggregate OEE across dimensions (machine × part × shift).
 
     Args:

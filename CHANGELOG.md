@@ -110,6 +110,26 @@
 - Self-test: in-process mock IO-Link master (both flavors) in `tests/test_iolink.py`
   (identity/ports/pdin/isdu round-trips, size cap, malformed JSON, flavor switching,
   governance markers). Live master datapoint paths 待核实.
+### Changed — brain/opcua tool split, flagship function refactor, tool-signature polish (B4/B5/B7)
+- **B4 — DEPRECATED: `health_summary` / `anomaly_scan`** are OPC-UA-specific and moved out of
+  the always-on brain into the opcua protocol module as **`opcua_health_summary` /
+  `opcua_anomaly_scan`**. The old names remain registered in the brain for ONE release as
+  deprecated aliases: they delegate to the same implementation and their response gains
+  `"deprecated": "renamed to opcua_health_summary; this alias is removed in 0.11"`
+  (respectively `opcua_anomaly_scan`). **Both aliases are removed in 0.11** — switch to the
+  `opcua_*` names. Edition skills updated (new names in the OPC-UA section; old names marked
+  deprecated in the 跨协议脑 line).
+- **B5 — flagship brain function split (pure refactor, zero behavior change)**:
+  `diagnostics.py` `subscription_health` / `diagnose_dataflow` and `rca.py` `downtime_rca` /
+  `_score_alarms` decomposed into `_collect_*` / `_score_*` / `_render_*` helpers so each
+  public function is <50 lines of orchestration; worst nesting in
+  `iaiops/core/governance/patterns.py` (`PatternEngine._load` / `match`) flattened via
+  early-continues and an extracted `_evaluate_armable`.
+- **B7 — tool-signature polish**: all MCP tool parameters now use parameterized generics
+  (`list[str]`, `dict[str, float]`, … — no bare `list`/`dict`, so the LLM-facing JSON schema
+  carries element types); docstring risk tags unified — every read tool's first line starts
+  `[READ][risk=low]`, writes keep `[WRITE][risk=HIGH][MOC]`. Enforced by the new
+  `tests/test_tool_annotations.py` walking every registered tool.
 
 ## 0.9.0 — 2026-07-02
 

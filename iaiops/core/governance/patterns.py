@@ -144,14 +144,16 @@ class PatternEngine:
                 with open(path) as fh:
                     raw = yaml.safe_load(fh) or {}
                 pat = self._validate(raw, path)
-                if pat is not None:
-                    if pat.pattern_id in new_patterns:
-                        _log.warning("duplicate pattern_id %r in %s — keeping first",
-                                     pat.pattern_id, path)
-                        continue
-                    new_patterns[pat.pattern_id] = pat
             except Exception:
                 _log.warning("failed to load pattern %s", path, exc_info=True)
+                continue
+            if pat is None:
+                continue
+            if pat.pattern_id in new_patterns:
+                _log.warning("duplicate pattern_id %r in %s — keeping first",
+                             pat.pattern_id, path)
+                continue
+            new_patterns[pat.pattern_id] = pat
 
         self._patterns = new_patterns
         self._mtimes = new_mtimes
@@ -274,48 +276,54 @@ class PatternEngine:
                                 reason=f"pattern {pat.pattern_id} is not armable "
                                        f"(risk={pat.risk}, expired={pat.is_expired})")
 
-        for pat in armable:
-            with self._lock:
-                key = (pat.pattern_id, target or "")
-                ctr = self._counters.setdefault(key, _Counters())
+        # The first armable pattern always resolves to a match (armed or not),
+        # exactly as the previous first-iteration-returns loop did.
+        return self._evaluate_armable(armable[0], target)
 
-                # Circuit breaker check
-                now = time.time()
-                if now < ctr.disabled_until:
-                    remaining = int(ctr.disabled_until - now)
-                    return PatternMatch(
-                        pattern=pat, armed=False,
-                        reason=f"pattern {pat.pattern_id} circuit-broken for "
-                               f"~{remaining}s after {ctr.consecutive_failures} failures",
-                    )
+    def _evaluate_armable(self, pat: Pattern, target: str) -> PatternMatch:
+        """Resolve an armable pattern against its circuit breaker + rate limits.
 
-                # Rate limit check (sliding 1h and 24h windows)
-                hour_ago = now - 3600
-                day_ago = now - 86400
-                ctr.arm_timestamps = [t for t in ctr.arm_timestamps if t > day_ago]
-                arms_last_hour = sum(1 for t in ctr.arm_timestamps if t > hour_ago)
-                arms_last_day = len(ctr.arm_timestamps)
+        Records the arming timestamp when the pattern arms.
+        """
+        with self._lock:
+            key = (pat.pattern_id, target or "")
+            ctr = self._counters.setdefault(key, _Counters())
 
-                if pat.rate_max_per_hour_per_target and arms_last_hour >= pat.rate_max_per_hour_per_target:
-                    return PatternMatch(
-                        pattern=pat, armed=False,
-                        reason=f"pattern {pat.pattern_id} hit hourly cap "
-                               f"({pat.rate_max_per_hour_per_target}/h) on target {target!r}",
-                    )
-                if pat.rate_max_per_day_per_target and arms_last_day >= pat.rate_max_per_day_per_target:
-                    return PatternMatch(
-                        pattern=pat, armed=False,
-                        reason=f"pattern {pat.pattern_id} hit daily cap "
-                               f"({pat.rate_max_per_day_per_target}/d) on target {target!r}",
-                    )
+            # Circuit breaker check
+            now = time.time()
+            if now < ctr.disabled_until:
+                remaining = int(ctr.disabled_until - now)
+                return PatternMatch(
+                    pattern=pat, armed=False,
+                    reason=f"pattern {pat.pattern_id} circuit-broken for "
+                           f"~{remaining}s after {ctr.consecutive_failures} failures",
+                )
 
-                # Pattern is armed — record the arming timestamp
-                ctr.arm_timestamps.append(now)
+            # Rate limit check (sliding 1h and 24h windows)
+            hour_ago = now - 3600
+            day_ago = now - 86400
+            ctr.arm_timestamps = [t for t in ctr.arm_timestamps if t > day_ago]
+            arms_last_hour = sum(1 for t in ctr.arm_timestamps if t > hour_ago)
+            arms_last_day = len(ctr.arm_timestamps)
 
-            return PatternMatch(pattern=pat, armed=True,
-                                reason=f"pattern {pat.pattern_id} armed")
+            if pat.rate_max_per_hour_per_target and arms_last_hour >= pat.rate_max_per_hour_per_target:
+                return PatternMatch(
+                    pattern=pat, armed=False,
+                    reason=f"pattern {pat.pattern_id} hit hourly cap "
+                           f"({pat.rate_max_per_hour_per_target}/h) on target {target!r}",
+                )
+            if pat.rate_max_per_day_per_target and arms_last_day >= pat.rate_max_per_day_per_target:
+                return PatternMatch(
+                    pattern=pat, armed=False,
+                    reason=f"pattern {pat.pattern_id} hit daily cap "
+                           f"({pat.rate_max_per_day_per_target}/d) on target {target!r}",
+                )
 
-        return None
+            # Pattern is armed — record the arming timestamp
+            ctr.arm_timestamps.append(now)
+
+        return PatternMatch(pattern=pat, armed=True,
+                            reason=f"pattern {pat.pattern_id} armed")
 
     def report_outcome(self, pattern_id: str, target: str, success: bool) -> None:
         """Update circuit-breaker state after an armed pattern's action ran.

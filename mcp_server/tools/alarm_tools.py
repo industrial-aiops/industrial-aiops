@@ -66,7 +66,7 @@ def alarm_flood_analysis(
     duration_s: int = 60,
     window_s: float = 600.0,
     threshold: int = 10,
-    events: Optional[list] = None,
+    events: Optional[list[dict[str, Any]]] = None,
     stale_after_s: float = 86400.0,
     max_episodes: int = 20,
     max_rows: int = 50,
@@ -128,7 +128,7 @@ def alarm_flood_analysis(
 def alarm_rationalization_worksheet(
     endpoint: Optional[str] = None,
     duration_s: int = 60,
-    events: Optional[list] = None,
+    events: Optional[list[dict[str, Any]]] = None,
     window_s: float = 600.0,
     threshold: int = 10,
     out_path: Optional[str] = None,

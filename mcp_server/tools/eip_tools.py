@@ -70,7 +70,7 @@ def eip_read_tag(tag: str, endpoint: Optional[str] = None) -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def eip_read_many(tags: list, endpoint: Optional[str] = None) -> dict:
+def eip_read_many(tags: list[str], endpoint: Optional[str] = None) -> dict:
     """[READ][risk=low] Batch-read many Logix tags in one request (auto multi-packet).
 
     Args:
@@ -84,7 +84,7 @@ def eip_read_many(tags: list, endpoint: Optional[str] = None) -> dict:
     return ops.eip_read_many(_target(endpoint), tags)
 
 
-def _eip_undo(params: dict, result: Any) -> Optional[dict]:
+def _eip_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied eip_write_tag: restore the captured BEFORE value."""
     if not isinstance(result, dict) or not result.get("applied"):
         return None

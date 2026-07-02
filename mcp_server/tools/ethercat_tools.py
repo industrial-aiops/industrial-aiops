@@ -119,7 +119,7 @@ def ethercat_read_pdo(slave: int, endpoint: Optional[str] = None) -> dict:
     return ops.ethercat_read_pdo(_target(endpoint), slave)
 
 
-def _sdo_undo(params: dict, result: Any) -> Optional[dict]:
+def _sdo_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied ethercat_write_sdo: restore the captured BEFORE bytes."""
     if not isinstance(result, dict) or not result.get("applied"):
         return None
@@ -176,7 +176,7 @@ def ethercat_write_sdo(
     )
 
 
-def _state_undo(params: dict, result: Any) -> Optional[dict]:
+def _state_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied ethercat_set_state: request the captured BEFORE state."""
     if not isinstance(result, dict) or not result.get("applied"):
         return None
