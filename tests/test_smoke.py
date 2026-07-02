@@ -17,7 +17,9 @@ EXPECTED_TOOLS = {
     "opcua_server_info", "opcua_browse", "opcua_read_node", "opcua_read_many",
     "opcua_subscribe_sample", "opcua_read_alarms", "opcua_read_history",
     "opcua_discover_tags",
-    # problem surfacing
+    # OPC-UA problem surfacing (B4 rename)
+    "opcua_health_summary", "opcua_anomaly_scan",
+    # problem surfacing — DEPRECATED aliases (removed in 0.11)
     "health_summary", "anomaly_scan",
     # Modbus
     "modbus_read_holding", "modbus_read_input", "modbus_read_coils",

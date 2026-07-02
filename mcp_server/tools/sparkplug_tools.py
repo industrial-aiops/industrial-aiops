@@ -5,7 +5,7 @@ risk_level='high' (MOC), off by default (dry_run). A published command has no
 automatic inverse. 未经授权勿对生产控制系统下发指令.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.connectors.sparkplug import live, ops
 from iaiops.core.brain import uns_governance as uns
@@ -17,7 +17,7 @@ from mcp_server._shared import _target, mcp, tool_errors
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def sparkplug_decode_payload(
-    payload: str, encoding: str = "base64", alias_map: Optional[dict] = None
+    payload: str, encoding: str = "base64", alias_map: Optional[dict[int, str]] = None
 ) -> dict:
     """[READ][risk=low] Decode a single raw Sparkplug B payload to structured metrics.
 
@@ -187,8 +187,8 @@ def mqtt_publish(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def uns_topic_audit(
-    topics: list,
-    allowed_roots: Optional[list] = None,
+    topics: list[str],
+    allowed_roots: Optional[list[str]] = None,
     min_segments: int = 0,
     max_leaf_parents: int = 5,
 ) -> dict:
@@ -218,7 +218,7 @@ def uns_topic_audit(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def uns_schema_drift(baseline: dict, current: dict) -> dict:
+def uns_schema_drift(baseline: dict[str, Any], current: dict[str, Any]) -> dict:
     """[READ][risk=low] Detect Sparkplug/UNS schema drift between two snapshots.
 
     Compares baseline vs current node/metric definitions (e.g. two NBIRTH snapshots)
@@ -246,7 +246,7 @@ def uns_live_audit(
     topic: str = "#",
     duration_s: int = 10,
     max_msgs: int = 500,
-    allowed_roots: Optional[list] = None,
+    allowed_roots: Optional[list[str]] = None,
     min_segments: int = 0,
     max_leaf_parents: int = 5,
 ) -> dict:
@@ -311,7 +311,7 @@ def sparkplug_live_schema(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def uns_live_drift(
-    baseline: dict,
+    baseline: dict[str, Any],
     endpoint: Optional[str] = None,
     topic: str = "spBv1.0/#",
     duration_s: int = 10,

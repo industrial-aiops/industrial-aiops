@@ -16,7 +16,7 @@ from mcp_server._shared import _target, mcp, tool_errors
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def secsgem_equipment_status(endpoint: Optional[str] = None) -> dict:
-    """[READ] Establish the GEM host link and report communication state + identity.
+    """[READ][risk=low] Establish the GEM host link and report communication state + identity.
 
     Sends Are-You-There (S1F1) after reaching the communicating state.
 
@@ -30,7 +30,7 @@ def secsgem_equipment_status(endpoint: Optional[str] = None) -> dict:
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def secsgem_list_status_variables(endpoint: Optional[str] = None) -> dict:
-    """[READ] Status-variable namelist (S1F11/F12): SVID → name / units.
+    """[READ][risk=low] Status-variable namelist (S1F11/F12): SVID → name / units.
 
     Args:
         endpoint: Endpoint name from config.
@@ -41,8 +41,8 @@ def secsgem_list_status_variables(endpoint: Optional[str] = None) -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def secsgem_read_status_variables(svids: list, endpoint: Optional[str] = None) -> dict:
-    """[READ] Status-variable values (S1F3/F4) for the given SVIDs.
+def secsgem_read_status_variables(svids: list[int], endpoint: Optional[str] = None) -> dict:
+    """[READ][risk=low] Status-variable values (S1F3/F4) for the given SVIDs.
 
     Args:
         svids: List of status-variable ids to read.
@@ -55,7 +55,7 @@ def secsgem_read_status_variables(svids: list, endpoint: Optional[str] = None) -
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def secsgem_list_equipment_constants(endpoint: Optional[str] = None) -> dict:
-    """[READ] Equipment-constant namelist (S2F29/F30): ECID → name/min/max/default.
+    """[READ][risk=low] Equipment-constant namelist (S2F29/F30): ECID → name/min/max/default.
 
     Args:
         endpoint: Endpoint name from config.
@@ -66,8 +66,8 @@ def secsgem_list_equipment_constants(endpoint: Optional[str] = None) -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def secsgem_read_equipment_constants(ecids: list, endpoint: Optional[str] = None) -> dict:
-    """[READ] Equipment-constant values (S2F13/F14) for the given ECIDs.
+def secsgem_read_equipment_constants(ecids: list[int], endpoint: Optional[str] = None) -> dict:
+    """[READ][risk=low] Equipment-constant values (S2F13/F14) for the given ECIDs.
 
     Args:
         ecids: List of equipment-constant ids to read.
@@ -80,7 +80,7 @@ def secsgem_read_equipment_constants(ecids: list, endpoint: Optional[str] = None
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def secsgem_list_alarms(endpoint: Optional[str] = None) -> dict:
-    """[READ] Alarm list (S5F5/F6): ALID, ALCD (severity), alarm text.
+    """[READ][risk=low] Alarm list (S5F5/F6): ALID, ALCD (severity), alarm text.
 
     Args:
         endpoint: Endpoint name from config.
@@ -92,7 +92,7 @@ def secsgem_list_alarms(endpoint: Optional[str] = None) -> dict:
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def secsgem_list_process_programs(endpoint: Optional[str] = None) -> dict:
-    """[READ] Process-program directory (S7F19/F20): the PPID list.
+    """[READ][risk=low] Process-program directory (S7F19/F20): the PPID list.
 
     Args:
         endpoint: Endpoint name from config.

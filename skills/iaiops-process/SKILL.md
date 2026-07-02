@@ -31,6 +31,7 @@ description: >-
 - `opcua_subscribe_sample` `opcua_read_alarms` `opcua_read_history`(HDA)
 - `opcua_diagnose_connection` — 连接失败归因（证书/策略/认证/网络/配置）
 - `opcua_discover_tags` — 自动发现 + 语义资产建模
+- `opcua_health_summary` — tag vs 阈值分类；`opcua_anomaly_scan` — 有界统计异常扫描
 
 ### Modbus-TCP / Modbus-RTU（只读；撬装/分析仪/RTU 从站）
 - `modbus_read_holding` `modbus_read_input` `modbus_read_coils` `modbus_read_discrete`
@@ -46,7 +47,7 @@ description: >-
 - 数据质量：`data_quality_scorecard` `data_quality_fleet_rollup`（流程工业重点：
   staleness / flatline / bad-quality —— 仪表坏数据绝不静默插值喂 AI）
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
-  `health_summary` `anomaly_scan`
+  `health_summary` (deprecated) `anomaly_scan` (deprecated)
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
 - 基线：`baseline_learn` `baseline_check` `baseline_record_change` `baseline_status`
   （change-log 基线：拒学薄历史、只报持续越带、每次告警必引基线样本 —— 非黑盒异常检测）

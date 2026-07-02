@@ -46,7 +46,7 @@ IoT 传感器走 MQTT 时叠加：`IAIOPS_MCP=building,sparkplug`。
   `alarm_rationalization_worksheet`
 - 数据质量：`data_quality_scorecard` `data_quality_fleet_rollup`
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
-  `health_summary` `anomaly_scan`
+  `health_summary` (deprecated) `anomaly_scan` (deprecated)
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
 - 基线：`baseline_learn` `baseline_check` `baseline_record_change` `baseline_status`
   （change-log 基线：拒学薄历史、只报持续越带、每次告警必引基线样本 —— 非黑盒异常检测）
