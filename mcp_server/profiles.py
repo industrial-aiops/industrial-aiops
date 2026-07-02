@@ -36,6 +36,8 @@ BRAIN_MODULES = (
     "overview_tools",
     "analysis_tools",
     "diagnostics_tools",
+    # ISA-18.2 alarm-flood deepening (episodes / chattering / stale / worksheet).
+    "alarm_tools",
     "asset_tools",
     "asset_model_tools",
     "alias_store_tools",

@@ -45,6 +45,8 @@ EXPECTED_TOOLS = {
     # cross-protocol diagnostics
     "diagnose_dataflow", "historian_health", "alarm_bad_actors", "tag_health",
     "data_quality_fleet_rollup", "learn_cause_weights",
+    # ISA-18.2 alarm-flood deepening
+    "alarm_flood_analysis", "alarm_rationalization_worksheet",
     # cross-protocol analytics (OEE / downtime / asset / CoV)
     "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
     "cross_protocol_asset_model", "monitor_changes",
@@ -92,6 +94,7 @@ def test_all_modules_import():
         "iaiops.core.brain.semantics",
         "iaiops.core.brain.monitor",
         "iaiops.core.brain.diagnostics",
+        "iaiops.core.brain.alarm_flood",
         "iaiops.core.brain.overview",
         "iaiops.connectors.ethercat.ops",
         "iaiops.connectors.sparkplug.sparkplug_b_pb2",

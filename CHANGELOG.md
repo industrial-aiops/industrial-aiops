@@ -70,6 +70,19 @@
   reject `..` traversal; parent dirs created 0700, bundle written 0600.
 - New governed MCP tools `compliance_report` (inline markdown capped at ~400 lines,
   else write to `out_path`) and `compliance_evidence_bundle`, both [READ][risk=low].
+### Added — ISA-18.2 alarm flood analysis (A4)
+- **New brain module `iaiops.core.brain.alarm_flood`** (pure, no I/O): `detect_floods`
+  (flood *episodes* — start/end/count/peak rate/top contributors, per ISA-18.2's
+  ≥10 alarms/10 min per operator), `chattering_alarms` (ACTIVE↔CLEARED cycle counting),
+  `stale_standing_alarms` (continuously active > 24 h), `flood_summary`
+  (percent-time-in-flood + avg/peak rate vs the ~1-2 alarms/10 min target, honest
+  `insufficient_data` handling), and `rationalization_worksheet` (CSV-exportable rows).
+- **New governed MCP tools** (`alarm_flood_analysis`, `alarm_rationalization_worksheet`,
+  both `[READ][risk=low]`, bounded output with truncation flags): analyze injected events
+  or collect live via the same OPC-UA active-condition scan the RCA copilot uses
+  (`rca_collect.collect_active_alarms`, polled over `duration_s`).
+- **New CLI commands**: `iaiops diag alarm-flood` and `iaiops diag alarm-worksheet`
+  (JSON events in; deep report out, or a CSV worksheet via `--out`).
 
 ## 0.8.0 — 2026-07-02
 
