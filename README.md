@@ -420,7 +420,7 @@ iaiops opcua read "ns=2;i=5" -e line1
 iaiops modbus holding 0 -e plc2 --count 4 --decode float32
 iaiops s7 read-db 1 REAL 4 -e press1 --count 2
 iaiops mc words D100 -e cell3 --count 8
-iaiops fins words D100 -e omron1 --count 8         # Omron FINS memory-area read
+iaiops fins words 100 --area DM -e omron1 --count 8   # Omron FINS memory-area read
 iaiops hart pv -e xmtr1                            # HART primary variable
 iaiops iolink scan -e iolm1                        # IO-Link master + connected devices
 iaiops mtconnect oee -e vmc1
@@ -442,7 +442,7 @@ iaiops s7 write-db 1 INT 0 42 -e press1            # dry-run preview
 iaiops s7 write-db 1 INT 0 42 -e press1 --apply    # double-confirm prompt
 iaiops mqtt publish factory/line1/cmd '{"setpoint":50}' -e uns --apply
 iaiops eip write-tag Setpoint 42 -e cell5 --apply  # Logix tag write (double-confirm)
-iaiops fins write-words D100 42 -e omron1 --apply  # Omron FINS write (double-confirm)
+iaiops fins write-words 100 42 --area DM -e omron1 --apply  # Omron FINS write (double-confirm)
 iaiops ethercat write-sdo 0 24698 e8030000 -e bus1 --apply   # CoE SDO 0x607A download
 iaiops ethercat set-state PREOP --slave 0 -e bus1 --apply     # AL-state (can stop motion!)
 ```
