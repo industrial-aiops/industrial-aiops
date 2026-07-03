@@ -117,7 +117,7 @@ iaiops opcua discover -e line1                       # tag 自动发现 → 语�
 iaiops modbus holding 0 -e plc2 --count 4 --decode float32
 iaiops modbus detect-byte-order 0 -e plc2 --count 2  # 字节序自动探测
 iaiops hart pv -e xmtr1                               # HART 主变量(过程仪表)
-iaiops fins words D100 -e omron1 --count 8            # 欧姆龙 FINS 内存区读
+iaiops fins words 100 --area DM -e omron1 --count 8   # 欧姆龙 FINS 内存区读
 iaiops iolink scan -e iolm1                           # IO-Link 主站 + 连接设备扫描
 iaiops mtconnect oee -e vmc1
 iaiops mqtt nodes -e uns --timeout-s 15
