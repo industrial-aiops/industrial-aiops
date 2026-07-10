@@ -1,0 +1,93 @@
+# Margo ApplicationDescription for iaiops — built to the REAL margo.org/v1-alpha1 schema
+# (docs.margo.org, PR1 pre-draft). This is no longer a blind guess: the structure, field names,
+# and validators below follow the published Application Description spec. The remaining `待核实`
+# are genuine gaps only — (1) the hosted, signed package location + signing key (needs a
+# host/registry), and (2) secret-parameter handling (the spec does NOT yet define a secret flag —
+# this is our open question for the app-package-definition-wg). iaiops has NOT been run through the
+# conformance toolkit, so it is still NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
+apiVersion: margo.org/v1-alpha1
+kind: ApplicationDescription
+id: io-github-industrial-aiops-iaiops
+metadata:
+  name: Industrial-AIOps
+  description: >-
+    Vendor-neutral, read-first OT data tap across ~14 field protocols with a cross-protocol
+    root-cause brain, exposed as governed MCP tools (audit / budget / risk-tier / undo + MOC
+    gating on the few writes). Air-gap friendly.
+  version: "0.10.1"
+  catalog:
+    application:
+      tagline: Governed OT read tap + cross-protocol RCA, as MCP tools
+      site: https://github.com/industrial-aiops/industrial-aiops
+      tags: ["ot", "iiot", "diagnostics", "mcp", "read-only"]
+    author:
+      - name: wei
+        email: zhouwei008@gmail.com
+    organization:
+      - name: Industrial-AIOps (independent)
+        site: https://github.com/industrial-aiops
+
+deploymentProfiles:
+  - type: compose
+    id: iaiops-compose
+    description: >-
+      Single hardened, non-root container (read-only rootfs, no inbound ports; outbound-only to the
+      operator-configured OT endpoints). The OCI image is referenced inside the signed compose
+      archive built from deploy/margo/compose.yaml.
+    components:
+      - name: iaiops
+        properties:
+          packageLocation: 待核实   # URL to the signed compose.tar.gz (needs a host/registry)
+          keyLocation: 待核实       # URL to the signing public key
+          wait: true
+          timeout: "5m00s"
+    requiredResources:
+      cpu:
+        cores: 0.5
+        architectures: [amd64, arm64]
+      memory: 512Mi
+      storage: 1Gi
+      interfaces:
+        - type: ethernet
+
+parameters:
+  profile:
+    value: factory
+    targets:
+      - pointer: IAIOPS_MCP        # compose profile → environment variable
+        components: [iaiops]
+  masterPassword:
+    value: ""
+    targets:
+      - pointer: IAIOPS_MASTER_PASSWORD
+        components: [iaiops]
+
+configuration:
+  sections:
+    - name: Edition & Access
+      settings:
+        - parameter: profile
+          name: Edition profile
+          description: Which field-protocol connectors load.
+          immutable: false
+          schema: profileSchema
+        - parameter: masterPassword
+          name: Secret-store master password
+          description: >-
+            Unlocks the encrypted on-box secret store. 待核实: the spec has no secret-typed
+            parameter yet — tracked as our app-package-definition-wg question (least-privilege /
+            secret declaration).
+          immutable: false
+          schema: passwordSchema
+  schema:
+    # SelectValidationSchema — the five edition profiles.
+    - name: profileSchema
+      dataType: string
+      options: [fab, factory, process, building, water]
+      multiselect: false
+      allowEmpty: false
+    # TextValidationSchema.
+    - name: passwordSchema
+      dataType: string
+      minLength: 8
+      allowEmpty: false
