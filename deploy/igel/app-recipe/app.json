@@ -1,0 +1,12 @@
+{
+  "_comment": "⚠️ SKELETON — IGEL OS 12 app-recipe metadata (igelpkg). Field set grounded on the IGEL-Community recipes; the AUTHORITATIVE schema + all required fields are 待核实 vs the IGEL SDK Reference Manual. Not a validated recipe.",
+  "name": "iaiops",
+  "displayName": "Industrial-AIOps (governed OT read tap)",
+  "version": "0.10.0",
+  "vendor": "Industrial-AIOps (independent)",
+  "rw_partition": {
+    "size": "待核实",
+    "flags": []
+  },
+  "prefer_btrfs": true
+}
