@@ -10,6 +10,10 @@
   read-only-rootfs friendly, headless `iaiops-mcp`, build-arg `PROFILE`), `compose.yaml` (hardened:
   `cap_drop: ALL`, no-new-privileges, no inbound ports, single state volume), `margo-application.yaml`
   (app-description skeleton — every unconfirmed field marked `待核实`), and a README.
+- **`deploy/igel/`** — IGEL OS 12 **distribution overlay** (one candidate host; core image stays the
+  neutral `deploy/margo/` one): Managed-Container route (reuse the OCI image) + an `igelpkg`
+  app-recipe skeleton (`app.json` / `igel/install.sh` / systemd unit), all IGEL-specific specifics
+  marked `待核实`. IGEL is referenced ONLY inside this overlay (brand-isolation rule).
 - **Positioning** — README (EN + zh-CN) gain an *edge-native / Margo* deployment subsection;
   `pyproject.toml` keywords add `edge` / `iiot` / `edge-computing` / `margo` / `edge-interoperability`;
   `docs/ROADMAP.md` gains an "Ecosystem / edge packaging (Margo)" section.

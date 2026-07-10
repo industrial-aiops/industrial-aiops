@@ -32,7 +32,7 @@ OT 现场正是最该给智能体"上紧箍咒"的地方:**先读、绝不盲写
 iaiops 以**边缘应用(edge application)**的形态跑在加固、集中管理的**边缘主机**上——不抢主机、也不抢编排层。它天然对齐 [Margo](https://margo.org/) 工业边缘互操作标准的角色划分:*主机/设备* = 不可变边缘 OS,*合规编排器* 按期望状态下发工作负载,而 **iaiops = OT 域应用**(只读 tap + 跨协议 RCA,以受治理的 MCP 工具暴露),并可对接**本机 LLM 脑**做完全离线(气隙)诊断,数据不出厂。
 > **诚实状态:** iaiops 是天然的 Margo 边缘应用,但**目前尚未 Margo-compliant**——容器镜像 + application description + 公开的 conformance 结果均为 roadmap `⏳`(见 **[docs/MARGO-ALIGNMENT.md](docs/MARGO-ALIGNMENT.md)** 与 `docs/ROADMAP.md`)。在那份测试结果出来前,任何材料都不声称 *Margo-compliant*。
 
-容器 + application-description **骨架**见 **[`deploy/margo/`](deploy/margo/)**(加固 Dockerfile · compose · 标 `待核实` 的 app 描述符)。
+容器 + application-description **骨架**见 **[`deploy/margo/`](deploy/margo/)**(加固 Dockerfile · compose · 标 `待核实` 的 app 描述符);复用该镜像的按主机分发覆盖层并列存放(如面向 IGEL OS 12 的 **[`deploy/igel/`](deploy/igel/)**)。
 
 ---
 

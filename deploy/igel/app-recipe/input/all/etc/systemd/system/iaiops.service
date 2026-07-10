@@ -1,0 +1,24 @@
+# systemd unit shipped by the IGEL app-recipe — runs the NEUTRAL iaiops OCI image via Podman on the
+# endpoint. 待核实: (1) MCP over stdio needs a client attached — run mode for a headless MCP workload
+# under systemd is unconfirmed (same open question as the Margo app-package transport); (2) registry
+# ref, secret injection, and volume provisioning are placeholders. Not validated on IGEL OS 12.
+[Unit]
+Description=Industrial-AIOps governed OT read tap (containerized)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Hardened, matching deploy/margo/compose.yaml. Registry ref is a placeholder (待核实).
+ExecStartPre=-/usr/bin/podman pull 待核实-registry/iaiops:0.10.0-factory
+ExecStart=/usr/bin/podman run --rm --name iaiops \
+  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  --env IAIOPS_MCP=factory \
+  --env-file /etc/iaiops/env \
+  --volume iaiops-state:/home/iaiops/.iaiops \
+  待核实-registry/iaiops:0.10.0-factory
+ExecStop=/usr/bin/podman stop iaiops
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
