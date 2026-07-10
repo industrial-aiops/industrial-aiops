@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.industrial-aiops/iaiops",
   "title": "Industrial-AIOps",
-  "description": "Governed OT data tap: 12 field protocols + cross-protocol RCA brain; audit + MOC gating.",
+  "description": "Governed OT data tap: 14 field protocols + cross-protocol RCA brain; audit + MOC gating.",
   "repository": {
     "url": "https://github.com/industrial-aiops/industrial-aiops",
     "source": "github"
   },
-  "version": "0.10.0",
+  "version": "0.10.1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "iaiops",
-      "version": "0.10.0",
+      "version": "0.10.1",
       "transport": {
         "type": "stdio"
       },
