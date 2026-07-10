@@ -11,7 +11,8 @@ write/command tools are off by default (dry-run) and MOC-gated at high risk_tier
 
 # Derive the version from the installed package metadata (pyproject is the single source of
 # truth) so it never drifts on a version bump — see tests/test_smoke.py::test_version.
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 try:
     __version__ = _pkg_version("iaiops")
