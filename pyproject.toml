@@ -16,6 +16,9 @@ keywords = [
     "pysoem", "soem", "secs-gem", "profinet",
     "bacnet", "hvac", "io-link", "iolink", "oee", "ot", "scada", "plc", "industrial",
     "ai-ops", "mcp",
+    # Edge / ecosystem discoverability — iaiops is a governed, neutral *edge application*
+    # (Margo alignment is roadmap; see docs/MARGO-ALIGNMENT.md — NOT compliant yet).
+    "edge", "iiot", "edge-computing", "margo", "edge-interoperability",
 ]
 dependencies = [
     "typer>=0.12,<1.0",

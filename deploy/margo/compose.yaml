@@ -1,0 +1,35 @@
+# Example run of the iaiops edge-application container (Podman/Docker compatible).
+# Demonstrates the least-privilege posture a Margo device/host would give an OT workload:
+# non-root, read-only rootfs, no inbound ports, only a config/secret volume.
+#
+#   docker compose -f deploy/margo/compose.yaml up      # (or: podman-compose ...)
+services:
+  iaiops:
+    build:
+      context: ../..                       # repo root (so the Dockerfile can COPY source if needed)
+      dockerfile: deploy/margo/Dockerfile
+      args:
+        PROFILE: factory                   # fab | factory | process | building | water
+    image: iaiops:factory
+    # Read-first workload — never needs to write its own image; harden the container.
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    user: "10001:10001"
+    # NO published ports — the tap only makes OUTBOUND connections to the OT endpoints you list in
+    # config.yaml. (If a socket/HTTP MCP transport is adopted later, expose it here — 待核实.)
+    environment:
+      # Unlocks the encrypted secret store non-interactively. Inject via your host's secret manager
+      # (Margo device secret facility) — do NOT hardcode. Left unset here on purpose.
+      IAIOPS_MASTER_PASSWORD: "${IAIOPS_MASTER_PASSWORD:?set in the host secret store}"
+    volumes:
+      # Config + encrypted secrets + audit/undo store. Populate once with `iaiops init` (below).
+      - iaiops-state:/home/iaiops/.iaiops
+    restart: unless-stopped
+
+volumes:
+  iaiops-state:
+
+# First-time setup (interactive, writes into the volume), then run:
+#   docker compose -f deploy/margo/compose.yaml run --rm iaiops iaiops init
+#   docker compose -f deploy/margo/compose.yaml run --rm iaiops iaiops doctor

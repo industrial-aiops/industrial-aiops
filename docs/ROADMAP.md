@@ -197,6 +197,24 @@ Everything below is the detailed backlog with per-item status.
 - ✅ **Secret rotation** — `iaiops secret rotate` re-encrypts the store under a new
   master password (read from `IAIOPS_NEW_MASTER_PASSWORD`, never argv).
 
+## Ecosystem / edge packaging (Margo)
+> Positioning + gap in `docs/MARGO-ALIGNMENT.md`. iaiops is a natural **Margo edge application**
+> (governed, neutral, air-gap friendly). **NOT Margo-compliant yet** — every row here is `⏳` and
+> stays `待核实` until the conformance toolkit passes on real gear. Contributor-first (free); paid
+> membership only on customer pull.
+- ⏳ **Container (OCI) image per edition profile** — reproducible, headless MCP entrypoint,
+  non-root, read-only-rootfs friendly. **Skeleton landed** (`deploy/margo/Dockerfile` +
+  `compose.yaml`, 2026-07); not yet built/pushed to a registry or CI-linted.
+- ⏳ **Margo application description** — author the app-package descriptor. **Skeleton landed**
+  (`deploy/margo/margo-application.yaml`, all unconfirmed fields marked `待核实`); real schema +
+  CI-lint against the pinned profile bundles pending the app-package-definition-wg answers.
+- ⏳ **On-box LLM brain option** — point the RCA copilot at an on-box local LLM → fully air-gapped
+  diagnostic path, no cloud egress.
+- ⏳ **Margo conformance run** — execute the compliance toolkit on a real device + publish the
+  traceable result. **Only after this passes** may any material say *Margo-compliant*.
+- ⏳ **Immutable-host validation** — live deploy on a candidate immutable edge OS (IGEL OS or
+  equivalent), captured as a `待核实 → verified` row like every hardware pass.
+
 ## Packaging / DX
 - ✅ **Per-protocol named MCP entry points** (`iaiops-mcp-opcua` … + per-edition
   `iaiops-mcp-fab` / `-energy` / `-building` …) — thin shims over `IAIOPS_MCP`,

@@ -293,6 +293,21 @@ For 自主可控 / 信创 deployments — see **[docs/CHINA.md](docs/CHINA.md)**
 - **Compliance deliverables** — `iaiops compliance report` (等保 2.0 L2/L3 status + IEC 62443 FR1–6 crosswalk + honest gap list, md/html) and `iaiops compliance evidence` (audit-evidence zip with hash-chain verification + manifest); MCP `compliance_report` / `compliance_evidence_bundle`. Onboarding aids, 非认证.
 - **Agent skills** — the repo ships a router skill (`skills/iaiops`) plus per-edition skills (`iaiops-fab` / `iaiops-factory` / `iaiops-process` / `iaiops-building` / `iaiops-water`) that route an agent to the right MCP server and document the tool surface.
 
+### Deployment & ecosystem fit (edge-native / Margo)
+iaiops is designed to ride on a hardened, centrally-managed **edge host** as a portable, governed
+**edge application** — not to own the host or the fleet manager. It maps naturally onto the
+[Margo](https://margo.org/) edge-interoperability roles: the *host/device* is the immutable edge OS,
+a *compliant orchestrator* places workloads by desired-state, and **iaiops is the OT-domain
+application** — read-first tap + cross-protocol RCA, exposed as governed MCP tools, with an optional
+**on-box LLM brain** for a fully air-gapped diagnostic path (data never leaves the plant).
+> **Honest status:** iaiops is a natural Margo edge application but is **NOT Margo-compliant yet** —
+> a container image + application description + a published conformance-toolkit result are roadmap
+> `⏳` (see **[docs/MARGO-ALIGNMENT.md](docs/MARGO-ALIGNMENT.md)** and `docs/ROADMAP.md`). No material
+> claims *Margo-compliant* until that test result exists.
+
+A container + application-description **skeleton** lives in **[`deploy/margo/`](deploy/margo/)**
+(hardened Dockerfile · compose · `待核实`-marked app descriptor).
+
 ---
 
 ## Install

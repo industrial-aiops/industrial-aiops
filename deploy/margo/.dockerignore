@@ -1,0 +1,18 @@
+# Keep the build context tiny — the image installs from PyPI, not the working tree.
+.git
+.github
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+tests
+docs
+articles
+ppt
+*.md
+!deploy/margo/README.md
+dist
+build
+*.egg-info
+.venv
+venv
