@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.10.1 — 2026-07-10
+
+> Docs + packaging only — **no functional/source code change** vs 0.10.0 (hence a patch).
+> Also folds in doc refreshes: FINS CLI examples, READMEs to 0.10.0 (14 protocols / 132 tools).
 
 ### Added — edge-native / Margo ecosystem alignment (docs + packaging skeleton)
 - **`docs/MARGO-ALIGNMENT.md`** — positions iaiops as a [Margo](https://margo.org/) **edge
