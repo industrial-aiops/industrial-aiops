@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed — Margo app descriptor rebuilt to the real spec
+- `deploy/margo/margo-application.yaml` → **`deploy/margo/margo.yaml`** (spec-canonical filename),
+  rewritten to the actual **`margo.org/v1-alpha1` ApplicationDescription** schema (docs.margo.org,
+  PR1 pre-draft): real `deploymentProfiles` (compose) / `components` / `requiredResources` /
+  `parameters` (env-var targets) / `configuration` + validation `schema`. The `待核实` markers now
+  cover only genuine gaps — the hosted+signed package location/key, and the missing secret-parameter
+  flag (our open app-package-definition-wg question). Still not conformance-tested → not compliant.
+
 ## 0.10.1 — 2026-07-10
 
 > Docs + packaging only — **no functional/source code change** vs 0.10.0 (hence a patch).

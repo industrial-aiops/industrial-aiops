@@ -205,9 +205,11 @@ Everything below is the detailed backlog with per-item status.
 - ⏳ **Container (OCI) image per edition profile** — reproducible, headless MCP entrypoint,
   non-root, read-only-rootfs friendly. **Skeleton landed** (`deploy/margo/Dockerfile` +
   `compose.yaml`, 2026-07); not yet built/pushed to a registry or CI-linted.
-- ⏳ **Margo application description** — author the app-package descriptor. **Skeleton landed**
-  (`deploy/margo/margo-application.yaml`, all unconfirmed fields marked `待核实`); real schema +
-  CI-lint against the pinned profile bundles pending the app-package-definition-wg answers.
+- ⏳ **Margo application description** — **built to the real `margo.org/v1-alpha1` schema**
+  (`deploy/margo/margo.yaml`, docs.margo.org PR1 pre-draft): compose `deploymentProfiles` /
+  `components` / `requiredResources` / `parameters` / `configuration`. Remaining `待核实` = hosted+
+  signed package location/key, the missing secret-parameter flag (app-package-definition-wg
+  question), and CI-lint. Then run conformance.
 - ⏳ **On-box LLM brain option** — point the RCA copilot at an on-box local LLM → fully air-gapped
   diagnostic path, no cloud egress.
 - ⏳ **Margo conformance run** — execute the compliance toolkit on a real device + publish the
