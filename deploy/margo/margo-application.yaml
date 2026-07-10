@@ -1,0 +1,62 @@
+# ⚠️ SKELETON — NOT a validated Margo application description.
+#
+# The EXACT app-package schema (field names, versions, packaging = Helm/OCI/compose) must be taken
+# from the Margo spec at https://docs.margo.org/ and the app-package-definition-wg. Until this is
+# reconciled + the conformance toolkit passes, iaiops is NOT Margo-compliant (see
+# docs/MARGO-ALIGNMENT.md). Every `待核实` below marks a field whose real name/shape is unconfirmed.
+#
+# This file exists to (a) capture our intent and (b) be the concrete "worked example" to bring to
+# the app-package-definition-wg (appendix B in docs/MARGO-ALIGNMENT.md).
+
+# 待核实: apiVersion / kind — real values come from the Margo app-package spec.
+apiVersion: margo.dev/待核实
+kind: ApplicationDescription
+
+metadata:
+  name: iaiops
+  displayName: Industrial-AIOps — governed OT read tap + cross-protocol RCA
+  version: "0.10.0"
+  vendor: Industrial-AIOps (independent)
+  license: MIT
+  description: >-
+    Vendor-neutral, read-first OT data tap across ~14 field protocols with a cross-protocol
+    root-cause "brain", exposed as governed MCP tools (audit / budget / risk-tier / undo + MOC
+    gating on the few writes). Air-gap friendly; optional on-box LLM brain.
+  # 待核实: how Margo expects categories/keywords for its catalog.
+  keywords: [ot, iiot, opc-ua, modbus, diagnostics, mcp, governed, read-only]
+
+# ── deployable artifact ──────────────────────────────────────────────────────────────────────
+# 待核实: Margo's packaging idiom (Helm chart ref? raw OCI image ref? compose?). Placeholder = OCI.
+deployment:
+  type: 待核实            # e.g. helm | compose | oci
+  image: 待核实/iaiops:0.10.0-factory   # published image ref once a registry is chosen
+  # One application, parameterised by profile — OR N packages, one per profile. Open question for
+  # the WG (appendix B, Q2). Modelled here as a single parameterised app:
+  parameters:
+    - name: IAIOPS_MCP
+      description: Edition profile — selects which protocol connectors load.
+      default: factory
+      enum: [fab, factory, process, building, water]
+    - name: IAIOPS_MASTER_PASSWORD
+      description: Unlocks the encrypted secret store. Inject from the device secret facility.
+      secret: true          # 待核实: how Margo declares a secret-typed parameter
+
+# ── runtime posture / least privilege ────────────────────────────────────────────────────────
+# 待核实: whether/where the app-package spec lets an app DECLARE its least-privilege needs. This
+# workload's honest requirements:
+runtime:
+  rootUser: false
+  readOnlyRootFilesystem: true
+  # Read-first: only OUTBOUND connections to the operator-configured OT endpoints. No inbound ports.
+  network:
+    inbound: none
+    outbound: operator-configured-ot-endpoints
+  persistentState:
+    # Config + encrypted secrets + audit/undo store.
+    - path: /home/iaiops/.iaiops
+      description: config.yaml, secrets.enc, audit/undo store
+  # 待核实: MCP transport the orchestrator/host expects (stdio today; socket/HTTP/SSE?). This is the
+  # headline question for the app-package-definition-wg (appendix B, Q1).
+  interface:
+    type: mcp
+    transport: stdio        # 待核实

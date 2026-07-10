@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added — edge-native / Margo ecosystem alignment (docs + packaging skeleton)
+- **`docs/MARGO-ALIGNMENT.md`** — positions iaiops as a [Margo](https://margo.org/) **edge
+  application** (device / orchestration / application role map), with an honest gap analysis, a
+  contributor-first participation plan, verified join steps, and ready-to-paste WG posts.
+- **`deploy/margo/`** — container + application-description **skeleton**: `Dockerfile` (non-root,
+  read-only-rootfs friendly, headless `iaiops-mcp`, build-arg `PROFILE`), `compose.yaml` (hardened:
+  `cap_drop: ALL`, no-new-privileges, no inbound ports, single state volume), `margo-application.yaml`
+  (app-description skeleton — every unconfirmed field marked `待核实`), and a README.
+- **`deploy/igel/`** — IGEL OS 12 **distribution overlay** (one candidate host; core image stays the
+  neutral `deploy/margo/` one): Managed-Container route (reuse the OCI image) + an `igelpkg`
+  app-recipe skeleton (`app.json` / `igel/install.sh` / systemd unit), all IGEL-specific specifics
+  marked `待核实`. IGEL is referenced ONLY inside this overlay (brand-isolation rule).
+- **Positioning** — README (EN + zh-CN) gain an *edge-native / Margo* deployment subsection;
+  `pyproject.toml` keywords add `edge` / `iiot` / `edge-computing` / `margo` / `edge-interoperability`;
+  `docs/ROADMAP.md` gains an "Ecosystem / edge packaging (Margo)" section.
+- **Honesty note:** iaiops is **NOT Margo-compliant** yet — a built/pushed image, a real app-package
+  descriptor, and a passing conformance-toolkit result are all roadmap `⏳`. No material claims
+  compliance until that published result exists.
+
 ## 0.10.0 — 2026-07-02
 
 ### Changed — session factory refactor (B1)
