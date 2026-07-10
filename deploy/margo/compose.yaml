@@ -13,6 +13,9 @@ services:
     image: iaiops:factory
     # Read-first workload — never needs to write its own image; harden the container.
     read_only: true
+    # read-only rootfs → give ephemeral scratch a writable tmpfs. (待核实: a specific dependency
+    # may want another writable path, e.g. ~/.cache, on a real run — add as discovered.)
+    tmpfs: ["/tmp"]
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     user: "10001:10001"
