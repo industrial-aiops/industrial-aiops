@@ -12,7 +12,7 @@
 |------|---------|
 | `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. |
 | `compose.yaml` | Example hardened run (Podman/Docker): `read_only`, `cap_drop: ALL`, no-new-privileges, **no inbound ports**, single config/secret volume. |
-| `margo-application.yaml` | **Skeleton** Margo application description. Every unconfirmed field is marked `待核实` — the real schema comes from `docs.margo.org` + the `app-package-definition-wg`. This is the "worked example" to bring to that WG. |
+| `margo.yaml` | Margo **ApplicationDescription**, built to the real **`margo.org/v1-alpha1`** schema (docs.margo.org, PR1 pre-draft): compose `deploymentProfiles` / `components` / `requiredResources` / `parameters` / `configuration`. Remaining `待核实` = only the hosted+signed package location/key and the missing secret-parameter flag (the WG question). |
 | `.dockerignore` | Keeps the build context tiny (image installs from PyPI). |
 
 ## Quick start

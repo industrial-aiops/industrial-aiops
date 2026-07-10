@@ -61,8 +61,10 @@ the rest of this repo runs on.
 
 1. **`⏳` Container image** — a reproducible OCI image per edition profile (base + selected extras),
    headless MCP entrypoint, non-root, read-only rootfs friendly.
-2. **`⏳` Margo application description** — author the app-package descriptor Margo expects; keep it
-   in-repo (`deploy/margo/`) and CI-lint it against the pinned profile bundles.
+2. **`⏳` Margo application description** — **done to the real `margo.org/v1-alpha1` schema**
+   (`deploy/margo/margo.yaml`: compose `deploymentProfiles` / `components` / `requiredResources` /
+   `parameters` / `configuration`). Remaining: host+sign the package (`packageLocation`/`keyLocation`),
+   resolve the secret-parameter gap, and CI-lint against the pinned profile bundles.
 3. **`⏳` On-box LLM brain option** — document/point the RCA copilot at an on-box local LLM for a
    fully air-gapped diagnostic path (no cloud egress).
 4. **`⏳` Conformance run** — execute the Margo compliance toolkit on a real device; publish the
