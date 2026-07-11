@@ -328,7 +328,9 @@ iaiops doctor               # config + per-protocol connectivity probe (point at
 iaiops protocols            # the capability map
 ```
 
-Protocol extras: `opcua` · `modbus` · `s7` · `mc` · `fins` (stdlib — pins nothing) · `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · plus `tdengine` · `iotdb` (historian sinks) · `export` (Parquet) · `all` (every pip-installable connector).
+Protocol extras: `opcua` · `modbus` · `s7` · `mc` · `fins` (stdlib — pins nothing) · `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · plus `tdengine` · `iotdb` · `influxdb` (historian sinks) · `nats` (stream egress) · `ollama` (on-box LLM narration) · `export` (Parquet) · `all` (every pip-installable connector).
+
+> **Adapter belt** (`docs/ADAPTERS.md`): iaiops is a small neutral core (`ingress → normalize/govern/RCA → egress`) with pluggable, lazily-imported adapters — bind no store/bus/host/model, install only what a site runs. The RCA core is deterministic + cited, **not a black box** (`docs/RCA.md`); footprint is small by design (`docs/FOOTPRINT.md`).
 
 **Edition bundles** (match the same-named `IAIOPS_MCP` profiles — install the protocols a vertical runs):
 `fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set: opcua + modbus + s7 + mc + fins + eip + mtconnect + sparkplug + ethercat + profinet + iolink) · `process` (opcua + modbus + hart) · `building` (bacnet + modbus + opcua + iolink) · `water` (modbus + opcua + hart) · `plcnext` (opcua + modbus). The energy bundle ships in [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).

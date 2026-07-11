@@ -66,6 +66,11 @@ fins = []
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
 tdengine = ["taospy>=2.7,<3"]
 iotdb = ["apache-iotdb>=1.0,<3"]
+# Adapter belt — egress to a general-market TSDB / message bus / on-box LLM. All lightweight:
+# influxdb + ollama reuse the same `requests` pin as MTConnect (line protocol / HTTP, no heavy SDK).
+influxdb = ["requests>=2.31,<3"]      # InfluxDB v1/v2 historian sink (line protocol over HTTP)
+nats = ["nats-py>=2.6,<3"]            # NATS stream publisher (normalized points + RCA/alarm events)
+ollama = ["requests>=2.31,<3"]        # on-box local LLM (air-gapped RCA narration; Ollama HTTP API)
 # Queryability layer: Parquet export from the local SQLite sink (CSV/SQLite are
 # stdlib-only; only `iaiops export parquet` / export_data(fmt="parquet") need this).
 export = ["pyarrow>=15,<22"]
@@ -86,6 +91,7 @@ all = [
     "pysoem>=1.1,<2",
     "pnio-dcp>=1.1,<3",
     "BAC0>=2023.6,<2026",
+    "nats-py>=2.6,<3",
 ]
 # Per-industry edition bundles — install only the protocols a vertical runs, and
 # matching the same-named IAIOPS_MCP profiles. (energy/building arrive with their

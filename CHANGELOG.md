@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Added — adapter belt (lightweight core, open to every interface)
+- **Formalized the `ingress → core → egress` architecture** (`docs/ADAPTERS.md`): the core binds no
+  store/bus/host/model; every integration is an optional, lazily-imported adapter behind a tiny SPI.
+- **`influxdb` historian sink** (`iaiops.core.sink.influxdb`, extra `iaiops[influxdb]`) — InfluxDB
+  v1/v2 via line protocol over HTTP (reuses the `requests` pin; no heavy SDK). Registered in
+  `get_sink` / `SUPPORTED_SINKS`.
+- **Stream egress SPI + NATS publisher** (`iaiops.core.egress`, extra `iaiops[nats]`) — publish
+  normalized points + RCA/alarm events to a bus (`publish_points` / `publish_event`). Read-first safe
+  (egress of iaiops' own reads/findings, never a control write).
+- **On-box local-LLM SPI + Ollama provider** (`iaiops.core.llm`, extra `iaiops[ollama]`) — fully
+  air-gapped **narration of an already-cited RCA verdict**; strict cited-only prompt, never derives
+  causes (`docs/RCA.md`).
+- **`docs/RCA.md`** — explains the deterministic, cited, anti-hallucination RCA core ("not a black
+  box"); **`docs/FOOTPRINT.md`** — small-by-design footprint + measurement recipe.
+- All three adapters are mock-tested (no live server/model needed) and marked `待核实` against real
+  backends.
+
 ### Changed — Margo app descriptor rebuilt to the real spec
 - `deploy/margo/margo-application.yaml` → **`deploy/margo/margo.yaml`** (spec-canonical filename),
   rewritten to the actual **`margo.org/v1-alpha1` ApplicationDescription** schema (docs.margo.org,
