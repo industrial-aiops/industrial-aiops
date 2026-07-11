@@ -1,4 +1,4 @@
-"""MCP server wrapping iaiops operations (stdio transport).
+"""MCP server wrapping iaiops operations (stdio by default; opt-in HTTP/SSE via IAIOPS_MCP_TRANSPORT).
 
 Thin adapter layer: each ``@mcp.tool()`` function (in ``mcp_server/tools/``)
 delegates to the ``iaiops`` ops package and is wrapped with the iaiops
@@ -149,4 +149,6 @@ def main() -> None:
         " + cross-protocol brain" if include_brain else " (brain disabled)",
         tool_count,
     )
-    mcp.run(transport="stdio")
+    from mcp_server.transport import run_server
+
+    run_server(mcp)  # stdio by default; IAIOPS_MCP_TRANSPORT=sse|streamable-http to front it
