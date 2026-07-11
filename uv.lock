@@ -610,6 +610,13 @@ process = [
 profinet = [
     { name = "pnio-dcp" },
 ]
+renewables = [
+    { name = "asyncua" },
+    { name = "paho-mqtt" },
+    { name = "protobuf" },
+    { name = "pymodbus" },
+    { name = "pyserial" },
+]
 s7 = [
     { name = "pys7" },
 ]
@@ -666,6 +673,7 @@ requires-dist = [
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'plcnext'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'process'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'renewables'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'iolink'" },
@@ -674,12 +682,14 @@ requires-dist = [
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'plcnext'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'process'" },
+    { name = "iaiops", extras = ["opcua"], marker = "extra == 'renewables'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["profinet"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["s7"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["s7"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["secsgem"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'renewables'" },
     { name = "iaiops", extras = ["tdengine"], marker = "extra == 'xinchuang'" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.10,<2.0" },
     { name = "nats-py", marker = "extra == 'all'", specifier = ">=2.6,<3" },
@@ -715,7 +725,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [

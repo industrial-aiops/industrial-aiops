@@ -101,6 +101,9 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # Water treatment edition (水处理): plants run Modbus RTU/TCP field devices,
     # OPC-UA SCADA gateways and HART-IP process instrumentation — all shipped.
     "water": ("modbus", "opcua", "hart"),
+    # Renewables edition (光伏/风电): PV inverters + wind-turbine controllers over Modbus
+    # (SUN2000/Growatt templates) + OPC-UA plant SCADA + MQTT-Sparkplug telemetry.
+    "renewables": ("modbus", "opcua", "sparkplug"),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).

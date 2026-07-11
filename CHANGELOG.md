@@ -22,6 +22,15 @@
 - All three adapters are mock-tested (no live server/model needed) and marked `待核实` against real
   backends.
 
+### Added — renewables (solar/wind) edition + PdM
+- New **`renewables`** edition (光伏/风电): `IAIOPS_MCP=renewables` / `iaiops-mcp-renewables` /
+  `pip install iaiops[renewables]` (modbus + opcua + sparkplug). Device-level monitoring of **PV
+  inverters** (reusing the existing SUN2000 / Growatt Modbus templates) + a new
+  **`generic_wind_turbine`** template + plant SCADA, with **predictive/preventive maintenance** via
+  the existing baseline + RCA brain. Solar/wind **semantic classes** added (irradiance, wind_speed,
+  rotor_speed, pitch_angle, yaw_angle, state_of_charge) — placed first so they aren't shadowed by
+  greedy generic hints. Grid/substation telecontrol (IEC-104/DNP3/61850) stays in `iaiops-energy`.
+
 ### Added — fleet / multi-site rollup (central view over many edge sites)
 - **`iaiops/core/brain/fleet.py`** + governed MCP tools **`fleet_status`** / **`fleet_incidents`**
   (`egress`-adjacent always-on brain module `fleet_tools`): the tier above
