@@ -1,0 +1,6 @@
+{
+  "_comment": "IGEL App Creator submission requirement: thirdparty.json must list the binaries the app uses. This recipe LAUNCHES the neutral iaiops OCI image via the container runtime, so the only external binary is the runtime. Exact schema + whether the IGEL-provided runtime must be declared is 待核实 vs the IGEL SDK Reference Manual. For a pip/Python container app the RECOMMENDED path is Managed Container (OCI), which does not use this native recipe — see ../../README.md.",
+  "binaries": [
+    "podman"
+  ]
+}
