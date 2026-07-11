@@ -22,6 +22,14 @@
 - All three adapters are mock-tested (no live server/model needed) and marked `待核实` against real
   backends.
 
+### Changed — IGEL App Portal submission readiness (`deploy/igel`)
+- `deploy/igel/README.md` documents the **IGEL Ready** path (private App Creator vs certified App
+  Portal) + the Guided App Submission workflow (acceptance → security review → publishing) and its
+  requirements. Recommends the **Managed Container (OCI)** route to sidestep the debian/ubuntu-only
+  dependency constraint (a pip/Python app is awkward as a native recipe).
+- `app-recipe/`: `app.json` bumped to 0.10.1 with the `public_version`-absent submission rule; added
+  `igel/thirdparty.json` (binary manifest). Version refs across `deploy/` aligned to 0.10.1.
+
 ### Changed — Margo app descriptor rebuilt to the real spec
 - `deploy/margo/margo-application.yaml` → **`deploy/margo/margo.yaml`** (spec-canonical filename),
   rewritten to the actual **`margo.org/v1-alpha1` ApplicationDescription** schema (docs.margo.org,
