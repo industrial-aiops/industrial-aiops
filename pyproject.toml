@@ -121,6 +121,10 @@ plcnext = ["iaiops[opcua]", "iaiops[modbus]"]
 # devices + OPC-UA SCADA + HART-IP instrumentation. References the per-protocol
 # extras — no duplicated pins.
 water = ["iaiops[modbus]", "iaiops[opcua]", "iaiops[hart]"]
+# Renewables edition (光伏/风电): PV inverters + wind turbines over Modbus (SUN2000/Growatt
+# templates) + OPC-UA plant SCADA + MQTT-Sparkplug. Device-level monitoring + PdM (baseline/RCA);
+# grid/substation telecontrol (IEC-104/DNP3/61850) is the separate `iaiops-energy` package.
+renewables = ["iaiops[modbus]", "iaiops[opcua]", "iaiops[sparkplug]"]
 # 信创 / China entry: domestic TSDB historian sinks (compliance mapping is built-in).
 xinchuang = ["iaiops[tdengine]", "iaiops[iotdb]"]
 
@@ -161,6 +165,7 @@ iaiops-mcp-process = "mcp_server.entrypoints:main_process"
 iaiops-mcp-building = "mcp_server.entrypoints:main_building"
 iaiops-mcp-plcnext = "mcp_server.entrypoints:main_plcnext"
 iaiops-mcp-water = "mcp_server.entrypoints:main_water"
+iaiops-mcp-renewables = "mcp_server.entrypoints:main_renewables"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iaiops", "mcp_server"]

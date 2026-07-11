@@ -306,6 +306,27 @@ _TEMPLATES: dict[str, RegisterTemplate] = {
             ]
         ),
     ),
+    # Generic wind-turbine controller telemetry (Modbus). Turbine register maps are highly
+    # vendor-specific (Goldwind / Envision / Vestas / Siemens-Gamesa) with NO universal block —
+    # these float32 offsets are PLACEHOLDERS for the common core signals. 待核实 before use.
+    "generic_wind_turbine": RegisterTemplate(
+        name="generic_wind_turbine",
+        register_type="holding",
+        description="Generic wind-turbine core telemetry (FC03, float32 ABCD) — placeholder map.",
+        caveat="待核实 — wind-turbine Modbus maps are vendor-specific; no universal block. "
+        "Confirm addresses/scaling against the turbine controller's Modbus documentation.",
+        tags=_typed_block(
+            [
+                ("active_power", 0, "float32", "ABCD", 1.0, "W"),
+                ("wind_speed", 2, "float32", "ABCD", 1.0, "m/s"),
+                ("rotor_speed", 4, "float32", "ABCD", 1.0, "rpm"),
+                ("generator_speed", 6, "float32", "ABCD", 1.0, "rpm"),
+                ("pitch_angle", 8, "float32", "ABCD", 1.0, "deg"),
+                ("yaw_angle", 10, "float32", "ABCD", 1.0, "deg"),
+                ("nacelle_temperature", 12, "float32", "ABCD", 1.0, "degC"),
+            ]
+        ),
+    ),
 }
 
 

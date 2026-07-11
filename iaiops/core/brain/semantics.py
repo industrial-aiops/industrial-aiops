@@ -24,6 +24,16 @@ from __future__ import annotations
 # ``_ec_`` for conductivity), trading a little recall for far fewer wrong labels —
 # the classifier prefers an honest ``other`` over a confident-but-wrong class.
 _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    # ── renewables (solar PV / wind) — FIRST: specific classes that would otherwise be shadowed
+    # by greedy generic hints (e.g. "_sp" of setpoint matches "_speed"). Hints are specific enough
+    # not to false-match non-renewables tags. Grid/substation telecontrol lives in iaiops-energy.
+    ("irradiance", ("irradiance", "irradiation", "_ghi", "ghi_", "_dni", "dni_",
+                    "_poa", "poa_", "辐照", "w/m2", "w/m²", "wm2")),
+    ("wind_speed", ("wind_speed", "windspeed", "风速", "_ws_")),
+    ("rotor_speed", ("rotor_speed", "rotorspeed", "转子转速", "generator_speed", "rpm_rotor")),
+    ("pitch_angle", ("pitch_angle", "blade_pitch", "桨距", "_pitch_", "pitch_deg")),
+    ("yaw_angle", ("yaw_angle", "yaw_position", "偏航", "_yaw_", "nacelle_dir")),
+    ("state_of_charge", ("state_of_charge", "stateofcharge", "_soc", "soc_", "荷电")),
     ("setpoint", ("setpoint", "_sp", "sptval", "target")),
     ("alarm", ("alarm", "alert", "fault", "trip", "fail")),
     ("state", ("state", "status", "running", "ready", "mode")),
