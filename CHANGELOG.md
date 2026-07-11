@@ -22,6 +22,13 @@
 - All three adapters are mock-tested (no live server/model needed) and marked `待核实` against real
   backends.
 
+### Added — OCI image publishing (GHCR)
+- `.github/workflows/publish-image.yml` — on a `vX.Y.Z` tag (or manual dispatch) builds + pushes the
+  hardened image (`deploy/margo/Dockerfile`) **per edition profile, multi-arch (amd64/arm64)** to
+  `ghcr.io/industrial-aiops/iaiops:<version>-<profile>` (factory also tagged `<version>` + `latest`).
+  Installs the published PyPI wheel — publish to PyPI first, then tag. No local Docker needed. This
+  unblocks IGEL Managed-Container deploys and a working IGEL-Community recipe.
+
 ### Changed — IGEL App Portal submission readiness (`deploy/igel`)
 - `deploy/igel/README.md` documents the **IGEL Ready** path (private App Creator vs certified App
   Portal) + the Guided App Submission workflow (acceptance → security review → publishing) and its
