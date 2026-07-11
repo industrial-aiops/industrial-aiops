@@ -14,6 +14,9 @@
 - **On-box local-LLM SPI + Ollama provider** (`iaiops.core.llm`, extra `iaiops[ollama]`) — fully
   air-gapped **narration of an already-cited RCA verdict**; strict cited-only prompt, never derives
   causes (`docs/RCA.md`).
+- **Governed MCP tools for the belt** (always-on brain modules `egress_tools` / `llm_tools`):
+  `stream_publish` / `stream_publish_event` (publish reads/findings to NATS) and `rca_narrate`
+  (on-box LLM narration) — all `[READ][risk=low]`, so an agent can drive egress + narration directly.
 - **`docs/RCA.md`** — explains the deterministic, cited, anti-hallucination RCA core ("not a black
   box"); **`docs/FOOTPRINT.md`** — small-by-design footprint + measurement recipe.
 - All three adapters are mock-tested (no live server/model needed) and marked `待核实` against real

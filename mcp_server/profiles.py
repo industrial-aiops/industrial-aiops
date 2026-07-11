@@ -71,6 +71,10 @@ BRAIN_MODULES = (
     "baseline_tools",
     # Historian READ integration (A7): query history back out of the sinks.
     "historian_tools",
+    # Adapter belt — stream egress (publish reads/findings to a bus, e.g. NATS) and on-box
+    # LLM narration of a cited RCA verdict (air-gapped, Ollama). Read-first; optional extras.
+    "egress_tools",
+    "llm_tools",
     # Legacy PLC program explainer (A8): outline/xref/section over EXPORTED
     # ST/AWL/L5X text files — read-only, cite-first, never a live PLC upload.
     "plc_program_tools",
