@@ -9,13 +9,13 @@ Wants=network-online.target
 
 [Service]
 # Hardened, matching deploy/margo/compose.yaml. Registry ref is a placeholder (待核实).
-ExecStartPre=-/usr/bin/podman pull 待核实-registry/iaiops:0.10.0-factory
+ExecStartPre=-/usr/bin/podman pull 待核实-registry/iaiops:0.10.1-factory
 ExecStart=/usr/bin/podman run --rm --name iaiops \
   --read-only --cap-drop=ALL --security-opt=no-new-privileges \
   --env IAIOPS_MCP=factory \
   --env-file /etc/iaiops/env \
   --volume iaiops-state:/home/iaiops/.iaiops \
-  待核实-registry/iaiops:0.10.0-factory
+  待核实-registry/iaiops:0.10.1-factory
 ExecStop=/usr/bin/podman stop iaiops
 Restart=on-failure
 RestartSec=5
