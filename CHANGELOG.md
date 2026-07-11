@@ -22,6 +22,15 @@
 - All three adapters are mock-tested (no live server/model needed) and marked `待核实` against real
   backends.
 
+### Added — fleet / multi-site rollup (central view over many edge sites)
+- **`iaiops/core/brain/fleet.py`** + governed MCP tools **`fleet_status`** / **`fleet_incidents`**
+  (`egress`-adjacent always-on brain module `fleet_tools`): the tier above
+  `data_quality_fleet_rollup` (per-endpoint, one site) — aggregate per-site status reports across a
+  whole **fleet of edge sites** (health status, offline-by-staleness, worst-sites-first, fleet score)
+  and roll up active RCA incidents into fleet-wide top causes. Read-only, pure over provided reports;
+  a central collector gathers them via a shared historian or each site's HTTP/SSE MCP. Matches the
+  IGEL-UMS "centrally manage a large fleet of edge sites" story.
+
 ### Added — HTTP/SSE MCP transport + account/IP allowlist (gateway-frontable)
 - The MCP server can now run over **HTTP/SSE** instead of only stdio, so it can sit **behind a
   gateway** (e.g. a FastAPI front): `IAIOPS_MCP_TRANSPORT=stdio` (default) `| sse | streamable-http`
