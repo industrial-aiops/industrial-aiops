@@ -1,4 +1,4 @@
-"""MCP server wrapping iaiops operations (stdio by default; opt-in HTTP/SSE via IAIOPS_MCP_TRANSPORT).
+"""MCP server for iaiops (stdio default; opt-in HTTP/SSE via IAIOPS_MCP_TRANSPORT).
 
 Thin adapter layer: each ``@mcp.tool()`` function (in ``mcp_server/tools/``)
 delegates to the ``iaiops`` ops package and is wrapped with the iaiops
