@@ -19,7 +19,7 @@ from typing import Any
 from iaiops.core.brain._shared import num, s
 
 MAX_POINTS = 100_000  # bounded batch (defensive)
-SUPPORTED_SINKS = ("tdengine", "iotdb", "sqlite")
+SUPPORTED_SINKS = ("tdengine", "iotdb", "sqlite", "influxdb")
 # Sinks whose value column keeps non-numeric values (as text) instead of skipping.
 TEXT_CAPABLE_SINKS = ("sqlite",)
 
@@ -95,6 +95,10 @@ def get_sink(kind: str, **opts: Any) -> Any:
         from iaiops.core.sink.iotdb import IoTDBSink
 
         return IoTDBSink(**opts)
+    if k == "influxdb":
+        from iaiops.core.sink.influxdb import InfluxDBSink
+
+        return InfluxDBSink(**opts)
     raise SinkError(
         f"Unknown historian sink '{kind}'. Supported: {', '.join(SUPPORTED_SINKS)}."
     )
