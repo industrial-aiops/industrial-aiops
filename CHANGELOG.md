@@ -22,6 +22,16 @@
 - All three adapters are mock-tested (no live server/model needed) and marked `待核实` against real
   backends.
 
+### Added — HTTP/SSE MCP transport + account/IP allowlist (gateway-frontable)
+- The MCP server can now run over **HTTP/SSE** instead of only stdio, so it can sit **behind a
+  gateway** (e.g. a FastAPI front): `IAIOPS_MCP_TRANSPORT=stdio` (default) `| sse | streamable-http`
+  (alias `http`), with `IAIOPS_MCP_HOST` / `IAIOPS_MCP_PORT` (`mcp_server/transport.py`).
+- **Account/IP allowlist** (`iaiops/core/governance/allowlist.py`, env `IAIOPS_ALLOWLIST_ACCOUNTS` /
+  `IAIOPS_ALLOWLIST_IPS`, CIDR-aware) — defense-in-depth for the standalone HTTP case (an ASGI
+  middleware 403s non-allowlisted client IPs) and a reusable check for a fronting gateway. stdio is
+  unchanged; a non-loopback bind with no allowlist logs a warning. Answers the recurring Margo/IGEL
+  "stdio vs HTTP transport" question.
+
 ### Added — OCI image publishing (GHCR)
 - `.github/workflows/publish-image.yml` — on a `vX.Y.Z` tag (or manual dispatch) builds + pushes the
   hardened image (`deploy/margo/Dockerfile`) **per edition profile, multi-arch (amd64/arm64)** to
