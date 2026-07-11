@@ -307,7 +307,7 @@ application** — read-first tap + cross-protocol RCA, exposed as governed MCP t
 
 A container + application-description **skeleton** lives in **[`deploy/margo/`](deploy/margo/)**
 (hardened Dockerfile · compose · `待核实`-marked app descriptor); per-host distribution overlays
-that reuse it live alongside (e.g. **[`deploy/igel/`](deploy/igel/)** for IGEL OS 12).
+that reuse it live under **[`deploy/`](deploy/)** (one folder per candidate edge host).
 
 ---
 
