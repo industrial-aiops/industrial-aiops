@@ -8,6 +8,7 @@ PLC counters). Advisory.
 
 from typing import Any
 
+from iaiops.core.brain import sortation as sort_brain
 from iaiops.core.brain import throughput as tp
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
@@ -44,3 +45,37 @@ def line_bottleneck(stations: list[dict[str, Any]], near_pct: float = 10.0) -> d
         {"station":"palletizer","cycle_time_s":4.5,"starved_pct":35}]).
     """
     return tp.line_bottleneck(stations, near_pct=near_pct)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def sortation_health(
+    sorts: list[dict[str, Any]],
+    max_no_read_pct: float = 1.0,
+    max_missort_pct: float = 0.5,
+) -> dict:
+    """[READ][risk=low] Sorter read-rate / no-read / mis-sort analysis.
+
+    Are packages being read and diverted to the right chute? Over per-sort divert
+    records it derives the three rates a DC operator watches — read rate, no-read
+    rate, mis-sort rate — against targets, and ranks the chutes receiving the most
+    mis-sorts (a jammed diverter or a mis-mapped chute). Pure analysis over records
+    you pass in (WCS / sorter PLC event log); read-only, each rate cited by counts.
+
+    Args:
+        sorts: [{read (bool), assigned_chute, actual_chute}] — one per item across
+            the sorter. Mis-sort = a READ item whose actual_chute != assigned_chute.
+        max_no_read_pct: No-read rate target (default 1.0%).
+        max_missort_pct: Mis-sort rate target (default 0.5%).
+
+    Returns dict: {items, reads, noReads, missorts, readRatePct, noReadRatePct,
+        missortRatePct, targets, verdict ('ok'|'high_no_read'|'high_missort'|
+        'degraded'), worstChutes:[{chute, missorts}], note}.
+
+    Example: sortation_health(sorts=[{"read":true,"assigned_chute":"C7","actual_chute":"C7"},
+        {"read":false,"assigned_chute":"C3","actual_chute":null}]).
+    """
+    return sort_brain.sortation_health(
+        sorts, max_no_read_pct=max_no_read_pct, max_missort_pct=max_missort_pct
+    )

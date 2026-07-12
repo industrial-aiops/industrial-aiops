@@ -64,6 +64,8 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 - `line_bottleneck` — 产线/物料搬运**瓶颈工位定位**(约束理论 TOC:最低吞吐工位即瓶颈,
   设定整线速率;starved/blocked 佐证——瓶颈上游被 blocked、下游被 starved)。纯分析,
   喂 WMS/WCS/MES/PLC 计数的每工位吞吐或节拍,worst-first,每项引用数值。
+- `sortation_health` — 分拣机**读码率/无读/误分拣**分析:按每件分拣记录(是否读到条码、
+  应分/实分格口)算三率对标,排出误分拣最多的格口(卡阻/映射错)。纯分析,读 WCS/分拣 PLC 事件。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
