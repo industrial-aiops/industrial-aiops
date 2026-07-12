@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added — predictive maintenance (trend + time-to-threshold)
+- **`iaiops/core/brain/pdm.py`** + governed MCP tool **`pdm_forecast`** (`pdm_tools`, always-on brain):
+  the predictive step above `baseline_check` (which flags an *already-happened* violation). From a
+  value's recent history it fits a robust **Theil–Sen** trend (median of pairwise slopes — no ML,
+  outlier-resistant) and, if the trend continues, estimates the **ETA to the nearest warn/alarm
+  limit** in the direction of travel → status `insufficient_data | stable | degrading | imminent`.
+  Refuses thin history (< 30 samples); cited (window / slope / current / limit / ETA); read-only,
+  pure over the provided series. Reused across renewables / warehouse / manufacturing PdM.
+
 ## 0.11.0 — 2026-07-12
 
 > Big feature batch from the IGEL/OT field work: an **adapter belt** (InfluxDB sink · NATS egress ·
