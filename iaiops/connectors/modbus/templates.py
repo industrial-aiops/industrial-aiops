@@ -327,6 +327,52 @@ _TEMPLATES: dict[str, RegisterTemplate] = {
             ]
         ),
     ),
+    # ── Warehouse / intralogistics edition (仓储/物料搬运) device families ─────────
+    # Generic conveyor / sorter VFD (variable-frequency drive). VFD register maps
+    # are entirely vendor-specific (Allen-Bradley PowerFlex, Siemens SINAMICS,
+    # Danfoss, Yaskawa…) — there is no universal block, so the offsets below are
+    # PLACEHOLDERS for the common telemetry a PdM/health check reads (drive_
+    # temperature + motor_current feed pdm_forecast for bearing/thermal trend).
+    "conveyor_vfd": RegisterTemplate(
+        name="conveyor_vfd",
+        register_type="holding",
+        description="Generic conveyor/sorter VFD telemetry (FC03, uint16 scaled); placeholder map.",
+        caveat="待核实 — VFD Modbus maps are vendor-specific (PowerFlex/SINAMICS/"
+        "Danfoss/Yaskawa…); confirm addresses/scaling against the drive's Modbus "
+        "parameter documentation before use.",
+        tags=_typed_block(
+            [
+                ("output_frequency", 0, "uint16", "AB", 0.01, "Hz"),
+                ("motor_current", 1, "uint16", "AB", 0.1, "A"),
+                ("dc_bus_voltage", 2, "uint16", "AB", 0.1, "V"),
+                ("output_voltage", 3, "uint16", "AB", 0.1, "V"),
+                ("drive_temperature", 4, "int16", "AB", 0.1, "degC"),
+                ("motor_speed", 5, "uint16", "AB", 1.0, "rpm"),
+                ("run_status", 6, "uint16", "AB", 1.0, ""),
+                ("fault_code", 7, "uint16", "AB", 1.0, ""),
+            ]
+        ),
+    ),
+    # Generic AGV / AMR battery-management telemetry (mobile robot fleets). BMS
+    # register layouts vary by robot/battery vendor — PLACEHOLDER offsets for the
+    # core fleet-health values (state_of_charge/temperature feed pdm_forecast).
+    "agv_battery": RegisterTemplate(
+        name="agv_battery",
+        register_type="holding",
+        description="Generic AGV/AMR battery telemetry (FC03, uint16 scaled) — placeholder map.",
+        caveat="待核实 — AGV/AMR BMS Modbus maps are vendor-specific; confirm "
+        "addresses/scaling against the robot or battery vendor's documentation.",
+        tags=_typed_block(
+            [
+                ("state_of_charge", 0, "uint16", "AB", 1.0, "%"),
+                ("pack_voltage", 1, "uint16", "AB", 0.1, "V"),
+                ("pack_current", 2, "int16", "AB", 0.1, "A"),
+                ("battery_temperature", 3, "int16", "AB", 0.1, "degC"),
+                ("cycle_count", 4, "uint16", "AB", 1.0, ""),
+                ("fault_flags", 5, "uint16", "AB", 1.0, ""),
+            ]
+        ),
+    ),
 }
 
 
