@@ -3,8 +3,8 @@
 import pytest
 
 from iaiops.core.brain.clinical_facility import isolation_room_check
-from mcp_server.profiles import NAMED_PROFILES
-from mcp_server.tools.bacnet_tools import isolation_room_check as isolation_room_check_tool
+from mcp_server.profiles import EDITION_MODULES
+from mcp_server.tools.clinical_tools import isolation_room_check as isolation_room_check_tool
 
 
 @pytest.fixture()
@@ -81,8 +81,9 @@ def test_empty():
 def test_tool_governed_registered_and_runs(home):
     assert getattr(isolation_room_check_tool, "_is_governed_tool", False) is True
     assert getattr(isolation_room_check_tool, "_risk_level", "") == "low"
-    # Scoped to the building edition (BACnet) — not in the always-on global brain.
-    assert "bacnet" in NAMED_PROFILES["building"]
+    # Scoped as an edition module — loads for building & clinical, NOT the global brain.
+    assert "clinical_tools" in EDITION_MODULES["building"]
+    assert "clinical_tools" in EDITION_MODULES["clinical"]
     out = isolation_room_check_tool(rooms=_ROOMS)
     assert "error" not in out and out["breach_count"] == 3
     assert out["worst"]["status"] == "reversed"

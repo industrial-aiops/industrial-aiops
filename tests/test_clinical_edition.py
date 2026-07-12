@@ -4,8 +4,8 @@ import pytest
 
 from iaiops.core.brain.clinical_facility import medical_gas_check
 from mcp_server import entrypoints
-from mcp_server.profiles import NAMED_PROFILES
-from mcp_server.tools.bacnet_tools import medical_gas_check as medical_gas_check_tool
+from mcp_server.profiles import NAMED_PROFILES, selected_tool_modules
+from mcp_server.tools.clinical_tools import medical_gas_check as medical_gas_check_tool
 
 
 @pytest.fixture()
@@ -19,6 +19,20 @@ def test_clinical_profile_registered():
     assert NAMED_PROFILES["clinical"] == ("bacnet", "modbus", "opcua")
     assert hasattr(entrypoints, "main_clinical")
     assert "clinical" in entrypoints.ENTRYPOINT_SELECTIONS
+
+
+@pytest.mark.unit
+def test_clinical_tools_are_an_edition_module_not_global_brain():
+    """The clinical tools load for building & clinical editions — never on a bare
+    protocol selection and never in the always-on brain."""
+    from mcp_server.profiles import BRAIN_MODULES
+
+    assert "clinical_tools" not in BRAIN_MODULES         # NOT always-on
+    assert "clinical_tools" in selected_tool_modules("building")
+    assert "clinical_tools" in selected_tool_modules("clinical")
+    # A bare bacnet / opcua selection does not pull the edition module.
+    assert "clinical_tools" not in selected_tool_modules("bacnet")
+    assert "clinical_tools" not in selected_tool_modules("opcua")
 
 
 _SOURCES = [
@@ -73,8 +87,8 @@ def test_empty():
 def test_tool_governed_registered_and_runs(home):
     assert getattr(medical_gas_check_tool, "_is_governed_tool", False) is True
     assert getattr(medical_gas_check_tool, "_risk_level", "") == "low"
-    # Scoped to the clinical/building edition (BACnet).
-    assert "bacnet" in NAMED_PROFILES["clinical"]
+    # Scoped as an edition module (loads with the clinical/building edition).
+    assert "clinical_tools" in selected_tool_modules("clinical")
     out = medical_gas_check_tool(sources=_SOURCES)
     assert "error" not in out and out["alarm_count"] == 4
     assert out["worst"]["status"] == "critical"
