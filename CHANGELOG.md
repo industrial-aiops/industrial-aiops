@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added — legacy-PLC visibility profile (what am I inheriting?)
+- **`iaiops/core/brain/plc_visibility.py`** + governed MCP tool **`plc_program_visibility`**
+  (`plc_program_tools`): a maintainability/operational-risk read one level above the structural
+  outline — folds a parsed EXPORTED program (SCL/ST/AWL/L5X) into documentation coverage +
+  least-commented blocks, **unreferenced blocks** (possible dead code, flagged honestly — could be
+  an entry/task routine or an unresolved call), **complexity hotspots**, **risky constructs**
+  (unconditional JMPs, retentive RTO timers, loops), and a **transparent additive risk score**
+  whose every point cites its reason. Structural only, cite-first (source_file + line / rung),
+  read-only; reuses `plc_program` — no new live-PLC access.
+
 ### Added — downtime triage copilot (composes the three downtime lenses)
 - **`iaiops/core/brain/downtime_copilot.py`** + governed MCP tool **`downtime_triage`**
   (`downtime_tools`, always-on brain): one call that composes **`alarm_cascade`** (which alarm to
