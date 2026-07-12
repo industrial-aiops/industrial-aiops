@@ -65,6 +65,7 @@ IoT 传感器走 MQTT 时叠加：`IAIOPS_MCP=building,sparkplug`。
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents` `pdm_forecast`
   `historian_push` `export_data`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
+- 医疗设施（healthcare facility 安全）：`isolation_room_check` — 隔离病房压差合规（ASHRAE 170 / CDC：空气传染隔离 AII 负压、保护性环境 PE 正压，≥2.5 Pa）；检出反向/不足/低裕度,worst-first,每项引用读数。读数来自 `bacnet_read_points` 的压差 AI 点或历史库,纯分析。
 - 元：`protocols_supported`
 
 ## Workflows
