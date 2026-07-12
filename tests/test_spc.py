@@ -2,8 +2,10 @@
 
 import pytest
 
+from iaiops.core.brain.pareto import defect_pareto
 from iaiops.core.brain.spc import spc_check
 from mcp_server.profiles import BRAIN_MODULES, selected_tool_modules
+from mcp_server.tools.fab_tools import defect_pareto as defect_pareto_tool
 from mcp_server.tools.fab_tools import spc_check as spc_check_tool
 
 
@@ -52,3 +54,41 @@ def test_tool_is_fab_edition_module_and_runs():
         series=[10.0, 10.1, 9.9, 10.0, 9.95, 10.05, 10.0, 11.0], target=10.0, sigma=0.15
     )
     assert "error" not in out and out["verdict"] == "out_of_control"
+
+
+# ── defect_pareto ────────────────────────────────────────────────────────────
+
+@pytest.mark.unit
+def test_defect_pareto_ranks_and_marks_vital_few():
+    defects = [
+        {"category": "scratch", "count": 50},
+        {"category": "particle", "count": 30},
+        {"category": "align", "count": 15},
+        {"category": "edge", "count": 5},
+    ]
+    out = defect_pareto(defects)
+    assert out["total_defects"] == 100
+    assert out["categories"][0]["category"] == "scratch" and out["categories"][0]["pct"] == 50.0
+    assert out["categories"][1]["cumulativePct"] == 80.0
+    # scratch + particle reach 80% → the vital few.
+    assert out["vital_few"] == ["scratch", "particle"]
+
+
+@pytest.mark.unit
+def test_defect_pareto_counts_occurrences_without_count_field():
+    out = defect_pareto([{"category": "a"}, {"category": "a"}, {"category": "b"}])
+    assert out["total_defects"] == 3
+    assert {c["category"]: c["count"] for c in out["categories"]} == {"a": 2, "b": 1}
+
+
+@pytest.mark.unit
+def test_defect_pareto_empty():
+    assert defect_pareto([])["total_defects"] == 0
+
+
+@pytest.mark.unit
+def test_defect_pareto_tool_runs():
+    assert getattr(defect_pareto_tool, "_is_governed_tool", False) is True
+    assert "fab_tools" in selected_tool_modules("fab")
+    out = defect_pareto_tool(defects=[{"category": "x", "count": 9}, {"category": "y", "count": 1}])
+    assert "error" not in out and out["vital_few"] == ["x"]

@@ -43,6 +43,8 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 - `disinfection_ct` — SWTR **消毒 CT 合规**:CT = 余氯(mg/L)×有效接触时间 T10(min);逐个
   接触池算 achieved CT 对比所需 CT(按州 CT 表按温度/pH/消毒剂查得,由调用方传入),给达标比与
   worst-first。纯分析,不内嵌 CT 表(传 required_ct);每比值引用输入。
+- `water_quality_compliance` — **出厂水质合规**:逐采样点对浊度/余氯/pH 判限值(默认浊度 ≤1.0 NTU、
+  余氯 0.2–4.0 mg/L、pH 6.5–8.5;可按许可证覆盖),越界即 breach,worst-first,引用数值。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
