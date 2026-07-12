@@ -52,7 +52,7 @@ IoT 传感器走 MQTT 时叠加：`IAIOPS_MCP=building,sparkplug`。
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
-  `subscription_health` `heartbeat_health` `alarm_flood_analysis`
+  `subscription_health` `heartbeat_health` `alarm_flood_analysis` `alarm_cascade`
   `alarm_rationalization_worksheet`
 - 数据质量：`data_quality_scorecard` `data_quality_fleet_rollup`
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
