@@ -273,3 +273,31 @@ def isolation_room_check(
     return cf.isolation_room_check(
         rooms, min_magnitude_pa=min_magnitude_pa, low_margin_pa=low_margin_pa
     )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def medical_gas_check(sources: list[dict[str, Any]]) -> dict:
+    """[READ][risk=low] Medical-gas / vacuum source pressure compliance (NFPA 99 / HTM 02-01).
+
+    The other healthcare-facility safety check: grades each medical-gas source's
+    pressure against its NFPA 99 band — positive-pressure gases (oxygen / medical
+    air / N2O / nitrogen / CO2) must sit inside ~345–380 kPa; medical vacuum /
+    WAGD must be at least as deep as the vacuum threshold. Each source →
+    'normal' / 'low_pressure' / 'high_pressure' / 'insufficient_vacuum' /
+    'critical', worst-first, citing the number. Pure analysis over readings you
+    pass in (from BACnet AI points or the gas alarm panel); read-only, advisory —
+    the station's NFPA 99 alarm panel remains the source of truth.
+
+    Args:
+        sources: [{system, gas ('oxygen'|'medical_air'|'nitrous_oxide'|'nitrogen'|
+            'carbon_dioxide'|'vacuum'|'wagd'), pressure_kpa}] — gauge pressure in kPa.
+
+    Returns dict: {sources_evaluated, standard, summary, alarm_count,
+        alarms:[{system, gas, pressure_kpa, status, detail}], worst}.
+
+    Example: medical_gas_check(sources=[{"system":"OR-O2","gas":"oxygen",
+        "pressure_kpa":360}, {"system":"ICU-Vac","gas":"vacuum","pressure_kpa":-55}]).
+    """
+    return cf.medical_gas_check(sources)

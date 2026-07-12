@@ -114,6 +114,11 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # (conveyor_vfd / agv_battery templates), WMS/WCS gateways over OPC-UA, and AMR/IoT
     # telemetry over MQTT-Sparkplug. PdM (pdm_forecast) + downtime + OEE reused as-is.
     "warehouse": ("eip", "profinet", "modbus", "opcua", "sparkplug"),
+    # Clinical-facility edition (医疗设施): hospital facilities as a distinct vertical
+    # from generic building management. BACnet BMS (isolation-room pressurization +
+    # medical-gas safety checks), Modbus (gas alarm panels / energy meters), OPC-UA
+    # (plant SCADA). Patient-safety framing over the same building brain.
+    "clinical": ("bacnet", "modbus", "opcua"),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).
