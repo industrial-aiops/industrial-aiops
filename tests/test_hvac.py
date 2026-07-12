@@ -2,9 +2,10 @@
 
 import pytest
 
-from iaiops.core.brain.hvac import economizer_check
+from iaiops.core.brain.hvac import economizer_check, zone_comfort
 from mcp_server.profiles import BRAIN_MODULES, selected_tool_modules
 from mcp_server.tools.building_tools import economizer_check as economizer_check_tool
+from mcp_server.tools.building_tools import zone_comfort as zone_comfort_tool
 
 # AHU-1 ok (free-cooling); AHU-2 not_economizing; AHU-3 locked_out; AHU-4 simultaneous.
 _UNITS = [
@@ -45,3 +46,36 @@ def test_tool_is_building_edition_module_and_runs():
     assert getattr(economizer_check_tool, "_is_governed_tool", False) is True
     out = economizer_check_tool(units=_UNITS)
     assert "error" not in out and out["fault_count"] == 3
+
+
+# ── zone_comfort ─────────────────────────────────────────────────────────────
+
+_ZONES = [
+    {"zone": "Z1", "temp_c": 22, "humidity_pct": 45, "co2_ppm": 800},    # comfortable
+    {"zone": "Z2", "temp_c": 28, "humidity_pct": 45, "co2_ppm": 800},    # temp high
+    {"zone": "Z3", "temp_c": 22, "humidity_pct": 45, "co2_ppm": 1400},   # CO2 high
+    {"zone": "Z4", "temp_c": 22, "humidity_pct": 20, "co2_ppm": 800},    # RH low
+]
+
+
+@pytest.mark.unit
+def test_zone_comfort_flags_each_param():
+    out = zone_comfort(_ZONES)
+    assert out["summary"]["comfortable"] == 1 and out["breach_count"] == 3
+    breaches = {b["zone"]: {f["parameter"] for f in b["flags"]} for b in out["breaches"]}
+    assert breaches["Z2"] == {"temperature"}
+    assert breaches["Z3"] == {"CO₂"}
+    assert breaches["Z4"] == {"relative humidity"}
+
+
+@pytest.mark.unit
+def test_zone_comfort_no_data():
+    assert zone_comfort([{"zone": "X"}])["summary"].get("no_data") == 1
+
+
+@pytest.mark.unit
+def test_zone_comfort_tool_runs():
+    assert getattr(zone_comfort_tool, "_is_governed_tool", False) is True
+    assert "building_tools" in selected_tool_modules("building")
+    out = zone_comfort_tool(zones=_ZONES)
+    assert "error" not in out and out["breach_count"] == 3

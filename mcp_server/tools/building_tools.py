@@ -49,3 +49,27 @@ def economizer_check(
         units, free_cool_delta_c=free_cool_delta_c,
         min_damper_pct=min_damper_pct, high_limit_c=high_limit_c,
     )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def zone_comfort(zones: list[dict[str, Any]]) -> dict:
+    """[READ][risk=low] Occupied-zone comfort + IAQ vs ASHRAE 55 / 62.1.
+
+    The #1 building-complaint driver: grades each zone's temperature (20–26 °C),
+    relative humidity (30–60 %) and CO₂ (≤ 1000 ppm, a ventilation-adequacy proxy),
+    flagging any parameter out of range; each zone takes the worst of its
+    parameters, worst-first, citing every number. Pure analysis over readings you
+    pass in (BACnet AI points); read-only, advisory.
+
+    Args:
+        zones: [{zone, temp_c?, humidity_pct?, co2_ppm?}] — only the parameters
+            present are graded.
+
+    Returns dict: {zones_evaluated, standard, summary, breach_count,
+        breaches:[{zone, status, flags:[{parameter, value, unit, detail}]}], worst}.
+
+    Example: zone_comfort(zones=[{"zone":"3-West","temp_c":27,"humidity_pct":25,"co2_ppm":1400}]).
+    """
+    return hvac.zone_comfort(zones)
