@@ -212,9 +212,73 @@ def _gas_row(system: str, gas: str, kpa: Any, status: str, detail: str) -> dict:
             "status": status, "detail": detail}
 
 
+# ── Operating-room ventilation (ASHRAE 170 Table 7.1) ────────────────────────
+# Default acceptable ranges for OR / procedure-room environment. A facility
+# overrides per its commissioning values. air_changes_per_hour is a minimum.
+_OR_PARAMS: dict[str, dict] = {
+    "temp_c": {"low": 20.0, "high": 24.0, "unit": "°C", "label": "temperature"},
+    "humidity_pct": {"low": 20.0, "high": 60.0, "unit": "%", "label": "relative humidity"},
+    "air_changes_per_hour": {"low": 20.0, "high": None, "unit": "ACH",
+                             "label": "air changes/hour"},
+}
+
+
+def or_environment_check(rooms: list[dict]) -> dict:
+    """[READ] Operating-room ventilation compliance (ASHRAE 170 Table 7.1).
+
+    ``rooms`` are ``{room, temp_c?, humidity_pct?, air_changes_per_hour?}``. Each
+    provided parameter is graded against its acceptable range — temperature
+    20–24 °C, relative humidity 20–60 %, air changes ≥ 20/hr — and each room takes
+    the worst of its parameters (``breach`` when any is out of range). Worst-first,
+    citing every number. Pure, read-only, advisory.
+    """
+    graded = [_grade_or_room(r) for r in (rooms or []) if isinstance(r, dict)]
+    summary: dict[str, int] = {}
+    for g in graded:
+        summary[g["status"]] = summary.get(g["status"], 0) + 1
+    graded.sort(key=lambda g: (g["status"] != "breach", g["room"]))
+    breaches = [g for g in graded if g["status"] == "breach"]
+    return {
+        "rooms_evaluated": len(graded),
+        "standard": "ASHRAE 170 Table 7.1 OR: temp 20–24 °C, RH 20–60 %, ≥20 ACH",
+        "summary": summary,
+        "breach_count": len(breaches),
+        "breaches": breaches[:MAX_ROWS],
+        "worst": breaches[0] if breaches else None,
+    }
+
+
+def _grade_or_room(room: dict) -> dict:
+    """Grade one OR's provided environment parameters against ASHRAE 170."""
+    name = str(room.get("room") or room.get("name") or "?")
+    flags: list[dict] = []
+    for key, band in _OR_PARAMS.items():
+        value = room.get(key)
+        if not isinstance(value, (int, float)):
+            continue
+        if value < band["low"]:
+            flags.append(_or_flag(band, value, "low"))
+        elif band["high"] is not None and value > band["high"]:
+            flags.append(_or_flag(band, value, "high"))
+    status = "breach" if flags else ("compliant" if _has_reading(room) else "no_data")
+    return {"room": name, "status": status, "flags": flags}
+
+
+def _or_flag(band: dict, value: float, side: str) -> dict:
+    bound = band["low"] if side == "low" else band["high"]
+    return {"parameter": band["label"], "value": value, "unit": band["unit"],
+            "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
+                      f"{bound}{band['unit']} limit"}
+
+
+def _has_reading(room: dict) -> bool:
+    return any(isinstance(room.get(k), (int, float)) for k in _OR_PARAMS)
+
+
 __all__ = [
     "isolation_room_check",
     "medical_gas_check",
+    "or_environment_check",
     "DEFAULT_MIN_MAGNITUDE_PA",
     "DEFAULT_LOW_MARGIN_PA",
     "MAX_ROWS",

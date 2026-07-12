@@ -39,6 +39,11 @@ description: >-
 - `modbus_list_templates` / `modbus_apply_template` — 厂商寄存器模板 → 命名 tag
 - `modbus_health_summary` — 寄存器 vs 阈值分类
 
+### 流程专属（edition 工具;仅随 process edition 加载,不进全局脑）
+- `control_loop_health` — PID 回路诊断:从一段 PV/SP/OP 采样检出**振荡**(PV 反复穿越 SP)、
+  **稳态偏差**(PV 长期偏离 SP)、**输出饱和**(OP 压在 0/100%)。给 verdict(saturated>oscillating>
+  offset>ok)。非整定器,只分诊哪些回路要看。纯分析,每项引用数值。
+
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
