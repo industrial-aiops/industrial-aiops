@@ -81,8 +81,14 @@ def test_rotate_password(store_dir):
 
 @pytest.mark.unit
 def test_rotate_roundtrip_all_secrets_reencrypted(store_dir):
+    # Distinctive multi-word plaintexts: a short token like "pw1" collides by
+    # chance with the urlsafe-base64 ciphertext (~1 in 64^3), which used to make
+    # the plaintext-absence assertion below flaky. A long unique phrase cannot.
+    secret1 = "PLAINTEXT-line1-must-never-persist"
+    secret2 = "PLAINTEXT-line2-must-never-persist"
+
     # Seed several secrets under the old password.
-    store = ss.SecretStore.unlock("old-pw").set("line1", "pw1").set("line2", "pw2")
+    store = ss.SecretStore.unlock("old-pw").set("line1", secret1).set("line2", secret2)
     assert store.names() == ("line1", "line2")
 
     # Rotate to a new password (decrypt old → re-encrypt new).
@@ -90,8 +96,8 @@ def test_rotate_roundtrip_all_secrets_reencrypted(store_dir):
 
     # Every secret decrypts under the new password with identical values.
     rotated = ss.SecretStore.unlock("new-pw")
-    assert rotated.get("line1") == "pw1"
-    assert rotated.get("line2") == "pw2"
+    assert rotated.get("line1") == secret1
+    assert rotated.get("line2") == secret2
 
     # The old password no longer opens the store.
     with pytest.raises(ss.MasterPasswordError):
@@ -99,7 +105,7 @@ def test_rotate_roundtrip_all_secrets_reencrypted(store_dir):
 
     # Values are still not in plaintext after rotation.
     blob = (store_dir / "secrets.enc").read_text()
-    assert "pw1" not in blob and "pw2" not in blob
+    assert secret1 not in blob and secret2 not in blob
 
 
 @pytest.mark.unit
