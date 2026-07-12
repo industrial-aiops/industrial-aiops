@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Added — renewables & plcnext editions + second edition tools (water/fab)
+- **New `iaiops-renewables` edition SKILL** (the `renewables` profile had none) + signature tool
+  **`pv_performance`** (new `renewables_tools`): flags underperforming PV strings by performance
+  ratio vs expected (explicit / nameplate×irradiance) or the fleet median — the soiling/shading/
+  failed-string signature. Worst-first, cited.
+- **New `iaiops-plcnext` edition SKILL** — a packaging edition documenting PLCnext / vPLC access over
+  its built-in OPC-UA (4840) + Modbus process-data server; reuses the OPC-UA/Modbus tools + brain,
+  no new connector, no edition tool.
+- **water `water_quality_compliance`** (water_tools) — finished-water turbidity / free-chlorine / pH
+  vs drinking-water limits (overridable per permit), worst-first, the continuous-compliance companion
+  to `disinfection_ct`.
+- **fab `defect_pareto`** (fab_tools) — defect-category Pareto with cumulative share and the vital-few
+  to the 80 % line, the quality follow-on to `spc_check`.
+
 ### Added — water / building / factory edition signature tools (via EDITION_MODULES)
 Rounds out every industry edition with its own signature tool, each scoped to its edition module:
 - **water `disinfection_ct`** (new `water_tools`) — SWTR disinfection credit: CT = free-chlorine

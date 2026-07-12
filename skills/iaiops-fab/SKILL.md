@@ -43,6 +43,8 @@ description: >-
 - `spc_check` — 统计过程控制:对一段量测序列套用 Western Electric / Nelson 控制图规则
   (越 3σ、2/3 越 2σ、4/5 越 1σ、连续 8 点单侧、6 点趋势),逐条按点索引报违规;给 USL/LSL
   则附 Cp/Cpk。判 in_control / out_of_control。纯分析,每违规引用触发点索引。
+- `defect_pareto` — **缺陷帕累托**:按缺陷类别计数排序,算各类占比与累计占比,标出到 80% 线的
+  **关键少数**(遏制/改善最有杠杆的类别)。纯分析,喂检验/缺陷记录,每占比引用计数。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`

@@ -7,6 +7,7 @@ always-on brain. Pure analysis over an injected measurement series. Advisory.
 
 from typing import Any, Optional
 
+from iaiops.core.brain import pareto as pareto_brain
 from iaiops.core.brain import spc as spc_brain
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
@@ -46,3 +47,29 @@ def spc_check(
         target=10.0, usl=11.0, lsl=9.0).
     """
     return spc_brain.spc_check(series, target=target, sigma=sigma, usl=usl, lsl=lsl)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def defect_pareto(defects: list[dict[str, Any]], vital_pct: float = 80.0) -> dict:
+    """[READ][risk=low] Rank defect categories by count and mark the vital few (Pareto).
+
+    The quality follow-on to an SPC signal: which defect categories drive most of
+    the loss? Ranks categories by count, computes each one's share and the running
+    cumulative share, and marks the vital few that reach the 80% line — where
+    containment and CI effort has the most leverage. Pure analysis over records you
+    pass in (an inspection / defect log); read-only, each share cited by its count.
+
+    Args:
+        defects: [{category, count?}] — with count the rows aggregate by category
+            (summing); without it each row counts as one occurrence.
+        vital_pct: Cumulative-share line for the vital few (default 80%).
+
+    Returns dict: {total_defects, category_count, categories:[{category, count,
+        pct, cumulativePct, vitalFew}], vital_few:[category], vital_pct, note}.
+
+    Example: defect_pareto(defects=[{"category":"scratch","count":40},
+        {"category":"particle","count":25}, {"category":"align","count":5}]).
+    """
+    return pareto_brain.defect_pareto(defects, vital_pct=vital_pct)
