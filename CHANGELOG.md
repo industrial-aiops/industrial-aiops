@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 — 2026-07-12
+
+> Big feature batch from the IGEL/OT field work: an **adapter belt** (InfluxDB sink · NATS egress ·
+> on-box Ollama), governed **MCP tools** for it, an **HTTP/SSE transport + account/IP allowlist**
+> (gateway-frontable), a **fleet / multi-site** rollup, a **renewables (solar/wind)** edition + PdM,
+> a real **Margo `v1-alpha1`** app descriptor, **IGEL** submission readiness, and **GHCR** image
+> publishing. Docs/packaging + additive features; no breaking API changes. (Deprecated brain aliases
+> `health_summary` / `anomaly_scan` remain — now scheduled for removal in 0.12.)
 
 ### Added — adapter belt (lightweight core, open to every interface)
 - **Formalized the `ingress → core → egress` architecture** (`docs/ADAPTERS.md`): the core binds no
