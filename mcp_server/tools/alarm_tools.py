@@ -125,6 +125,52 @@ def alarm_flood_analysis(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
+def alarm_cascade(
+    endpoint: Optional[str] = None,
+    duration_s: int = 60,
+    window_s: float = 60.0,
+    min_cascade: int = 2,
+    events: Optional[list[dict[str, Any]]] = None,
+) -> dict:
+    """[READ][risk=low] Collapse an alarm flood into cascades + each cascade's first-out root.
+
+    Answers "which alarm to look at first" when 100+ alarms hit in minutes: groups annunciations
+    into cascades (a new cascade starts after a quiet gap > window_s) and reports the FIRST-OUT
+    alarm (earliest in the burst) as the likely root, plus downstream members and any chattering
+    sources. First-out is a transparent heuristic cited by timestamp — NOT causal (use
+    downtime_root_cause for causality). Pass 'events' for pure analysis, or an endpoint to collect
+    live via the OPC-UA active-condition scan. Read-only; bounded.
+
+    Args:
+        endpoint: Endpoint name from config (used only when events is omitted).
+        duration_s: Live collection window in seconds (1..300, default 60).
+        window_s: Quiet gap (seconds) that separates one cascade from the next (default 60).
+        min_cascade: Minimum annunciations for a group to count as a cascade (default 2).
+        events: Injected alarm events — {source, timestamp (ISO-8601), state?}; skips live collect.
+
+    Returns dict: {cascade_count, total_activations, cascades:[{root:{source, ts}, size,
+        distinct_sources, span_s, members[], chattering[]}], collected?}.
+
+    Example: alarm_cascade(events=[{"source": "PT101", "timestamp": "2026-06-28T10:00:00Z"}, ...]).
+    """
+    collected: dict | None = None
+    if events is None:
+        target = _target(endpoint)
+        events = _collect_transition_events(target, duration_s)
+        collected = {
+            "endpoint": str(getattr(target, "name", ""))[:64],
+            "protocol": str(getattr(target, "protocol", ""))[:16],
+            "events_collected": len(events),
+        }
+    out = flood.alarm_cascade(events, window_s=window_s, min_cascade=min_cascade)
+    if collected is not None:
+        out["collected"] = collected
+    return out
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
 def alarm_rationalization_worksheet(
     endpoint: Optional[str] = None,
     duration_s: int = 60,

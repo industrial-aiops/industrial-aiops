@@ -488,6 +488,45 @@ def alarm_flood_report(
     }
 
 
+def alarm_cascade(events: list, window_s: float = 60.0, min_cascade: int = 2) -> dict:
+    """Collapse an alarm flood into cascades + the likely FIRST-OUT root of each (READ-ONLY, pure).
+
+    An operator flooded with 100+ alarms in 10 min needs "which one to look at first". This groups
+    annunciations into temporal cascades (a new cascade starts after a quiet gap > ``window_s``) and
+    reports the **first-out** alarm (earliest in the burst) as the likely root, plus the downstream
+    members and any chattering sources. First-out is a transparent *heuristic* root cited by
+    timestamp — NOT a causal claim (use downtime_root_cause for causality). Advisory.
+    """
+    acts = _activations(_norm_events(events))
+    if not acts:
+        return {"cascade_count": 0, "total_activations": 0, "cascades": []}
+    cascades: list[list[tuple[datetime, str]]] = [[acts[0]]]
+    for prev, item in zip(acts, acts[1:]):
+        if (item[0] - prev[0]).total_seconds() > window_s:
+            cascades.append([item])
+        else:
+            cascades[-1].append(item)
+
+    out: list[dict] = []
+    for group in cascades:
+        if len(group) < int(min_cascade):
+            continue
+        root_ts, root_src = group[0]
+        counts: dict[str, int] = {}
+        for _ts, src in group:
+            counts[src] = counts.get(src, 0) + 1
+        out.append({
+            "root": {"source": root_src, "ts": root_ts.isoformat()},
+            "size": len(group),
+            "distinct_sources": len(counts),
+            "span_s": round((group[-1][0] - group[0][0]).total_seconds(), 2),
+            "members": list(counts.keys())[:100],
+            "chattering": [src for src, n in counts.items() if n > 1][:50],
+        })
+    out.sort(key=lambda c: c["size"], reverse=True)
+    return {"cascade_count": len(out), "total_activations": len(acts), "cascades": out[:50]}
+
+
 __all__ = [
     "FloodEpisode",
     "ChatteringAlarm",
@@ -498,6 +537,7 @@ __all__ = [
     "chattering_alarms",
     "stale_standing_alarms",
     "flood_summary",
+    "alarm_cascade",
     "rationalization_worksheet",
     "worksheet_rows_as_dicts",
     "alarm_flood_report",
