@@ -8,6 +8,7 @@ always-on brain. Pure analysis over injected loop captures. Advisory.
 from typing import Any, Optional
 
 from iaiops.core.brain import control_loop as cl
+from iaiops.core.brain import heat_exchanger as hx
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
 
@@ -52,4 +53,37 @@ def control_loop_health(
     return cl.control_loop_health(
         samples, offset_band=offset_band, op_min=op_min, op_max=op_max,
         sat_pct=sat_pct, osc_index_max=osc_index_max,
+    )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def heat_exchanger_fouling(
+    readings: list[dict[str, Any]],
+    min_effectiveness: float = 0.5,
+    decline_pct: float = 10.0,
+) -> dict:
+    """[READ][risk=low] Detect heat-exchanger fouling from stream-temperature trend.
+
+    Is the exchanger fouling? Computes hot-side temperature effectiveness ε =
+    (hot_in − hot_out)/(hot_in − cold_in) per reading, and compares the window's
+    first half to its second half. Verdict is 'fouling' when the mean effectiveness
+    is below min_effectiveness or it declined more than decline_pct — the signature
+    that precedes a forced clean. Pure analysis over readings you pass in (OPC-UA/
+    Modbus/HART temperature points); read-only, cited by the effectiveness numbers.
+
+    Args:
+        readings: [{hot_in, hot_out, cold_in, cold_out?}] °C, in time order.
+        min_effectiveness: Mean effectiveness below which it is fouling (default 0.5).
+        decline_pct: First-half→second-half decline % that signals fouling (default 10).
+
+    Returns dict: {readings, currentEffectiveness, meanEffectiveness, declinePct,
+        verdict ('ok'|'fouling'|'insufficient_data'), detail, note}.
+
+    Example: heat_exchanger_fouling(readings=[{"hot_in":90,"hot_out":60,"cold_in":30},
+        {"hot_in":90,"hot_out":68,"cold_in":30}, ...]).
+    """
+    return hx.heat_exchanger_fouling(
+        readings, min_effectiveness=min_effectiveness, decline_pct=decline_pct
     )

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Added — process heat-exchanger fouling + building zone comfort
+- **process `heat_exchanger_fouling`** (process_tools) — hot-side temperature effectiveness ε =
+  (hot_in − hot_out)/(hot_in − cold_in) per reading, first-half vs second-half; `fouling` when the
+  mean is below the floor or it declined beyond the threshold (the signature that precedes a forced
+  clean). Cited by the effectiveness numbers.
+- **building `zone_comfort`** (building_tools) — occupied-zone comfort + IAQ vs ASHRAE 55 / 62.1
+  (temp 20–26 °C, RH 30–60 %, CO₂ ≤ 1000 ppm); per-parameter breach flags, worst-first.
+
 ### Added — renewables & plcnext editions + second edition tools (water/fab)
 - **New `iaiops-renewables` edition SKILL** (the `renewables` profile had none) + signature tool
   **`pv_performance`** (new `renewables_tools`): flags underperforming PV strings by performance

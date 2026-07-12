@@ -53,6 +53,8 @@ IoT 传感器走 MQTT 时叠加：`IAIOPS_MCP=building,sparkplug`。
 - `economizer_check` — AHU **经济器故障检测(FDD)**:检出同时供冷供热(纯浪费)、该用自然冷却
   却没用(室外够冷但新风阀在最小位且机械制冷开)、越高限还开阀(把热风引进来)。逐 AHU 判定,
   worst-first,每故障引用温度/状态。读数来自 BACnet AI/BI 点。
+- `zone_comfort` — **区域舒适度 + 室内空气质量**(ASHRAE 55/62.1):逐区判温度 20–26°C、相对湿度
+  30–60%、CO₂ ≤1000 ppm(通风充分性代理),越界即 breach,worst-first,引用数值。读数来自 BACnet AI 点。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`

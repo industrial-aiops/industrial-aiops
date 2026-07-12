@@ -3,8 +3,10 @@
 import pytest
 
 from iaiops.core.brain.control_loop import control_loop_health
+from iaiops.core.brain.heat_exchanger import heat_exchanger_fouling
 from mcp_server.profiles import BRAIN_MODULES, selected_tool_modules
 from mcp_server.tools.process_tools import control_loop_health as control_loop_health_tool
+from mcp_server.tools.process_tools import heat_exchanger_fouling as heat_exchanger_fouling_tool
 
 
 @pytest.mark.unit
@@ -51,3 +53,36 @@ def test_tool_is_process_edition_module_and_runs():
     assert getattr(control_loop_health_tool, "_is_governed_tool", False) is True
     out = control_loop_health_tool(samples=[{"pv": 70, "sp": 75, "op": 100}] * 12)
     assert "error" not in out and out["verdict"] == "saturated"
+
+
+# ── heat_exchanger_fouling ───────────────────────────────────────────────────
+
+def _hx(hot_outs):
+    return [{"hot_in": 90, "hot_out": ho, "cold_in": 30} for ho in hot_outs]
+
+
+@pytest.mark.unit
+def test_hx_ok_when_effectiveness_stable():
+    out = heat_exchanger_fouling(_hx([55, 55, 56, 55, 54, 55]))   # ε ~0.58, flat
+    assert out["verdict"] == "ok" and out["meanEffectiveness"] > 0.5
+
+
+@pytest.mark.unit
+def test_hx_fouling_when_effectiveness_declines():
+    # ε goes 0.583 (hot_out 55) → 0.3 (hot_out 72): >10% decline and mean < 0.5.
+    out = heat_exchanger_fouling(_hx([55, 55, 55, 72, 72, 72]))
+    assert out["verdict"] == "fouling" and out["declinePct"] > 10
+
+
+@pytest.mark.unit
+def test_hx_insufficient_data():
+    out = heat_exchanger_fouling(_hx([55, 55, 55]))
+    assert out["verdict"] == "insufficient_data" and out["needed"] == 6
+
+
+@pytest.mark.unit
+def test_hx_tool_runs():
+    assert getattr(heat_exchanger_fouling_tool, "_is_governed_tool", False) is True
+    assert "process_tools" in selected_tool_modules("process")
+    out = heat_exchanger_fouling_tool(readings=_hx([55, 55, 55, 72, 72, 72]))
+    assert "error" not in out and out["verdict"] == "fouling"
