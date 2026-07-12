@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Added — clinical-facility edition (医疗设施) + medical-gas safety check
+- **New `clinical` profile + `skills/iaiops-clinical/SKILL.md` edition** — promotes the healthcare
+  slice out of `iaiops-building` into its own vertical (hospital facilities: different buyer /
+  NFPA 99 & infection-control compliance than generic building management). Protocols: BACnet
+  (BMS) + Modbus (gas alarm panels / meters) + OPC-UA (SCADA); reuses the building/BACnet tools and
+  brain. New `iaiops-mcp-clinical` entrypoint.
+- **`medical_gas_check`** (in `clinical_facility` / `bacnet_tools`, alongside `isolation_room_check`):
+  grades medical-gas / vacuum source pressures against NFPA 99 / HTM 02-01 — positive-pressure gases
+  (O2 / medical air / N2O / nitrogen / CO2) must sit in ~345–380 kPa; medical vacuum / WAGD must be
+  deep enough — into normal / low_pressure / high_pressure / insufficient_vacuum / critical,
+  worst-first, citing the number. Pure, read-only, advisory (the station's NFPA 99 alarm panel
+  remains source of truth).
+
 ### Added — warehouse / intralogistics edition (仓储/物料搬运)
 - **New `warehouse` profile + `skills/iaiops-warehouse/SKILL.md` edition** for distribution
   centers / material handling: EtherNet/IP (Rockwell conveyor & sorter PLCs) + Profinet (Siemens

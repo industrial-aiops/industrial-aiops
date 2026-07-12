@@ -167,6 +167,7 @@ iaiops-mcp-plcnext = "mcp_server.entrypoints:main_plcnext"
 iaiops-mcp-water = "mcp_server.entrypoints:main_water"
 iaiops-mcp-renewables = "mcp_server.entrypoints:main_renewables"
 iaiops-mcp-warehouse = "mcp_server.entrypoints:main_warehouse"
+iaiops-mcp-clinical = "mcp_server.entrypoints:main_clinical"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iaiops", "mcp_server"]

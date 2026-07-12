@@ -118,8 +118,103 @@ def _row(room: str, mode: str, diff: Any, status: str, detail: str) -> dict:
             "status": status, "detail": detail}
 
 
+# ── Medical gas / vacuum source pressure (NFPA 99 / HTM 02-01) ────────────────
+# Default normal bands per gas, in kPa (gauge). Positive-pressure medical gases
+# run ~345–380 kPa (50–55 psi) at the source; medical vacuum is a *negative*
+# gauge pressure that must be at least as deep as the threshold (i.e. ≤ it).
+# These are guidance defaults — a facility overrides per its NFPA 99 / HTM
+# commissioning values. ``kind`` selects the grading rule.
+_POSITIVE_BAND = {"low": 345.0, "high": 380.0, "crit_low": 310.0, "crit_high": 415.0}
+_GAS_BANDS: dict[str, dict] = {
+    "oxygen": {"kind": "positive", **_POSITIVE_BAND},
+    "medical_air": {"kind": "positive", **_POSITIVE_BAND},
+    "nitrous_oxide": {"kind": "positive", **_POSITIVE_BAND},
+    "nitrogen": {"kind": "positive", **_POSITIVE_BAND},
+    "carbon_dioxide": {"kind": "positive", **_POSITIVE_BAND},
+    "vacuum": {"kind": "vacuum", "adequate_at_or_below": -40.0, "crit_above": -27.0},
+    "wagd": {"kind": "vacuum", "adequate_at_or_below": -40.0, "crit_above": -27.0},
+}
+
+# Worst-first ordering for medical-gas findings.
+_GAS_SEVERITY = {"critical": 0, "low_pressure": 1, "high_pressure": 1,
+                 "insufficient_vacuum": 1, "unknown_gas": 2, "unknown": 3, "normal": 4}
+
+
+def medical_gas_check(sources: list[dict]) -> dict:
+    """[READ] Grade medical-gas / vacuum source pressures against NFPA 99 bands.
+
+    ``sources`` are ``{system, gas, pressure_kpa}`` (gauge). Positive-pressure
+    gases (oxygen / medical air / N2O / nitrogen / CO2) must sit inside their
+    normal band (~345–380 kPa); medical vacuum / WAGD must be at least as deep as
+    the vacuum threshold. Each source is graded ``normal | low_pressure |
+    high_pressure | insufficient_vacuum | critical`` (or ``unknown_gas`` when the
+    gas has no band), worst-first, citing the number behind every flag. Pure,
+    read-only, advisory — the source of truth is the station's NFPA 99 alarm panel.
+    """
+    graded = [_grade_gas(s) for s in (sources or []) if isinstance(s, dict)]
+    summary: dict[str, int] = {}
+    for g in graded:
+        summary[g["status"]] = summary.get(g["status"], 0) + 1
+    graded.sort(key=lambda g: (_GAS_SEVERITY.get(g["status"], 9), g["system"]))
+    alarms = [g for g in graded if g["status"] not in ("normal", "unknown_gas", "unknown")]
+    return {
+        "sources_evaluated": len(graded),
+        "standard": "NFPA 99 / HTM 02-01 medical gas & vacuum source pressures "
+                    "(guidance defaults; kPa gauge)",
+        "summary": summary,
+        "alarm_count": len(alarms),
+        "alarms": alarms[:MAX_ROWS],
+        "worst": alarms[0] if alarms else None,
+    }
+
+
+def _grade_gas(source: dict) -> dict:
+    """Grade one medical-gas/vacuum source against its NFPA 99 band."""
+    system = str(source.get("system") or source.get("name") or "?")
+    gas = str(source.get("gas") or "").lower()
+    kpa = source.get("pressure_kpa", source.get("pressure"))
+    band = _GAS_BANDS.get(gas)
+    if band is None:
+        return _gas_row(system, gas, kpa, "unknown_gas", f"no NFPA band for gas '{gas}'")
+    if not isinstance(kpa, (int, float)):
+        return _gas_row(system, gas, kpa, "unknown", "no numeric pressure_kpa reading")
+    if band["kind"] == "vacuum":
+        return _grade_vacuum(system, gas, float(kpa), band)
+    return _grade_positive(system, gas, float(kpa), band)
+
+
+def _grade_positive(system: str, gas: str, kpa: float, band: dict) -> dict:
+    if kpa <= band["crit_low"] or kpa >= band["crit_high"]:
+        return _gas_row(system, gas, kpa, "critical",
+                        f"critical: {kpa} kPa outside [{band['crit_low']}, {band['crit_high']}]")
+    if kpa < band["low"]:
+        return _gas_row(system, gas, kpa, "low_pressure", f"low: {kpa} kPa < {band['low']} kPa")
+    if kpa > band["high"]:
+        return _gas_row(system, gas, kpa, "high_pressure",
+                        f"high: {kpa} kPa > {band['high']} kPa")
+    return _gas_row(system, gas, kpa, "normal",
+                    f"ok: {kpa} kPa within [{band['low']}, {band['high']}]")
+
+
+def _grade_vacuum(system: str, gas: str, kpa: float, band: dict) -> dict:
+    if kpa > band["crit_above"]:
+        return _gas_row(system, gas, kpa, "critical",
+                        f"critical: {kpa} kPa vacuum far above {band['crit_above']} kPa")
+    if kpa > band["adequate_at_or_below"]:
+        return _gas_row(system, gas, kpa, "insufficient_vacuum",
+                        f"insufficient: {kpa} kPa > {band['adequate_at_or_below']} kPa threshold")
+    return _gas_row(system, gas, kpa, "normal",
+                    f"ok: {kpa} kPa at or below the {band['adequate_at_or_below']} kPa threshold")
+
+
+def _gas_row(system: str, gas: str, kpa: Any, status: str, detail: str) -> dict:
+    return {"system": system, "gas": gas, "pressure_kpa": kpa,
+            "status": status, "detail": detail}
+
+
 __all__ = [
     "isolation_room_check",
+    "medical_gas_check",
     "DEFAULT_MIN_MAGNITUDE_PA",
     "DEFAULT_LOW_MARGIN_PA",
     "MAX_ROWS",
