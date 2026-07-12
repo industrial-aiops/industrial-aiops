@@ -29,6 +29,22 @@
 4. **Air-gap / skills-shortage / tribal-knowledge loss → on-box LLM diagnosis, read-first, dry-run-on-write** —
    this is the differentiator, not a nice-to-have.
 
+## Monetization
+**Per-call / usage billing is a poor fit for OT** — air-gapped/offline sites can't reliably
+phone-home, metering breaks the air gap and erodes OT trust, and the on-box-LLM story means there are
+**no tokens to meter**. Use:
+
+1. **Per-edge-node / per-site annual subscription** (primary) — aligns with IGEL's per-endpoint + UMS.
+2. **Open-core** — base read tap stays MIT; paid **editions / connector packs** (renewables · energy ·
+   fab · a **Japan CC-Link pack**), the RCA copilot, PdM, and compliance packs.
+3. **Central fleet console (optional, cloud) metered by assets-under-management** — the *only* place
+   metering fits (the central layer phones home; the edge stays offline-licensed).
+4. **Support / validation / integration services**; **IGEL App Portal** channel (per-endpoint + rev-share).
+
+**Decision required:** iaiops is **MIT open-source** today → to charge, adopt **open-core** (base MIT;
+premium editions / hosted console under a commercial license) or **dual-license**. Do NOT meter the
+edge by API call — charge for the *capability*, let the customer bring their own inference (Ollama).
+
 ## Regional expansion — Japan (protocol coverage)
 Japanese factories are Mitsubishi / Omron / Yokogawa heavy. iaiops already covers the big slice; the
 notable gaps are hardware-gated (like EtherCAT/PROFINET), so coverage is honest, not universal.
