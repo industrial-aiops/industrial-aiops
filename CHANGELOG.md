@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Changed — per-edition tool modules + raised tool-flood threshold (architecture)
+- **`EDITION_MODULES`** — a named edition can now carry its own `@mcp.tool` group beyond its
+  protocols and the always-on brain. These modules load ONLY when that edition is selected (never a
+  bare protocol key, never the global brain), so edition-specific tools no longer have to be
+  smuggled into a protocol module or inflate the always-on surface. `selected_tool_modules` /
+  `selected_editions` wire it; `selection_tool_count` and the skill-sync surface check use the same
+  single source of truth.
+- **`clinical_tools`** — `isolation_room_check` + `medical_gas_check` moved out of `bacnet_tools`
+  into a dedicated edition module attached to the `building` and `clinical` editions. A raw
+  `IAIOPS_MCP=bacnet` selection no longer pulls them (correct scoping); building/clinical still do.
+- **`TOOL_FLOOD_WARN_THRESHOLD` 60 → 100** — the always-on brain (~49) plus a full edition's
+  protocols + edition modules legitimately reaches ~60-85 (building ≈ 83), so 60 fired on normal
+  editions. 100 sits above any single intended edition while still flagging `IAIOPS_MCP=all`
+  (~140 tools) — the case the warning is meant to catch.
+
 ### Added — clinical-facility edition (医疗设施) + medical-gas safety check
 - **New `clinical` profile + `skills/iaiops-clinical/SKILL.md` edition** — promotes the healthcare
   slice out of `iaiops-building` into its own vertical (hospital facilities: different buyer /
