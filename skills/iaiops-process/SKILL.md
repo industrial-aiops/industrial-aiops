@@ -40,7 +40,7 @@ description: >-
 - `modbus_health_summary` — 寄存器 vs 阈值分类
 
 ### 跨协议脑（永远随 server 暴露）
-- 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live`
+- 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
   `subscription_health` `heartbeat_health` `alarm_flood_analysis` `alarm_cascade`
   `alarm_rationalization_worksheet`
