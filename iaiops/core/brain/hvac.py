@@ -99,4 +99,63 @@ def _f(ahu: str, status: str, detail: str) -> dict:
     return {"ahu": ahu, "status": status, "detail": detail}
 
 
-__all__ = ["economizer_check", "MAX_ROWS"]
+# ── Zone comfort + indoor air quality (ASHRAE 55 / 62.1) ─────────────────────
+# Default acceptable ranges for an occupied zone. high=None ⇒ no upper bound.
+_COMFORT_PARAMS: dict[str, dict] = {
+    "temp_c": {"low": 20.0, "high": 26.0, "unit": "°C", "label": "temperature"},
+    "humidity_pct": {"low": 30.0, "high": 60.0, "unit": "%", "label": "relative humidity"},
+    "co2_ppm": {"low": None, "high": 1000.0, "unit": "ppm", "label": "CO₂"},
+}
+
+
+def zone_comfort(zones: list[dict]) -> dict:
+    """[READ] Occupied-zone comfort + IAQ vs ASHRAE 55 / 62.1.
+
+    ``zones`` are ``{zone, temp_c?, humidity_pct?, co2_ppm?}``. Each provided
+    parameter is graded against its range — temperature 20–26 °C, relative
+    humidity 30–60 %, CO₂ ≤ 1000 ppm (a ventilation-adequacy proxy) — and each
+    zone takes the worst of its parameters (``breach`` when any is out of range),
+    worst-first, citing every number. Pure, read-only, advisory.
+    """
+    graded = [_grade_zone(z) for z in (zones or []) if isinstance(z, dict)]
+    summary: dict[str, int] = {}
+    for g in graded:
+        summary[g["status"]] = summary.get(g["status"], 0) + 1
+    graded.sort(key=lambda g: (g["status"] != "breach", g["zone"]))
+    breaches = [g for g in graded if g["status"] == "breach"]
+    return {
+        "zones_evaluated": len(graded),
+        "standard": "ASHRAE 55 / 62.1: temp 20–26 °C, RH 30–60 %, CO₂ ≤ 1000 ppm",
+        "summary": summary,
+        "breach_count": len(breaches),
+        "breaches": breaches[:MAX_ROWS],
+        "worst": breaches[0] if breaches else None,
+    }
+
+
+def _grade_zone(zone: dict) -> dict:
+    name = str(zone.get("zone") or zone.get("name") or "?")
+    flags: list[dict] = []
+    for key, band in _COMFORT_PARAMS.items():
+        value = zone.get(key)
+        if not isinstance(value, (int, float)):
+            continue
+        if band["low"] is not None and value < band["low"]:
+            flags.append(_c_flag(band, value, "low", band["low"]))
+        elif band["high"] is not None and value > band["high"]:
+            flags.append(_c_flag(band, value, "high", band["high"]))
+    status = "breach" if flags else ("comfortable" if _has_zone_reading(zone) else "no_data")
+    return {"zone": name, "status": status, "flags": flags}
+
+
+def _c_flag(band: dict, value: float, side: str, bound: float) -> dict:
+    return {"parameter": band["label"], "value": value, "unit": band["unit"],
+            "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
+                      f"{bound}{band['unit']} limit"}
+
+
+def _has_zone_reading(zone: dict) -> bool:
+    return any(isinstance(zone.get(k), (int, float)) for k in _COMFORT_PARAMS)
+
+
+__all__ = ["economizer_check", "zone_comfort", "MAX_ROWS"]

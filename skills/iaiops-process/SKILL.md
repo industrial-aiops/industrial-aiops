@@ -43,6 +43,9 @@ description: >-
 - `control_loop_health` — PID 回路诊断:从一段 PV/SP/OP 采样检出**振荡**(PV 反复穿越 SP)、
   **稳态偏差**(PV 长期偏离 SP)、**输出饱和**(OP 压在 0/100%)。给 verdict(saturated>oscillating>
   offset>ok)。非整定器,只分诊哪些回路要看。纯分析,每项引用数值。
+- `heat_exchanger_fouling` — **换热器结垢检测**:按四路温度算热侧温度效能 ε=(hot_in−hot_out)/
+  (hot_in−cold_in),前后半窗对比;效能低于阈值或下降超阈即 fouling(结垢征兆,先于强制清洗)。
+  纯分析,喂 OPC-UA/Modbus/HART 温度点,verdict 引用效能数值。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
