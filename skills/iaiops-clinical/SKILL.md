@@ -34,6 +34,8 @@ description: >-
 - `medical_gas_check` — 医用气体/真空源压力合规（NFPA 99 / HTM 02-01：O2/医用空气/N2O
   ~345–380 kPa、医用真空须够深）。检出 low_pressure / high_pressure / insufficient_vacuum /
   critical,worst-first,引用数值。读数来自 BACnet AI 点或气体报警屏。
+- `or_environment_check` — 手术室通风合规（ASHRAE 170 Table 7.1：温度 20–24°C、相对湿度
+  20–60%、换气 ≥20 ACH）。逐参数越界即 breach,worst-first,引用数值。读数来自 BACnet/BMS。
 
 ### BACnet/IP（read-first;BMS / 暖通 / 压力 / 气体点）
 - `bacnet_discover` — Who-Is：本地 BACnet/IP 网上的设备

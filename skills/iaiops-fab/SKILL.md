@@ -39,6 +39,11 @@ description: >-
 - `opcua_discover_tags` — 自动发现 tag 并建语义资产模型
 - `opcua_health_summary` — tag vs 阈值分类；`opcua_anomaly_scan` — 有界统计异常扫描
 
+### Fab / 质量专属（edition 工具;仅随 fab edition 加载,不进全局脑）
+- `spc_check` — 统计过程控制:对一段量测序列套用 Western Electric / Nelson 控制图规则
+  (越 3σ、2/3 越 2σ、4/5 越 1σ、连续 8 点单侧、6 点趋势),逐条按点索引报违规;给 USL/LSL
+  则附 Cp/Cpk。判 in_control / out_of_control。纯分析,每违规引用触发点索引。
+
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`

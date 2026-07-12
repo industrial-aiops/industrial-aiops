@@ -2,10 +2,11 @@
 
 import pytest
 
-from iaiops.core.brain.clinical_facility import medical_gas_check
+from iaiops.core.brain.clinical_facility import medical_gas_check, or_environment_check
 from mcp_server import entrypoints
 from mcp_server.profiles import NAMED_PROFILES, selected_tool_modules
 from mcp_server.tools.clinical_tools import medical_gas_check as medical_gas_check_tool
+from mcp_server.tools.clinical_tools import or_environment_check as or_environment_check_tool
 
 
 @pytest.fixture()
@@ -92,3 +93,37 @@ def test_tool_governed_registered_and_runs(home):
     out = medical_gas_check_tool(sources=_SOURCES)
     assert "error" not in out and out["alarm_count"] == 4
     assert out["worst"]["status"] == "critical"
+
+
+# ── or_environment_check (ASHRAE 170 OR ventilation) ─────────────────────────
+
+_OR_ROOMS = [
+    {"room": "OR-1", "temp_c": 21.0, "humidity_pct": 45, "air_changes_per_hour": 25},  # compliant
+    {"room": "OR-2", "temp_c": 26.0, "humidity_pct": 45, "air_changes_per_hour": 25},  # temp high
+    {"room": "OR-3", "temp_c": 21.0, "humidity_pct": 18, "air_changes_per_hour": 15},  # RH + ACH
+]
+
+
+@pytest.mark.unit
+def test_or_environment_flags_out_of_range_params():
+    out = or_environment_check(_OR_ROOMS)
+    assert out["rooms_evaluated"] == 3
+    assert out["summary"]["compliant"] == 1 and out["summary"]["breach"] == 2
+    breaches = {b["room"]: b for b in out["breaches"]}
+    assert {f["parameter"] for f in breaches["OR-3"]["flags"]} == {
+        "relative humidity", "air changes/hour"}
+
+
+@pytest.mark.unit
+def test_or_environment_empty_and_no_data():
+    assert or_environment_check([])["rooms_evaluated"] == 0
+    out = or_environment_check([{"room": "OR-x"}])           # no numeric params
+    assert out["summary"].get("no_data") == 1
+
+
+@pytest.mark.unit
+def test_or_environment_tool_governed_and_runs():
+    assert getattr(or_environment_check_tool, "_is_governed_tool", False) is True
+    assert "clinical_tools" in selected_tool_modules("clinical")
+    out = or_environment_check_tool(rooms=_OR_ROOMS)
+    assert "error" not in out and out["breach_count"] == 2

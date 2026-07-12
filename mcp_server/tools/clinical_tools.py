@@ -78,3 +78,28 @@ def medical_gas_check(sources: list[dict[str, Any]]) -> dict:
         "pressure_kpa":360}, {"system":"ICU-Vac","gas":"vacuum","pressure_kpa":-55}]).
     """
     return cf.medical_gas_check(sources)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def or_environment_check(rooms: list[dict[str, Any]]) -> dict:
+    """[READ][risk=low] Operating-room ventilation compliance (ASHRAE 170 Table 7.1).
+
+    Grades each OR's environment — temperature 20–24 °C, relative humidity
+    20–60 %, air changes ≥ 20/hr — flagging any parameter out of range; each room
+    takes the worst of its parameters, worst-first, citing every number. Pure
+    analysis over readings you pass in (BACnet AI points / BMS); read-only,
+    advisory. Complements isolation_room_check (pressure) with the OR air package.
+
+    Args:
+        rooms: [{room, temp_c?, humidity_pct?, air_changes_per_hour?}] — only the
+            parameters present are graded.
+
+    Returns dict: {rooms_evaluated, standard, summary, breach_count,
+        breaches:[{room, status, flags:[{parameter, value, unit, detail}]}], worst}.
+
+    Example: or_environment_check(rooms=[{"room":"OR-3","temp_c":25.5,
+        "humidity_pct":18,"air_changes_per_hour":15}]).
+    """
+    return cf.or_environment_check(rooms)

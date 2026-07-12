@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added — four edition-scoped signature tools (all via EDITION_MODULES)
+Each rides its edition's own tool module — loaded only when that edition is selected, never the
+always-on brain — the mechanism working across four verticals:
+- **warehouse `sortation_health`** (`warehouse_tools`) — sorter read-rate / no-read / mis-sort
+  analysis over per-divert records; ranks the worst chutes; every rate cited by counts.
+- **clinical `or_environment_check`** (`clinical_tools`) — operating-room ventilation vs ASHRAE 170
+  Table 7.1 (temp 20–24 °C, RH 20–60 %, ≥20 ACH); per-parameter breach flags, worst-first.
+- **process `control_loop_health`** (new `process_tools`) — PID loop triage from a PV/SP/OP capture:
+  oscillation (error-crossing rate), sustained offset, output saturation → worst-wins verdict.
+- **fab `spc_check`** (new `fab_tools`) — SPC control-chart rules (Western Electric 1–4 + a 6-point
+  Nelson trend) over a measurement series, each violation cited by point index; Cp/Cpk with spec limits.
+
 ### Added — line_bottleneck (warehouse edition tool, first EDITION_MODULES user)
 - **`iaiops/core/brain/throughput.py`** + governed MCP tool **`line_bottleneck`** (in a new
   `warehouse_tools` **edition module** attached to the `warehouse` edition): Theory-of-Constraints

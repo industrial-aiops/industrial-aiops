@@ -132,9 +132,14 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # poking one device) does not need them.
     "building": ("clinical_tools",),
     "clinical": ("clinical_tools",),
-    # Line throughput / bottleneck (Theory-of-Constraints) is a material-handling
-    # concern — it rides the warehouse edition, not every discrete-line protocol.
+    # Line throughput / bottleneck (Theory-of-Constraints) + sortation performance
+    # are material-handling concerns — they ride the warehouse edition.
     "warehouse": ("warehouse_tools",),
+    # PID control-loop triage (oscillation / offset / saturation) is a process-
+    # industry concern — it rides the process edition.
+    "process": ("process_tools",),
+    # SPC control-chart rules are a fab / quality concern — they ride the fab edition.
+    "fab": ("fab_tools",),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).
