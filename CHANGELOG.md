@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added — alarm-cascade collapse (first-out root)
+- **`alarm_cascade`** brain fn + governed MCP tool (`alarm_flood` / `alarm_tools`): collapses an
+  alarm flood into cascades — a new cascade starts after a quiet gap > `window_s` — and reports each
+  cascade's **first-out** alarm (earliest annunciation) as the likely root, plus downstream members
+  and chattering sources. Answers "which alarm to look at first" in a 100+/10-min flood. First-out is
+  a transparent, timestamp-cited heuristic (NOT causal — that's `downtime_root_cause`); read-only,
+  pure over provided events, or live via the OPC-UA active-condition scan. Complements
+  `alarm_flood_analysis` (the "how bad") with the "what's the root".
+
 ### Added — predictive maintenance (trend + time-to-threshold)
 - **`iaiops/core/brain/pdm.py`** + governed MCP tool **`pdm_forecast`** (`pdm_tools`, always-on brain):
   the predictive step above `baseline_check` (which flags an *already-happened* violation). From a
