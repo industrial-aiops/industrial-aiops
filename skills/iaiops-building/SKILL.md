@@ -49,6 +49,11 @@ IoT 传感器走 MQTT 时叠加：`IAIOPS_MCP=building,sparkplug`。
 - 完整 Sparkplug B/UNS 工具清单见 **iaiops-factory** skill
 - `mqtt_publish` — **[WRITE][HIGH][MOC]**（默认 off）
 
+### 楼宇专属（edition 工具;仅随 building edition 加载,不进全局脑）
+- `economizer_check` — AHU **经济器故障检测(FDD)**:检出同时供冷供热(纯浪费)、该用自然冷却
+  却没用(室外够冷但新风阀在最小位且机械制冷开)、越高限还开阀(把热风引进来)。逐 AHU 判定,
+  worst-first,每故障引用温度/状态。读数来自 BACnet AI/BI 点。
+
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`

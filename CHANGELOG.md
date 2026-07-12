@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added — water / building / factory edition signature tools (via EDITION_MODULES)
+Rounds out every industry edition with its own signature tool, each scoped to its edition module:
+- **water `disinfection_ct`** (new `water_tools`) — SWTR disinfection credit: CT = free-chlorine
+  residual × T10 contact time per contact basin vs the required CT (supplied from the utility's CT
+  table); per-basin ratios worst-first. Does not embed the CT tables.
+- **building `economizer_check`** (new `building_tools`) — AHU economizer FDD: simultaneous
+  heat/cool, not-economizing (free cooling available but damper at minimum + mechanical cooling on),
+  and economizing-when-locked-out; per-AHU faults citing the temperatures/states.
+- **factory `changeover_analysis`** (new `factory_tools`) — SMED changeover durations: the gap
+  between the last good part of one product and the first of the next; ranks the longest, totals the
+  lost time, each cited by its bounding timestamps.
+
 ### Added — four edition-scoped signature tools (all via EDITION_MODULES)
 Each rides its edition's own tool module — loaded only when that edition is selected, never the
 always-on brain — the mechanism working across four verticals:

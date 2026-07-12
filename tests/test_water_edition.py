@@ -40,9 +40,12 @@ def test_water_profile_resolves_to_modbus_opcua_hart():
 
 
 @pytest.mark.unit
-def test_water_profile_tool_modules_are_brain_plus_three_protocols():
+def test_water_profile_tool_modules_are_brain_plus_edition_plus_three_protocols():
     modules = selected_tool_modules("water")
-    assert modules == list(BRAIN_MODULES) + ["modbus_tools", "opcua_tools", "hart_tools"]
+    # brain first, then the water edition module, then the three protocol modules.
+    assert modules == (
+        list(BRAIN_MODULES) + ["water_tools", "modbus_tools", "opcua_tools", "hart_tools"]
+    )
 
 
 # ── entrypoint + extra ──────────────────────────────────────────────────────────
