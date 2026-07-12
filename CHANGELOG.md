@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.12.0 — 2026-07-12
+
+> **Edition build-out.** Two new industry editions (**warehouse**, **clinical**) and SKILLs for the
+> previously profile-only **renewables** / **plcnext**; a **per-edition tool mechanism**
+> (`EDITION_MODULES`) so an edition carries its own tools without inflating the always-on brain; a
+> **downtime triage copilot** and **legacy-PLC visibility** profile; and a signature analysis tool
+> for every industry edition. All read-first, cite-first, advisory.
+
 ### Added — process heat-exchanger fouling + building zone comfort
 - **process `heat_exchanger_fouling`** (process_tools) — hot-side temperature effectiveness ε =
   (hot_in − hot_out)/(hot_in − cold_in) per reading, first-half vs second-half; `fouling` when the
