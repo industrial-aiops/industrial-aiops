@@ -3,8 +3,10 @@
 import pytest
 
 from iaiops.core.brain.disinfection import disinfection_ct
+from iaiops.core.brain.water_quality import water_quality_compliance
 from mcp_server.profiles import BRAIN_MODULES, selected_tool_modules
 from mcp_server.tools.water_tools import disinfection_ct as disinfection_ct_tool
+from mcp_server.tools.water_tools import water_quality_compliance as water_quality_compliance_tool
 
 
 @pytest.mark.unit
@@ -52,3 +54,41 @@ def test_tool_is_water_edition_module_and_runs():
         required_ct=6.0,
     )
     assert "error" not in out and out["failing_count"] == 1
+
+
+# ── water_quality_compliance ─────────────────────────────────────────────────
+
+@pytest.mark.unit
+def test_water_quality_flags_out_of_range():
+    points = [
+        {"location": "clearwell", "turbidity_ntu": 0.3, "free_chlorine_mg_l": 1.0, "ph": 7.2},
+        {"location": "tap-A", "turbidity_ntu": 1.4, "free_chlorine_mg_l": 0.15, "ph": 7.0},
+    ]
+    out = water_quality_compliance(points)
+    assert out["summary"]["compliant"] == 1 and out["summary"]["breach"] == 1
+    flags = {f["parameter"] for f in out["breaches"][0]["flags"]}
+    assert flags == {"turbidity", "free chlorine"}      # 1.4 NTU high, 0.15 mg/L low
+
+
+@pytest.mark.unit
+def test_water_quality_limit_override():
+    point = [{"location": "X", "turbidity_ntu": 0.4}]
+    assert water_quality_compliance(point)["breach_count"] == 0          # 0.4 <= default 1.0
+    strict = water_quality_compliance(point, limits={"turbidity_ntu": {"high": 0.3}})
+    assert strict["breach_count"] == 1                                    # now over 0.3
+
+
+@pytest.mark.unit
+def test_water_quality_no_data():
+    out = water_quality_compliance([{"location": "X"}])
+    assert out["summary"].get("no_data") == 1
+
+
+@pytest.mark.unit
+def test_water_quality_tool_runs():
+    assert getattr(water_quality_compliance_tool, "_is_governed_tool", False) is True
+    assert "water_tools" in selected_tool_modules("water")
+    out = water_quality_compliance_tool(
+        points=[{"location": "tap", "turbidity_ntu": 1.4, "ph": 7.0}]
+    )
+    assert "error" not in out and out["breach_count"] == 1

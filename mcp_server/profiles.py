@@ -142,8 +142,10 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     "fab": ("fab_tools",),
     # Changeover / SMED analysis is a discrete-manufacturing concern — factory edition.
     "factory": ("factory_tools",),
-    # Disinfection CT (SWTR) is a water-treatment concern — water edition.
+    # Disinfection CT + finished-water quality are water-treatment concerns — water edition.
     "water": ("water_tools",),
+    # PV string performance is a solar/renewables concern — renewables edition.
+    "renewables": ("renewables_tools",),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).
