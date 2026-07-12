@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added — downtime triage copilot (composes the three downtime lenses)
+- **`iaiops/core/brain/downtime_copilot.py`** + governed MCP tool **`downtime_triage`**
+  (`downtime_tools`, always-on brain): one call that composes **`alarm_cascade`** (which alarm to
+  look at first), **`downtime_root_cause`** (the cited causal verdict), and **`pdm_forecast`** (which
+  signals were degrading *before* the trip) over a single incident. Adds a **cross-check**: is the
+  first-out alarm actually cited by the RCA's primary cause (`corroborated`) or does the verdict lean
+  elsewhere (`diverging`)? Pure composition — every field traces to a sub-report echoed for
+  drill-down; read-only, advisory, thin-evidence-honest. Answers the operator's three simultaneous
+  questions on a stopped line in one shot.
+
 ### Added — alarm-cascade collapse (first-out root)
 - **`alarm_cascade`** brain fn + governed MCP tool (`alarm_flood` / `alarm_tools`): collapses an
   alarm flood into cascades — a new cascade starts after a quiet gap > `window_s` — and reports each
