@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added — clinical-facility safety: isolation-room pressurization (building edition)
+- **`iaiops/core/brain/clinical_facility.py`** + governed MCP tool **`isolation_room_check`**
+  (in `bacnet_tools`, so it is scoped to the `iaiops-building` / BACnet edition — NOT the always-on
+  global brain, keeping single-protocol sites under the tool-flood target): the healthcare slice
+  generic BMS lacks. Grades each isolation room's differential pressure against ASHRAE 170 / CDC — airborne-
+  infection isolation (AII) must stay **negative**, protective-environment (PE) **positive**, at a
+  minimum ~2.5 Pa — into `reversed` (wrong polarity, a reportable patient-safety event), `breach`
+  (right polarity but too weak), `low_margin`, or `compliant`, worst-first, citing the number behind
+  every flag. Pure analysis over differential-pressure readings (from `bacnet_read_points` AI points
+  or a historian); read-only and advisory. First step toward an `iaiops-clinical` edition if the
+  hospital-facility vertical warrants its own routing identity.
+
 ### Added — legacy-PLC visibility profile (what am I inheriting?)
 - **`iaiops/core/brain/plc_visibility.py`** + governed MCP tool **`plc_program_visibility`**
   (`plc_program_tools`): a maintainability/operational-risk read one level above the structural
