@@ -101,7 +101,7 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
   `compliance_report` `compliance_evidence_bundle`
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents` `pdm_forecast`
   `historian_push` `export_data`
-- 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
+- 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
 - 元：`protocols_supported`
 
 ## Workflows

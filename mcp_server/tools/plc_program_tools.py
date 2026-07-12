@@ -10,6 +10,7 @@ full grammar; parse_errors are reported instead of raised.
 """
 
 from iaiops.core.brain import plc_program as ops
+from iaiops.core.brain.plc_visibility import plc_visibility
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
 
@@ -120,3 +121,38 @@ def plc_program_section(path: str, block: str) -> dict:
     Example: plc_program_section(path="~/exports/Line3.scl", block="FB_Conveyor").
     """
     return ops.block_section(path, block, max_lines=MAX_SECTION_LINES)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def plc_program_visibility(path: str) -> dict:
+    """[READ][risk=low] Maintainability / operational-risk profile of a legacy PLC program.
+
+    The "what am I inheriting?" view over one EXPORTED program (SCL/ST, AWL/STL,
+    Rockwell L5X): folds the structural outline into documentation coverage, the
+    least-commented blocks, blocks nothing references (possible dead code), the
+    complexity hotspots, risky constructs (unconditional JMPs, retentive RTO
+    timers, loops), and a TRANSPARENT additive risk score whose every point cites
+    its reason. Structural only — it anchors an engineer's review of a line
+    somebody else left behind, not a semantic understanding. Reads exactly the
+    named file (≤5 MB); never a live PLC upload. Every finding cites source_file +
+    line (rung number for L5X ladder).
+
+    Args:
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB).
+
+    Returns dict: {source_file, fmt, stats:{blocks, call_edges, line_count,
+        comment_count, comment_ratio, variables, branches, timers_counters},
+        documentation:{comment_ratio, band ('well_commented'|'sparse'|
+        'undocumented'), uncommented_block_count, uncommented_blocks},
+        entry_points:[{name, kind}], unreferenced_blocks:[{name, kind,
+        source_file, line}], complexity_hotspots:[{block, kind, score, branches,
+        calls, timers_counters, source_file, line}], risky_constructs:{
+        unconditional_jumps, unconditional_jump_count, loops, loop_count,
+        retentive_timers, retentive_timer_count}, risk:{score (0..100), band
+        ('low'|'medium'|'high'), reasons[]}, parse_errors, note}.
+
+    Example: plc_program_visibility(path="~/exports/Line3_Conveyor.scl").
+    """
+    return plc_visibility(ops.outline_program(path))
