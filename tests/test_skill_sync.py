@@ -96,11 +96,14 @@ def test_edition_skill_tools_subset_of_profile(skill_path: Path):
     specs = _skill_specs(text)
     assert specs, f"{skill_path} declares no IAIOPS_MCP=<profile> launch line"
 
-    selected: set[str] = set()
+    # Full module surface for the edition's launch spec(s): brain + any per-edition
+    # EDITION_MODULES + the protocol modules — the single source of truth is
+    # selected_tool_modules (so this never drifts as the mechanism grows).
+    allowed_modules: set[str] = set()
     resolved_any = False
     for spec in specs:
         try:
-            selected.update(profiles.resolve_selection(spec))
+            allowed_modules.update(profiles.selected_tool_modules(spec))
             resolved_any = True
         except profiles.UnknownProtocolError:
             continue  # e.g. a profile merged from another branch, not present here
@@ -108,11 +111,7 @@ def test_edition_skill_tools_subset_of_profile(skill_path: Path):
         pytest.skip(f"none of {specs} resolvable in this checkout — profile pending merge")
 
     per_module = _tools_per_module()
-    allowed: set[str] = set()
-    for module in profiles.BRAIN_MODULES:
-        allowed.update(per_module.get(module, []))
-    for proto in selected:
-        allowed.update(per_module.get(profiles.PROTOCOL_MODULES[proto], []))
+    allowed = {name for module in allowed_modules for name in per_module.get(module, [])}
 
     registered = set(_registered_tool_names())
     cited = {tok for tok in _BACKTICK_RE.findall(text) if tok in registered}

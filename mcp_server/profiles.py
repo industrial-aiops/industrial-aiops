@@ -121,14 +121,32 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "clinical": ("bacnet", "modbus", "opcua"),
 }
 
+# Per-edition tool modules — extra ``@mcp.tool`` groups a named EDITION carries
+# beyond the protocols it expands to and the always-on brain. They load ONLY when
+# that edition is selected (never for a bare protocol key, never in the global
+# brain), so edition-specific tools stay OFF single-protocol / other-edition
+# surfaces and do not inflate the always-on brain. Keyed by NAMED_PROFILES name.
+EDITION_MODULES: dict[str, tuple[str, ...]] = {
+    # Facility patient-safety checks (isolation-room pressurization + medical-gas)
+    # ride the building & clinical editions — a raw ``bacnet`` selection (a dev
+    # poking one device) does not need them.
+    "building": ("clinical_tools",),
+    "clinical": ("clinical_tools",),
+}
+
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).
 MENU_SELECTION = "menu"
 
 # Env toggle (B3): "1"/"true"/"yes" strips BRAIN_MODULES from protocol servers.
 NO_BRAIN_ENV = "IAIOPS_MCP_NO_BRAIN"
 
-# Above this the server logs a tool-flood warning (HLD target: 15-30 per session).
-TOOL_FLOOD_WARN_THRESHOLD = 60
+# Above this the server logs a tool-flood warning. Raised from 60: the always-on
+# brain (~49) plus a full edition's protocols and per-edition EDITION_MODULES now
+# lands a legitimate edition in the ~60-85 range (e.g. building ≈ 83), so 60 fired
+# on normal editions. 100 sits above any single intended edition yet still flags a
+# genuine flood — notably IAIOPS_MCP=all (12 protocols + brain, ~140 tools) — which
+# is the "you probably don't want everything" case the warning is meant to catch.
+TOOL_FLOOD_WARN_THRESHOLD = 100
 
 _TOOL_DECORATOR_RE = re.compile(r"^@mcp\.tool\(\)", re.MULTILINE)
 
@@ -205,7 +223,27 @@ def selected_tool_modules(spec: str | None, *, include_brain: bool = True) -> li
     sites that run a dedicated brain server.
     """
     base = list(BRAIN_MODULES) if include_brain else list(META_MODULES)
-    return base + [PROTOCOL_MODULES[k] for k in resolve_selection(spec)]
+    extras: list[str] = []
+    for edition in selected_editions(spec):
+        for module in EDITION_MODULES.get(edition, ()):
+            if module not in base and module not in extras:
+                extras.append(module)
+    protocols = [PROTOCOL_MODULES[k] for k in resolve_selection(spec)]
+    return base + extras + protocols
+
+
+def selected_editions(spec: str | None) -> list[str]:
+    """Named editions present in ``spec`` (order-preserving, de-duplicated).
+
+    Each returned edition contributes its :data:`EDITION_MODULES` beyond the
+    protocols it expands to. A bare protocol key contributes no edition modules.
+    """
+    editions: list[str] = []
+    for raw in (spec or "").split(","):
+        tok = raw.strip().lower()
+        if tok in NAMED_PROFILES and tok not in editions:
+            editions.append(tok)
+    return editions
 
 
 def _tool_counts_per_module() -> dict[str, int]:
