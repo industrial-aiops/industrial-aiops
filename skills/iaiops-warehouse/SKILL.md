@@ -22,9 +22,10 @@ EtherNet/IP 需 extra：`pip install iaiops[eip]`。典型现场：输送/分拣
 EtherNet/IP(Rockwell) 或 Profinet(Siemens),驱动/表计走 Modbus,WMS/WCS 网关走
 OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 
-> **定位**：这是一个**打包 edition** —— 复用既有跨协议脑的 **PdM（`pdm_forecast`）/
-> 停机分诊（`downtime_triage`）/ OEE / 告警** 能力,针对物料搬运资产(输送带电机轴承、
-> 分拣驱动、AGV 电池)对症使用,并提供物料搬运专用的 Modbus 模板。没有新增脑工具。
+> **定位**：复用既有跨协议脑的 **PdM（`pdm_forecast`）/ 停机分诊（`downtime_triage`）/
+> OEE / 告警** 能力,针对物料搬运资产(输送带电机轴承、分拣驱动、AGV 电池)对症使用,提供
+> 物料搬运专用的 Modbus 模板,并带一个 **仓储专属 edition 工具 `line_bottleneck`**
+> (瓶颈工位定位;仅随本 edition 加载,不进全局脑)。
 
 ## 工具
 
@@ -58,6 +59,11 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 - `sparkplug_node_list` `sparkplug_subscribe_sample` `sparkplug_decode_payload`
 - `mqtt_read_topic` `mqtt_publish` `sparkplug_live_schema`
 - `uns_browse` `uns_topic_audit` `uns_schema_drift` `uns_live_audit` `uns_live_drift`
+
+### 仓储专属（edition 工具;仅随 warehouse edition 加载,不进全局脑）
+- `line_bottleneck` — 产线/物料搬运**瓶颈工位定位**(约束理论 TOC:最低吞吐工位即瓶颈,
+  设定整线速率;starved/blocked 佐证——瓶颈上游被 blocked、下游被 starved)。纯分析,
+  喂 WMS/WCS/MES/PLC 计数的每工位吞吐或节拍,worst-first,每项引用数值。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
