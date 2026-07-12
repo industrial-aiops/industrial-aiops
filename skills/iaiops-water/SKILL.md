@@ -39,6 +39,11 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 - `hart_dynamic_variables` — PV/SV/TV/QV + 回路电流（command 3）
 - `hart_burst_sample` — 采样 burst 发布的变量
 
+### 水处理专属（edition 工具;仅随 water edition 加载,不进全局脑）
+- `disinfection_ct` — SWTR **消毒 CT 合规**:CT = 余氯(mg/L)×有效接触时间 T10(min);逐个
+  接触池算 achieved CT 对比所需 CT(按州 CT 表按温度/pH/消毒剂查得,由调用方传入),给达标比与
+  worst-first。纯分析,不内嵌 CT 表(传 required_ct);每比值引用输入。
+
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`

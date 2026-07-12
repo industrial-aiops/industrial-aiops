@@ -129,8 +129,8 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
 EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # Facility patient-safety checks (isolation-room pressurization + medical-gas)
     # ride the building & clinical editions — a raw ``bacnet`` selection (a dev
-    # poking one device) does not need them.
-    "building": ("clinical_tools",),
+    # poking one device) does not need them. building also gets AHU economizer FDD.
+    "building": ("clinical_tools", "building_tools"),
     "clinical": ("clinical_tools",),
     # Line throughput / bottleneck (Theory-of-Constraints) + sortation performance
     # are material-handling concerns — they ride the warehouse edition.
@@ -140,6 +140,10 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     "process": ("process_tools",),
     # SPC control-chart rules are a fab / quality concern — they ride the fab edition.
     "fab": ("fab_tools",),
+    # Changeover / SMED analysis is a discrete-manufacturing concern — factory edition.
+    "factory": ("factory_tools",),
+    # Disinfection CT (SWTR) is a water-treatment concern — water edition.
+    "water": ("water_tools",),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).

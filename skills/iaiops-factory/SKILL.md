@@ -86,6 +86,11 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
   `sparkplug_live_schema` `uns_live_drift`
 - `mqtt_publish` — **[WRITE][HIGH][MOC]**（默认 off）
 
+### 离散制造专属（edition 工具;仅随 factory edition 加载,不进全局脑）
+- `changeover_analysis` — **换型/SMED 时长**:换型 = 上个产品末件到下个产品首件的间隔(OEE 可用率
+  只汇总、不拆解)。从好件完成流按产品切换测每次换型,排最长、算均值/总换型时间,worst-first,
+  每时长引用两端时间戳。纯分析,喂 MES/PLC 好件计数。
+
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
