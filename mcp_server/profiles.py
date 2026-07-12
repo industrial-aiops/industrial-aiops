@@ -132,6 +132,9 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # poking one device) does not need them.
     "building": ("clinical_tools",),
     "clinical": ("clinical_tools",),
+    # Line throughput / bottleneck (Theory-of-Constraints) is a material-handling
+    # concern — it rides the warehouse edition, not every discrete-line protocol.
+    "warehouse": ("warehouse_tools",),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).

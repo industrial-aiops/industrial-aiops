@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added — line_bottleneck (warehouse edition tool, first EDITION_MODULES user)
+- **`iaiops/core/brain/throughput.py`** + governed MCP tool **`line_bottleneck`** (in a new
+  `warehouse_tools` **edition module** attached to the `warehouse` edition): Theory-of-Constraints
+  over per-station throughput / cycle-time data — the slowest station is the line's constraint and
+  sets the line rate; starvation/blocking corroborate (upstream blocks, downstream starves). Ranks
+  the line, names the constraint + co-constraints within a %, tags each station starved/blocked,
+  cites the number. Pure, read-only, advisory. Loads ONLY for `IAIOPS_MCP=warehouse` — the first
+  tool to use the new per-edition mechanism instead of the always-on brain.
+
 ### Changed — per-edition tool modules + raised tool-flood threshold (architecture)
 - **`EDITION_MODULES`** — a named edition can now carry its own `@mcp.tool` group beyond its
   protocols and the always-on brain. These modules load ONLY when that edition is selected (never a
