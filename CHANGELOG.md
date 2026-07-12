@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added — warehouse / intralogistics edition (仓储/物料搬运)
+- **New `warehouse` profile + `skills/iaiops-warehouse/SKILL.md` edition** for distribution
+  centers / material handling: EtherNet/IP (Rockwell conveyor & sorter PLCs) + Profinet (Siemens
+  lines) + Modbus (VFD/meters) + OPC-UA (WMS/WCS gateways) + MQTT-Sparkplug (AGV/AMR & IoT), plus
+  the cross-protocol brain. A packaging edition — reuses `pdm_forecast` (conveyor-drive bearing/
+  thermal trend), `downtime_triage`, OEE and alarm analysis as-is (no new global-brain tool).
+- **Two material-handling Modbus templates** (`conveyor_vfd`, `agv_battery`) — placeholder register
+  maps (待核实, vendor-specific) whose drive_temperature / motor_current / state_of_charge feed
+  `pdm_forecast`. New `iaiops-mcp-warehouse` console entrypoint.
+
 ### Added — clinical-facility safety: isolation-room pressurization (building edition)
 - **`iaiops/core/brain/clinical_facility.py`** + governed MCP tool **`isolation_room_check`**
   (in `bacnet_tools`, so it is scoped to the `iaiops-building` / BACnet edition — NOT the always-on

@@ -109,6 +109,11 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # Renewables edition (光伏/风电): PV inverters + wind-turbine controllers over Modbus
     # (SUN2000/Growatt templates) + OPC-UA plant SCADA + MQTT-Sparkplug telemetry.
     "renewables": ("modbus", "opcua", "sparkplug"),
+    # Warehouse / intralogistics edition (仓储/物料搬运): conveyor & sorter drives over
+    # EtherNet/IP (Rockwell) + Profinet (Siemens), VFD/energy meters over Modbus
+    # (conveyor_vfd / agv_battery templates), WMS/WCS gateways over OPC-UA, and AMR/IoT
+    # telemetry over MQTT-Sparkplug. PdM (pdm_forecast) + downtime + OEE reused as-is.
+    "warehouse": ("eip", "profinet", "modbus", "opcua", "sparkplug"),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).
