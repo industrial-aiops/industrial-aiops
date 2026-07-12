@@ -40,7 +40,7 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 - `hart_burst_sample` — 采样 burst 发布的变量
 
 ### 跨协议脑（永远随 server 暴露）
-- 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live`
+- 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
   `subscription_health` `heartbeat_health` `alarm_flood_analysis` `alarm_cascade`
   `alarm_rationalization_worksheet`

@@ -79,6 +79,9 @@ BRAIN_MODULES = (
     "fleet_tools",
     # Predictive maintenance — trend + time-to-threshold forecast (early warning above baseline).
     "pdm_tools",
+    # Downtime triage copilot — composes alarm cascade + RCA verdict + PdM precursors
+    # into one triage and cross-checks whether the first-out alarm agrees with the cause.
+    "downtime_tools",
     # Legacy PLC program explainer (A8): outline/xref/section over EXPORTED
     # ST/AWL/L5X text files — read-only, cite-first, never a live PLC upload.
     "plc_program_tools",
