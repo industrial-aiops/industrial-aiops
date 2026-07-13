@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import socket
 import struct
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -70,6 +71,44 @@ def session_initiate_payload(inactivity_close_s: int = 30) -> bytes:
     return struct.pack(">BI", 1, max(0, int(inactivity_close_s)) * 1000)
 
 
+# How many unsolicited/mismatched messages a TCP exchange will skip (keep-alives,
+# burst publishes) before concluding the stream is flooded or out of sync.
+_MAX_UNMATCHED_TCP_MESSAGES = 8
+
+
+def _is_matching_response(parsed: dict, message_id: int, sequence: int) -> bool:
+    """True when a parsed HART-IP message answers THIS request.
+
+    A response must echo the request's message id and sequence number and carry
+    the response type — anything else (a stale answer to an earlier request, a
+    keep-alive, an unsolicited publish) is NOT the current response and must not
+    be handed to the HART codec (same policy as the FINS SID match).
+    """
+    return (
+        parsed["message_type"] == MT_RESPONSE
+        and parsed["message_id"] == message_id
+        and parsed["sequence"] == sequence
+    )
+
+
+def _raise_for_status(parsed: dict, host: str, port: int) -> None:
+    """Surface a non-zero HART-IP header status as a real error.
+
+    A session/error reply usually carries an EMPTY body; parsing that as a HART
+    PDU would silently read as 'device/gateway unreachable' instead of the real
+    reason the server rejected the request.
+    """
+    status = parsed["status"]
+    if status != 0:
+        raise OTConnectionError(
+            f"HART-IP server {host}:{port} answered message_id="
+            f"{parsed['message_id']} with error status {status} (0 = success): "
+            f"the server rejected the session/request — this is a protocol-level "
+            f"refusal, not an unreachable device.",
+            endpoint=host, protocol="hart",
+        )
+
+
 class HartIpSession:
     """UDP HART-IP session (待核实). Sends token-passing PDUs and reads responses."""
 
@@ -96,8 +135,43 @@ class HartIpSession:
             frame_message(MT_REQUEST, message_id, self._seq, payload),
             (self._host, self._port),
         )
-        data, _ = self._sock.recvfrom(65535)
-        return data
+        return self._read_matching_response(message_id)
+
+    def _read_matching_response(self, message_id: int) -> bytes:
+        """Read datagrams until one answers THIS request, or the deadline passes.
+
+        UDP delivers whatever arrives: a stale response to an earlier request, a
+        keep-alive, a foreign/runt datagram. None of those is the current
+        response — mismatches are discarded and reading continues until the
+        matching type/id/sequence shows up or the timeout is spent.
+        """
+        deadline = time.monotonic() + self._timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise self._no_matching_response_error(message_id)
+            self._sock.settimeout(remaining)
+            try:
+                data, _ = self._sock.recvfrom(65535)
+            except TimeoutError as exc:  # socket.timeout is TimeoutError (3.10+)
+                raise self._no_matching_response_error(message_id) from exc
+            try:
+                parsed = parse_message(data)
+            except ValueError:
+                continue  # runt/garbage datagram — not HART-IP framing
+            if not _is_matching_response(parsed, message_id, self._seq):
+                continue  # stale / keep-alive / foreign — keep reading
+            _raise_for_status(parsed, self._host, self._port)
+            return data
+
+    def _no_matching_response_error(self, message_id: int) -> OTConnectionError:
+        return OTConnectionError(
+            f"HART-IP {self._host}:{self._port}: no matching response to "
+            f"message_id={message_id} seq={self._seq} within {self._timeout}s "
+            f"(mismatched/stale datagrams are discarded, never trusted as the "
+            f"current response).",
+            endpoint=self._host, protocol="hart",
+        )
 
     def close(self) -> None:
         if self._sock is not None:
@@ -143,7 +217,22 @@ class HartIpTcpSession:
     def _exchange(self, message_id: int, payload: bytes) -> bytes:
         self._seq = (self._seq + 1) & 0xFFFF
         self._sock.sendall(frame_message(MT_REQUEST, message_id, self._seq, payload))
-        return self._read_message()
+        # A HART-IP TCP stream may interleave keep-alives / unsolicited publish
+        # messages with responses: skip anything that does not answer THIS
+        # request (type/id/sequence), bounded so a flooded stream fails loudly.
+        for _ in range(_MAX_UNMATCHED_TCP_MESSAGES):
+            data = self._read_message()
+            parsed = parse_message(data)
+            if _is_matching_response(parsed, message_id, self._seq):
+                _raise_for_status(parsed, self._host, self._port)
+                return data
+        raise OTConnectionError(
+            f"HART-IP {self._host}:{self._port}: none of the last "
+            f"{_MAX_UNMATCHED_TCP_MESSAGES} messages answered message_id="
+            f"{message_id} seq={self._seq} — the stream is flooded with "
+            f"unsolicited traffic or out of sync.",
+            endpoint=self._host, protocol="hart",
+        )
 
     def _read_message(self) -> bytes:
         header = self._recv_exactly(HEADER_LEN)

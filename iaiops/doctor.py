@@ -291,6 +291,16 @@ def _probe(target) -> tuple[bool, str]:
 
             info = fins_cpu_info(target)
             return True, f"FINS cpu={info.get('model')}"
+        if target.protocol == "hart":
+            from iaiops.connectors.hart.ops import hart_device_identity
+
+            info = hart_device_identity(target)
+            if "error" in info:
+                return False, str(info["error"])
+            return True, (
+                f"HART identity mfr={info.get('manufacturer_id')} "
+                f"device_id={info.get('device_id')}"
+            )
         if target.protocol == "mtconnect":
             from iaiops.connectors.mtconnect.ops import mtconnect_current
 

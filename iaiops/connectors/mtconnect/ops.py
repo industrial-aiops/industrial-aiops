@@ -23,6 +23,12 @@ DEFAULT_SAMPLE_COUNT = 100
 MAX_SAMPLE_COUNT = 500
 _HTTP_TIMEOUT_S = 10
 
+# Agent documents are bounded (count-capped /sample pages); cap the body at
+# 4 MiB — well past any legitimate page, a hard ceiling against a hostile or
+# broken agent streaming an unbounded body (mirrors the BAS connector's cap).
+MAX_RESPONSE_BYTES = 4_194_304
+_CHUNK_BYTES = 8192
+
 # DataItem ids/types whose latest value an OEE snapshot cares about.
 _OEE_AVAILABILITY = "AVAILABILITY"
 _OEE_EXECUTION = "EXECUTION"
@@ -30,8 +36,28 @@ _OEE_MODE = "CONTROLLERMODE"
 _OEE_PROGRAM = "PROGRAM"
 
 
+def _guard_dtd(head: str, url: str) -> None:
+    """Reject XML carrying a DTD/entity declaration (XXE / billion-laughs defense).
+
+    MTConnect documents never carry a DTD or entity declarations, so any is
+    refused before parsing. stdlib ElementTree does not resolve external
+    entities, and with DTD/entities barred there is no expansion vector.
+    """
+    lowered = head[:4096].lower()
+    if "<!doctype" in lowered or "<!entity" in lowered:
+        raise ValueError(
+            f"MTConnect agent at {url} returned XML with a DTD/entity declaration; "
+            f"refused (XXE/entity-expansion defense). MTConnect XML carries neither."
+        )
+
+
 def _http_get(url: str, timeout: int = _HTTP_TIMEOUT_S) -> str:
-    """Fetch ``url`` and return the response body as text. Monkeypatched in tests."""
+    """Fetch ``url`` streamed and size-capped; return the body as text.
+
+    Monkeypatched in tests. The body is read in chunks and refused once it
+    exceeds ``MAX_RESPONSE_BYTES`` — never buffered whole first — and the
+    DTD/entity guard runs on the FIRST chunk, before the rest is consumed.
+    """
     try:
         import requests
     except ImportError as exc:  # pragma: no cover — exercised only without requests
@@ -42,9 +68,24 @@ def _http_get(url: str, timeout: int = _HTTP_TIMEOUT_S) -> str:
             "connector: 'pip install iaiops[mtconnect]'."
         ) from exc
 
-    resp = requests.get(url, timeout=timeout)
-    resp.raise_for_status()
-    return resp.text
+    resp = requests.get(url, timeout=timeout, stream=True)
+    try:
+        resp.raise_for_status()
+        body = b""
+        for chunk in resp.iter_content(_CHUNK_BYTES):
+            if not body:
+                _guard_dtd(chunk.decode("utf-8", errors="replace"), url)
+            body += chunk
+            if len(body) > MAX_RESPONSE_BYTES:
+                raise ValueError(
+                    f"MTConnect agent at {url} returned more than "
+                    f"{MAX_RESPONSE_BYTES} bytes; refused (response size cap). "
+                    f"Point the endpoint at a real MTConnect agent, or bound the "
+                    f"request (e.g. a smaller /sample count)."
+                )
+        return body.decode("utf-8", errors="replace")
+    finally:
+        resp.close()
 
 
 def _agent_base(target: Any) -> str:
@@ -73,16 +114,10 @@ def _fetch_xml(target: Any, path: str, query: str = "") -> ET.Element:
     if query:
         url = f"{url}?{query}"
     body = _http_get(url)
-    # Defense-in-depth against XXE / billion-laughs from a compromised agent:
-    # MTConnect documents never carry a DTD or entity declarations, so reject any
-    # before parsing. stdlib ElementTree does not resolve external entities, and
-    # with DTD/entities barred there is no expansion vector.
-    lowered = body[:4096].lower()
-    if "<!doctype" in lowered or "<!entity" in lowered:
-        raise ValueError(
-            f"MTConnect agent at {url} returned XML with a DTD/entity declaration; "
-            f"refused (XXE/entity-expansion defense). MTConnect XML carries neither."
-        )
+    # Defense-in-depth: _http_get already guards the first streamed chunk, but
+    # tests (and any alternative fetcher) monkeypatch _http_get, so the full
+    # body is re-checked here before parsing.
+    _guard_dtd(body, url)
     try:
         return ET.fromstring(body)  # nosec B314 — DTD/entities barred above; ET resolves no externals
     except ET.ParseError as exc:
