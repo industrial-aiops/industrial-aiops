@@ -98,7 +98,8 @@ def diagnose_dataflow(
     hops.append({"hop": "connect", "protocol": s(protocol, 16), "ok": ok, "detail": s(detail, 200)})
     if not ok:
         return _verdict(
-            hops, "cannot_connect",
+            hops,
+            "cannot_connect",
             "Could not reach the endpoint — likely network path down, PLC/agent "
             "offline, wrong host/port, or a firewall.",
             "Check physical link, IP/port, and that the device's server/agent is "
@@ -115,7 +116,8 @@ def diagnose_dataflow(
         return broken
 
     return _verdict(
-        hops, "healthy",
+        hops,
+        "healthy",
         "All reachable hops look healthy (connected, readable, fresh, varying).",
         "No data-flow break found at the layers reachable from here.",
     )
@@ -128,12 +130,17 @@ def _score_read_hops(
     read_desc = _read_ref(target, ref)
     readable = "error" not in read_desc
     hops.append(
-        {"hop": "read_tag", "ref": s(ref, 96), "ok": readable,
-         "detail": s(str(read_desc.get("error", read_desc.get("value", ""))), 160)}
+        {
+            "hop": "read_tag",
+            "ref": s(ref, 96),
+            "ok": readable,
+            "detail": s(str(read_desc.get("error", read_desc.get("value", ""))), 160),
+        }
     )
     if not readable:
         return _verdict(
-            hops, "comms_ok_value_unreadable",
+            hops,
+            "comms_ok_value_unreadable",
             "Connected, but the tag/node could not be read — wrong address/node "
             "id, or the point does not exist on this device.",
             "Verify the ref against a browse/probe of the device's address space.",
@@ -142,7 +149,8 @@ def _score_read_hops(
     good = read_desc.get("good")
     if good is False:
         return _verdict(
-            hops, "comms_ok_bad_quality",
+            hops,
+            "comms_ok_bad_quality",
             "Connected and read, but the value's quality/status is BAD — a "
             "sensor, field wiring, or source-side fault.",
             "Inspect the field device / sensor and the source system feeding "
@@ -153,7 +161,8 @@ def _score_read_hops(
     hops.append({"hop": "freshness", **fresh})
     if fresh["evaluated"] and fresh["stale"]:
         return _verdict(
-            hops, "comms_ok_value_stale",
+            hops,
+            "comms_ok_value_stale",
             f"Connected with good status, but the value is STALE (age "
             f"{fresh['age_seconds']}s > {freshness_threshold_s}s) — the source/field "
             f"upstream has stopped updating this point.",
@@ -173,7 +182,8 @@ def _score_variance_hop(
     hops.append({"hop": "variance", **var})
     if var["flatline"]:
         return _verdict(
-            hops, "comms_ok_flatline",
+            hops,
+            "comms_ok_flatline",
             "Good status but the value is FLATLINE (zero variance over the "
             "window) — a stuck sensor or a frozen source value.",
             "Compare against a known-changing reference; a flatline with good "
@@ -247,8 +257,12 @@ def _check_freshness(timestamp: Any, threshold_s: int) -> dict:
     """Classify a source timestamp's age against a freshness threshold."""
     ts = _parse_ts(timestamp)
     if ts is None:
-        return {"evaluated": False, "stale": False, "age_seconds": None,
-                "note": "No parseable per-sample timestamp at this layer."}
+        return {
+            "evaluated": False,
+            "stale": False,
+            "age_seconds": None,
+            "note": "No parseable per-sample timestamp at this layer.",
+        }
     now = datetime.now(tz=ts.tzinfo) if ts.tzinfo else datetime.now()  # noqa: DTZ005
     age = max(0.0, (now - ts).total_seconds())
     return {"evaluated": True, "stale": age > threshold_s, "age_seconds": round(age, 3)}
@@ -383,7 +397,7 @@ def alarm_bad_actors(
         "flood_verdict": flood,
         "priority_distribution": priority_dist,
         "pareto_sources_for_80pct": pareto,
-        "top_offenders": offenders[:max(1, int(top_n))],
+        "top_offenders": offenders[: max(1, int(top_n))],
         "chattering": [o["source"] for o in offenders if o["chattering"]],
         "standing": [o["source"] for o in offenders if o["standing"]],
     }
@@ -430,8 +444,9 @@ def _is_standing(group: list[dict], stamps: list[datetime], standing_s: float) -
     if not any(st in ("ACTIVE", "ALM", "ALARM", "") for st in states):
         return False
     if stamps:
-        age = (datetime.now(tz=stamps[0].tzinfo) if stamps[0].tzinfo
-               else datetime.now()).timestamp() - stamps[0].timestamp()  # noqa: DTZ005
+        age = (
+            datetime.now(tz=stamps[0].tzinfo) if stamps[0].tzinfo else datetime.now()
+        ).timestamp() - stamps[0].timestamp()  # noqa: DTZ005
         return age > standing_s
     return False
 
@@ -667,8 +682,7 @@ def _sub_input_error(
         }
     if wrap_at is not None and wrap_at <= 1:
         return {
-            "error": "wrap_at must be > 1 (the rolling-counter modulus, e.g. 256 for "
-            "Sparkplug B)."
+            "error": "wrap_at must be > 1 (the rolling-counter modulus, e.g. 256 for Sparkplug B)."
         }
     return None
 
@@ -700,9 +714,7 @@ def _score_seq_anomalies(seqs: list[int], wrap_at: int | None) -> tuple[int, int
     return missed, duplicates, out_of_order
 
 
-def _collect_overloaded_channels(
-    channels: dict[str, Any], max_tags_per_channel: int
-) -> list[dict]:
+def _collect_overloaded_channels(channels: dict[str, Any], max_tags_per_channel: int) -> list[dict]:
     """Channels whose tag count exceeds the per-channel density cap."""
     overloaded: list[dict] = []
     for ch, cnt in channels.items():

@@ -88,8 +88,11 @@ def plc_program_xref(path: str, symbol: str) -> dict:
         "hit_count": len(hits),
         "hits": [
             {
-                "symbol": h.symbol, "access": h.access, "block": h.block,
-                "source_file": h.source_file, "line": h.line,
+                "symbol": h.symbol,
+                "access": h.access,
+                "block": h.block,
+                "source_file": h.source_file,
+                "line": h.line,
                 "source_line": h.source_line,
             }
             for h in hits[:MAX_XREF_HITS]

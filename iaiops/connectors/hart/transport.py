@@ -39,13 +39,16 @@ _HEADER = struct.Struct(">BBBBHH")  # version, type, id, status, seq(2), byte_co
 HEADER_LEN = _HEADER.size  # 8
 
 
-def frame_message(message_type: int, message_id: int, sequence: int,
-                  payload: bytes = b"") -> bytes:
+def frame_message(message_type: int, message_id: int, sequence: int, payload: bytes = b"") -> bytes:
     """Build a HART-IP message (8-byte header + payload). Pure / structurally testable."""
     byte_count = HEADER_LEN + len(payload)
     header = _HEADER.pack(
-        HART_IP_VERSION, message_type & 0xFF, message_id & 0xFF, 0,
-        sequence & 0xFFFF, byte_count & 0xFFFF,
+        HART_IP_VERSION,
+        message_type & 0xFF,
+        message_id & 0xFF,
+        0,
+        sequence & 0xFFFF,
+        byte_count & 0xFFFF,
     )
     return header + payload
 
@@ -105,7 +108,8 @@ def _raise_for_status(parsed: dict, host: str, port: int) -> None:
             f"{parsed['message_id']} with error status {status} (0 = success): "
             f"the server rejected the session/request — this is a protocol-level "
             f"refusal, not an unreachable device.",
-            endpoint=host, protocol="hart",
+            endpoint=host,
+            protocol="hart",
         )
 
 
@@ -170,7 +174,8 @@ class HartIpSession:
             f"message_id={message_id} seq={self._seq} within {self._timeout}s "
             f"(mismatched/stale datagrams are discarded, never trusted as the "
             f"current response).",
-            endpoint=self._host, protocol="hart",
+            endpoint=self._host,
+            protocol="hart",
         )
 
     def close(self) -> None:
@@ -231,7 +236,8 @@ class HartIpTcpSession:
             f"{_MAX_UNMATCHED_TCP_MESSAGES} messages answered message_id="
             f"{message_id} seq={self._seq} — the stream is flooded with "
             f"unsolicited traffic or out of sync.",
-            endpoint=self._host, protocol="hart",
+            endpoint=self._host,
+            protocol="hart",
         )
 
     def _read_message(self) -> bytes:
@@ -242,7 +248,8 @@ class HartIpTcpSession:
             raise OTConnectionError(
                 f"HART-IP TCP framing error: header byte_count {byte_count} < "
                 f"{HEADER_LEN} (header length). The peer is not speaking HART-IP framing.",
-                endpoint=self._host, protocol="hart",
+                endpoint=self._host,
+                protocol="hart",
             )
         body = self._recv_exactly(body_len) if body_len else b""
         return header + body
@@ -257,7 +264,8 @@ class HartIpTcpSession:
                 raise OTConnectionError(
                     f"HART-IP TCP connection closed after {got}/{n} bytes — the gateway "
                     f"dropped the connection mid-message.",
-                    endpoint=self._host, protocol="hart",
+                    endpoint=self._host,
+                    protocol="hart",
                 )
             chunks.append(chunk)
             got += len(chunk)
@@ -292,13 +300,15 @@ def _build_hart_ip_client(target: Any) -> HartIpSession | HartIpTcpSession:
         raise OTConnectionError(
             "The 'hart-protocol' package is not installed. HART-IP is an OPTIONAL "
             "extra: 'pip install iaiops[hart]'.",
-            endpoint=getattr(target, "name", "?"), protocol="hart",
+            endpoint=getattr(target, "name", "?"),
+            protocol="hart",
         ) from exc
     if not target.host:
         raise OTConnectionError(
             f"HART-IP endpoint '{target.name}' has no host. Add 'host: <ip>' (HART-IP "
             f"server/gateway; port defaults to 5094) to its config entry.",
-            endpoint=getattr(target, "name", "?"), protocol="hart",
+            endpoint=getattr(target, "name", "?"),
+            protocol="hart",
         )
     if _wants_tcp(target):
         return HartIpTcpSession(target.host, target.port or 5094)
@@ -311,7 +321,8 @@ def hart_session(target: Any) -> Iterator[HartIpSession | HartIpTcpSession]:
     if target.protocol != "hart":
         raise OTConnectionError(
             f"Endpoint '{target.name}' is protocol '{target.protocol}', not hart.",
-            endpoint=target.name, protocol=target.protocol,
+            endpoint=target.name,
+            protocol=target.protocol,
         )
     session = _build_hart_ip_client(target)
     try:
@@ -324,13 +335,18 @@ def hart_session(target: Any) -> Iterator[HartIpSession | HartIpTcpSession]:
             f"HART-IP '{target.name}' ({target.host}:{target.port or 5094}) failed: "
             f"{exc}. The HART-IP wire transport is 待核实 — validate against a live "
             f"HART-IP server/gateway.",
-            endpoint=target.host, protocol="hart",
+            endpoint=target.host,
+            protocol="hart",
         ) from exc
     finally:
         session.close()
 
 
 __all__ = [
-    "frame_message", "parse_message", "session_initiate_payload",
-    "HartIpSession", "HartIpTcpSession", "hart_session",
+    "frame_message",
+    "parse_message",
+    "session_initiate_payload",
+    "HartIpSession",
+    "HartIpTcpSession",
+    "hart_session",
 ]

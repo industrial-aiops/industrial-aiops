@@ -100,8 +100,10 @@ def record_approval(
     tmp.replace(path)
     _log.info(
         "Recorded one-shot approval for %s @ %s by %s (ttl %ds)",
-        approval.tool, approval.endpoint or "<any endpoint>",
-        approval.approved_by, approval.ttl_seconds,
+        approval.tool,
+        approval.endpoint or "<any endpoint>",
+        approval.approved_by,
+        approval.ttl_seconds,
     )
     return approval
 
@@ -148,7 +150,9 @@ def consume_approval(tool: str, endpoint: str = "") -> Approval | None:
     if approval.is_expired():
         _log.warning(
             "Approval token for %s @ %s by %s EXPIRED %.0fs ago — discarded",
-            approval.tool, approval.endpoint, approval.approved_by,
+            approval.tool,
+            approval.endpoint,
+            approval.approved_by,
             time.time() - approval.expires_at,
         )
         return None

@@ -17,8 +17,18 @@ from iaiops.core.runtime.config import TargetConfig
 
 
 class _FakeDevice:
-    def __init__(self, name, mac, ip, netmask="255.255.255.0", gateway="0.0.0.0",
-                 vendor_id=0x002A, device_id=0x0301, device_role=0x02, family="S7-1500"):
+    def __init__(
+        self,
+        name,
+        mac,
+        ip,
+        netmask="255.255.255.0",
+        gateway="0.0.0.0",
+        vendor_id=0x002A,
+        device_id=0x0301,
+        device_role=0x02,
+        family="S7-1500",
+    ):
         self.name_of_station = name
         self.MAC = mac
         self.IP = ip
@@ -68,10 +78,12 @@ def _target():
 @pytest.fixture
 def pn(monkeypatch):
     devices = [
-        _FakeDevice("plc1", "00:1b:1b:00:00:01", "192.168.0.20",
-                    device_role=0x02, family="S7-1500"),       # io_controller
-        _FakeDevice("et200sp-1", "00:1b:1b:00:00:02", "192.168.0.21",
-                    device_role=0x01, family="ET200SP"),       # io_device
+        _FakeDevice(
+            "plc1", "00:1b:1b:00:00:01", "192.168.0.20", device_role=0x02, family="S7-1500"
+        ),  # io_controller
+        _FakeDevice(
+            "et200sp-1", "00:1b:1b:00:00:02", "192.168.0.21", device_role=0x01, family="ET200SP"
+        ),  # io_device
     ]
     dcp = _FakeDCP(devices)
     monkeypatch.setattr(conn, "_build_profinet_dcp", lambda target: dcp)
@@ -225,9 +237,7 @@ def test_ops_dcp_set_dry_run_default_is_true():
 
 @pytest.mark.unit
 def test_dcp_set_dry_run_returns_plan_without_setting(pn):
-    out = ops.profinet_dcp_set(
-        _target(), "00:1b:1b:00:00:01", set_name="plc-new", dry_run=True
-    )
+    out = ops.profinet_dcp_set(_target(), "00:1b:1b:00:00:01", set_name="plc-new", dry_run=True)
     assert out["dry_run"] is True
     assert out["before"]["name_of_station"] == "plc1"  # captured BEFORE value
     assert out["before"]["ip"] == "192.168.0.20"
@@ -239,8 +249,12 @@ def test_dcp_set_dry_run_returns_plan_without_setting(pn):
 @pytest.mark.unit
 def test_dcp_set_applied_captures_before_and_sets(pn):
     out = ops.profinet_dcp_set(
-        _target(), "00:1b:1b:00:00:01", set_name="plc-new",
-        set_ip="192.168.0.99", netmask="255.255.255.0", gateway="192.168.0.1",
+        _target(),
+        "00:1b:1b:00:00:01",
+        set_name="plc-new",
+        set_ip="192.168.0.99",
+        netmask="255.255.255.0",
+        gateway="192.168.0.1",
         dry_run=False,
     )
     assert out["applied"] is True
@@ -269,8 +283,12 @@ def test_profinet_undo_descriptor_restores_before():
     params = {"endpoint": "cell1", "mac": "00:1b:1b:00:00:01"}
     result = {
         "applied": True,
-        "before": {"name_of_station": "plc1", "ip": "192.168.0.20",
-                   "netmask": "255.255.255.0", "gateway": "192.168.0.1"},
+        "before": {
+            "name_of_station": "plc1",
+            "ip": "192.168.0.20",
+            "netmask": "255.255.255.0",
+            "gateway": "192.168.0.1",
+        },
     }
     undo = _profinet_undo(params, result)
     assert undo["tool"] == "profinet_dcp_set"

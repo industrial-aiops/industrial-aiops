@@ -72,8 +72,14 @@ def test_markdown_honest_gap_list_and_appendix():
     assert "待核实" in md
     assert "国产 OS" in md  # supply-chain gap text from CONTROLS
     # Governance appendix: hash chain, approval tokens, dry-run/undo, mTLS.
-    for fact in ("审计哈希链", "prev_hash", "iaiops approve", "dry_run=True",
-                 "secrets.enc", "审批令牌"):
+    for fact in (
+        "审计哈希链",
+        "prev_hash",
+        "iaiops approve",
+        "dry_run=True",
+        "secrets.enc",
+        "审批令牌",
+    ):
         assert fact in md
 
 
@@ -128,7 +134,8 @@ def test_mcp_report_truncates_beyond_bound(monkeypatch):
     import mcp_server.tools.compliance_tools as mod
 
     monkeypatch.setattr(
-        mod, "_render_markdown_report",
+        mod,
+        "_render_markdown_report",
         lambda **_: "\n".join(f"line {i}" for i in range(1000)),
     )
     out = mod.compliance_report()

@@ -118,9 +118,7 @@ def test_malformed_limits_retain_last_known_good_rules(tmp_path):
 
     # A rule with no enforceable bound must fail the load — the previous
     # (enforcing) rule set is retained, not degraded to allow-all.
-    rules.write_text(
-        "change_limits:\n  - name: broken\n    operations: ['write_*']\n", "utf-8"
-    )
+    rules.write_text("change_limits:\n  - name: broken\n    operations: ['write_*']\n", "utf-8")
     _bump_mtime(rules)
     assert not engine.check_allowed("write_setpoint", params={"value": 150}).allowed
 
@@ -141,8 +139,6 @@ def test_legacy_dict_shape_rejected_and_audited_at_load(tmp_path):
 def test_non_numeric_bound_rejected_at_load(tmp_path):
     audit = get_engine(tmp_path / "audit.db")
     rules = tmp_path / "rules.yaml"
-    rules.write_text(
-        "change_limits:\n  - param: value\n    max: lots\n", "utf-8"
-    )
+    rules.write_text("change_limits:\n  - param: value\n    max: lots\n", "utf-8")
     PolicyEngine(rules)
     assert audit.query(status="policy_load_failed")

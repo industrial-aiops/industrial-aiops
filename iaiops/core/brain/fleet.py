@@ -79,14 +79,16 @@ def fleet_rollup(
         if not name:
             continue
         status, score = _site_status(site, stale_after_s, now_dt)
-        rows.append({
-            "site": name,
-            "location": s(site.get("location", ""), 96),
-            "profile": s(site.get("profile", ""), 48),
-            "status": status,
-            "score": score,
-            "issues": int(num(site.get("issues")) or 0),
-        })
+        rows.append(
+            {
+                "site": name,
+                "location": s(site.get("location", ""), 96),
+                "profile": s(site.get("profile", ""), 48),
+                "status": status,
+                "score": score,
+                "issues": int(num(site.get("issues")) or 0),
+            }
+        )
 
     by_status: dict[str, int] = {}
     for r in rows:

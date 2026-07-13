@@ -95,8 +95,19 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # Pair with IAIOPS_MCP_NO_BRAIN=1 protocol servers at multi-process sites.
     "brain": (),
     "fab": ("secsgem", "opcua", "s7", "modbus"),
-    "factory": ("modbus", "s7", "eip", "mc", "fins", "ethercat", "profinet",
-                "mtconnect", "opcua", "sparkplug", "iolink"),
+    "factory": (
+        "modbus",
+        "s7",
+        "eip",
+        "mc",
+        "fins",
+        "ethercat",
+        "profinet",
+        "mtconnect",
+        "opcua",
+        "sparkplug",
+        "iolink",
+    ),
     "process": ("opcua", "modbus", "hart"),
     # Building edition: facility / HVAC / 厂务 (BACnet, plus common plant protocols).
     "building": ("bacnet", "modbus", "opcua", "iolink"),

@@ -54,9 +54,7 @@ def isolation_room_check(
     ``low_margin_pa`` of the minimum. Worst-first; every flag cites its number.
     """
     graded = [
-        _grade(r, min_magnitude_pa, low_margin_pa)
-        for r in (rooms or [])
-        if isinstance(r, dict)
+        _grade(r, min_magnitude_pa, low_margin_pa) for r in (rooms or []) if isinstance(r, dict)
     ]
     summary = {k: 0 for k in ("compliant", "low_margin", "breach", "reversed", "info")}
     for g in graded:
@@ -114,8 +112,7 @@ def _polarity(sign: int) -> str:
 
 
 def _row(room: str, mode: str, diff: Any, status: str, detail: str) -> dict:
-    return {"room": room, "mode": mode, "differential_pa": diff,
-            "status": status, "detail": detail}
+    return {"room": room, "mode": mode, "differential_pa": diff, "status": status, "detail": detail}
 
 
 # ── Medical gas / vacuum source pressure (NFPA 99 / HTM 02-01) ────────────────
@@ -136,8 +133,15 @@ _GAS_BANDS: dict[str, dict] = {
 }
 
 # Worst-first ordering for medical-gas findings.
-_GAS_SEVERITY = {"critical": 0, "low_pressure": 1, "high_pressure": 1,
-                 "insufficient_vacuum": 1, "unknown_gas": 2, "unknown": 3, "normal": 4}
+_GAS_SEVERITY = {
+    "critical": 0,
+    "low_pressure": 1,
+    "high_pressure": 1,
+    "insufficient_vacuum": 1,
+    "unknown_gas": 2,
+    "unknown": 3,
+    "normal": 4,
+}
 
 
 def medical_gas_check(sources: list[dict]) -> dict:
@@ -160,7 +164,7 @@ def medical_gas_check(sources: list[dict]) -> dict:
     return {
         "sources_evaluated": len(graded),
         "standard": "NFPA 99 / HTM 02-01 medical gas & vacuum source pressures "
-                    "(guidance defaults; kPa gauge)",
+        "(guidance defaults; kPa gauge)",
         "summary": summary,
         "alarm_count": len(alarms),
         "alarms": alarms[:MAX_ROWS],
@@ -185,31 +189,50 @@ def _grade_gas(source: dict) -> dict:
 
 def _grade_positive(system: str, gas: str, kpa: float, band: dict) -> dict:
     if kpa <= band["crit_low"] or kpa >= band["crit_high"]:
-        return _gas_row(system, gas, kpa, "critical",
-                        f"critical: {kpa} kPa outside [{band['crit_low']}, {band['crit_high']}]")
+        return _gas_row(
+            system,
+            gas,
+            kpa,
+            "critical",
+            f"critical: {kpa} kPa outside [{band['crit_low']}, {band['crit_high']}]",
+        )
     if kpa < band["low"]:
         return _gas_row(system, gas, kpa, "low_pressure", f"low: {kpa} kPa < {band['low']} kPa")
     if kpa > band["high"]:
-        return _gas_row(system, gas, kpa, "high_pressure",
-                        f"high: {kpa} kPa > {band['high']} kPa")
-    return _gas_row(system, gas, kpa, "normal",
-                    f"ok: {kpa} kPa within [{band['low']}, {band['high']}]")
+        return _gas_row(system, gas, kpa, "high_pressure", f"high: {kpa} kPa > {band['high']} kPa")
+    return _gas_row(
+        system, gas, kpa, "normal", f"ok: {kpa} kPa within [{band['low']}, {band['high']}]"
+    )
 
 
 def _grade_vacuum(system: str, gas: str, kpa: float, band: dict) -> dict:
     if kpa > band["crit_above"]:
-        return _gas_row(system, gas, kpa, "critical",
-                        f"critical: {kpa} kPa vacuum far above {band['crit_above']} kPa")
+        return _gas_row(
+            system,
+            gas,
+            kpa,
+            "critical",
+            f"critical: {kpa} kPa vacuum far above {band['crit_above']} kPa",
+        )
     if kpa > band["adequate_at_or_below"]:
-        return _gas_row(system, gas, kpa, "insufficient_vacuum",
-                        f"insufficient: {kpa} kPa > {band['adequate_at_or_below']} kPa threshold")
-    return _gas_row(system, gas, kpa, "normal",
-                    f"ok: {kpa} kPa at or below the {band['adequate_at_or_below']} kPa threshold")
+        return _gas_row(
+            system,
+            gas,
+            kpa,
+            "insufficient_vacuum",
+            f"insufficient: {kpa} kPa > {band['adequate_at_or_below']} kPa threshold",
+        )
+    return _gas_row(
+        system,
+        gas,
+        kpa,
+        "normal",
+        f"ok: {kpa} kPa at or below the {band['adequate_at_or_below']} kPa threshold",
+    )
 
 
 def _gas_row(system: str, gas: str, kpa: Any, status: str, detail: str) -> dict:
-    return {"system": system, "gas": gas, "pressure_kpa": kpa,
-            "status": status, "detail": detail}
+    return {"system": system, "gas": gas, "pressure_kpa": kpa, "status": status, "detail": detail}
 
 
 # ── Operating-room ventilation (ASHRAE 170 Table 7.1) ────────────────────────
@@ -218,8 +241,7 @@ def _gas_row(system: str, gas: str, kpa: Any, status: str, detail: str) -> dict:
 _OR_PARAMS: dict[str, dict] = {
     "temp_c": {"low": 20.0, "high": 24.0, "unit": "°C", "label": "temperature"},
     "humidity_pct": {"low": 20.0, "high": 60.0, "unit": "%", "label": "relative humidity"},
-    "air_changes_per_hour": {"low": 20.0, "high": None, "unit": "ACH",
-                             "label": "air changes/hour"},
+    "air_changes_per_hour": {"low": 20.0, "high": None, "unit": "ACH", "label": "air changes/hour"},
 }
 
 
@@ -266,9 +288,13 @@ def _grade_or_room(room: dict) -> dict:
 
 def _or_flag(band: dict, value: float, side: str) -> dict:
     bound = band["low"] if side == "low" else band["high"]
-    return {"parameter": band["label"], "value": value, "unit": band["unit"],
-            "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
-                      f"{bound}{band['unit']} limit"}
+    return {
+        "parameter": band["label"],
+        "value": value,
+        "unit": band["unit"],
+        "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
+        f"{bound}{band['unit']} limit",
+    }
 
 
 def _has_reading(room: dict) -> bool:

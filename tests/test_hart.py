@@ -31,9 +31,7 @@ LONG_ADDR_ON_WIRE = bytes([0xA6, 0x06, 0x12, 0x34, 0x56])
 
 # Command-0 identity payload whose fields derive LONG_ADDR (2 status bytes, then
 # 254, mfr id, device type, preambles, revisions ×4, flags, 3-byte device id).
-IDENTITY_PAYLOAD = bytes(
-    [0, 0, 254, 0x26, 0x06, 5, 7, 5, 0, 0, 0, 0x12, 0x34, 0x56]
-)
+IDENTITY_PAYLOAD = bytes([0, 0, 254, 0x26, 0x06, 5, 7, 5, 0, 0, 0, 0x12, 0x34, 0x56])
 
 
 def _ack_frame(command_id: int, payload: bytes) -> bytes:
@@ -44,26 +42,32 @@ def _ack_frame(command_id: int, payload: bytes) -> bytes:
     core = b"\x86" + addr + bytes([command_id]) + bytes([len(payload)]) + payload
     cs = calculate_checksum(core)
     cs = cs if isinstance(cs, (bytes, bytearray)) else bytes([cs])
-    return b"\xFF\xFF\xFF\xFF\xFF" + core + cs
+    return b"\xff\xff\xff\xff\xff" + core + cs
 
 
 def _short_ack_frame(command_id: int, payload: bytes, poll_address: int = 0) -> bytes:
     """Craft a HART SHORT-frame ACK (delimiter 0x06) — a Command 0 poll answer."""
     from hart_protocol.tools import calculate_checksum
 
-    core = (b"\x06" + bytes([0x80 | poll_address]) + bytes([command_id])
-            + bytes([len(payload)]) + payload)
+    core = (
+        b"\x06"
+        + bytes([0x80 | poll_address])
+        + bytes([command_id])
+        + bytes([len(payload)])
+        + payload
+    )
     cs = calculate_checksum(core)
     cs = cs if isinstance(cs, (bytes, bytearray)) else bytes([cs])
-    return b"\xFF\xFF\xFF\xFF\xFF" + core + cs
+    return b"\xff\xff\xff\xff\xff" + core + cs
 
 
 # ── codec (verified against the real hart-protocol library) ───────────────────
 
+
 @pytest.mark.unit
 def test_build_command_produces_real_hart_frame():
     frame = codec.build_command("primary_variable", LONG_ADDR)
-    assert isinstance(frame, bytes) and frame.startswith(b"\xFF\xFF")
+    assert isinstance(frame, bytes) and frame.startswith(b"\xff\xff")
     assert frame[5] == 0x82  # master-to-slave long-frame start delimiter
     assert frame[6:11] == LONG_ADDR_ON_WIRE  # the REAL address, not a fabricated one
 
@@ -104,7 +108,7 @@ def test_build_poll_command_is_a_short_frame():
     from hart_protocol.tools import calculate_checksum
 
     frame = codec.build_poll_command(0)
-    assert frame[:5] == b"\xFF" * 5
+    assert frame[:5] == b"\xff" * 5
     core = frame[5:-1]
     assert core == bytes([0x02, 0x80, 0x00, 0x00])  # STX short, primary master, cmd 0
     assert frame[-1:] == calculate_checksum(core)
@@ -138,9 +142,7 @@ def test_unique_address_masks_manufacturer_bits():
 
 @pytest.mark.unit
 def test_unique_address_from_identity_teaches_on_wrong_message():
-    messages = codec.parse_responses(
-        _ack_frame(1, bytes([0, 0, 7]) + struct.pack(">f", 85.0))
-    )
+    messages = codec.parse_responses(_ack_frame(1, bytes([0, 0, 7]) + struct.pack(">f", 85.0)))
     with pytest.raises(ValueError, match="long_address"):
         codec.unique_address_from_identity(messages[0])
 
@@ -157,9 +159,10 @@ def test_parse_responses_extracts_primary_variable():
 
 # ── transport framing (pure, structurally testable) ───────────────────────────
 
+
 @pytest.mark.unit
 def test_hart_ip_frame_roundtrip():
-    payload = b"\xFF\xFF\x82\x80\x00"
+    payload = b"\xff\xff\x82\x80\x00"
     msg = tx.frame_message(tx.MT_REQUEST, tx.MID_TOKEN_PASSING, 7, payload)
     parsed = tx.parse_message(msg)
     assert parsed["version"] == tx.HART_IP_VERSION
@@ -183,6 +186,7 @@ def test_session_initiate_payload_shape():
 
 
 # ── ops end-to-end with the wire transport monkeypatched ──────────────────────
+
 
 class _FakeSession:
     """Stands in for a live HART-IP gateway: returns a crafted HART response."""
@@ -268,6 +272,7 @@ def _hart_target_for(monkeypatch, response: bytes) -> TargetConfig:
 
 # ── identity → address chain (configured long_address / Command 0 discovery) ──
 
+
 @pytest.mark.unit
 def test_ops_send_the_configured_long_address(monkeypatch):
     """A configured long_address goes on the wire — never a fabricated default."""
@@ -294,9 +299,7 @@ def test_ops_discover_address_via_command0_poll(monkeypatch):
     from iaiops.connectors.hart import ops
 
     pv_payload = bytes([0, 0, 7]) + struct.pack(">f", 85.0)
-    session = _ScriptedSession(
-        [_short_ack_frame(0, IDENTITY_PAYLOAD), _ack_frame(1, pv_payload)]
-    )
+    session = _ScriptedSession([_short_ack_frame(0, IDENTITY_PAYLOAD), _ack_frame(1, pv_payload)])
     monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
     target = TargetConfig(name="xmtr-1", protocol="hart", host="10.0.0.7")
 
@@ -333,9 +336,7 @@ def test_ops_invalid_configured_long_address_teaches(monkeypatch):
 
     session = _ScriptedSession([])
     monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
-    target = TargetConfig(
-        name="xmtr-1", protocol="hart", host="10.0.0.7", long_address="not-hex"
-    )
+    target = TargetConfig(name="xmtr-1", protocol="hart", host="10.0.0.7", long_address="not-hex")
     with pytest.raises(OTConnectionError, match="10 hex digits"):
         ops.hart_primary_variable(target)
     assert session.sent == []  # nothing hit the wire with a bogus address
@@ -346,8 +347,14 @@ def test_burst_sample_discovers_once_and_reuses_the_address(monkeypatch):
     """Discovery runs once per call (one poll), then every sample reuses it."""
     from iaiops.connectors.hart import ops
 
-    cmd3_payload = (bytes([0, 0]) + struct.pack(">f", 4.2) + bytes([7])
-                    + struct.pack(">f", 85.0) + bytes([12]) + struct.pack(">f", 55.0))
+    cmd3_payload = (
+        bytes([0, 0])
+        + struct.pack(">f", 4.2)
+        + bytes([7])
+        + struct.pack(">f", 85.0)
+        + bytes([12])
+        + struct.pack(">f", 55.0)
+    )
     session = _ScriptedSession(
         [_short_ack_frame(0, IDENTITY_PAYLOAD)] + [_ack_frame(3, cmd3_payload)] * 3
     )
@@ -386,9 +393,9 @@ def test_hart_device_identity_end_to_end(monkeypatch):
     payload = bytes([0, 0, 254, 0x60, 0x99, 4, 7, 5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0])
     out = ops.hart_device_identity(_hart_target_for(monkeypatch, _ack_frame(0, payload)))
     assert out["manufacturer_id"] == 0x60
-    assert out["device_type"] == 0x99      # was always None (read 'device_type')
+    assert out["device_type"] == 0x99  # was always None (read 'device_type')
     assert out["device_id"] is not None
-    assert out["hart_revision"] == 7       # was always None (read 'universal_revision')
+    assert out["hart_revision"] == 7  # was always None (read 'universal_revision')
 
 
 @pytest.mark.unit
@@ -396,8 +403,14 @@ def test_hart_dynamic_variables_end_to_end(monkeypatch):
     """cmd-3 loop current + PV/SV must be POPULATED (guards the fabricated read)."""
     from iaiops.connectors.hart import ops
 
-    payload = (bytes([0, 0]) + struct.pack(">f", 4.2) + bytes([7])
-               + struct.pack(">f", 85.0) + bytes([12]) + struct.pack(">f", 55.0))
+    payload = (
+        bytes([0, 0])
+        + struct.pack(">f", 4.2)
+        + bytes([7])
+        + struct.pack(">f", 85.0)
+        + bytes([12])
+        + struct.pack(">f", 55.0)
+    )
     out = ops.hart_dynamic_variables(_hart_target_for(monkeypatch, _ack_frame(3, payload)))
     assert out["loop_current_mA"] == pytest.approx(4.2, abs=1e-3)  # was always None
     names = {v["name"]: v["value"] for v in out["variables"]}
@@ -410,8 +423,14 @@ def test_hart_burst_sample_collects_multiple(monkeypatch):
     """Burst sampling reads the published (cmd-3) variables N times over one session."""
     from iaiops.connectors.hart import ops
 
-    payload = (bytes([0, 0]) + struct.pack(">f", 4.2) + bytes([7])
-               + struct.pack(">f", 85.0) + bytes([12]) + struct.pack(">f", 55.0))
+    payload = (
+        bytes([0, 0])
+        + struct.pack(">f", 4.2)
+        + bytes([7])
+        + struct.pack(">f", 85.0)
+        + bytes([12])
+        + struct.pack(">f", 55.0)
+    )
     session = _FakeSession(_ack_frame(3, payload))
     monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
     target = TargetConfig(
@@ -440,9 +459,7 @@ def test_hart_burst_sample_bounds_and_reports_no_response(monkeypatch):
 
     session = _FakeSession(b"")  # gateway returns nothing parseable
     monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
-    target = TargetConfig(
-        name="x", protocol="hart", host="10.0.0.7", long_address=LONG_ADDR_TEXT
-    )
+    target = TargetConfig(name="x", protocol="hart", host="10.0.0.7", long_address=LONG_ADDR_TEXT)
 
     out = ops.hart_burst_sample(target, samples=0)  # clamped up to 1
     assert out["requested_samples"] == 1
@@ -459,6 +476,7 @@ def test_hart_burst_sample_tool_is_governed_low():
 
 
 # ── HART-IP response validation (type/id/sequence match + header status) ──────
+
 
 class _FakeUdpSocket:
     """A scripted UDP socket: returns queued datagrams, then times out."""
@@ -562,6 +580,7 @@ def test_tcp_session_surfaces_error_status():
 
 # ── transport selection (udp default / tcp opt-in) ────────────────────────────
 
+
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "given,expected",
@@ -584,6 +603,7 @@ def test_build_hart_ip_client_selects_session_class():
 
 
 # ── TCP transport: real localhost loopback through the REAL ops/codec path ─────
+
 
 class _HartIpTcpServer:
     """A tiny in-process HART-IP TCP server speaking the 8-byte framing.
@@ -636,9 +656,7 @@ class _HartIpTcpServer:
                 else:
                     payload = b""
                 conn.sendall(
-                    tx.frame_message(
-                        tx.MT_RESPONSE, meta["message_id"], meta["sequence"], payload
-                    )
+                    tx.frame_message(tx.MT_RESPONSE, meta["message_id"], meta["sequence"], payload)
                 )
                 if meta["message_id"] == tx.MID_SESSION_CLOSE:
                     return
@@ -668,8 +686,12 @@ def test_hart_tcp_transport_loopback_to_primary_variable(hart_tcp_server):
     from iaiops.connectors.hart import ops
 
     target = TargetConfig(
-        name="xmtr-tcp", protocol="hart", host="127.0.0.1",
-        port=hart_tcp_server.port, transport="tcp", long_address=LONG_ADDR_TEXT,
+        name="xmtr-tcp",
+        protocol="hart",
+        host="127.0.0.1",
+        port=hart_tcp_server.port,
+        transport="tcp",
+        long_address=LONG_ADDR_TEXT,
     )
     out = ops.hart_primary_variable(target)
     assert out["endpoint"] == "xmtr-tcp"

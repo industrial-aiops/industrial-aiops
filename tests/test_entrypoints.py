@@ -36,8 +36,7 @@ def test_console_scripts_match_shims():
     # The declared `iaiops-mcp-<name>` console scripts must exactly cover the
     # data-driven shim set, each pointing at the matching shim — no drift, no typo.
     scripts = tomllib.loads(_PYPROJECT.read_text())["project"]["scripts"]
-    named = {n[len("iaiops-mcp-"):]: t for n, t in scripts.items()
-             if n.startswith("iaiops-mcp-")}
+    named = {n[len("iaiops-mcp-") :]: t for n, t in scripts.items() if n.startswith("iaiops-mcp-")}
     assert set(named) == set(entrypoints.ENTRYPOINT_SELECTIONS)
     for name, target in named.items():
         assert target == f"mcp_server.entrypoints:main_{name}"
@@ -74,8 +73,7 @@ def _tool_count(launch: str) -> int:
     """
     code = (
         "from mcp_server._shared import mcp;"
-        "mcp.run = lambda *a, **k: print(len(mcp._tool_manager.list_tools()));"
-        + launch
+        "mcp.run = lambda *a, **k: print(len(mcp._tool_manager.list_tools()));" + launch
     )
     out = subprocess.check_output([sys.executable, "-c", code], text=True)
     return int(out.strip())
@@ -84,12 +82,9 @@ def _tool_count(launch: str) -> int:
 @pytest.mark.parametrize("name", ["opcua", "modbus", "fab", "building", "brain"])
 def test_shim_tool_set_matches_env_var(name):
     via_env = _tool_count(
-        f"import os; os.environ['IAIOPS_MCP'] = {name!r};"
-        "from mcp_server.server import main; main()"
+        f"import os; os.environ['IAIOPS_MCP'] = {name!r};from mcp_server.server import main; main()"
     )
-    via_shim = _tool_count(
-        f"from mcp_server.entrypoints import main_{name} as m; m()"
-    )
+    via_shim = _tool_count(f"from mcp_server.entrypoints import main_{name} as m; m()")
     assert via_shim == via_env
 
 

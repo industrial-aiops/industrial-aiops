@@ -33,6 +33,7 @@ _WATER_TEMPLATES = ("eh_promag_flowmeter", "hach_sc_controller", "generic_dosing
 
 # ── profile ─────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 def test_water_profile_resolves_to_modbus_opcua_hart():
     assert NAMED_PROFILES["water"] == ("modbus", "opcua", "hart")
@@ -49,6 +50,7 @@ def test_water_profile_tool_modules_are_brain_plus_edition_plus_three_protocols(
 
 
 # ── entrypoint + extra ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 def test_water_entrypoint_shim_exists():
@@ -82,6 +84,7 @@ def test_water_shim_injects_selection(monkeypatch):
 
 
 # ── semantics: water-domain tag classes ─────────────────────────────────────────
+
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
@@ -146,6 +149,7 @@ def test_water_hints_do_not_regress_existing_classes(name, expected):
 
 
 # ── Modbus register templates ───────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 def test_water_templates_listed_with_honest_caveats():

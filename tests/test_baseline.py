@@ -31,15 +31,17 @@ def _samples(
     out = []
     for i in range(n):
         value = values[i % len(values)] if values else 50.0 + (i % 3) - 1  # 49/50/51
-        out.append({
-            "ts": (start + timedelta(seconds=i * step_s)).isoformat(),
-            "endpoint": "plc1",
-            "protocol": "modbus",
-            "tag": tag,
-            "value": value,
-            "quality": quality,
-            "unit": "C",
-        })
+        out.append(
+            {
+                "ts": (start + timedelta(seconds=i * step_s)).isoformat(),
+                "endpoint": "plc1",
+                "protocol": "modbus",
+                "tag": tag,
+                "value": value,
+                "quality": quality,
+                "unit": "C",
+            }
+        )
     return out
 
 
@@ -182,8 +184,9 @@ def test_sustained_excursion_flagged_with_full_citation():
     assert cite["window_from"] == baseline["window"]["from_ts"]
     assert cite["window_to"] == baseline["window"]["to_ts"]
     assert cite["n_samples"] == baseline["n_samples"]
-    assert cite["band"] == {k: pytest.approx(baseline["band"][k])
-                            for k in ("p1", "p99", "median", "mad")}
+    assert cite["band"] == {
+        k: pytest.approx(baseline["band"][k]) for k in ("p1", "p99", "median", "mad")
+    }
 
 
 @pytest.mark.unit
@@ -209,10 +212,8 @@ def test_check_output_is_bounded():
     fresh: list[dict] = []
     start = BASE + timedelta(days=10)
     for burst in range(30):
-        fresh += _samples(3, values=[90.0], step_s=60.0,
-                          start=start + timedelta(hours=burst))
-        fresh += _samples(1, values=[50.0],
-                          start=start + timedelta(hours=burst, minutes=30))
+        fresh += _samples(3, values=[90.0], step_s=60.0, start=start + timedelta(hours=burst))
+        fresh += _samples(1, values=[50.0], start=start + timedelta(hours=burst, minutes=30))
     result = bl.check_against_baseline(fresh, baseline)
     assert result["status"] == "violation"
     assert len(result["violations"]) == bl.MAX_VIOLATIONS
@@ -238,8 +239,7 @@ def test_classify_status_vocabulary():
 
 @pytest.mark.unit
 def test_store_roundtrip_and_owner_only_permissions(tmp_path):
-    result = bls.record_change("line1.temp", "2026-06-05T00:00:00", "probe swap",
-                               base_dir=tmp_path)
+    result = bls.record_change("line1.temp", "2026-06-05T00:00:00", "probe swap", base_dir=tmp_path)
     assert result["change"]["note"] == "probe swap"
     path = bls.store_path(tmp_path)
     assert path.exists()
@@ -272,8 +272,7 @@ def test_record_change_requires_note_and_valid_ts(tmp_path):
 @pytest.mark.unit
 def test_record_change_log_is_bounded(tmp_path):
     for i in range(bls.MAX_CHANGES_PER_TAG + 10):
-        bls.record_change("t", f"2026-06-01T00:{i % 60:02d}:00", f"change {i}",
-                          base_dir=tmp_path)
+        bls.record_change("t", f"2026-06-01T00:{i % 60:02d}:00", f"change {i}", base_dir=tmp_path)
     record = bls.load_store(tmp_path)["tags"]["t"]
     assert len(record["changes"]) == bls.MAX_CHANGES_PER_TAG
     assert record["changes"][-1]["note"] == f"change {bls.MAX_CHANGES_PER_TAG + 9}"
@@ -287,11 +286,18 @@ def _seed_db(tmp_path, rows: list[dict]):
 
     db = tmp_path / "data.db"
     sink = SQLiteLocalSink(db_path=db, endpoint="plc1", protocol="modbus")
-    sink.write([
-        {"timestamp": r["ts"], "metric": r["tag"], "value": r["value"],
-         "numeric": True, "tags": {"quality": r["quality"], "unit": r["unit"]}}
-        for r in rows
-    ])
+    sink.write(
+        [
+            {
+                "timestamp": r["ts"],
+                "metric": r["tag"],
+                "value": r["value"],
+                "numeric": True,
+                "tags": {"quality": r["quality"], "unit": r["unit"]},
+            }
+            for r in rows
+        ]
+    )
     sink.close()
     return db
 
@@ -302,8 +308,7 @@ def test_learn_flow_persists_band_and_segments_at_change(tmp_path):
     rows = _samples(120, values=[30.0, 30.5, 31.0])
     rows += _samples(120, values=[69.0, 70.0, 71.0], start=change_ts + timedelta(hours=1))
     db = _seed_db(tmp_path, rows)
-    bls.record_change("line1.temp", change_ts.isoformat(), "setpoint 30→70C",
-                      base_dir=tmp_path)
+    bls.record_change("line1.temp", change_ts.isoformat(), "setpoint 30→70C", base_dir=tmp_path)
     result = bls.learn_flow("line1.temp", base_dir=tmp_path, db_path=db)
     assert result["status"] == "ok"
     assert result["band"]["median"] == pytest.approx(70.0)
@@ -320,10 +325,8 @@ def test_check_flow_no_baseline_answer_and_violation_roundtrip(tmp_path):
 
     assert bls.learn_flow("line1.temp", base_dir=tmp_path, db_path=db)["status"] == "ok"
     # a sustained excursion inside the check window
-    _seed_db(tmp_path, _samples(6, values=[90.0], step_s=60.0,
-                                start=now - timedelta(minutes=30)))
-    result = bls.check_flow("line1.temp", window_s=3600, base_dir=tmp_path,
-                            db_path=db, now=now)
+    _seed_db(tmp_path, _samples(6, values=[90.0], step_s=60.0, start=now - timedelta(minutes=30)))
+    result = bls.check_flow("line1.temp", window_s=3600, base_dir=tmp_path, db_path=db, now=now)
     assert result["status"] == "violation"
     assert result["violations"][0]["baseline"]["n_samples"] == 240
     assert bls.status_flow("line1.temp", base_dir=tmp_path)["status"] == "violation"
@@ -362,8 +365,7 @@ def test_check_flow_validates_window(tmp_path):
 def test_baseline_tools_are_governed_low_risk():
     import mcp_server.tools.baseline_tools as mod
 
-    for name in ("baseline_learn", "baseline_check",
-                 "baseline_record_change", "baseline_status"):
+    for name in ("baseline_learn", "baseline_check", "baseline_record_change", "baseline_status"):
         fn = getattr(mod, name)
         assert getattr(fn, "_is_governed_tool", False), f"{name} not governed"
         assert getattr(fn, "_risk_level", "") == "low"
@@ -378,8 +380,12 @@ def test_baseline_tools_registered_on_mcp():
 
     register_profile("all")
     names = {t.name for t in asyncio.run(mcp.list_tools())}
-    assert {"baseline_learn", "baseline_check",
-            "baseline_record_change", "baseline_status"} <= names
+    assert {
+        "baseline_learn",
+        "baseline_check",
+        "baseline_record_change",
+        "baseline_status",
+    } <= names
 
 
 @pytest.mark.integration
@@ -402,11 +408,18 @@ def _seed_db_at_home(home, rows):
     from iaiops.core.sink.sqlite_local import SQLiteLocalSink
 
     sink = SQLiteLocalSink(db_path=home / "data.db", endpoint="plc1", protocol="modbus")
-    sink.write([
-        {"timestamp": r["ts"], "metric": r["tag"], "value": r["value"],
-         "numeric": True, "tags": {"quality": r["quality"], "unit": r["unit"]}}
-        for r in rows
-    ])
+    sink.write(
+        [
+            {
+                "timestamp": r["ts"],
+                "metric": r["tag"],
+                "value": r["value"],
+                "numeric": True,
+                "tags": {"quality": r["quality"], "unit": r["unit"]},
+            }
+            for r in rows
+        ]
+    )
     sink.close()
 
 

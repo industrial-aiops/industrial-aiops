@@ -26,13 +26,22 @@ def _iso(dt: datetime) -> str:
 
 
 def _window(**extra) -> dict:
-    return {"start": _iso(ONSET), "end": _iso(ONSET + timedelta(minutes=5)),
-            "asset": "line1", **extra}
+    return {
+        "start": _iso(ONSET),
+        "end": _iso(ONSET + timedelta(minutes=5)),
+        "asset": "line1",
+        **extra,
+    }
 
 
 def _starve_alarm() -> list[dict]:
-    return [{"source": "FEED1", "timestamp": _iso(ONSET - timedelta(seconds=5)),
-             "message": "infeed starved — no part"}]
+    return [
+        {
+            "source": "FEED1",
+            "timestamp": _iso(ONSET - timedelta(seconds=5)),
+            "message": "infeed starved — no part",
+        }
+    ]
 
 
 # ─── override: back-compat (defaults unchanged) ──────────────────────────────
@@ -52,39 +61,48 @@ def test_no_override_equals_none_equals_empty():
 @pytest.mark.unit
 def test_boosting_a_cause_raises_its_confidence_and_promotes_verdict():
     base = rca.downtime_rca(_window(), alarms=_starve_alarm())
-    boosted = rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                               cause_weights={"material_starvation": 1.6})
+    boosted = rca.downtime_rca(
+        _window(), alarms=_starve_alarm(), cause_weights={"material_starvation": 1.6}
+    )
     assert base["verdict"] == "multiple_candidates"
     assert boosted["verdict"] == "root_cause_identified"
-    assert (boosted["primary_cause"]["confidence"]
-            > base["primary_cause"]["confidence"])
+    assert boosted["primary_cause"]["confidence"] > base["primary_cause"]["confidence"]
 
 
 @pytest.mark.unit
 def test_deboosting_a_cause_downgrades_to_insufficient():
-    deboosted = rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                                 cause_weights={"material_starvation": 0.3})
+    deboosted = rca.downtime_rca(
+        _window(), alarms=_starve_alarm(), cause_weights={"material_starvation": 0.3}
+    )
     assert deboosted["verdict"] == "insufficient_evidence"
 
 
 @pytest.mark.unit
 def test_override_can_flip_the_primary_cause():
-    alarms = [{"source": "M1_DRIVE", "timestamp": _iso(ONSET - timedelta(seconds=5)),
-               "message": "mechanical jam"}]
+    alarms = [
+        {
+            "source": "M1_DRIVE",
+            "timestamp": _iso(ONSET - timedelta(seconds=5)),
+            "message": "mechanical jam",
+        }
+    ]
     dataflow = {"verdict": "comms_ok_value_stale", "diagnosis": "stale"}
     base = rca.downtime_rca(_window(), alarms=alarms, dataflow=dataflow)
     assert base["primary_cause"]["cause"] == "mechanical_fault"
-    flipped = rca.downtime_rca(_window(), alarms=alarms, dataflow=dataflow,
-                               cause_weights={"sensor_fault": 1.6})
+    flipped = rca.downtime_rca(
+        _window(), alarms=alarms, dataflow=dataflow, cause_weights={"sensor_fault": 1.6}
+    )
     assert flipped["primary_cause"]["cause"] == "sensor_fault"
 
 
 @pytest.mark.unit
 def test_override_is_deterministic():
-    a = rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                         cause_weights={"material_starvation": 1.4})
-    b = rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                         cause_weights={"material_starvation": 1.4})
+    a = rca.downtime_rca(
+        _window(), alarms=_starve_alarm(), cause_weights={"material_starvation": 1.4}
+    )
+    b = rca.downtime_rca(
+        _window(), alarms=_starve_alarm(), cause_weights={"material_starvation": 1.4}
+    )
     assert a == b
 
 
@@ -94,23 +112,27 @@ def test_override_is_deterministic():
 @pytest.mark.unit
 def test_unknown_cause_in_override_is_a_teaching_error():
     with pytest.raises(ValueError, match="known cause"):
-        rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                         cause_weights={"gremlins": 2.0})
+        rca.downtime_rca(_window(), alarms=_starve_alarm(), cause_weights={"gremlins": 2.0})
 
 
 @pytest.mark.unit
 def test_non_numeric_override_is_a_teaching_error():
     with pytest.raises(ValueError, match="number"):
-        rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                         cause_weights={"material_starvation": "lots"})
+        rca.downtime_rca(
+            _window(), alarms=_starve_alarm(), cause_weights={"material_starvation": "lots"}
+        )
 
 
 @pytest.mark.unit
 def test_override_weight_is_clamped_not_unbounded():
-    huge = rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                            cause_weights={"material_starvation": 1000.0})
-    at_max = rca.downtime_rca(_window(), alarms=_starve_alarm(),
-                              cause_weights={"material_starvation": rca.MAX_CAUSE_WEIGHT})
+    huge = rca.downtime_rca(
+        _window(), alarms=_starve_alarm(), cause_weights={"material_starvation": 1000.0}
+    )
+    at_max = rca.downtime_rca(
+        _window(),
+        alarms=_starve_alarm(),
+        cause_weights={"material_starvation": rca.MAX_CAUSE_WEIGHT},
+    )
     assert huge == at_max  # clamped, so absurd input ≡ the cap
 
 
@@ -119,10 +141,10 @@ def test_override_weight_is_clamped_not_unbounded():
 
 def _corpus(reliable_n: int, noisy_n: int) -> list[dict]:
     """mechanical_fault evidence is always right; comms_loss evidence misleads."""
-    reliable = [{"cause": "mechanical_fault", "signals": ["mechanical_fault"]}
-                for _ in range(reliable_n)]
-    noisy = [{"cause": "mechanical_fault", "signals": ["comms_loss"]}
-             for _ in range(noisy_n)]
+    reliable = [
+        {"cause": "mechanical_fault", "signals": ["mechanical_fault"]} for _ in range(reliable_n)
+    ]
+    noisy = [{"cause": "mechanical_fault", "signals": ["comms_loss"]} for _ in range(noisy_n)]
     return reliable + noisy
 
 
@@ -131,7 +153,7 @@ def test_learn_recovers_reliable_above_noisy():
     out = learn_cause_weights(_corpus(10, 10))
     weights = out["cause_weights"]
     assert weights["mechanical_fault"] > 1.0  # trustworthy evidence is up-weighted
-    assert weights["comms_loss"] < 1.0        # misleading evidence is down-weighted
+    assert weights["comms_loss"] < 1.0  # misleading evidence is down-weighted
     assert weights["mechanical_fault"] > weights["comms_loss"]
     assert out["rationale"]
     assert out["per_cause"]["mechanical_fault"]["support"] == 10
@@ -146,8 +168,7 @@ def test_learn_is_deterministic():
 
 @pytest.mark.unit
 def test_learn_thin_history_falls_back_to_defaults():
-    out = learn_cause_weights([{"cause": "mechanical_fault",
-                                "signals": ["mechanical_fault"]}] * 3)
+    out = learn_cause_weights([{"cause": "mechanical_fault", "signals": ["mechanical_fault"]}] * 3)
     assert out["cause_weights"] == {}  # no per-site adaptation
     assert "thin" in out["rationale"].lower()
 
@@ -189,9 +210,13 @@ def test_learn_rejects_unknown_cause_label():
 @pytest.mark.unit
 def test_learned_weights_feed_back_into_rca():
     learned = learn_cause_weights(_corpus(12, 0))["cause_weights"]
-    alarms = [{"source": "M1_DRIVE", "timestamp": _iso(ONSET - timedelta(seconds=5)),
-               "message": "mechanical jam"}]
+    alarms = [
+        {
+            "source": "M1_DRIVE",
+            "timestamp": _iso(ONSET - timedelta(seconds=5)),
+            "message": "mechanical jam",
+        }
+    ]
     base = rca.downtime_rca(_window(), alarms=alarms)
     tuned = rca.downtime_rca(_window(), alarms=alarms, cause_weights=learned)
-    assert (tuned["primary_cause"]["confidence"]
-            >= base["primary_cause"]["confidence"])
+    assert tuned["primary_cause"]["confidence"] >= base["primary_cause"]["confidence"]

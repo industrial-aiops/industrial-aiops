@@ -91,7 +91,8 @@ def _policy_disabled() -> bool:
             _legacy_disable_warned = True
             _log.warning(
                 "%s is deprecated — use %s instead.",
-                _LEGACY_POLICY_DISABLED_ENV, _POLICY_DISABLED_ENV,
+                _LEGACY_POLICY_DISABLED_ENV,
+                _POLICY_DISABLED_ENV,
             )
         return True
     return False
@@ -147,7 +148,8 @@ class PolicyEngine:
                 "Failed to load policy rules from %s — RETAINING previous rule "
                 "set (fail closed, not allow-all). Fix the file to re-enable "
                 "hot-reload of new rules.",
-                self._path, exc_info=True,
+                self._path,
+                exc_info=True,
             )
             self._audit_load_failure(f"{type(exc).__name__}: {exc}")
 
@@ -223,13 +225,17 @@ class PolicyEngine:
                 _log.warning(
                     "Policy disable requested but IGNORED for %s-risk operation "
                     "%s — high/critical operations are never bypassed.",
-                    risk_level, operation,
+                    risk_level,
+                    operation,
                 )
             else:
                 param_names = sorted(params.keys()) if isinstance(params, dict) else []
                 _log.warning(
                     "Policy DISABLED — bypassing check: operation=%s env=%s risk=%s param_keys=%s",
-                    operation, env, risk_level, param_names,
+                    operation,
+                    env,
+                    risk_level,
+                    param_names,
                 )
                 return PolicyResult(allowed=True, rule="policy_disabled")
 
@@ -258,8 +264,9 @@ class PolicyEngine:
                     "Malformed maintenance_window %r in %s — failing CLOSED: "
                     "high-risk operations are blocked until the rule is fixed. "
                     "Expected 'start' and 'end' as 'HH:MM' strings, e.g. "
-                    "start: \"22:00\" / end: \"06:00\".",
-                    window, self._path,
+                    'start: "22:00" / end: "06:00".',
+                    window,
+                    self._path,
                 )
                 return PolicyResult(
                     allowed=False,
@@ -568,9 +575,7 @@ def _limit_denial(
     rule: dict[str, Any], name: str, operation: str, param: str, value: float
 ) -> PolicyResult:
     """Build the operator-facing denial for an out-of-range change limit."""
-    bounds = ", ".join(
-        f"{key}={rule[key]}" for key in ("min", "max") if rule.get(key) is not None
-    )
+    bounds = ", ".join(f"{key}={rule[key]}" for key in ("min", "max") if rule.get(key) is not None)
     reason = (
         f"Denied by change limit '{name}': {operation} {param}={value!r} is "
         f"outside the allowed range ({bounds})."
@@ -626,7 +631,8 @@ def get_policy_engine(rules_path: Path | str | None = None) -> PolicyEngine:
             _log.warning(
                 "get_policy_engine(%s) ignored — singleton already initialized "
                 "with %s; call reset_policy_engine() first to rebind.",
-                requested, _engine._path,
+                requested,
+                _engine._path,
             )
     return _engine
 

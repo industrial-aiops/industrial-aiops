@@ -96,9 +96,7 @@ def _doctor_summary() -> dict:
         summary["secret_store_present"] = bool(has_store())
         summary["plaintext_env_present"] = ENV_FILE.exists()
         config = load_config()
-        summary["targets"] = [
-            {"name": t.name, "protocol": t.protocol} for t in config.targets
-        ]
+        summary["targets"] = [{"name": t.name, "protocol": t.protocol} for t in config.targets]
     except Exception as exc:  # noqa: BLE001 — evidence export must not crash on config
         summary["config_error"] = str(exc)[:200]
     return summary
@@ -136,9 +134,7 @@ def export_evidence_bundle(
     def _dump(obj: Any) -> str:
         return json.dumps(obj, ensure_ascii=False, indent=2, default=str) + "\n"
 
-    jsonl = "".join(
-        json.dumps(row, ensure_ascii=False, default=str) + "\n" for row in rows
-    )
+    jsonl = "".join(json.dumps(row, ensure_ascii=False, default=str) + "\n" for row in rows)
     files = [AUDIT_ROWS_NAME, CHAIN_VERIFICATION_NAME, DOCTOR_SUMMARY_NAME, MANIFEST_NAME]
     rules_path = ops_path("rules.yaml")
     manifest = {

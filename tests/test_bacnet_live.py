@@ -178,9 +178,7 @@ def test_bacnet_discover_read_round_trip(virtual_device: _VirtualDevice) -> None
 
     devices = discovered.get("devices", [])
     device_ids = {d.get("device_id") for d in devices}
-    assert DEVICE_ID in device_ids, (
-        f"virtual device {DEVICE_ID} not discovered; got {device_ids}"
-    )
+    assert DEVICE_ID in device_ids, f"virtual device {DEVICE_ID} not discovered; got {device_ids}"
     match = next(d for d in devices if d.get("device_id") == DEVICE_ID)
     address = match["address"]
 
@@ -191,7 +189,6 @@ def test_bacnet_discover_read_round_trip(virtual_device: _VirtualDevice) -> None
 
     points = ops.bacnet_read_points(target, address=address, device_id=DEVICE_ID)
     present = {
-        (p["object_type"], p["instance"]): p.get("present_value")
-        for p in points.get("points", [])
+        (p["object_type"], p["instance"]): p.get("present_value") for p in points.get("points", [])
     }
     assert present.get(("analogValue", AV_INSTANCE)) == pytest.approx(AV_VALUE)

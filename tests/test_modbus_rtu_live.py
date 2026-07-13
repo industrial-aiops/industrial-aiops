@@ -166,16 +166,16 @@ class _RtuServer:
 
     def start(self) -> None:
         self._thread.start()
-        self._server = asyncio.run_coroutine_threadsafe(
-            self._start(), self._loop
-        ).result(timeout=10)
+        self._server = asyncio.run_coroutine_threadsafe(self._start(), self._loop).result(
+            timeout=10
+        )
 
     def stop(self) -> None:
         if self._server is not None:
             try:
-                asyncio.run_coroutine_threadsafe(
-                    self._server.shutdown(), self._loop
-                ).result(timeout=10)
+                asyncio.run_coroutine_threadsafe(self._server.shutdown(), self._loop).result(
+                    timeout=10
+                )
             except Exception:  # noqa: BLE001 — teardown must not mask a test failure
                 pass
         self._loop.call_soon_threadsafe(self._loop.stop)

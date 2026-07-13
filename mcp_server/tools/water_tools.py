@@ -16,9 +16,7 @@ from mcp_server._shared import mcp, tool_errors
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def disinfection_ct(
-    points: list[dict[str, Any]], required_ct: Optional[float] = None
-) -> dict:
+def disinfection_ct(points: list[dict[str, Any]], required_ct: Optional[float] = None) -> dict:
     """[READ][risk=low] Achieved CT vs required CT per contact basin (SWTR disinfection).
 
     The water-treatment disinfection-credit calc: CT = free-chlorine residual

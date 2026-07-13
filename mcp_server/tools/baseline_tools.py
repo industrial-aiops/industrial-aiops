@@ -22,9 +22,7 @@ from mcp_server._shared import mcp, tool_errors
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def baseline_learn(
-    tag: str, endpoint: Optional[str] = None, since: Optional[str] = None
-) -> dict:
+def baseline_learn(tag: str, endpoint: Optional[str] = None, since: Optional[str] = None) -> dict:
     """[READ][risk=low] Learn a conservative per-tag normal band from local history.
 
     Source is ~/.iaiops/data.db — the local store written by
@@ -53,9 +51,7 @@ def baseline_learn(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def baseline_check(
-    tag: str, endpoint: Optional[str] = None, window_s: float = 3600.0
-) -> dict:
+def baseline_check(tag: str, endpoint: Optional[str] = None, window_s: float = 3600.0) -> dict:
     """[READ][risk=low] Check recent local samples against the learned baseline.
 
     Reads the last window_s seconds from ~/.iaiops/data.db (no device I/O) and

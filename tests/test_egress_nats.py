@@ -10,8 +10,10 @@ from iaiops.core.sink.base import normalize_points
 @pytest.mark.unit
 def test_points_to_messages_shaping():
     pts = normalize_points(
-        [{"ref": "line1.temp", "value": 21.5, "timestamp": "2026-07-11T00:00:00Z"},
-         {"ref": "x", "value": "OPEN"}]
+        [
+            {"ref": "line1.temp", "value": 21.5, "timestamp": "2026-07-11T00:00:00Z"},
+            {"ref": "x", "value": "OPEN"},
+        ]
     )
     msgs = points_to_messages(pts, "plant")
     assert len(msgs) == 1  # non-numeric skipped

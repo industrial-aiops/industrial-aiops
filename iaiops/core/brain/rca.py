@@ -76,19 +76,61 @@ W_HISTORIAN_MINOR = 0.18
 
 # Stoppage / alarm text → a cause category. Ordered: first hit wins.
 CAUSE_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "mechanical_fault": ("fault", "jam", "mechanical", "breakdown", "estop",
-                         "e-stop", "trip", "motor", "drive", "overload", "bearing"),
-    "comms_loss": ("comm", "comms", "timeout", "disconnect", "offline", "network",
-                   "heartbeat", "link"),
-    "sensor_fault": ("sensor", "transmitter", "probe", "stuck", "flatline",
-                     "bad quality", "signal"),
-    "material_starvation": ("material", "starved", "starve", "blocked", "no part",
-                            "feed", "infeed", "empty", "level low"),
-    "quality_reject": ("quality", "reject", "scrap", "defect", "out of spec",
-                       "tolerance"),
+    "mechanical_fault": (
+        "fault",
+        "jam",
+        "mechanical",
+        "breakdown",
+        "estop",
+        "e-stop",
+        "trip",
+        "motor",
+        "drive",
+        "overload",
+        "bearing",
+    ),
+    "comms_loss": (
+        "comm",
+        "comms",
+        "timeout",
+        "disconnect",
+        "offline",
+        "network",
+        "heartbeat",
+        "link",
+    ),
+    "sensor_fault": (
+        "sensor",
+        "transmitter",
+        "probe",
+        "stuck",
+        "flatline",
+        "bad quality",
+        "signal",
+    ),
+    "material_starvation": (
+        "material",
+        "starved",
+        "starve",
+        "blocked",
+        "no part",
+        "feed",
+        "infeed",
+        "empty",
+        "level low",
+    ),
+    "quality_reject": ("quality", "reject", "scrap", "defect", "out of spec", "tolerance"),
     "changeover": ("changeover", "setup", "product change", "tool change", "recipe"),
-    "utility_fault": ("power", "air", "vacuum", "coolant", "hydraulic", "pneumatic",
-                      "utility", "supply"),
+    "utility_fault": (
+        "power",
+        "air",
+        "vacuum",
+        "coolant",
+        "hydraulic",
+        "pneumatic",
+        "utility",
+        "supply",
+    ),
 }
 
 # Every cause the copilot can attribute, including the ``alarm_flood`` context tag.
@@ -161,13 +203,10 @@ def downtime_rca(
     weights = _normalize_cause_weights(cause_weights)
     win = _resolve_window(window, state_series)
     if "error" in win:
-        return {"verdict": "insufficient_evidence", **win,
-                "anti_hallucination": _AH_NOTE}
+        return {"verdict": "insufficient_evidence", **win, "anti_hallucination": _AH_NOTE}
 
     lead = max(0.0, float(lead_window_s))
-    contributions, alarm_ctx = _collect_contributions(
-        dataflow, alarms, tags, historian, win, lead
-    )
+    contributions, alarm_ctx = _collect_contributions(dataflow, alarms, tags, historian, win, lead)
     contributions = _apply_cause_weights(contributions, weights)
     hypotheses = _build_hypotheses(contributions)
     verdict, primary = _decide(hypotheses)
@@ -287,8 +326,7 @@ def _normalize_cause_weights(cause_weights: dict[str, float] | None) -> dict[str
         return {}
     if not isinstance(cause_weights, dict):
         raise ValueError(
-            "cause_weights must be a {cause: weight} mapping, e.g. "
-            "{'mechanical_fault': 1.5}."
+            "cause_weights must be a {cause: weight} mapping, e.g. {'mechanical_fault': 1.5}."
         )
     normalized: dict[str, float] = {}
     for cause, raw in cause_weights.items():
@@ -300,9 +338,7 @@ def _normalize_cause_weights(cause_weights: dict[str, float] | None) -> dict[str
         try:
             value = float(raw)
         except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"cause_weights[{cause!r}] must be a number (got {raw!r})."
-            ) from exc
+            raise ValueError(f"cause_weights[{cause!r}] must be a number (got {raw!r}).") from exc
         normalized[cause] = max(MIN_CAUSE_WEIGHT, min(value, MAX_CAUSE_WEIGHT))
     return normalized
 
@@ -324,8 +360,7 @@ def _apply_cause_weights(
             scaled[cause] = items
             continue
         scaled[cause] = [
-            {**it, "weight": round(max(0.0, min(it["weight"] * mult, 0.95)), 4)}
-            for it in items
+            {**it, "weight": round(max(0.0, min(it["weight"] * mult, 0.95)), 4)} for it in items
         ]
     return scaled
 
@@ -373,11 +408,16 @@ def _score_dataflow(dataflow: dict | None, contributions: dict[str, list[dict]])
     if verdict not in mapping:
         return
     cause, weight = mapping[verdict]
-    _add(contributions, cause, weight, {
-        "signal": "dataflow",
-        "ref": s(verdict, 48),
-        "detail": s(str(dataflow.get("diagnosis", "")), 200),
-    })
+    _add(
+        contributions,
+        cause,
+        weight,
+        {
+            "signal": "dataflow",
+            "ref": s(verdict, 48),
+            "detail": s(str(dataflow.get("diagnosis", "")), 200),
+        },
+    )
 
 
 def _score_alarms(
@@ -403,11 +443,16 @@ def _score_alarms(
 def _score_alarm_flood(flood: Any, contributions: dict[str, list[dict]]) -> None:
     """Add the ISA-18.2 flood context contribution when the rate reads as a flood."""
     if isinstance(flood, dict) and flood.get("flood_verdict") == "flood":
-        _add(contributions, "alarm_flood", W_ALARM_FLOOD_CONTEXT, {
-            "signal": "alarm_rate",
-            "ref": "flood",
-            "detail": s(f"{flood.get('alarms_per_hour')} alarms/hour (ISA-18.2 flood)", 120),
-        })
+        _add(
+            contributions,
+            "alarm_flood",
+            W_ALARM_FLOOD_CONTEXT,
+            {
+                "signal": "alarm_rate",
+                "ref": "flood",
+                "detail": s(f"{flood.get('alarms_per_hour')} alarms/hour (ISA-18.2 flood)", 120),
+            },
+        )
 
 
 def _collect_alarm_triggers(
@@ -461,11 +506,16 @@ def _score_tags(tags: list[dict] | None, contributions: dict[str, list[dict]]) -
             cause = "mechanical_fault"
         else:
             continue
-        _add(contributions, cause, weight, {
-            "signal": "tag",
-            "ref": s(str(off.get("ref", "")), 96),
-            "detail": s(f"flags={','.join(flags)} severity={off.get('severity')}", 160),
-        })
+        _add(
+            contributions,
+            cause,
+            weight,
+            {
+                "signal": "tag",
+                "ref": s(str(off.get("ref", "")), 96),
+                "detail": s(f"flags={','.join(flags)} severity={off.get('severity')}", 160),
+            },
+        )
 
 
 def _score_historian(historian: dict | None, contributions: dict[str, list[dict]]) -> None:
@@ -500,17 +550,22 @@ def _score_historian(historian: dict | None, contributions: dict[str, list[dict]
         else:
             continue
         ref = s(str(off.get("ref", "")), 96)
-        _add(contributions, cause, weight, {
-            "signal": "historian_trend",
-            "ref": ref,
-            "source": source,
-            "window": window_cite,
-            "sample_count": int(counts.get(off.get("ref"), 0)),
-            "detail": s(
-                f"pre-incident trend flags={','.join(flags)} "
-                f"severity={off.get('severity')}", 160,
-            ),
-        })
+        _add(
+            contributions,
+            cause,
+            weight,
+            {
+                "signal": "historian_trend",
+                "ref": ref,
+                "source": source,
+                "window": window_cite,
+                "sample_count": int(counts.get(off.get("ref"), 0)),
+                "detail": s(
+                    f"pre-incident trend flags={','.join(flags)} severity={off.get('severity')}",
+                    160,
+                ),
+            },
+        )
 
 
 def _historian_summary(historian: dict) -> dict:
@@ -533,11 +588,16 @@ def _score_category_prior(category: str | None, contributions: dict[str, list[di
     cause = _classify_text(category)
     if cause == "unknown":
         return
-    _add(contributions, cause, W_DOWNTIME_CATEGORY_PRIOR, {
-        "signal": "downtime_category",
-        "ref": s(category, 32),
-        "detail": "stoppage category prior",
-    })
+    _add(
+        contributions,
+        cause,
+        W_DOWNTIME_CATEGORY_PRIOR,
+        {
+            "signal": "downtime_category",
+            "ref": s(category, 32),
+            "detail": "stoppage category prior",
+        },
+    )
 
 
 def _classify_text(text: str) -> str:
@@ -558,7 +618,7 @@ def _noisy_or(weights: list[float]) -> float:
     """Combine independent evidence: 1 - Π(1-wᵢ). Bounded [0,1), rewards agreement."""
     product = 1.0
     for w in weights:
-        product *= (1.0 - max(0.0, min(w, 0.999)))
+        product *= 1.0 - max(0.0, min(w, 0.999))
     return 1.0 - product
 
 
@@ -577,13 +637,17 @@ def _build_hypotheses(contributions: dict[str, list[dict]]) -> list[dict]:
         confidence = round(_noisy_or([it["weight"] for it in items]), 4)
         if confidence <= 0.0:
             continue
-        hyps.append({
-            "cause": cause,
-            "confidence": confidence,
-            "confidence_band": _band(confidence),
-            "evidence": sorted(items, key=lambda it: it["weight"], reverse=True),
-            "recommended_action": RECOMMENDED_ACTIONS.get(cause, RECOMMENDED_ACTIONS["unknown"]),
-        })
+        hyps.append(
+            {
+                "cause": cause,
+                "confidence": confidence,
+                "confidence_band": _band(confidence),
+                "evidence": sorted(items, key=lambda it: it["weight"], reverse=True),
+                "recommended_action": RECOMMENDED_ACTIONS.get(
+                    cause, RECOMMENDED_ACTIONS["unknown"]
+                ),
+            }
+        )
     hyps.sort(key=lambda h: (h["confidence"], len(h["evidence"])), reverse=True)
     return hyps
 
@@ -604,7 +668,9 @@ def _decide(hypotheses: list[dict]) -> tuple[str, dict | None]:
 
 
 def _evidence_summary(
-    alarm_ctx: dict, tags: list[dict] | None, dataflow: dict | None,
+    alarm_ctx: dict,
+    tags: list[dict] | None,
+    dataflow: dict | None,
     contributions: dict[str, list[dict]],
 ) -> dict:
     """Compact, honest tally of what evidence was actually available + used."""
@@ -623,19 +689,32 @@ def _next_data(alarm_ctx: dict, tags: list[dict] | None, dataflow: dict | None) 
     """What to collect when the verdict is insufficient — concrete, not generic."""
     wants: list[str] = []
     if not (alarm_ctx or {}).get("count"):
-        wants.append("Alarm/condition events ({source, timestamp, message, priority, "
-                     "state}) spanning the lead window before onset.")
+        wants.append(
+            "Alarm/condition events ({source, timestamp, message, priority, "
+            "state}) spanning the lead window before onset."
+        )
     if not [t for t in (tags or []) if isinstance(t, dict)]:
-        wants.append("Tag samples for the suspect station ({ref, samples:[...], "
-                     "warn_high?, alarm_high?}) around the incident.")
+        wants.append(
+            "Tag samples for the suspect station ({ref, samples:[...], "
+            "warn_high?, alarm_high?}) around the incident."
+        )
     if not isinstance(dataflow, dict) or not dataflow.get("verdict"):
-        wants.append("A diagnose_dataflow verdict for the stalled endpoint to "
-                     "separate comms loss from field/sensor fault.")
+        wants.append(
+            "A diagnose_dataflow verdict for the stalled endpoint to "
+            "separate comms loss from field/sensor fault."
+        )
     if not wants:
-        wants.append("Widen the lead window or supply a machine-state series so the "
-                     "onset can be bounded precisely.")
+        wants.append(
+            "Widen the lead window or supply a machine-state series so the "
+            "onset can be bounded precisely."
+        )
     return wants
 
 
-__all__ = ["downtime_rca", "KNOWN_CAUSES", "DEFAULT_CAUSE_WEIGHT",
-           "MIN_CAUSE_WEIGHT", "MAX_CAUSE_WEIGHT"]
+__all__ = [
+    "downtime_rca",
+    "KNOWN_CAUSES",
+    "DEFAULT_CAUSE_WEIGHT",
+    "MIN_CAUSE_WEIGHT",
+    "MAX_CAUSE_WEIGHT",
+]

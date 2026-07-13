@@ -98,8 +98,7 @@ def _walk(node: Any, parent: str, level: int, max_depth: int, out: list[dict]) -
     for child in children:
         if len(out) >= MAX_BROWSE_NODES:
             return
-        _walk(child, parent=node.nodeid.to_string(), level=level + 1,
-              max_depth=max_depth, out=out)
+        _walk(child, parent=node.nodeid.to_string(), level=level + 1, max_depth=max_depth, out=out)
 
 
 def read_node(target: Any, node_id: str) -> dict:
@@ -205,8 +204,12 @@ def read_alarms(target: Any, node_id: str = OBJECTS_NODE, depth: int = 4) -> dic
         "OPC-UA Alarms & Conditions (event subscriptions) is not modelled in "
         "this preview — open an issue if your server exposes A&C events."
     )
-    return {"active_alarms": active, "active_count": len(active), "nodes_scanned": scanned,
-            "note": note}
+    return {
+        "active_alarms": active,
+        "active_count": len(active),
+        "nodes_scanned": scanned,
+        "note": note,
+    }
 
 
 def _scan_alarms(client: Any, node: Any, depth_left: int, active: list[dict]) -> int:
@@ -286,7 +289,8 @@ def read_history(
                 "count": 0,
                 "note": s(
                     "Server returned no history for this node (HDA may be "
-                    f"unsupported or the node is not historized): {exc}", 240
+                    f"unsupported or the node is not historized): {exc}",
+                    240,
                 ),
             }
         out = []

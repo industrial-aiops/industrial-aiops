@@ -200,8 +200,7 @@ def test_init_writes_default_rules_with_risk_tiers(tmp_path):
     rules = yaml.safe_load(rules_file.read_text("utf-8"))
     tiers = rules["risk_tiers"]
     assert any(
-        t.get("min_risk_level") == "high" and t.get("tier") in ("dual", "review")
-        for t in tiers
+        t.get("min_risk_level") == "high" and t.get("tier") in ("dual", "review") for t in tiers
     )
     # The written defaults must gate high-risk ops when loaded.
     engine = PolicyEngine(rules_file)

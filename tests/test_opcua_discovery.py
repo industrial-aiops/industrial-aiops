@@ -17,6 +17,7 @@ from iaiops.core.runtime.config import TargetConfig
 
 # ── pure unit tests ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "name,expected",
@@ -45,12 +46,27 @@ def test_suggest_alias_path_and_sanitization():
 @pytest.mark.unit
 def test_build_tag_model_groups_and_flags():
     tags = [
-        {"asset": "Line1", "browse_name": "Temperature", "browse_path": "Line1/Temperature",
-         "class": "temperature", "suggested_alias": "line1.temperature"},
-        {"asset": "Line1", "browse_name": "Pressure", "browse_path": "Line1/Pressure",
-         "class": "pressure", "suggested_alias": "line1.pressure"},
-        {"asset": "Line2", "browse_name": "Temperature", "browse_path": "Line2/Temperature",
-         "class": "temperature", "suggested_alias": "line2.temperature"},
+        {
+            "asset": "Line1",
+            "browse_name": "Temperature",
+            "browse_path": "Line1/Temperature",
+            "class": "temperature",
+            "suggested_alias": "line1.temperature",
+        },
+        {
+            "asset": "Line1",
+            "browse_name": "Pressure",
+            "browse_path": "Line1/Pressure",
+            "class": "pressure",
+            "suggested_alias": "line1.pressure",
+        },
+        {
+            "asset": "Line2",
+            "browse_name": "Temperature",
+            "browse_path": "Line2/Temperature",
+            "class": "temperature",
+            "suggested_alias": "line2.temperature",
+        },
     ]
     model = disc.build_tag_model(tags)
     assert model["tag_count"] == 3
@@ -64,10 +80,20 @@ def test_build_tag_model_groups_and_flags():
 @pytest.mark.unit
 def test_build_tag_model_detects_alias_collision_and_cryptic():
     tags = [
-        {"asset": "L1", "browse_name": "T", "browse_path": "L1/T", "class": "other",
-         "suggested_alias": "l1.t"},
-        {"asset": "L1", "browse_name": "T", "browse_path": "L1/T", "class": "other",
-         "suggested_alias": "l1.t"},  # collision
+        {
+            "asset": "L1",
+            "browse_name": "T",
+            "browse_path": "L1/T",
+            "class": "other",
+            "suggested_alias": "l1.t",
+        },
+        {
+            "asset": "L1",
+            "browse_name": "T",
+            "browse_path": "L1/T",
+            "class": "other",
+            "suggested_alias": "l1.t",
+        },  # collision
     ]
     model = disc.build_tag_model(tags)
     assert "l1.t" in model["naming_quality"]["alias_collisions"]
@@ -76,6 +102,7 @@ def test_build_tag_model_detects_alias_collision_and_cryptic():
 
 
 # ── integration against a real asyncua server ─────────────────────────────────
+
 
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

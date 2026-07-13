@@ -82,10 +82,13 @@ def _publish(target: TargetConfig, items: list[tuple[str, bytes]]) -> None:
 
 def test_live_audit_and_schema_against_real_broker() -> None:
     target = TargetConfig(name="uns-it", protocol="mqtt", host=_HOST, port=_PORT)
-    _publish(target, [
-        ("spBv1.0/PlantIT/NBIRTH/Edge1", _nbirth()),
-        ("Enterprise/Site/Line1/temperature", b"21.5"),
-    ])
+    _publish(
+        target,
+        [
+            ("spBv1.0/PlantIT/NBIRTH/Edge1", _nbirth()),
+            ("Enterprise/Site/Line1/temperature", b"21.5"),
+        ],
+    )
     time.sleep(0.3)  # let the retained messages settle
 
     audit = live.uns_live_audit(target, topic="#", duration_s=3, max_msgs=50)

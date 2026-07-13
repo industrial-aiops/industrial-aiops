@@ -23,8 +23,7 @@ def _iso(dt: datetime) -> str:
 
 
 def _evt(offset_s: float, source: str = "A", state: str = "ACTIVE") -> dict:
-    return {"source": source, "timestamp": _iso(T0 + timedelta(seconds=offset_s)),
-            "state": state}
+    return {"source": source, "timestamp": _iso(T0 + timedelta(seconds=offset_s)), "state": state}
 
 
 def _burst(n: int, start_s: float, gap_s: float = 1.0, source: str = "FIC101") -> list[dict]:
@@ -352,13 +351,14 @@ def test_worksheet_tool_rejects_missing_parent_dir(tmp_path):
 def test_live_collection_diffs_snapshots_into_transitions(monkeypatch):
     from mcp_server.tools import alarm_tools
 
-    snapshots = iter([
-        [{"source": "A", "state": "ACTIVE"}],
-        [{"source": "A", "state": "ACTIVE"}, {"source": "B", "state": "ACTIVE"}],
-        [{"source": "B", "state": "ACTIVE"}],
-    ])
-    monkeypatch.setattr(alarm_tools, "collect_active_alarms",
-                        lambda target: next(snapshots, []))
+    snapshots = iter(
+        [
+            [{"source": "A", "state": "ACTIVE"}],
+            [{"source": "A", "state": "ACTIVE"}, {"source": "B", "state": "ACTIVE"}],
+            [{"source": "B", "state": "ACTIVE"}],
+        ]
+    )
+    monkeypatch.setattr(alarm_tools, "collect_active_alarms", lambda target: next(snapshots, []))
     monkeypatch.setattr(alarm_tools.time, "sleep", lambda s: None)
     clock = iter([0.0, 0.0, 0.5, 1.0, 1.5])
     monkeypatch.setattr(alarm_tools.time, "monotonic", lambda: next(clock, 99.0))
@@ -388,8 +388,9 @@ def test_cli_alarm_flood_and_worksheet(tmp_path):
     assert "flood_episodes" in res.output
 
     out_csv = tmp_path / "w.csv"
-    res = runner.invoke(app, ["diag", "alarm-worksheet", "--input", str(events_file),
-                              "--out", str(out_csv)])
+    res = runner.invoke(
+        app, ["diag", "alarm-worksheet", "--input", str(events_file), "--out", str(out_csv)]
+    )
     assert res.exit_code == 0
     assert out_csv.exists()
     header = out_csv.read_text(encoding="utf-8").splitlines()[0]

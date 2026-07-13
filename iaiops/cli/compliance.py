@@ -46,7 +46,8 @@ def compliance_cmd(
         False, "--frameworks", help="Print the 防护指南 ↔ 等保 2.0 ↔ IEC 62443 crosswalk instead."
     ),
     dengbao_level: str = typer.Option(
-        "", "--dengbao-level",
+        "",
+        "--dengbao-level",
         help="Print 等保 2.0 二级 vs 三级 per-pillar deltas (l2/l3, 二级/三级, 2/3; empty=both).",
     ),
 ) -> None:
@@ -90,8 +91,13 @@ def report_cmd(
         level=level or None,
     )
     path.write_text(content, encoding="utf-8")
-    _emit({"path": str(path), "format": "html" if html else "markdown",
-           "lines": content.count("\n") + 1})
+    _emit(
+        {
+            "path": str(path),
+            "format": "html" if html else "markdown",
+            "lines": content.count("\n") + 1,
+        }
+    )
 
 
 @compliance_app.command("evidence")

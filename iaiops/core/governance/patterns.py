@@ -47,12 +47,12 @@ class Pattern:
     """A loaded, signature-validated auto-remediation pattern."""
 
     pattern_id: str
-    skill: str             # action.skill
-    tool: str              # action.tool
-    risk: str              # classification.risk — must be "low" to be armable
+    skill: str  # action.skill
+    tool: str  # action.tool
+    risk: str  # classification.risk — must be "low" to be armable
     reversible: bool
     repeatable: bool
-    expires_at: str        # ISO date or "" if never
+    expires_at: str  # ISO date or "" if never
     rate_max_per_hour_per_target: int
     rate_max_per_day_per_target: int
     circuit_threshold: int  # consecutive failures → disable
@@ -79,8 +79,11 @@ class Pattern:
                 exp = exp.replace(tzinfo=UTC)
             return datetime.now(tz=UTC) > exp
         except (ValueError, TypeError):
-            _log.warning("pattern %s has malformed expires_at=%r — treating as expired",
-                         self.pattern_id, self.expires_at)
+            _log.warning(
+                "pattern %s has malformed expires_at=%r — treating as expired",
+                self.pattern_id,
+                self.expires_at,
+            )
             return True
 
 
@@ -89,8 +92,8 @@ class PatternMatch:
     """Result of consulting the pattern engine for a tool call."""
 
     pattern: Pattern
-    armed: bool                # True if rate limit + circuit breaker permit firing
-    reason: str = ""           # Human-readable explanation (esp. when not armed)
+    armed: bool  # True if rate limit + circuit breaker permit firing
+    reason: str = ""  # Human-readable explanation (esp. when not armed)
 
 
 @dataclass
@@ -107,7 +110,8 @@ class PatternEngine:
 
     def __init__(self, patterns_dir: Path | str | None = None) -> None:
         self._dir = (
-            Path(patterns_dir).expanduser() if patterns_dir
+            Path(patterns_dir).expanduser()
+            if patterns_dir
             else ops_path("auto-remediation-patterns")
         )
         self._patterns: dict[str, Pattern] = {}
@@ -150,8 +154,7 @@ class PatternEngine:
             if pat is None:
                 continue
             if pat.pattern_id in new_patterns:
-                _log.warning("duplicate pattern_id %r in %s — keeping first",
-                             pat.pattern_id, path)
+                _log.warning("duplicate pattern_id %r in %s — keeping first", pat.pattern_id, path)
                 continue
             new_patterns[pat.pattern_id] = pat
 
@@ -188,8 +191,11 @@ class PatternEngine:
                 return None
 
         if raw.get("schema_version") != 1:
-            _log.warning("pattern %s has schema_version=%r (expected 1) — skipped",
-                         path, raw.get("schema_version"))
+            _log.warning(
+                "pattern %s has schema_version=%r (expected 1) — skipped",
+                path,
+                raw.get("schema_version"),
+            )
             return None
 
         cls_block = raw.get("classification", {})
@@ -262,19 +268,19 @@ class PatternEngine:
         # Collect every pattern whose action matches, then prefer the first
         # ARMABLE one. Previously the first (skill, tool) match won even when
         # not armable, shadowing a later armable pattern.
-        candidates = [
-            p for p in self._patterns.values()
-            if p.skill == skill and p.tool == tool
-        ]
+        candidates = [p for p in self._patterns.values() if p.skill == skill and p.tool == tool]
         if not candidates:
             return None
 
         armable = [p for p in candidates if p.is_armable]
         if not armable:
             pat = candidates[0]
-            return PatternMatch(pattern=pat, armed=False,
-                                reason=f"pattern {pat.pattern_id} is not armable "
-                                       f"(risk={pat.risk}, expired={pat.is_expired})")
+            return PatternMatch(
+                pattern=pat,
+                armed=False,
+                reason=f"pattern {pat.pattern_id} is not armable "
+                f"(risk={pat.risk}, expired={pat.is_expired})",
+            )
 
         # The first armable pattern always resolves to a match (armed or not),
         # exactly as the previous first-iteration-returns loop did.
@@ -294,9 +300,10 @@ class PatternEngine:
             if now < ctr.disabled_until:
                 remaining = int(ctr.disabled_until - now)
                 return PatternMatch(
-                    pattern=pat, armed=False,
+                    pattern=pat,
+                    armed=False,
                     reason=f"pattern {pat.pattern_id} circuit-broken for "
-                           f"~{remaining}s after {ctr.consecutive_failures} failures",
+                    f"~{remaining}s after {ctr.consecutive_failures} failures",
                 )
 
             # Rate limit check (sliding 1h and 24h windows)
@@ -306,24 +313,28 @@ class PatternEngine:
             arms_last_hour = sum(1 for t in ctr.arm_timestamps if t > hour_ago)
             arms_last_day = len(ctr.arm_timestamps)
 
-            if pat.rate_max_per_hour_per_target and arms_last_hour >= pat.rate_max_per_hour_per_target:
+            if (
+                pat.rate_max_per_hour_per_target
+                and arms_last_hour >= pat.rate_max_per_hour_per_target
+            ):
                 return PatternMatch(
-                    pattern=pat, armed=False,
+                    pattern=pat,
+                    armed=False,
                     reason=f"pattern {pat.pattern_id} hit hourly cap "
-                           f"({pat.rate_max_per_hour_per_target}/h) on target {target!r}",
+                    f"({pat.rate_max_per_hour_per_target}/h) on target {target!r}",
                 )
             if pat.rate_max_per_day_per_target and arms_last_day >= pat.rate_max_per_day_per_target:
                 return PatternMatch(
-                    pattern=pat, armed=False,
+                    pattern=pat,
+                    armed=False,
                     reason=f"pattern {pat.pattern_id} hit daily cap "
-                           f"({pat.rate_max_per_day_per_target}/d) on target {target!r}",
+                    f"({pat.rate_max_per_day_per_target}/d) on target {target!r}",
                 )
 
             # Pattern is armed — record the arming timestamp
             ctr.arm_timestamps.append(now)
 
-        return PatternMatch(pattern=pat, armed=True,
-                            reason=f"pattern {pat.pattern_id} armed")
+        return PatternMatch(pattern=pat, armed=True, reason=f"pattern {pat.pattern_id} armed")
 
     def report_outcome(self, pattern_id: str, target: str, success: bool) -> None:
         """Update circuit-breaker state after an armed pattern's action ran.
@@ -347,9 +358,11 @@ class PatternEngine:
             if ctr.consecutive_failures >= threshold:
                 ctr.disabled_until = time.time() + disable_for
                 _log.warning(
-                    "pattern %s circuit-broken on target %r after %d failures — "
-                    "disabled for %ds",
-                    pattern_id, target, ctr.consecutive_failures, disable_for,
+                    "pattern %s circuit-broken on target %r after %d failures — disabled for %ds",
+                    pattern_id,
+                    target,
+                    ctr.consecutive_failures,
+                    disable_for,
                 )
 
     # ── Introspection / testing helpers ──────────────────────────────

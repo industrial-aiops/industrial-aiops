@@ -63,17 +63,18 @@ def _tags(parent: ET.Element, section: str, source_file: str) -> list[Variable]:
     for tag in parent.findall("./Tags/Tag"):
         out.append(
             Variable(
-                name=tag.get("Name", ""), var_type=tag.get("DataType", ""),
-                section=section, comment=_description(tag),
-                source_file=source_file, line=0,
+                name=tag.get("Name", ""),
+                var_type=tag.get("DataType", ""),
+                section=section,
+                comment=_description(tag),
+                source_file=source_file,
+                line=0,
             )
         )
     return out
 
 
-def _routine_block(
-    routine: ET.Element, program: str, source_file: str, errors: list[str]
-) -> Block:
+def _routine_block(routine: ET.Element, program: str, source_file: str, errors: list[str]) -> Block:
     name = routine.get("Name", "")
     rtype = routine.get("Type", "RLL")
     calls: list[CallEdge] = []
@@ -84,13 +85,13 @@ def _routine_block(
     def scan_text(text: str, line: int) -> None:
         for jm in _JSR_RE.finditer(text):
             calls.append(
-                CallEdge(caller=full_name, callee=jm.group(1),
-                         source_file=source_file, line=line)
+                CallEdge(caller=full_name, callee=jm.group(1), source_file=source_file, line=line)
             )
         for tm in _TIMER_RE.finditer(text):
             timers.append(
-                TimerCounter(name=tm.group(2), kind=tm.group(1).upper(),
-                             source_file=source_file, line=line)
+                TimerCounter(
+                    name=tm.group(2), kind=tm.group(1).upper(), source_file=source_file, line=line
+                )
             )
 
     if rtype == "RLL":
@@ -118,9 +119,14 @@ def _routine_block(
         errors.append(f"routine {full_name}: type {rtype} body not decoded (FBD/SFC)")
 
     return Block(
-        name=full_name, kind="ROUTINE", language="rll" if rtype == "RLL" else "st",
-        source_file=source_file, line=first, end_line=last,
-        calls=tuple(calls), timers_counters=tuple(timers),
+        name=full_name,
+        kind="ROUTINE",
+        language="rll" if rtype == "RLL" else "st",
+        source_file=source_file,
+        line=first,
+        end_line=last,
+        calls=tuple(calls),
+        timers_counters=tuple(timers),
         comment=_description(routine),
     )
 
@@ -134,7 +140,8 @@ def parse_l5x(text: str, source_file: str) -> ProgramOutline:
         root = ET.fromstring(text)  # noqa: S314 # nosec B314 — DTD/entities rejected above
     except (ValueError, ET.ParseError) as exc:
         return ProgramOutline(
-            source_file=source_file, fmt="l5x",
+            source_file=source_file,
+            fmt="l5x",
             line_count=text.count("\n") + 1,
             parse_errors=(f"L5X parse failed: {exc}",),
         )
@@ -146,26 +153,39 @@ def parse_l5x(text: str, source_file: str) -> ProgramOutline:
     if controller_tags:
         blocks.append(
             Block(
-                name=scope.get("Name", "Controller"), kind="DATA_BLOCK",
-                language="rll", source_file=source_file, line=0, end_line=0,
-                variables=tuple(controller_tags), comment="controller-scoped tags",
+                name=scope.get("Name", "Controller"),
+                kind="DATA_BLOCK",
+                language="rll",
+                source_file=source_file,
+                line=0,
+                end_line=0,
+                variables=tuple(controller_tags),
+                comment="controller-scoped tags",
             )
         )
 
     for aoi in scope.findall(".//AddOnInstructionDefinitions/AddOnInstructionDefinition"):
         params = [
             Variable(
-                name=p.get("Name", ""), var_type=p.get("DataType", ""),
-                section="PARAMETER", comment=_description(p),
-                source_file=source_file, line=0,
+                name=p.get("Name", ""),
+                var_type=p.get("DataType", ""),
+                section="PARAMETER",
+                comment=_description(p),
+                source_file=source_file,
+                line=0,
             )
             for p in aoi.findall("./Parameters/Parameter")
         ]
         blocks.append(
             Block(
-                name=aoi.get("Name", ""), kind="AOI", language="rll",
-                source_file=source_file, line=0, end_line=0,
-                variables=tuple(params), comment=_description(aoi),
+                name=aoi.get("Name", ""),
+                kind="AOI",
+                language="rll",
+                source_file=source_file,
+                line=0,
+                end_line=0,
+                variables=tuple(params),
+                comment=_description(aoi),
             )
         )
     aoi_names = {b.name for b in blocks if b.kind == "AOI"}
@@ -175,18 +195,21 @@ def parse_l5x(text: str, source_file: str) -> ProgramOutline:
         local = _tags(program, "LOCAL_TAG", source_file)
         blocks.append(
             Block(
-                name=pname, kind="PROGRAM", language="rll",
-                source_file=source_file, line=0, end_line=0,
-                variables=tuple(local), comment=_description(program),
+                name=pname,
+                kind="PROGRAM",
+                language="rll",
+                source_file=source_file,
+                line=0,
+                end_line=0,
+                variables=tuple(local),
+                comment=_description(program),
             )
         )
         for routine in program.findall("./Routines/Routine"):
             try:
                 blk = _routine_block(routine, pname, source_file, errors)
             except Exception as exc:
-                errors.append(
-                    f"routine {pname}.{routine.get('Name', '?')}: skipped ({exc})"
-                )
+                errors.append(f"routine {pname}.{routine.get('Name', '?')}: skipped ({exc})")
                 continue
             # AOI invocations: instruction names matching an AOI definition.
             aoi_calls: list[CallEdge] = []
@@ -197,25 +220,37 @@ def parse_l5x(text: str, source_file: str) -> ProgramOutline:
                     for im in _INSTR_RE.finditer(rtext):
                         if im.group(1) in aoi_names:
                             aoi_calls.append(
-                                CallEdge(caller=blk.name, callee=im.group(1),
-                                         source_file=source_file, line=rnum)
+                                CallEdge(
+                                    caller=blk.name,
+                                    callee=im.group(1),
+                                    source_file=source_file,
+                                    line=rnum,
+                                )
                             )
             if aoi_calls:
                 blk = Block(
-                    name=blk.name, kind=blk.kind, language=blk.language,
-                    source_file=blk.source_file, line=blk.line,
-                    end_line=blk.end_line, variables=blk.variables,
+                    name=blk.name,
+                    kind=blk.kind,
+                    language=blk.language,
+                    source_file=blk.source_file,
+                    line=blk.line,
+                    end_line=blk.end_line,
+                    variables=blk.variables,
                     calls=blk.calls + tuple(aoi_calls),
-                    timers_counters=blk.timers_counters, comment=blk.comment,
+                    timers_counters=blk.timers_counters,
+                    comment=blk.comment,
                 )
             blocks.append(blk)
 
     call_edges = tuple(edge for blk in blocks for edge in blk.calls)
     return ProgramOutline(
-        source_file=source_file, fmt="l5x", blocks=tuple(blocks),
-        call_edges=call_edges, comment_count=len(root.findall(".//Comment"))
-        + len(root.findall(".//Description")),
-        line_count=text.count("\n") + 1, parse_errors=tuple(errors),
+        source_file=source_file,
+        fmt="l5x",
+        blocks=tuple(blocks),
+        call_edges=call_edges,
+        comment_count=len(root.findall(".//Comment")) + len(root.findall(".//Description")),
+        line_count=text.count("\n") + 1,
+        parse_errors=tuple(errors),
     )
 
 
@@ -234,11 +269,13 @@ def rung_texts(text: str, source_file: str) -> list[tuple[str, int, str, str]]:
             full = f"{pname}.{routine.get('Name', '')}"
             for rung in routine.findall("./RLLContent/Rung"):
                 out.append(
-                    (full, int(rung.get("Number", "0") or 0),
-                     _text(rung.find("Text")), _text(rung.find("Comment")))
+                    (
+                        full,
+                        int(rung.get("Number", "0") or 0),
+                        _text(rung.find("Text")),
+                        _text(rung.find("Comment")),
+                    )
                 )
             for line_el in routine.findall("./STContent/Line"):
-                out.append(
-                    (full, int(line_el.get("Number", "0") or 0), _text(line_el), "")
-                )
+                out.append((full, int(line_el.get("Number", "0") or 0), _text(line_el), ""))
     return out

@@ -42,7 +42,8 @@ def economizer_check(
     """
     graded = [
         _grade(u, free_cool_delta_c, min_damper_pct, high_limit_c)
-        for u in (units or []) if isinstance(u, dict)
+        for u in (units or [])
+        if isinstance(u, dict)
     ]
     summary: dict[str, int] = {}
     for g in graded:
@@ -73,20 +74,29 @@ def _grade(unit: dict, delta: float, min_damper: float, high_limit: float) -> di
     heating = bool(unit.get("heating", False))
 
     if heating and cooling:
-        return _f(ahu, "simultaneous_heat_cool",
-                  "heating and mechanical cooling are both ON — pure energy waste")
+        return _f(
+            ahu,
+            "simultaneous_heat_cool",
+            "heating and mechanical cooling are both ON — pure energy waste",
+        )
     if not isinstance(oat, (int, float)):
         return _f(ahu, "no_data", "no outside-air temperature reading")
 
     free_cooling_available = isinstance(rat, (int, float)) and oat <= rat - delta
     if free_cooling_available and cooling and _at_min(damper, min_damper):
-        return _f(ahu, "not_economizing",
-                  f"OAT {oat}°C is {round(rat - oat, 1)}°C below RAT {rat}°C (free cooling "
-                  f"available) but the OA damper is at minimum while mechanical cooling runs")
+        return _f(
+            ahu,
+            "not_economizing",
+            f"OAT {oat}°C is {round(rat - oat, 1)}°C below RAT {rat}°C (free cooling "
+            f"available) but the OA damper is at minimum while mechanical cooling runs",
+        )
     if oat > high_limit and isinstance(damper, (int, float)) and damper > min_damper:
-        return _f(ahu, "economizing_when_locked_out",
-                  f"OAT {oat}°C is above the {high_limit}°C high limit but the OA damper "
-                  f"is open ({damper}%) — dragging hot air in")
+        return _f(
+            ahu,
+            "economizing_when_locked_out",
+            f"OAT {oat}°C is above the {high_limit}°C high limit but the OA damper "
+            f"is open ({damper}%) — dragging hot air in",
+        )
     return _f(ahu, "ok", "economizer behaviour consistent with the air temperatures")
 
 
@@ -149,9 +159,13 @@ def _grade_zone(zone: dict) -> dict:
 
 
 def _c_flag(band: dict, value: float, side: str, bound: float) -> dict:
-    return {"parameter": band["label"], "value": value, "unit": band["unit"],
-            "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
-                      f"{bound}{band['unit']} limit"}
+    return {
+        "parameter": band["label"],
+        "value": value,
+        "unit": band["unit"],
+        "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
+        f"{bound}{band['unit']} limit",
+    }
 
 
 def _has_zone_reading(zone: dict) -> bool:

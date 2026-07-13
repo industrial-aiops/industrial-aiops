@@ -40,14 +40,10 @@ def validate_program_path(path: str) -> Path:
         raise ValueError(f"not a file (directories are not walked): {resolved}")
     if resolved.suffix.lower() not in ALLOWED_EXTENSIONS:
         allowed = ", ".join(sorted(ALLOWED_EXTENSIONS))
-        raise ValueError(
-            f"unsupported extension '{resolved.suffix}' — expected one of: {allowed}"
-        )
+        raise ValueError(f"unsupported extension '{resolved.suffix}' — expected one of: {allowed}")
     size = resolved.stat().st_size
     if size > MAX_FILE_BYTES:
-        raise ValueError(
-            f"file too large ({size} bytes > {MAX_FILE_BYTES}); split the export"
-        )
+        raise ValueError(f"file too large ({size} bytes > {MAX_FILE_BYTES}); split the export")
     return resolved
 
 

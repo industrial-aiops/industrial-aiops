@@ -32,8 +32,12 @@ from iaiops.core.runtime.connection import OTConnectionError, profinet_dcp
 MAX_STATIONS = 1024  # bounded enumeration (defensive against a huge/spoofed segment)
 
 # PROFINET DCP device-role bitmask (ERTEC / GSDML): a device may be several roles.
-_ROLE_BITS = ((0x01, "io_device"), (0x02, "io_controller"),
-              (0x04, "io_multidevice"), (0x08, "io_supervisor"))
+_ROLE_BITS = (
+    (0x01, "io_device"),
+    (0x02, "io_controller"),
+    (0x04, "io_multidevice"),
+    (0x08, "io_supervisor"),
+)
 
 
 def _decode_roles(value: Any) -> list[str]:

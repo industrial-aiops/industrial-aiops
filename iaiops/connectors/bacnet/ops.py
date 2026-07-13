@@ -41,9 +41,15 @@ MAX_TREND_RECORDS = 1000
 
 # Monitor-relevant object types whose presentValue is worth a bulk read.
 READABLE_TYPES = (
-    "analogInput", "analogOutput", "analogValue",
-    "binaryInput", "binaryOutput", "binaryValue",
-    "multiStateInput", "multiStateOutput", "multiStateValue",
+    "analogInput",
+    "analogOutput",
+    "analogValue",
+    "binaryInput",
+    "binaryOutput",
+    "binaryValue",
+    "multiStateInput",
+    "multiStateOutput",
+    "multiStateValue",
 )
 
 
@@ -170,7 +176,10 @@ def bacnet_object_list(target: Any, address: str, device_id: int) -> dict:
 
 
 def bacnet_read_property(
-    target: Any, address: str, object_type: str, instance: int,
+    target: Any,
+    address: str,
+    object_type: str,
+    instance: int,
     bacnet_property: str = "presentValue",
 ) -> dict:
     """[READ] Read one property of one BACnet object (default presentValue)."""
@@ -212,13 +221,21 @@ def bacnet_read_points(target: Any, address: str, device_id: int) -> dict:
             ref = f"{o['object_type']} {o['instance']}"
             try:
                 value = net.read(f"{addr} {ref} presentValue")
-                points.append({
-                    "object_type": o["object_type"], "instance": o["instance"],
-                    "present_value": num(value) if num(value) is not None else s(value, 120),
-                })
+                points.append(
+                    {
+                        "object_type": o["object_type"],
+                        "instance": o["instance"],
+                        "present_value": num(value) if num(value) is not None else s(value, 120),
+                    }
+                )
             except Exception as exc:  # noqa: BLE001 — a per-point miss is data, not fatal
-                points.append({"object_type": o["object_type"], "instance": o["instance"],
-                               "error": s(str(exc), 120)})
+                points.append(
+                    {
+                        "object_type": o["object_type"],
+                        "instance": o["instance"],
+                        "error": s(str(exc), 120),
+                    }
+                )
     return {
         "endpoint": s(getattr(target, "name", ""), 64),
         "address": s(addr, 64),
@@ -241,8 +258,13 @@ def _cov_task_ids(net: Any) -> set:
 
 
 def bacnet_cov_subscribe(
-    target: Any, address: str, object_type: str, instance: int,
-    max_notifications: int = 20, timeout_s: int = 30, lifetime_s: int = 300,
+    target: Any,
+    address: str,
+    object_type: str,
+    instance: int,
+    max_notifications: int = 20,
+    timeout_s: int = 30,
+    lifetime_s: int = 300,
 ) -> dict:
     """[READ] Bounded Change-of-Value capture for one BACnet object.
 
@@ -271,19 +293,20 @@ def bacnet_cov_subscribe(
         with lock:
             if len(changes) >= cap:
                 return
-            changes.append({
-                "property": s(prop_id, 48),
-                "value": num(value) if num(value) is not None else s(value, 120),
-                "wall_clock": datetime.now(tz=UTC).isoformat(timespec="milliseconds"),
-            })
+            changes.append(
+                {
+                    "property": s(prop_id, 48),
+                    "value": num(value) if num(value) is not None else s(value, 120),
+                    "wall_clock": datetime.now(tz=UTC).isoformat(timespec="milliseconds"),
+                }
+            )
 
     with bacnet_session(target) as net:
         before = _cov_task_ids(net)
         # BAC0.lite.cov(address, objectID=(type, inst), lifetime, confirmed, callback)
         # — verified against BAC0/bacpypes3 (2026-06). The callback receives
         # (property_identifier, property_value).
-        net.cov(addr, objectID=(otype, inst), lifetime=lifetime,
-                confirmed=False, callback=_collect)
+        net.cov(addr, objectID=(otype, inst), lifetime=lifetime, confirmed=False, callback=_collect)
         new_ids = _cov_task_ids(net) - before
         try:
             deadline = time.monotonic() + timeout
@@ -333,8 +356,13 @@ def _record_timestamp(record: Any) -> str:
 
 # logDatum is a CHOICE — probe the common value members in priority order.
 _LOG_DATUM_MEMBERS = (
-    "realValue", "enumValue", "unsignedValue", "signedValue",
-    "booleanValue", "bitstringValue", "anyValue",
+    "realValue",
+    "enumValue",
+    "unsignedValue",
+    "signedValue",
+    "booleanValue",
+    "bitstringValue",
+    "anyValue",
 )
 
 
@@ -349,8 +377,11 @@ def _record_value(record: Any) -> Any:
 
 
 def bacnet_read_trend_log(
-    target: Any, address: str, instance: int,
-    count: int = 100, newest_first: bool = True,
+    target: Any,
+    address: str,
+    instance: int,
+    count: int = 100,
+    newest_first: bool = True,
 ) -> dict:
     """[READ] Read buffered records from a device's BACnet TrendLog object.
 

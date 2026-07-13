@@ -15,8 +15,14 @@ from iaiops.core.egress.base import EgressError, encode, points_to_messages
 class NATSPublisher:
     """Uniform publisher over NATS core (待核实)."""
 
-    def __init__(self, servers: str = "nats://localhost:4222", subject_prefix: str = "iaiops",
-                 token: str = "", tls: bool = False, timeout_s: float = 10.0) -> None:
+    def __init__(
+        self,
+        servers: str = "nats://localhost:4222",
+        subject_prefix: str = "iaiops",
+        token: str = "",
+        tls: bool = False,
+        timeout_s: float = 10.0,
+    ) -> None:
         self._servers = servers or "nats://localhost:4222"
         self._subject_prefix = subject_prefix or "iaiops"
         self._token = token or ""

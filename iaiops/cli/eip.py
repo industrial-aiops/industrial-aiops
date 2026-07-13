@@ -7,8 +7,9 @@ import typer
 from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
 from iaiops.connectors.eip import ops
 
-eip_app = typer.Typer(help="EtherNet/IP read-first telemetry (Allen-Bradley Logix).",
-                      no_args_is_help=True)
+eip_app = typer.Typer(
+    help="EtherNet/IP read-first telemetry (Allen-Bradley Logix).", no_args_is_help=True
+)
 
 
 @eip_app.command("info")

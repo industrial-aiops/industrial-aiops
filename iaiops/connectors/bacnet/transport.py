@@ -38,13 +38,15 @@ def _build_bacnet_network(target: TargetConfig) -> Any:
         raise OTConnectionError(
             "The 'BAC0' package is not installed. BACnet is an OPTIONAL extra: "
             "'pip install iaiops[bacnet]'.",
-            endpoint=target.name, protocol="bacnet",
+            endpoint=target.name,
+            protocol="bacnet",
         ) from exc
     if not target.host:
         raise OTConnectionError(
             f"BACnet endpoint '{target.name}' has no host. Add 'host: <local-ip>' "
             f"(THIS machine's BACnet/IP interface, optionally '<ip>/<mask>').",
-            endpoint=target.name, protocol="bacnet",
+            endpoint=target.name,
+            protocol="bacnet",
         )
     from iaiops.core.runtime.bacnet_async import build_sync_network
 
@@ -69,15 +71,14 @@ def _translate_endpoint_error(
         f"{protocol.upper()} operation on '{target.name}' ({where}) failed: {detail}. "
         f"Check host/port/addressing and that the device is reachable. Preview — "
         f"validate against live gear or a protocol simulator.",
-        endpoint=where, protocol=protocol,
+        endpoint=where,
+        protocol=protocol,
     )
 
 
 def _translate_bacnet(exc: Exception, target: TargetConfig) -> OTConnectionError:
     """Map a BAC0/OS exception to a teaching ``OTConnectionError``."""
-    return _translate_endpoint_error(
-        exc, target, "bacnet", target.port or BACNET_DEFAULT_PORT
-    )
+    return _translate_endpoint_error(exc, target, "bacnet", target.port or BACNET_DEFAULT_PORT)
 
 
 __all__ = [

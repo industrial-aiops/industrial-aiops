@@ -22,10 +22,20 @@ from iaiops.core.sink.sqlite_local import (
 )
 
 POINTS = [
-    {"ref": "line1.temp", "value": 21.5, "timestamp": "2026-07-01T00:00:00Z",
-     "quality": "good", "unit": "C"},
-    {"ref": "line1.temp", "value": 22.0, "timestamp": "2026-07-01T01:00:00Z",
-     "quality": "good", "unit": "C"},
+    {
+        "ref": "line1.temp",
+        "value": 21.5,
+        "timestamp": "2026-07-01T00:00:00Z",
+        "quality": "good",
+        "unit": "C",
+    },
+    {
+        "ref": "line1.temp",
+        "value": 22.0,
+        "timestamp": "2026-07-01T01:00:00Z",
+        "quality": "good",
+        "unit": "C",
+    },
     {"ref": "line1.state", "value": "RUNNING", "timestamp": "2026-07-01T00:30:00Z"},
     {"ref": "line2.pressure", "value": 3.1, "timestamp": "2026-06-30T23:00:00Z"},
 ]
@@ -34,8 +44,7 @@ POINTS = [
 @pytest.fixture()
 def db(tmp_path):
     path = tmp_path / "data.db"
-    result = historian_push(POINTS, "sqlite", db_path=path, endpoint="plc1",
-                            protocol="modbus")
+    result = historian_push(POINTS, "sqlite", db_path=path, endpoint="plc1", protocol="modbus")
     assert "error" not in result
     return path
 
@@ -102,8 +111,7 @@ def test_filter_validation_fails_fast():
     with pytest.raises(ValueError, match="ISO-8601"):
         validate_filter(SampleFilter(since="yesterday"))
     with pytest.raises(ValueError, match="after"):
-        validate_filter(SampleFilter(since="2026-07-02T00:00:00",
-                                     until="2026-07-01T00:00:00"))
+        validate_filter(SampleFilter(since="2026-07-02T00:00:00", until="2026-07-01T00:00:00"))
 
 
 @pytest.mark.unit
@@ -116,9 +124,11 @@ def test_db_file_permissions_hardened(db):
 @pytest.mark.unit
 def test_sink_ignores_tsdb_connection_params(tmp_path):
     # The shared historian_push path passes host= by default — must not break.
-    sink = SQLiteLocalSink(db_path=tmp_path / "d.db", host="localhost", port=6030,
-                           user="root", password="x")
-    written = sink.write([{"metric": "t1", "value": 1.0, "numeric": True,
-                           "timestamp": "", "tags": {}}])
+    sink = SQLiteLocalSink(
+        db_path=tmp_path / "d.db", host="localhost", port=6030, user="root", password="x"
+    )
+    written = sink.write(
+        [{"metric": "t1", "value": 1.0, "numeric": True, "timestamp": "", "tags": {}}]
+    )
     sink.close()
     assert written == 1

@@ -151,6 +151,11 @@ def profinet_dcp_set(
     Example (preview): profinet_dcp_set(mac="00:1b:1b:12:34:56", set_name="plc-new").
     """
     return ops.profinet_dcp_set(
-        _target(endpoint), mac, set_name=set_name, set_ip=set_ip,
-        netmask=netmask, gateway=gateway, dry_run=dry_run,
+        _target(endpoint),
+        mac,
+        set_name=set_name,
+        set_ip=set_ip,
+        netmask=netmask,
+        gateway=gateway,
+        dry_run=dry_run,
     )

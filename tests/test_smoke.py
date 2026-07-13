@@ -19,63 +19,129 @@ from typer.testing import CliRunner
 # ``full_tool_registry`` fixture in tests/conftest.py.
 EXPECTED_TOOLS = {
     # OPC-UA (read / digitalization, incl. Historical Access)
-    "opcua_server_info", "opcua_browse", "opcua_read_node", "opcua_read_many",
-    "opcua_subscribe_sample", "opcua_read_alarms", "opcua_read_history",
+    "opcua_server_info",
+    "opcua_browse",
+    "opcua_read_node",
+    "opcua_read_many",
+    "opcua_subscribe_sample",
+    "opcua_read_alarms",
+    "opcua_read_history",
     "opcua_discover_tags",
     # OPC-UA problem surfacing (B4 rename)
-    "opcua_health_summary", "opcua_anomaly_scan",
+    "opcua_health_summary",
+    "opcua_anomaly_scan",
     # problem surfacing — DEPRECATED aliases (removed in 0.11)
-    "health_summary", "anomaly_scan",
+    "health_summary",
+    "anomaly_scan",
     # Modbus
-    "modbus_read_holding", "modbus_read_input", "modbus_read_coils",
-    "modbus_read_discrete", "modbus_health_summary",
-    "modbus_detect_byte_order", "modbus_list_templates", "modbus_apply_template",
+    "modbus_read_holding",
+    "modbus_read_input",
+    "modbus_read_coils",
+    "modbus_read_discrete",
+    "modbus_health_summary",
+    "modbus_detect_byte_order",
+    "modbus_list_templates",
+    "modbus_apply_template",
     # S7comm (Siemens / 仿西门子)
-    "s7_cpu_info", "s7_read_area", "s7_read_db", "s7_read_many", "s7_write_db",
+    "s7_cpu_info",
+    "s7_read_area",
+    "s7_read_db",
+    "s7_read_many",
+    "s7_write_db",
     # Mitsubishi MC
-    "mc_cpu_status", "mc_read_words", "mc_read_bits", "mc_read_many", "mc_write_words",
+    "mc_cpu_status",
+    "mc_read_words",
+    "mc_read_bits",
+    "mc_read_many",
+    "mc_write_words",
     # Omron FINS (in-repo stdlib client)
-    "fins_cpu_info", "fins_cpu_status", "fins_read_words", "fins_read_bits",
-    "fins_read_many", "fins_write_words",
+    "fins_cpu_info",
+    "fins_cpu_status",
+    "fins_read_words",
+    "fins_read_bits",
+    "fins_read_many",
+    "fins_write_words",
     # MTConnect (CNC machine tools)
-    "mtconnect_probe", "mtconnect_current", "mtconnect_sample", "mtconnect_assets",
+    "mtconnect_probe",
+    "mtconnect_current",
+    "mtconnect_sample",
+    "mtconnect_assets",
     "mtconnect_oee_snapshot",
     # MQTT / Sparkplug B / UNS (full protobuf decode)
-    "mqtt_read_topic", "sparkplug_subscribe_sample", "sparkplug_decode_payload",
-    "sparkplug_node_list", "uns_browse", "mqtt_publish",
-    "uns_topic_audit", "uns_schema_drift",
-    "uns_live_audit", "sparkplug_live_schema", "uns_live_drift",
+    "mqtt_read_topic",
+    "sparkplug_subscribe_sample",
+    "sparkplug_decode_payload",
+    "sparkplug_node_list",
+    "uns_browse",
+    "mqtt_publish",
+    "uns_topic_audit",
+    "uns_schema_drift",
+    "uns_live_audit",
+    "sparkplug_live_schema",
+    "uns_live_drift",
     # EtherNet/IP (Rockwell / Allen-Bradley Logix)
-    "eip_controller_info", "eip_list_tags", "eip_read_tag", "eip_read_many",
+    "eip_controller_info",
+    "eip_list_tags",
+    "eip_read_tag",
+    "eip_read_many",
     "eip_write_tag",
     # EtherCAT (pysoem / SOEM fieldbus — optional extra, hardware-only)
-    "ethercat_master_state", "ethercat_slaves", "ethercat_slave_info",
-    "ethercat_read_sdo", "ethercat_read_pdo", "ethercat_write_sdo",
+    "ethercat_master_state",
+    "ethercat_slaves",
+    "ethercat_slave_info",
+    "ethercat_read_sdo",
+    "ethercat_read_pdo",
+    "ethercat_write_sdo",
     "ethercat_set_state",
     # cross-protocol diagnostics
-    "diagnose_dataflow", "historian_health", "alarm_bad_actors", "tag_health",
-    "data_quality_fleet_rollup", "learn_cause_weights",
+    "diagnose_dataflow",
+    "historian_health",
+    "alarm_bad_actors",
+    "tag_health",
+    "data_quality_fleet_rollup",
+    "learn_cause_weights",
     # ISA-18.2 alarm-flood deepening
-    "alarm_flood_analysis", "alarm_rationalization_worksheet",
+    "alarm_flood_analysis",
+    "alarm_rationalization_worksheet",
     # cross-protocol analytics (OEE / downtime / asset / CoV)
-    "oee_compute", "downtime_events", "oee_multidim", "asset_inventory",
-    "cross_protocol_asset_model", "monitor_changes",
+    "oee_compute",
+    "downtime_events",
+    "oee_multidim",
+    "asset_inventory",
+    "cross_protocol_asset_model",
+    "monitor_changes",
     # BACnet/IP (building / HVAC — bounded COV + read-only trend log + MOC write)
-    "bacnet_cov_subscribe", "bacnet_read_trend_log", "bacnet_write_property",
+    "bacnet_cov_subscribe",
+    "bacnet_read_trend_log",
+    "bacnet_write_property",
     # PROFINET (DCP discovery + MOC-gated Set)
-    "profinet_discover", "profinet_identify_station", "profinet_station_params",
-    "profinet_asset_inventory", "profinet_dcp_set",
+    "profinet_discover",
+    "profinet_identify_station",
+    "profinet_station_params",
+    "profinet_asset_inventory",
+    "profinet_dcp_set",
     # IO-Link (master JSON integration — read-only sensor visibility)
-    "iolink_master_info", "iolink_ports", "iolink_device_info",
-    "iolink_read_pdin", "iolink_read_isdu", "iolink_scan",
+    "iolink_master_info",
+    "iolink_ports",
+    "iolink_device_info",
+    "iolink_read_pdin",
+    "iolink_read_isdu",
+    "iolink_scan",
     # tag intelligence — adopted alias map persistence + diff
-    "adopt_alias_map", "diff_alias_map",
+    "adopt_alias_map",
+    "diff_alias_map",
     # conservative baseline learning (A6) — change-log baseline
-    "baseline_learn", "baseline_check", "baseline_record_change", "baseline_status",
+    "baseline_learn",
+    "baseline_check",
+    "baseline_record_change",
+    "baseline_status",
     # historian READ integration (A7)
-    "historian_query", "historian_coverage",
+    "historian_query",
+    "historian_coverage",
     # legacy PLC program explainer (A8) — exported ST/AWL/L5X files, read-only
-    "plc_program_outline", "plc_program_xref", "plc_program_section",
+    "plc_program_outline",
+    "plc_program_xref",
+    "plc_program_section",
     # self-description
     "protocols_supported",
 }
@@ -86,9 +152,16 @@ EXPECTED_TOOLS = {
 # ``_risk_level == "high"`` (previously this hardcoded list silently missed
 # ``bas_command``, leaving its dry_run default unchecked).
 WRITE_TOOLS = {
-    "s7_write_db", "mc_write_words", "fins_write_words", "mqtt_publish", "eip_write_tag",
-    "ethercat_write_sdo", "ethercat_set_state",
-    "profinet_dcp_set", "bacnet_write_property", "bas_command",
+    "s7_write_db",
+    "mc_write_words",
+    "fins_write_words",
+    "mqtt_publish",
+    "eip_write_tag",
+    "ethercat_write_sdo",
+    "ethercat_set_state",
+    "profinet_dcp_set",
+    "bacnet_write_property",
+    "bas_command",
 }
 
 # ``mqtt_publish`` is the ONE deliberate no-undo write: a published MQTT message
@@ -208,9 +281,25 @@ def test_cli_app_builds_and_help_works():
     runner = CliRunner()
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    for sub in ("opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "eip",
-                "ethercat", "iolink", "diag", "analytics", "secret", "init", "doctor",
-                "mcp", "protocols"):
+    for sub in (
+        "opcua",
+        "modbus",
+        "s7",
+        "mc",
+        "fins",
+        "mtconnect",
+        "mqtt",
+        "eip",
+        "ethercat",
+        "iolink",
+        "diag",
+        "analytics",
+        "secret",
+        "init",
+        "doctor",
+        "mcp",
+        "protocols",
+    ):
         assert sub in result.output
 
 
@@ -220,61 +309,108 @@ def test_cli_leaf_help_triggers_lazy_imports():
 
     runner = CliRunner()
     for cmd in (
-        ["opcua", "--help"], ["modbus", "--help"], ["secret", "--help"],
-        ["init", "--help"], ["doctor", "--help"],
+        ["opcua", "--help"],
+        ["modbus", "--help"],
+        ["secret", "--help"],
+        ["init", "--help"],
+        ["doctor", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
     for cmd in (
-        ["opcua", "--help"], ["modbus", "--help"], ["s7", "--help"],
-        ["mc", "--help"], ["fins", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
-        ["eip", "--help"], ["ethercat", "--help"], ["analytics", "--help"],
+        ["opcua", "--help"],
+        ["modbus", "--help"],
+        ["s7", "--help"],
+        ["mc", "--help"],
+        ["fins", "--help"],
+        ["mtconnect", "--help"],
+        ["mqtt", "--help"],
+        ["eip", "--help"],
+        ["ethercat", "--help"],
+        ["analytics", "--help"],
         ["diag", "--help"],
-        ["mc", "--help"], ["mtconnect", "--help"], ["mqtt", "--help"],
-        ["eip", "--help"], ["ethercat", "--help"], ["iolink", "--help"],
-        ["analytics", "--help"], ["diag", "--help"],
+        ["mc", "--help"],
+        ["mtconnect", "--help"],
+        ["mqtt", "--help"],
+        ["eip", "--help"],
+        ["ethercat", "--help"],
+        ["iolink", "--help"],
+        ["analytics", "--help"],
+        ["diag", "--help"],
     ):
         result = runner.invoke(app, cmd)
         assert result.exit_code == 0, f"{cmd} failed: {result.output}"
     for cmd in (
-        ["opcua", "info", "--help"], ["opcua", "browse", "--help"],
-        ["opcua", "read", "--help"], ["opcua", "read-many", "--help"],
-        ["opcua", "sample", "--help"], ["opcua", "alarms", "--help"],
-        ["opcua", "history", "--help"], ["opcua", "monitor", "--help"],
-        ["opcua", "health", "--help"], ["opcua", "anomaly", "--help"],
-        ["modbus", "holding", "--help"], ["modbus", "input", "--help"],
-        ["modbus", "coils", "--help"], ["modbus", "discrete", "--help"],
+        ["opcua", "info", "--help"],
+        ["opcua", "browse", "--help"],
+        ["opcua", "read", "--help"],
+        ["opcua", "read-many", "--help"],
+        ["opcua", "sample", "--help"],
+        ["opcua", "alarms", "--help"],
+        ["opcua", "history", "--help"],
+        ["opcua", "monitor", "--help"],
+        ["opcua", "health", "--help"],
+        ["opcua", "anomaly", "--help"],
+        ["modbus", "holding", "--help"],
+        ["modbus", "input", "--help"],
+        ["modbus", "coils", "--help"],
+        ["modbus", "discrete", "--help"],
         ["modbus", "health", "--help"],
-        ["s7", "cpu", "--help"], ["s7", "read-db", "--help"],
-        ["s7", "read", "--help"], ["s7", "write-db", "--help"],
-        ["mc", "cpu", "--help"], ["mc", "words", "--help"],
-        ["mc", "bits", "--help"], ["mc", "write-words", "--help"],
-        ["fins", "cpu", "--help"], ["fins", "status", "--help"],
-        ["fins", "words", "--help"], ["fins", "bits", "--help"],
+        ["s7", "cpu", "--help"],
+        ["s7", "read-db", "--help"],
+        ["s7", "read", "--help"],
+        ["s7", "write-db", "--help"],
+        ["mc", "cpu", "--help"],
+        ["mc", "words", "--help"],
+        ["mc", "bits", "--help"],
+        ["mc", "write-words", "--help"],
+        ["fins", "cpu", "--help"],
+        ["fins", "status", "--help"],
+        ["fins", "words", "--help"],
+        ["fins", "bits", "--help"],
         ["fins", "write-words", "--help"],
-        ["mtconnect", "probe", "--help"], ["mtconnect", "current", "--help"],
-        ["mtconnect", "sample", "--help"], ["mtconnect", "assets", "--help"],
+        ["mtconnect", "probe", "--help"],
+        ["mtconnect", "current", "--help"],
+        ["mtconnect", "sample", "--help"],
+        ["mtconnect", "assets", "--help"],
         ["mtconnect", "oee", "--help"],
-        ["iolink", "master", "--help"], ["iolink", "ports", "--help"],
-        ["iolink", "device", "--help"], ["iolink", "pdin", "--help"],
-        ["iolink", "isdu", "--help"], ["iolink", "scan", "--help"],
-        ["mqtt", "read", "--help"], ["mqtt", "nodes", "--help"],
-        ["mqtt", "browse", "--help"], ["mqtt", "publish", "--help"],
-        ["eip", "info", "--help"], ["eip", "tags", "--help"],
-        ["eip", "read", "--help"], ["eip", "read-many", "--help"],
+        ["iolink", "master", "--help"],
+        ["iolink", "ports", "--help"],
+        ["iolink", "device", "--help"],
+        ["iolink", "pdin", "--help"],
+        ["iolink", "isdu", "--help"],
+        ["iolink", "scan", "--help"],
+        ["mqtt", "read", "--help"],
+        ["mqtt", "nodes", "--help"],
+        ["mqtt", "browse", "--help"],
+        ["mqtt", "publish", "--help"],
+        ["eip", "info", "--help"],
+        ["eip", "tags", "--help"],
+        ["eip", "read", "--help"],
+        ["eip", "read-many", "--help"],
         ["eip", "write-tag", "--help"],
-        ["ethercat", "master", "--help"], ["ethercat", "slaves", "--help"],
-        ["ethercat", "info", "--help"], ["ethercat", "read-sdo", "--help"],
-        ["ethercat", "read-pdo", "--help"], ["ethercat", "write-sdo", "--help"],
+        ["ethercat", "master", "--help"],
+        ["ethercat", "slaves", "--help"],
+        ["ethercat", "info", "--help"],
+        ["ethercat", "read-sdo", "--help"],
+        ["ethercat", "read-pdo", "--help"],
+        ["ethercat", "write-sdo", "--help"],
         ["ethercat", "set-state", "--help"],
-        ["analytics", "oee", "--help"], ["analytics", "downtime", "--help"],
-        ["analytics", "oee-multidim", "--help"], ["analytics", "asset", "--help"],
+        ["analytics", "oee", "--help"],
+        ["analytics", "downtime", "--help"],
+        ["analytics", "oee-multidim", "--help"],
+        ["analytics", "asset", "--help"],
         ["analytics", "asset-model", "--help"],
-        ["diag", "dataflow", "--help"], ["diag", "alarms", "--help"],
-        ["diag", "tags", "--help"], ["diag", "historian", "--help"],
-        ["secret", "set", "--help"], ["secret", "list", "--help"],
-        ["secret", "rm", "--help"], ["secret", "migrate", "--help"],
-        ["secret", "rotate", "--help"], ["secret", "rotate-password", "--help"],
+        ["diag", "dataflow", "--help"],
+        ["diag", "alarms", "--help"],
+        ["diag", "tags", "--help"],
+        ["diag", "historian", "--help"],
+        ["secret", "set", "--help"],
+        ["secret", "list", "--help"],
+        ["secret", "rm", "--help"],
+        ["secret", "migrate", "--help"],
+        ["secret", "rotate", "--help"],
+        ["secret", "rotate-password", "--help"],
         ["audit", "forward", "--help"],
     ):
         result = runner.invoke(app, cmd)
@@ -339,8 +475,22 @@ def test_unsupported_protocol_rejected():
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "protocol",
-    ["opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "ethernetip",
-     "ethercat", "secsgem", "profinet", "bacnet", "hart", "iolink"],
+    [
+        "opcua",
+        "modbus",
+        "s7",
+        "mc",
+        "fins",
+        "mtconnect",
+        "mqtt",
+        "ethernetip",
+        "ethercat",
+        "secsgem",
+        "profinet",
+        "bacnet",
+        "hart",
+        "iolink",
+    ],
 )
 def test_supported_protocols_accepted(protocol):
     from iaiops.core.runtime.config import TargetConfig
@@ -371,7 +521,8 @@ def test_write_tools_are_high_risk_and_default_dry_run(full_tool_registry):
     import inspect
 
     high_risk = {
-        name for name, tool in full_tool_registry.items()
+        name
+        for name, tool in full_tool_registry.items()
         if getattr(tool.fn, "_risk_level", "") == "high"
     }
     missing = WRITE_TOOLS - high_risk
@@ -400,10 +551,32 @@ def test_protocols_supported_lists_all():
 
     out = protocols_supported()
     assert set(out["implemented_protocols"]) == {
-        "opcua", "modbus", "s7", "mc", "fins", "mtconnect", "mqtt", "ethernetip",
-        "ethercat", "secsgem", "profinet", "bacnet", "hart",
-        "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "ethercat",
-        "secsgem", "profinet", "bacnet", "hart", "iolink",
+        "opcua",
+        "modbus",
+        "s7",
+        "mc",
+        "fins",
+        "mtconnect",
+        "mqtt",
+        "ethernetip",
+        "ethercat",
+        "secsgem",
+        "profinet",
+        "bacnet",
+        "hart",
+        "opcua",
+        "modbus",
+        "s7",
+        "mc",
+        "mtconnect",
+        "mqtt",
+        "ethernetip",
+        "ethercat",
+        "secsgem",
+        "profinet",
+        "bacnet",
+        "hart",
+        "iolink",
     }
     assert set(out["roadmap_stubs"]) == set()
     assert "asset_inventory" in out["analytics"]
@@ -520,10 +693,13 @@ def test_ethercat_pysoem_is_optional_and_degrades_gracefully(monkeypatch):
 
     # The MCP tool wraps that into a sanitized error dict (no crash).
     monkeypatch.setattr(builtins, "__import__", real_import)
-    monkeypatch.setattr(conn, "_build_ethercat_master",
-                        lambda t: (_ for _ in ()).throw(
-                            OTConnectionError("pysoem not installed",
-                                              protocol="ethercat")))
+    monkeypatch.setattr(
+        conn,
+        "_build_ethercat_master",
+        lambda t: (_ for _ in ()).throw(
+            OTConnectionError("pysoem not installed", protocol="ethercat")
+        ),
+    )
     from mcp_server.tools import ethercat_tools
 
     monkeypatch.setattr(ethercat_tools, "_target", lambda e=None: target)

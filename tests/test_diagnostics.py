@@ -58,11 +58,22 @@ def test_alarm_flood_and_pareto():
     events = []
     # FIC101 floods (50 alarms in ~50s), others sparse
     for i in range(50):
-        events.append({"source": "FIC101", "timestamp": _iso(now + timedelta(seconds=i)),
-                       "priority": "high", "state": "ACTIVE"})
+        events.append(
+            {
+                "source": "FIC101",
+                "timestamp": _iso(now + timedelta(seconds=i)),
+                "priority": "high",
+                "state": "ACTIVE",
+            }
+        )
     for i in range(5):
-        events.append({"source": f"TI{i}", "timestamp": _iso(now + timedelta(seconds=i * 2)),
-                       "priority": "low"})
+        events.append(
+            {
+                "source": f"TI{i}",
+                "timestamp": _iso(now + timedelta(seconds=i * 2)),
+                "priority": "low",
+            }
+        )
     out = diag.alarm_bad_actors(events)
     assert out["flood_verdict"] == "flood"
     assert out["top_offenders"][0]["source"] == "FIC101"
@@ -73,8 +84,7 @@ def test_alarm_flood_and_pareto():
 @pytest.mark.unit
 def test_alarm_rate_ok():
     now = datetime(2026, 6, 28, 10, 0, 0, tzinfo=UTC)
-    events = [{"source": "A", "timestamp": _iso(now + timedelta(minutes=20 * i))}
-              for i in range(3)]
+    events = [{"source": "A", "timestamp": _iso(now + timedelta(minutes=20 * i))} for i in range(3)]
     out = diag.alarm_bad_actors(events)
     assert out["flood_verdict"] in ("ok", "manageable")
 
@@ -107,8 +117,12 @@ def test_tag_health_ranks_offenders():
 @pytest.mark.unit
 def test_tag_health_detects_statistical_anomaly():
     # A single large spike over a realistic bounded window (z-score > 3σ).
-    tags = [{"ref": "spike", "samples": [10.0, 10.5, 9.8, 10.2, 10.1, 9.9, 10.0,
-                                         10.3, 9.7, 10.0, 200.0]}]
+    tags = [
+        {
+            "ref": "spike",
+            "samples": [10.0, 10.5, 9.8, 10.2, 10.1, 9.9, 10.0, 10.3, 9.7, 10.0, 200.0],
+        }
+    ]
     out = diag.tag_health(tags)
     spike = out["results"][0]
     assert "statistical_anomaly" in spike["flags"]
@@ -131,8 +145,9 @@ def test_diagnose_cannot_connect(monkeypatch):
 def test_diagnose_stale_value(monkeypatch):
     old = datetime(2020, 1, 1, tzinfo=UTC).isoformat()
     monkeypatch.setattr(diag, "_probe_connect", lambda t: (True, "ok"))
-    monkeypatch.setattr(diag, "_read_ref",
-                        lambda t, ref: {"value": 5.0, "good": True, "source_timestamp": old})
+    monkeypatch.setattr(
+        diag, "_read_ref", lambda t, ref: {"value": 5.0, "good": True, "source_timestamp": old}
+    )
     target = TargetConfig(name="x", protocol="opcua", endpoint_url="opc.tcp://h:4840")
     out = diag.diagnose_dataflow(target, ref="ns=2;i=5", freshness_threshold_s=60)
     assert out["verdict"] == "comms_ok_value_stale"
@@ -142,8 +157,9 @@ def test_diagnose_stale_value(monkeypatch):
 def test_diagnose_flatline(monkeypatch):
     now = datetime.now(tz=UTC).isoformat()
     monkeypatch.setattr(diag, "_probe_connect", lambda t: (True, "ok"))
-    monkeypatch.setattr(diag, "_read_ref",
-                        lambda t, ref: {"value": 5.0, "good": True, "source_timestamp": now})
+    monkeypatch.setattr(
+        diag, "_read_ref", lambda t, ref: {"value": 5.0, "good": True, "source_timestamp": now}
+    )
     target = TargetConfig(name="x", protocol="opcua", endpoint_url="opc.tcp://h:4840")
     out = diag.diagnose_dataflow(target, ref="ns=2;i=5", series=[5.0] * 10)
     assert out["verdict"] == "comms_ok_flatline"
@@ -153,8 +169,9 @@ def test_diagnose_flatline(monkeypatch):
 def test_diagnose_bad_quality(monkeypatch):
     now = datetime.now(tz=UTC).isoformat()
     monkeypatch.setattr(diag, "_probe_connect", lambda t: (True, "ok"))
-    monkeypatch.setattr(diag, "_read_ref",
-                        lambda t, ref: {"value": 5.0, "good": False, "source_timestamp": now})
+    monkeypatch.setattr(
+        diag, "_read_ref", lambda t, ref: {"value": 5.0, "good": False, "source_timestamp": now}
+    )
     target = TargetConfig(name="x", protocol="opcua", endpoint_url="opc.tcp://h:4840")
     out = diag.diagnose_dataflow(target, ref="ns=2;i=5")
     assert out["verdict"] == "comms_ok_bad_quality"

@@ -35,11 +35,18 @@ def heat_exchanger_fouling(
     decline exceeds ``decline_pct``, else ``ok``. Refuses fewer than 6 readings.
     Every number is cited.
     """
-    eff = [e for e in (_effectiveness(r) for r in (readings or []) if isinstance(r, dict))
-           if e is not None]
+    eff = [
+        e
+        for e in (_effectiveness(r) for r in (readings or []) if isinstance(r, dict))
+        if e is not None
+    ]
     if len(eff) < MIN_SAMPLES:
-        return {"readings": len(eff), "verdict": "insufficient_data",
-                "needed": MIN_SAMPLES, "note": _NOTE}
+        return {
+            "readings": len(eff),
+            "verdict": "insufficient_data",
+            "needed": MIN_SAMPLES,
+            "note": _NOTE,
+        }
 
     half = len(eff) // 2
     first_mean = sum(eff[:half]) / half
@@ -75,13 +82,16 @@ def _effectiveness(reading: dict) -> float | None:
         return None
     denom = hot_in - cold_in
     if denom <= 0:
-        return None   # no driving temperature difference — cannot judge
+        return None  # no driving temperature difference — cannot judge
     return (hot_in - hot_out) / denom
 
 
 def _verdict(
-    mean_eff: float, current: float, decline: float,
-    min_eff: float, decline_pct: float,
+    mean_eff: float,
+    current: float,
+    decline: float,
+    min_eff: float,
+    decline_pct: float,
 ) -> tuple[str, str]:
     if mean_eff < min_eff:
         return "fouling", f"mean effectiveness {round(mean_eff, 3)} below {min_eff}"

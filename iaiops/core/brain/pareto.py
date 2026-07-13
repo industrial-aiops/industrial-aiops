@@ -29,8 +29,14 @@ def defect_pareto(defects: list[dict], vital_pct: float = DEFAULT_VITAL_PCT) -> 
     counts = _aggregate(defects)
     total = sum(counts.values())
     if not total:
-        return {"total_defects": 0, "category_count": 0, "categories": [],
-                "vital_few": [], "vital_pct": vital_pct, "note": _NOTE}
+        return {
+            "total_defects": 0,
+            "category_count": 0,
+            "categories": [],
+            "vital_few": [],
+            "vital_pct": vital_pct,
+            "note": _NOTE,
+        }
 
     ranked = sorted(counts.items(), key=lambda kv: (kv[1], kv[0]), reverse=True)
     rows: list[dict] = []
@@ -41,14 +47,16 @@ def defect_pareto(defects: list[dict], vital_pct: float = DEFAULT_VITAL_PCT) -> 
         cum_pct = round(cumulative / total * 100.0, 2)
         is_vital = not vital_reached
         if cum_pct >= vital_pct:
-            vital_reached = True   # this row crosses the line; later rows are the trivial many
-        rows.append({
-            "category": category,
-            "count": count,
-            "pct": round(count / total * 100.0, 2),
-            "cumulativePct": cum_pct,
-            "vitalFew": is_vital,
-        })
+            vital_reached = True  # this row crosses the line; later rows are the trivial many
+        rows.append(
+            {
+                "category": category,
+                "count": count,
+                "pct": round(count / total * 100.0, 2),
+                "cumulativePct": cum_pct,
+                "vitalFew": is_vital,
+            }
+        )
     return {
         "total_defects": total,
         "category_count": len(rows),

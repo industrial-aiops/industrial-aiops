@@ -47,6 +47,9 @@ def pdm_forecast(
     """
     return pdm.pdm_forecast(
         list(series or []),
-        warn_high=warn_high, alarm_high=alarm_high, warn_low=warn_low, alarm_low=alarm_low,
+        warn_high=warn_high,
+        alarm_high=alarm_high,
+        warn_low=warn_low,
+        alarm_low=alarm_low,
         imminent_within_s=imminent_within_s,
     )

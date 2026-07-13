@@ -26,7 +26,7 @@ def test_oscillating_when_error_crosses_repeatedly():
 
 @pytest.mark.unit
 def test_offset_when_pv_sits_away_from_sp():
-    samples = [{"pv": 70.0, "sp": 75.0, "op": 50} for _ in range(12)]   # steady 5-unit offset
+    samples = [{"pv": 70.0, "sp": 75.0, "op": 50} for _ in range(12)]  # steady 5-unit offset
     out = control_loop_health(samples)
     assert out["verdict"] == "offset" and out["meanOffset"] == -5.0
 
@@ -49,7 +49,7 @@ def test_insufficient_samples():
 def test_tool_is_process_edition_module_and_runs():
     assert "process_tools" not in BRAIN_MODULES
     assert "process_tools" in selected_tool_modules("process")
-    assert "process_tools" not in selected_tool_modules("opcua")     # bare protocol
+    assert "process_tools" not in selected_tool_modules("opcua")  # bare protocol
     assert getattr(control_loop_health_tool, "_is_governed_tool", False) is True
     out = control_loop_health_tool(samples=[{"pv": 70, "sp": 75, "op": 100}] * 12)
     assert "error" not in out and out["verdict"] == "saturated"
@@ -57,13 +57,14 @@ def test_tool_is_process_edition_module_and_runs():
 
 # ── heat_exchanger_fouling ───────────────────────────────────────────────────
 
+
 def _hx(hot_outs):
     return [{"hot_in": 90, "hot_out": ho, "cold_in": 30} for ho in hot_outs]
 
 
 @pytest.mark.unit
 def test_hx_ok_when_effectiveness_stable():
-    out = heat_exchanger_fouling(_hx([55, 55, 56, 55, 54, 55]))   # ε ~0.58, flat
+    out = heat_exchanger_fouling(_hx([55, 55, 56, 55, 54, 55]))  # ε ~0.58, flat
     assert out["verdict"] == "ok" and out["meanEffectiveness"] > 0.5
 
 

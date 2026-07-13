@@ -24,19 +24,23 @@ _ALARMS = [
     {"source": "CONV_02", "timestamp": "2026-06-28T09:59:58Z", "message": "jam detected"},
 ]
 # 40 rising samples toward warn_high=80 → a precursor that was degrading/imminent.
-_PRECURSORS = [{
-    "signal": "M1_temp",
-    "series": [{"value": 60.0 + i * 0.5, "timestamp": f"2026-06-28T09:00:{i % 60:02d}Z"}
-               for i in range(40)],
-    "warn_high": 80,
-}]
+_PRECURSORS = [
+    {
+        "signal": "M1_temp",
+        "series": [
+            {"value": 60.0 + i * 0.5, "timestamp": f"2026-06-28T09:00:{i % 60:02d}Z"}
+            for i in range(40)
+        ],
+        "warn_high": 80,
+    }
+]
 
 
 @pytest.mark.unit
 def test_first_look_is_first_out_of_biggest_cascade():
     out = downtime_triage(_WINDOW, alarms=_ALARMS)
     fl = out["triage"]["first_look"]
-    assert fl["source"] == "M1_DRIVE"                 # earliest in the burst
+    assert fl["source"] == "M1_DRIVE"  # earliest in the burst
     assert fl["cascade_size"] == 3
     assert out["cascade"]["cascade_count"] == 1
 
@@ -85,11 +89,16 @@ def test_precursor_below_min_samples_is_not_flagged():
 def test_cross_check_helper_branches():
     # corroborated / diverging keyed off the primary hypothesis's cited evidence.
     first = {"source": "PT101"}
-    corro = {"primary_cause": {"cause": "sensor_fault",
-                               "evidence": [{"signal": "alarm", "ref": "PT101"}]}}
+    corro = {
+        "primary_cause": {
+            "cause": "sensor_fault",
+            "evidence": [{"signal": "alarm", "ref": "PT101"}],
+        }
+    }
     assert _cross_check(first, corro)["status"] == "corroborated"
-    diverging = {"primary_cause": {"cause": "power_fault",
-                                   "evidence": [{"signal": "alarm", "ref": "BUS_A"}]}}
+    diverging = {
+        "primary_cause": {"cause": "power_fault", "evidence": [{"signal": "alarm", "ref": "BUS_A"}]}
+    }
     assert _cross_check(first, diverging)["status"] == "diverging"
     assert _cross_check(first, {"primary_cause": None})["status"] == "no_rca_primary"
     assert _cross_check(None, corro)["status"] == "no_alarm_root"

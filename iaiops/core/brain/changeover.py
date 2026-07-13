@@ -35,9 +35,16 @@ def changeover_analysis(good_parts: list[dict]) -> dict:
     ignored = len([g for g in (good_parts or []) if isinstance(g, dict)]) - len(parsed)
     changeovers = _changeovers(parsed)
     if not changeovers:
-        return {"good_parts": len(parsed), "ignored": ignored, "changeover_count": 0,
-                "changeovers": [], "longest": None, "avgDurationS": None,
-                "totalChangeoverS": None, "note": _NOTE}
+        return {
+            "good_parts": len(parsed),
+            "ignored": ignored,
+            "changeover_count": 0,
+            "changeovers": [],
+            "longest": None,
+            "avgDurationS": None,
+            "totalChangeoverS": None,
+            "note": _NOTE,
+        }
 
     durations = [c["durationS"] for c in changeovers]
     ranked = sorted(changeovers, key=lambda c: c["durationS"], reverse=True)
@@ -87,13 +94,15 @@ def _changeovers(parsed: list[tuple[datetime, str]]) -> list[dict]:
     out: list[dict] = []
     for (t_a, prod_a), (t_b, prod_b) in zip(parsed, parsed[1:]):
         if prod_a != prod_b:
-            out.append({
-                "from": prod_a,
-                "to": prod_b,
-                "start": t_a.isoformat(),
-                "end": t_b.isoformat(),
-                "durationS": round((t_b - t_a).total_seconds(), 1),
-            })
+            out.append(
+                {
+                    "from": prod_a,
+                    "to": prod_b,
+                    "start": t_a.isoformat(),
+                    "end": t_b.isoformat(),
+                    "durationS": round((t_b - t_a).total_seconds(), 1),
+                }
+            )
     return out
 
 

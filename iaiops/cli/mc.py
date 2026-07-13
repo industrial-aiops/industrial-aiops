@@ -7,8 +7,7 @@ import typer
 from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
 from iaiops.connectors.mc import ops
 
-mc_app = typer.Typer(help="Mitsubishi MC read-first telemetry (Q/L/iQ-R).",
-                     no_args_is_help=True)
+mc_app = typer.Typer(help="Mitsubishi MC read-first telemetry (Q/L/iQ-R).", no_args_is_help=True)
 
 
 @mc_app.command("cpu")

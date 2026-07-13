@@ -82,9 +82,21 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 
 # Ordered fields hashed into row_hash (as stored in the row, all as text).
 _HASHED_FIELDS = (
-    "ts", "skill", "tool", "params", "result", "status", "duration_ms",
-    "agent", "workflow_id", "user", "risk_level", "rationale", "approved_by",
-    "risk_tier", "approver_source",
+    "ts",
+    "skill",
+    "tool",
+    "params",
+    "result",
+    "status",
+    "duration_ms",
+    "agent",
+    "workflow_id",
+    "user",
+    "risk_level",
+    "rationale",
+    "approved_by",
+    "risk_tier",
+    "approver_source",
 )
 _HASH_SEP = "\x1f"
 
@@ -262,8 +274,7 @@ class AuditEngine:
         ``{ok, checked, unhashed, first_broken_id?, reason?}``.
         """
         if not self._ok:
-            return {"ok": False, "checked": 0, "unhashed": 0,
-                    "reason": "audit DB not initialized"}
+            return {"ok": False, "checked": 0, "unhashed": 0, "reason": "audit DB not initialized"}
         conn = self._connect()
         try:
             conn.row_factory = sqlite3.Row
@@ -281,15 +292,19 @@ class AuditEngine:
                 continue
             if record.get("prev_hash", "") != expected_prev:
                 return {
-                    "ok": False, "checked": checked, "unhashed": unhashed,
+                    "ok": False,
+                    "checked": checked,
+                    "unhashed": unhashed,
                     "first_broken_id": record["id"],
                     "reason": "prev_hash does not match preceding row_hash "
-                              "(row inserted/deleted/reordered)",
+                    "(row inserted/deleted/reordered)",
                 }
             recomputed = compute_row_hash(record.get("prev_hash", ""), record)
             if recomputed != record["row_hash"]:
                 return {
-                    "ok": False, "checked": checked, "unhashed": unhashed,
+                    "ok": False,
+                    "checked": checked,
+                    "unhashed": unhashed,
                     "first_broken_id": record["id"],
                     "reason": "row_hash mismatch (row fields modified)",
                 }
@@ -451,6 +466,7 @@ class AuditEngine:
 
 # ── Module-level helpers ──────────────────────────────────────────────
 
+
 def _current_user() -> str:
     try:
         return getpass.getuser()
@@ -506,7 +522,8 @@ def get_engine(db_path: Path | str | None = None) -> AuditEngine:
             _log.warning(
                 "get_engine(%s) ignored — singleton already initialized at %s; "
                 "call reset_engine() first to rebind.",
-                requested, _engine._path,
+                requested,
+                _engine._path,
             )
     return _engine
 

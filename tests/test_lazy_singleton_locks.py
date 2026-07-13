@@ -95,9 +95,7 @@ def test_open_store_single_instance_and_kdf_once(tmp_path, monkeypatch):
 
     first = results[0]
     assert all(r is first for r in results), "threads saw divergent stores"
-    assert derive_count["n"] == 1, (
-        f"KDF ran {derive_count['n']}x — the memory-hard unlock raced"
-    )
+    assert derive_count["n"] == 1, f"KDF ran {derive_count['n']}x — the memory-hard unlock raced"
 
 
 @pytest.mark.unit

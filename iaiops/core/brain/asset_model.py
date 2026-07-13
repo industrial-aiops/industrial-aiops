@@ -99,13 +99,19 @@ def _finalize_assets(tags: list[dict], site: str) -> list[dict]:
             # disambiguate only when a meaningful CLASS leaf is shared by siblings
             disambiguate = t["klass"] and t["klass"] != "other" and leaf_counts[base] > 1
             leaf = f"{t['klass']}_{t['name']}" if disambiguate else base
-            out.append({**t, "asset": s(display, 200),
-                        "canonical_alias": _build_alias(site, display, leaf)})
+            out.append(
+                {
+                    **t,
+                    "asset": s(display, 200),
+                    "canonical_alias": _build_alias(site, display, leaf),
+                }
+            )
     return out
 
 
-def normalize_tag(raw: dict, *, protocol: str, source: str, asset: str = "",
-                  site: str = "site") -> dict:
+def normalize_tag(
+    raw: dict, *, protocol: str, source: str, asset: str = "", site: str = "site"
+) -> dict:
     """Normalize one per-protocol tag dict into the unified tag shape.
 
     Accepts OPC-UA discovery tags, Modbus template tags, or already-normalized
@@ -158,8 +164,11 @@ def _normalize_all(feeds: list[dict], site: str) -> list[dict]:
             if len(out) >= MAX_TAGS:
                 return out
             if isinstance(raw, dict):
-                out.append(normalize_tag(raw, protocol=protocol, source=source,
-                                         asset=feed_asset, site=site))
+                out.append(
+                    normalize_tag(
+                        raw, protocol=protocol, source=source, asset=feed_asset, site=site
+                    )
+                )
     return out
 
 
@@ -170,13 +179,15 @@ def _group_assets(tags: list[dict]) -> list[dict]:
         buckets.setdefault(t["asset"], []).append(t)
     rows = []
     for asset, items in sorted(buckets.items()):
-        rows.append({
-            "asset": asset or "(unassigned)",
-            "protocols": sorted({t["protocol"] for t in items}),
-            "tag_count": len(items),
-            "classes": _class_breakdown(items),
-            "tags": items,
-        })
+        rows.append(
+            {
+                "asset": asset or "(unassigned)",
+                "protocols": sorted({t["protocol"] for t in items}),
+                "tag_count": len(items),
+                "classes": _class_breakdown(items),
+                "tags": items,
+            }
+        )
     return rows
 
 
@@ -222,11 +233,13 @@ def _cross_protocol_overlaps(tags: list[dict]) -> list[dict]:
 
 def _cryptic_names(tags: list[dict]) -> list[str]:
     """Tags with no semantic class and a too-short name (a naming smell)."""
-    return sorted({
-        f"{t['asset']}/{t['name']}" if t["asset"] else t["name"]
-        for t in tags
-        if t["klass"] == "other" and len(t["name"]) <= CRYPTIC_MAX_LEN and t["name"]
-    })
+    return sorted(
+        {
+            f"{t['asset']}/{t['name']}" if t["asset"] else t["name"]
+            for t in tags
+            if t["klass"] == "other" and len(t["name"]) <= CRYPTIC_MAX_LEN and t["name"]
+        }
+    )
 
 
 def cross_protocol_asset_model(feeds: Any, site: str = "site") -> dict:

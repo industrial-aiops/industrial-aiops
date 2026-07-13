@@ -24,7 +24,9 @@ console = Console()
 def export_cmd(
     fmt: str = typer.Argument(..., help=f"Output format: {' | '.join(EXPORT_FORMATS)}"),
     out: Path | None = typer.Option(
-        None, "--out", "-o",
+        None,
+        "--out",
+        "-o",
         help="Output file (default: ./iaiops-export.<ext>)",
     ),
     since: str | None = typer.Option(
@@ -37,9 +39,7 @@ def export_cmd(
         None, "--endpoint", "-e", help="Only samples from this endpoint"
     ),
     tag: str | None = typer.Option(None, "--tag", help="Only samples for this tag"),
-    limit: int = typer.Option(
-        10_000, "--limit", help="Max rows to export (1..1000000)"
-    ),
+    limit: int = typer.Option(10_000, "--limit", help="Max rows to export (1..1000000)"),
 ) -> None:
     """Export collected samples from the LOCAL SQLite sink to an open format.
 
@@ -51,9 +51,7 @@ def export_cmd(
     """
     kind = (fmt or "").strip().lower()
     if kind not in EXPORT_FORMATS:
-        raise ValueError(
-            f"Unknown format '{fmt}'. Supported: {', '.join(EXPORT_FORMATS)}."
-        )
+        raise ValueError(f"Unknown format '{fmt}'. Supported: {', '.join(EXPORT_FORMATS)}.")
     target = out or Path(f"iaiops-export.{FORMAT_EXTENSIONS[kind]}")
     result = export_samples(
         kind, target, since=since, until=until, endpoint=endpoint, tag=tag, limit=limit

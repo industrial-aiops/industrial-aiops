@@ -17,8 +17,13 @@ from iaiops.core.sink.push import historian_push
 from iaiops.core.sink.sqlite_local import SAMPLE_COLUMNS
 
 POINTS = [
-    {"ref": "line1.temp", "value": 21.5, "timestamp": "2026-07-01T00:00:00Z",
-     "quality": "good", "unit": "C"},
+    {
+        "ref": "line1.temp",
+        "value": 21.5,
+        "timestamp": "2026-07-01T00:00:00Z",
+        "quality": "good",
+        "unit": "C",
+    },
     {"ref": "line1.state", "value": "RUNNING", "timestamp": "2026-07-01T00:30:00Z"},
     {"ref": "line2.pressure", "value": 3.1, "timestamp": "2026-07-01T01:00:00Z"},
 ]
@@ -29,8 +34,9 @@ _HAS_PYARROW = importlib.util.find_spec("pyarrow") is not None
 @pytest.fixture()
 def store(tmp_path):
     path = tmp_path / "data.db"
-    assert "error" not in historian_push(POINTS, "sqlite", db_path=path,
-                                         endpoint="plc1", protocol="modbus")
+    assert "error" not in historian_push(
+        POINTS, "sqlite", db_path=path, endpoint="plc1", protocol="modbus"
+    )
     return path
 
 
@@ -52,8 +58,7 @@ def test_csv_export_applies_filters(store, tmp_path):
     out = tmp_path / "temp-only.csv"
     result = export_samples("csv", out, tag="line1.temp", db_path=store)
     assert result["rows"] == 1
-    result = export_samples("csv", out, since="2026-07-01T00:30:00Z", limit=1,
-                            db_path=store)
+    result = export_samples("csv", out, since="2026-07-01T00:30:00Z", limit=1, db_path=store)
     assert result["rows"] == 1
 
 
@@ -65,9 +70,7 @@ def test_sqlite_export_golden_path(store, tmp_path):
     conn = sqlite3.connect(str(out))
     try:
         assert conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0] == 3
-        value = conn.execute(
-            "SELECT value FROM samples WHERE tag = 'line1.temp'"
-        ).fetchone()[0]
+        value = conn.execute("SELECT value FROM samples WHERE tag = 'line1.temp'").fetchone()[0]
         assert value == 21.5
     finally:
         conn.close()

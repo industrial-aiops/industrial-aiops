@@ -22,6 +22,7 @@ def _emit(data: object) -> None:
     """
     console.print_json(json.dumps(data, default=str))
 
+
 EndpointOption = Annotated[
     str | None, typer.Option("--endpoint", "-e", help="Endpoint name from config")
 ]

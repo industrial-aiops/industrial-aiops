@@ -23,14 +23,22 @@ def home(tmp_path, monkeypatch):
 def _outline() -> ProgramOutline:
     """An OB1 that calls FB_Conveyor; FB_Dead is referenced by nothing."""
     ob1 = Block(
-        name="OB1", kind="ORGANIZATION_BLOCK", language="scl",
-        source_file="prog.scl", line=1, end_line=10,
+        name="OB1",
+        kind="ORGANIZATION_BLOCK",
+        language="scl",
+        source_file="prog.scl",
+        line=1,
+        end_line=10,
         calls=(CallEdge("OB1", "FB_Conveyor", "prog.scl", 5),),
         comment="Main cyclic OB",
     )
     conveyor = Block(
-        name="FB_Conveyor", kind="FUNCTION_BLOCK", language="scl",
-        source_file="prog.scl", line=20, end_line=80,
+        name="FB_Conveyor",
+        kind="FUNCTION_BLOCK",
+        language="scl",
+        source_file="prog.scl",
+        line=20,
+        end_line=80,
         branches=(
             Branch("IF", "Run", "prog.scl", 30),
             Branch("FOR", "i:=1..10", "prog.scl", 40),
@@ -40,14 +48,21 @@ def _outline() -> ProgramOutline:
         comment="",  # uncommented → maintainer lands blind
     )
     dead = Block(
-        name="FB_Dead", kind="FUNCTION_BLOCK", language="scl",
-        source_file="prog.scl", line=90, end_line=95, comment="",
+        name="FB_Dead",
+        kind="FUNCTION_BLOCK",
+        language="scl",
+        source_file="prog.scl",
+        line=90,
+        end_line=95,
+        comment="",
     )
     return ProgramOutline(
-        source_file="prog.scl", fmt="scl",
+        source_file="prog.scl",
+        fmt="scl",
         blocks=(ob1, conveyor, dead),
         call_edges=(CallEdge("OB1", "FB_Conveyor", "prog.scl", 5),),
-        comment_count=2, line_count=100,
+        comment_count=2,
+        line_count=100,
     )
 
 
@@ -56,7 +71,7 @@ def test_entry_points_and_unreferenced_blocks():
     out = plc_visibility(_outline())
     assert [e["name"] for e in out["entry_points"]] == ["OB1"]
     unref = [b["name"] for b in out["unreferenced_blocks"]]
-    assert unref == ["FB_Dead"]          # OB1 is an entry, FB_Conveyor is called
+    assert unref == ["FB_Dead"]  # OB1 is an entry, FB_Conveyor is called
 
 
 @pytest.mark.unit
@@ -64,7 +79,7 @@ def test_complexity_hotspot_is_the_busy_block():
     out = plc_visibility(_outline())
     top = out["complexity_hotspots"][0]
     assert top["block"] == "FB_Conveyor"
-    assert top["score"] == 4             # 3 branches + 0 calls + 1 timer
+    assert top["score"] == 4  # 3 branches + 0 calls + 1 timer
 
 
 @pytest.mark.unit
@@ -78,9 +93,9 @@ def test_risky_constructs_flag_jmp_rto_and_loop():
 @pytest.mark.unit
 def test_documentation_band_and_uncommented_blocks():
     doc = plc_visibility(_outline())["documentation"]
-    assert doc["comment_ratio"] == 0.02          # 2 / 100
+    assert doc["comment_ratio"] == 0.02  # 2 / 100
     assert doc["band"] == "undocumented"
-    assert doc["uncommented_block_count"] == 2    # FB_Conveyor, FB_Dead
+    assert doc["uncommented_block_count"] == 2  # FB_Conveyor, FB_Dead
 
 
 @pytest.mark.unit

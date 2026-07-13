@@ -101,10 +101,17 @@ class SQLiteLocalSink:
     may override the db file path.
     """
 
-    def __init__(self, db_path: Path | str | None = None, endpoint: str = "",
-                 protocol: str = "", host: str = "", port: int = 0,
-                 user: str = "", password: str = "",
-                 database: str = "") -> None:
+    def __init__(
+        self,
+        db_path: Path | str | None = None,
+        endpoint: str = "",
+        protocol: str = "",
+        host: str = "",
+        port: int = 0,
+        user: str = "",
+        password: str = "",
+        database: str = "",
+    ) -> None:
         del host, port, user, password  # local file store — no connection params
         chosen = db_path or database or local_db_path()
         self._path = Path(chosen).expanduser()

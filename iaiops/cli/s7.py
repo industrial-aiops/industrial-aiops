@@ -7,8 +7,7 @@ import typer
 from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
 from iaiops.connectors.s7 import ops
 
-s7_app = typer.Typer(help="S7comm read-first telemetry (Siemens + 仿西门子).",
-                     no_args_is_help=True)
+s7_app = typer.Typer(help="S7comm read-first telemetry (Siemens + 仿西门子).", no_args_is_help=True)
 
 
 @s7_app.command("cpu")

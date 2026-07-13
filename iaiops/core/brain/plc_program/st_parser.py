@@ -43,21 +43,47 @@ _VAR_SECTION_RE = re.compile(
     re.IGNORECASE,
 )
 _END_VAR_RE = re.compile(r"^\s*END_VAR\b", re.IGNORECASE)
-_DECL_RE = re.compile(
-    r'^\s*("?[\w.]+"?)\s*(?:\{[^}]*\})?\s*:\s*([^:;=]+?)\s*(?::=[^;]*)?;'
-)
+_DECL_RE = re.compile(r'^\s*("?[\w.]+"?)\s*(?:\{[^}]*\})?\s*:\s*([^:;=]+?)\s*(?::=[^;]*)?;')
 _CALL_RE = re.compile(r'\b("?[A-Za-z_][\w.]*"?)\s*\(')
-_BRANCH_RE = re.compile(
-    r"^\s*(?:\w+\s*:\s*)?(IF|ELSIF|CASE|FOR|WHILE|REPEAT)\b(.*)", re.IGNORECASE
-)
+_BRANCH_RE = re.compile(r"^\s*(?:\w+\s*:\s*)?(IF|ELSIF|CASE|FOR|WHILE|REPEAT)\b(.*)", re.IGNORECASE)
 _TIMER_TYPES = frozenset({"TON", "TOF", "TP", "CTU", "CTD", "CTUD", "TONR"})
 # Not calls: ST keywords/operators/builtins commonly followed by '('.
 _NOT_CALLS = frozenset(
     {
-        "IF", "ELSIF", "WHILE", "UNTIL", "CASE", "FOR", "TO", "BY", "RETURN", "NOT",
-        "AND", "OR", "XOR", "MOD", "THEN", "DO", "OF", "ELSE", "EXIT", "ARRAY",
-        "ABS", "SQRT", "MIN", "MAX", "LIMIT", "SEL", "MUX", "CONCAT", "LEN",
-        "INT_TO_REAL", "REAL_TO_INT", "DINT_TO_REAL", "TIME_TO_DINT", "WORD_TO_INT",
+        "IF",
+        "ELSIF",
+        "WHILE",
+        "UNTIL",
+        "CASE",
+        "FOR",
+        "TO",
+        "BY",
+        "RETURN",
+        "NOT",
+        "AND",
+        "OR",
+        "XOR",
+        "MOD",
+        "THEN",
+        "DO",
+        "OF",
+        "ELSE",
+        "EXIT",
+        "ARRAY",
+        "ABS",
+        "SQRT",
+        "MIN",
+        "MAX",
+        "LIMIT",
+        "SEL",
+        "MUX",
+        "CONCAT",
+        "LEN",
+        "INT_TO_REAL",
+        "REAL_TO_INT",
+        "DINT_TO_REAL",
+        "TIME_TO_DINT",
+        "WORD_TO_INT",
     }
 )
 
@@ -114,7 +140,8 @@ def parse_st(text: str, source_file: str) -> ProgramOutline:
         code, comments, comment_count = _strip_comments(text)
     except Exception as exc:  # pragma: no cover - defensive
         return ProgramOutline(
-            source_file=source_file, fmt="scl",
+            source_file=source_file,
+            fmt="scl",
             parse_errors=(f"comment stripping failed: {exc}",),
         )
 
@@ -129,11 +156,17 @@ def parse_st(text: str, source_file: str) -> ProgramOutline:
             return
         blocks.append(
             Block(
-                name=cur["name"], kind=cur["kind"], language="scl",
-                source_file=source_file, line=cur["line"], end_line=end_line,
-                variables=tuple(cur["vars"]), calls=tuple(cur["calls"]),
+                name=cur["name"],
+                kind=cur["kind"],
+                language="scl",
+                source_file=source_file,
+                line=cur["line"],
+                end_line=end_line,
+                variables=tuple(cur["vars"]),
+                calls=tuple(cur["calls"]),
                 branches=tuple(cur["branches"]),
-                timers_counters=tuple(cur["timers"]), comment=cur["comment"],
+                timers_counters=tuple(cur["timers"]),
+                comment=cur["comment"],
             )
         )
         cur = None
@@ -149,9 +182,14 @@ def parse_st(text: str, source_file: str) -> ProgramOutline:
                     )
                     close_block(idx - 1)
                 cur = {
-                    "name": _norm_name(m.group(2)), "kind": m.group(1).upper(),
-                    "line": idx, "vars": [], "calls": [], "branches": [],
-                    "timers": [], "comment": comments[idx - 1],
+                    "name": _norm_name(m.group(2)),
+                    "kind": m.group(1).upper(),
+                    "line": idx,
+                    "vars": [],
+                    "calls": [],
+                    "branches": [],
+                    "timers": [],
+                    "comment": comments[idx - 1],
                 }
                 var_section = None
                 continue
@@ -173,16 +211,20 @@ def parse_st(text: str, source_file: str) -> ProgramOutline:
                     var_type = m.group(2).strip()
                     cur["vars"].append(
                         Variable(
-                            name=name, var_type=var_type, section=var_section,
-                            comment=comments[idx - 1], source_file=source_file,
+                            name=name,
+                            var_type=var_type,
+                            section=var_section,
+                            comment=comments[idx - 1],
+                            source_file=source_file,
                             line=idx,
                         )
                     )
                     base_type = _norm_name(var_type).upper()
                     if base_type in _TIMER_TYPES:
                         cur["timers"].append(
-                            TimerCounter(name=name, kind=base_type,
-                                         source_file=source_file, line=idx)
+                            TimerCounter(
+                                name=name, kind=base_type, source_file=source_file, line=idx
+                            )
                         )
                     instance_types[name.upper()] = _norm_name(var_type)
                 continue
@@ -191,9 +233,12 @@ def parse_st(text: str, source_file: str) -> ProgramOutline:
             m = _BRANCH_RE.match(line)
             if m:
                 cur["branches"].append(
-                    Branch(kind=m.group(1).upper(),
-                           condition=m.group(2).strip()[:120],
-                           source_file=source_file, line=idx)
+                    Branch(
+                        kind=m.group(1).upper(),
+                        condition=m.group(2).strip()[:120],
+                        source_file=source_file,
+                        line=idx,
+                    )
                 )
             for cm in _CALL_RE.finditer(line):
                 raw_name = _norm_name(cm.group(1))
@@ -203,25 +248,27 @@ def parse_st(text: str, source_file: str) -> ProgramOutline:
                 callee = instance_types.get(upper, raw_name)
                 if callee.upper() in _TIMER_TYPES or upper in _TIMER_TYPES:
                     cur["timers"].append(
-                        TimerCounter(name=raw_name, kind=callee.upper(),
-                                     source_file=source_file, line=idx)
+                        TimerCounter(
+                            name=raw_name, kind=callee.upper(), source_file=source_file, line=idx
+                        )
                     )
                 cur["calls"].append(
-                    CallEdge(caller=cur["name"], callee=callee,
-                             source_file=source_file, line=idx)
+                    CallEdge(caller=cur["name"], callee=callee, source_file=source_file, line=idx)
                 )
         except Exception as exc:
             parse_errors.append(f"line {idx}: skipped ({exc})")
 
     if cur is not None:
-        parse_errors.append(
-            f"block '{cur['name']}' has no END_{cur['kind']} (truncated file?)"
-        )
+        parse_errors.append(f"block '{cur['name']}' has no END_{cur['kind']} (truncated file?)")
         close_block(len(code))
 
     call_edges = tuple(edge for blk in blocks for edge in blk.calls)
     return ProgramOutline(
-        source_file=source_file, fmt="scl", blocks=tuple(blocks),
-        call_edges=call_edges, comment_count=comment_count,
-        line_count=len(code), parse_errors=tuple(parse_errors),
+        source_file=source_file,
+        fmt="scl",
+        blocks=tuple(blocks),
+        call_edges=call_edges,
+        comment_count=comment_count,
+        line_count=len(code),
+        parse_errors=tuple(parse_errors),
     )

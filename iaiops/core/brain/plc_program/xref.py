@@ -24,8 +24,7 @@ from iaiops.core.brain.plc_program.outline import load_program
 from iaiops.core.brain.plc_program.st_parser import _BLOCK_RE  # shared header regex
 
 _MAX_QUOTE = 200
-_ST_VAR_START = re.compile(r"^\s*VAR(_INPUT|_OUTPUT|_IN_OUT|_STAT|_TEMP|_GLOBAL)?\b",
-                           re.IGNORECASE)
+_ST_VAR_START = re.compile(r"^\s*VAR(_INPUT|_OUTPUT|_IN_OUT|_STAT|_TEMP|_GLOBAL)?\b", re.IGNORECASE)
 _ST_VAR_END = re.compile(r"^\s*END_VAR\b", re.IGNORECASE)
 _L5X_WRITE_RE = re.compile(r"\b(OTE|OTL|OTU|RES|ONS)\(\s*([\w.\[\]]+)\s*\)")
 _L5X_DEST_RE = re.compile(r"\b(MOV|COP|CPS|CPT)\(\s*[^)]*?,\s*([\w.\[\]]+)\s*\)")
@@ -58,7 +57,7 @@ def _st_hits(lines: list[str], symbol: str, source_file: str) -> list[XrefHit]:
         m = pattern.search(raw)
         if not m:
             continue
-        after = raw[m.end():].lstrip()
+        after = raw[m.end() :].lstrip()
         if in_var and re.match(r"[:{]", after or ":"):
             access = "declare"
         elif after.startswith(":="):
@@ -67,9 +66,16 @@ def _st_hits(lines: list[str], symbol: str, source_file: str) -> list[XrefHit]:
             access = "call"
         else:
             access = "read"
-        hits.append(XrefHit(symbol=symbol, access=access, block=block,
-                            source_file=source_file, line=idx,
-                            source_line=_quote(raw)))
+        hits.append(
+            XrefHit(
+                symbol=symbol,
+                access=access,
+                block=block,
+                source_file=source_file,
+                line=idx,
+                source_line=_quote(raw),
+            )
+        )
     return hits
 
 
@@ -85,10 +91,16 @@ def _awl_hits(lines: list[str], symbol: str, source_file: str) -> list[XrefHit]:
         norm = raw.replace(" ", "")
         if not (any(pattern.fullmatch(t) for t in tokens) or pattern.search(norm)):
             continue
-        hits.append(XrefHit(symbol=symbol,
-                            access=awl_parser.classify_awl_access(raw),
-                            block=block, source_file=source_file, line=idx,
-                            source_line=_quote(raw)))
+        hits.append(
+            XrefHit(
+                symbol=symbol,
+                access=awl_parser.classify_awl_access(raw),
+                block=block,
+                source_file=source_file,
+                line=idx,
+                source_line=_quote(raw),
+            )
+        )
     return hits
 
 
@@ -102,9 +114,16 @@ def _l5x_hits(text: str, symbol: str, source_file: str) -> list[XrefHit]:
         writes = {m.group(2).lower() for m in _L5X_WRITE_RE.finditer(rtext)}
         writes |= {m.group(2).lower() for m in _L5X_DEST_RE.finditer(rtext)}
         access = "write" if wanted in writes else "read"
-        hits.append(XrefHit(symbol=symbol, access=access, block=block,
-                            source_file=source_file, line=num,
-                            source_line=_quote(rtext)))
+        hits.append(
+            XrefHit(
+                symbol=symbol,
+                access=access,
+                block=block,
+                source_file=source_file,
+                line=num,
+                source_line=_quote(rtext),
+            )
+        )
     return hits
 
 

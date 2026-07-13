@@ -79,9 +79,11 @@ def test_every_registered_tool_documented_in_skill():
 def test_router_has_no_per_tool_tables():
     """The router stays thin: it may cite the 8 MOC writes, nothing else."""
     router = ROUTER_SKILL.read_text("utf-8")
-    high_risk = set(_HIGH_RISK_RE.findall("\n".join(
-        p.read_text("utf-8") for p in sorted(TOOLS_DIR.glob("*.py"))
-    )))
+    high_risk = set(
+        _HIGH_RISK_RE.findall(
+            "\n".join(p.read_text("utf-8") for p in sorted(TOOLS_DIR.glob("*.py")))
+        )
+    )
     allowed = high_risk | {"protocols_supported"}  # capability-map pointer is fine
     cited = {n for n in _registered_tool_names() if f"`{n}`" in router}
     stray = sorted(cited - allowed)
@@ -117,8 +119,7 @@ def test_edition_skill_tools_subset_of_profile(skill_path: Path):
     cited = {tok for tok in _BACKTICK_RE.findall(text) if tok in registered}
     stray = sorted(cited - allowed)
     assert not stray, (
-        f"{skill_path.parent.name} cites tools outside its IAIOPS_MCP={specs} "
-        f"surface: {stray}"
+        f"{skill_path.parent.name} cites tools outside its IAIOPS_MCP={specs} surface: {stray}"
     )
 
 
@@ -131,9 +132,7 @@ def test_skill_version_pins_match_pyproject(skill_path: Path):
     pins = [tok for tok in _BACKTICK_RE.findall(text) if _PIN_RE.match(tok)]
     assert pins, f"{skill_path.parent.name} quotes no version pins in its support matrix"
     stale = [pin for pin in pins if f'"{pin}"' not in pyproject]
-    assert not stale, (
-        f"{skill_path.parent.name} quotes pin(s) not found in pyproject.toml: {stale}"
-    )
+    assert not stale, f"{skill_path.parent.name} quotes pin(s) not found in pyproject.toml: {stale}"
 
 
 @pytest.mark.unit

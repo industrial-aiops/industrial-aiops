@@ -48,7 +48,7 @@ def test_insufficient_samples():
 def test_tool_is_fab_edition_module_and_runs():
     assert "fab_tools" not in BRAIN_MODULES
     assert "fab_tools" in selected_tool_modules("fab")
-    assert "fab_tools" not in selected_tool_modules("secsgem")       # bare protocol
+    assert "fab_tools" not in selected_tool_modules("secsgem")  # bare protocol
     assert getattr(spc_check_tool, "_is_governed_tool", False) is True
     out = spc_check_tool(
         series=[10.0, 10.1, 9.9, 10.0, 9.95, 10.05, 10.0, 11.0], target=10.0, sigma=0.15
@@ -57,6 +57,7 @@ def test_tool_is_fab_edition_module_and_runs():
 
 
 # ── defect_pareto ────────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 def test_defect_pareto_ranks_and_marks_vital_few():

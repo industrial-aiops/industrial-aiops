@@ -12,7 +12,7 @@ from mcp_server.tools.warehouse_tools import line_bottleneck as line_bottleneck_
 _STATIONS = [
     {"station": "infeed", "throughput_per_hr": 1200},
     {"station": "sorter", "throughput_per_hr": 900, "blocked_pct": 40},
-    {"station": "palletizer", "cycle_time_s": 6.0, "starved_pct": 0},   # 3600/6 = 600/hr
+    {"station": "palletizer", "cycle_time_s": 6.0, "starved_pct": 0},  # 3600/6 = 600/hr
 ]
 
 
@@ -34,14 +34,14 @@ def test_material_handling_templates_present():
 @pytest.mark.unit
 def test_material_handling_templates_carry_caveat():
     for name in ("conveyor_vfd", "agv_battery"):
-        assert "待核实" in templates.get_template(name).caveat   # placeholder maps, honest
+        assert "待核实" in templates.get_template(name).caveat  # placeholder maps, honest
 
 
 @pytest.mark.unit
 def test_conveyor_vfd_decodes_scaled_frequency():
     tmpl = templates.get_template("conveyor_vfd")
     block = [0] * tmpl.span
-    block[0] = 5000                       # output_frequency at offset 0, uint16 * 0.01
+    block[0] = 5000  # output_frequency at offset 0, uint16 * 0.01
     out = templates.apply_template("conveyor_vfd", block, start_address=tmpl.base_offset)
     decoded = {t["tag"]: t["value"] for t in out["tags"]}
     assert decoded["output_frequency"] == pytest.approx(50.0)
@@ -51,7 +51,7 @@ def test_conveyor_vfd_decodes_scaled_frequency():
 def test_agv_battery_decodes_state_of_charge():
     tmpl = templates.get_template("agv_battery")
     block = [0] * tmpl.span
-    block[0] = 85                          # state_of_charge at offset 0, uint16 * 1.0
+    block[0] = 85  # state_of_charge at offset 0, uint16 * 1.0
     out = templates.apply_template("agv_battery", block, start_address=tmpl.base_offset)
     decoded = {t["tag"]: t["value"] for t in out["tags"]}
     assert decoded["state_of_charge"] == pytest.approx(85.0)
@@ -65,21 +65,22 @@ def test_material_handling_template_spans_within_modbus_limit():
 
 # ── line_bottleneck (warehouse edition tool) ─────────────────────────────────
 
+
 @pytest.mark.unit
 def test_line_bottleneck_is_slowest_station():
     out = line_bottleneck(_STATIONS)
     assert out["bottleneck"]["station"] == "palletizer"
-    assert out["bottleneck"]["throughputPerHr"] == 600.0     # 3600 / 6.0 s
+    assert out["bottleneck"]["throughputPerHr"] == 600.0  # 3600 / 6.0 s
     assert out["lineRatePerHr"] == 600.0
-    assert out["ranked"][0]["flag"] == "bottleneck"          # slowest sorts first
+    assert out["ranked"][0]["flag"] == "bottleneck"  # slowest sorts first
 
 
 @pytest.mark.unit
 def test_line_bottleneck_flags_blocked_upstream():
     ranked = {r["station"]: r for r in line_bottleneck(_STATIONS)["ranked"]}
-    assert ranked["sorter"]["flag"] == "blocked"             # blocked_pct 40 >= 20
+    assert ranked["sorter"]["flag"] == "blocked"  # blocked_pct 40 >= 20
     assert ranked["infeed"]["flag"] == "ok"
-    assert ranked["sorter"]["vsBottleneckPct"] == 50.0       # 900 vs 600
+    assert ranked["sorter"]["vsBottleneckPct"] == 50.0  # 900 vs 600
 
 
 @pytest.mark.unit
