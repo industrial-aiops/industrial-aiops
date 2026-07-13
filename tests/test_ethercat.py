@@ -225,6 +225,22 @@ def test_set_state_master_scope(ec_target):
 
 
 @pytest.mark.unit
+def test_set_state_check_failure_reports_unknown_not_old_state(ec_target):
+    """When the post-write check fails, 'reached' must NOT echo the pre-write
+    state (a value never observed) — it reports unknown plus the check error."""
+    target, master = ec_target
+
+    def _boom(code, timeout):
+        raise RuntimeError("state check timed out")
+
+    master.slaves[0].state_check = _boom
+    out = ops.ethercat_set_state(target, "SAFEOP", slave=0, dry_run=False)
+    assert out["applied"] is True
+    assert out["reached"] is None  # was: echoed before ("OP") as if observed
+    assert "state check timed out" in out["check_error"]
+
+
+@pytest.mark.unit
 def test_set_state_rejects_unknown_state(ec_target):
     target, _ = ec_target
     with pytest.raises(ValueError, match="Unknown EtherCAT state"):

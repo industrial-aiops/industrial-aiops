@@ -370,6 +370,41 @@ def test_fins_tcp_handshake_and_read():
         server.close()
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize("mode", ["drop", "wrong_command"])
+def test_fins_tcp_handshake_failure_closes_socket(mode):
+    """A failed node-address handshake must close the socket, not leak it —
+    the session factory only tears down clients whose connect() succeeded."""
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    srv.settimeout(5)
+    port = srv.getsockname()[1]
+
+    def _misbehave() -> None:
+        conn_sock, _ = srv.accept()
+        with conn_sock:
+            # Read the handshake request, then misbehave.
+            header = conn_sock.recv(FINS_TCP_HEADER.size + 4)
+            assert header
+            if mode == "wrong_command":
+                # Answer with the WRONG command id (3 instead of 1).
+                reply = FINS_TCP_HEADER.pack(FINS_TCP_MAGIC, 16, 3, 0)
+                conn_sock.sendall(reply + struct.pack(">II", 42, 1))
+            # mode == "drop": close without answering the handshake.
+
+    thread = threading.Thread(target=_misbehave, daemon=True)
+    thread.start()
+    client = fins_client.FinsTcpClient("127.0.0.1", port, timeout_s=2.0)
+    try:
+        with pytest.raises(FinsFramingError):
+            client.connect()
+        assert client._sock is None  # closed on the failure path
+    finally:
+        thread.join(timeout=2)
+        srv.close()
+
+
 # ---------------------------------------------------------------------------
 # Session guard / translate / transport selection.
 # ---------------------------------------------------------------------------

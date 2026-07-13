@@ -27,8 +27,32 @@ def _clamp_count(count: int) -> int:
     return max(1, min(int(count), MAX_COUNT))
 
 
+class ModbusExceptionResponse(OTConnectionError):  # noqa: N818 — the Modbus PDU term
+    """The device ANSWERED with a Modbus exception PDU (e.g. IllegalDataAddress).
+
+    Distinct from a transport/connect failure: an exception response proves the
+    device is alive and reachable — only the requested address/function was
+    refused. Diagnostics use this to avoid misreporting a live PLC as
+    'network path down'.
+    """
+
+
 def _check(response: Any, address: int, kind: str) -> Any:
-    """Raise a teaching OTConnectionError if a Modbus response is an exception."""
+    """Raise a teaching OTConnectionError if a Modbus response is an exception.
+
+    A genuine exception PDU (pymodbus ``ExceptionResponse``, carrying a non-zero
+    ``exception_code``) raises :class:`ModbusExceptionResponse` so callers can
+    tell 'device refused this address' apart from 'device unreachable'.
+    """
+    if response is not None and hasattr(response, "isError") and response.isError():
+        if getattr(response, "exception_code", 0):
+            raise ModbusExceptionResponse(
+                f"Modbus {kind} read at address {address} was REFUSED by the "
+                f"device (exception response: {s(str(response), 120)}). The device "
+                f"is reachable — check the address range, the unit/device id, and "
+                f"the function code support on this PLC.",
+                protocol="modbus",
+            )
     if response is None or (hasattr(response, "isError") and response.isError()):
         raise OTConnectionError(
             f"Modbus {kind} read at address {address} failed: {s(str(response), 120)}. "
@@ -40,13 +64,24 @@ def _check(response: Any, address: int, kind: str) -> Any:
 
 
 def _decode_registers(registers: list[int], decode: str) -> list:
-    """Decode raw 16-bit registers per the requested hint (big-endian words)."""
+    """Decode raw 16-bit registers per the requested hint (big-endian words).
+
+    32-bit decodes consume register PAIRS: an odd register count raises a
+    teaching ValueError instead of silently dropping the trailing register
+    (or returning nothing for a single-register float32 read).
+    """
     decode = decode if decode in _REGISTER_DECODES else "uint16"
     if decode in ("raw", "uint16"):
         return list(registers)
     if decode == "int16":
         return [struct.unpack(">h", struct.pack(">H", r & 0xFFFF))[0] for r in registers]
     # 32-bit decodes consume register pairs (big-endian word order).
+    if len(registers) % 2:
+        raise ValueError(
+            f"Decode '{decode}' consumes register PAIRS, but {len(registers)} "
+            f"register(s) were read. Request an even count (2 registers per "
+            f"{decode} value) — refusing to silently drop the trailing register."
+        )
     out: list = []
     for i in range(0, len(registers) - 1, 2):
         hi, lo = registers[i] & 0xFFFF, registers[i + 1] & 0xFFFF
@@ -162,18 +197,34 @@ def modbus_apply_template(
     return decoded
 
 
+_HEALTH_DECODES = ("uint16", "int16")
+
+
 def modbus_health_summary(
     target: Any,
     addresses: list[int] | None = None,
     thresholds: dict | None = None,
     register_type: str = "holding",
+    decode: str = "uint16",
 ) -> dict:
     """[READ] Classify holding/input registers against warn/alarm thresholds.
 
     ``addresses`` defaults to the endpoint's configured tag refs (parsed as
     register addresses). ``thresholds`` overrides per-address bounds keyed by
     the address string. Mirrors the OPC-UA ``health_summary`` classifier.
+
+    ``decode`` selects the per-register interpretation: ``uint16`` (default) or
+    ``int16`` for signed points (e.g. temperatures below zero). Each address is
+    read as a SINGLE register, so pair-consuming decodes (uint32/int32/float32)
+    are not supported here — use ``modbus_read_holding`` with a decode hint for
+    those.
     """
+    if decode not in _HEALTH_DECODES:
+        raise ValueError(
+            f"modbus_health_summary reads one register per address, so decode "
+            f"must be one of {_HEALTH_DECODES} (got '{decode}'). For 32-bit "
+            f"values use modbus_read_holding/modbus_read_input with a decode hint."
+        )
     addrs = _resolve_addresses(target, addresses)
     if not addrs:
         return {
@@ -192,7 +243,7 @@ def modbus_health_summary(
                 if resp is None or (hasattr(resp, "isError") and resp.isError()):
                     value = None
                 else:
-                    value = float(resp.registers[0])
+                    value = float(_decode_registers([int(resp.registers[0])], decode)[0])
             except Exception:  # noqa: BLE001 — per-address read error
                 value = None
             status = "unknown" if value is None else tag.classify(value)

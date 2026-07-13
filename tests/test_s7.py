@@ -87,6 +87,58 @@ def test_s7_read_many(s7_target):
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "area,dtype,start,count,expected",
+    [
+        # 1-byte types are BYTE-addressed (stride 1) with their own pyS7 token —
+        # the old 'W' fallback read overlapping 16-bit words at stride 1.
+        ("M", "USINT", 10, 3, ["MUSI10", "MUSI11", "MUSI12"]),
+        ("M", "SINT", 10, 2, ["MSI10", "MSI11"]),
+        ("M", "CHAR", 4, 2, ["MC4", "MC5"]),
+        ("M", "BYTE", 2, 2, ["MB2", "MB3"]),
+        # Signed/float types keep their sign/width tokens (were W/D = unsigned).
+        ("M", "INT", 4, 2, ["MI4", "MI6"]),
+        ("M", "DINT", 8, 2, ["MDI8", "MDI12"]),
+        ("M", "REAL", 12, 2, ["MR12", "MR16"]),
+        # LREAL is 8 bytes wide — both the token and the stride must say so.
+        ("M", "LREAL", 16, 2, ["MLR16", "MLR24"]),
+        ("I", "USINT", 0, 2, ["IUSI0", "IUSI1"]),
+        ("Q", "WORD", 0, 2, ["QW0", "QW2"]),
+    ],
+)
+def test_non_db_addresses_match_pys7_grammar(area, dtype, start, count, expected):
+    """Every generated non-DB address is byte-correct AND parses under real pyS7."""
+    pytest.importorskip("pyS7")
+    from pyS7.address_parser import map_address_to_tag
+
+    addresses = ops._addr_series(area, dtype, start, 0, 0, count)
+    assert addresses == expected
+    for address, offset in zip(addresses, range(0, 100), strict=False):
+        tag = map_address_to_tag(address)  # raises if the grammar rejects it
+        assert tag.data_type.name == dtype
+        assert tag.start == start + offset * ops._DTYPE_SIZE[dtype]
+
+
+@pytest.mark.unit
+def test_db_lreal_strides_eight_bytes():
+    assert ops._addr_series("DB", "LREAL", 0, 1, 0, 2) == ["DB1,LREAL0", "DB1,LREAL8"]
+
+
+@pytest.mark.unit
+def test_unknown_area_raises_instead_of_defaulting_to_merker(s7_target):
+    """An unknown area must ERROR — the old M fallback read the wrong PLC memory."""
+    target, _ = s7_target
+    with pytest.raises(ValueError, match="Unknown S7 memory area 'V'"):
+        ops.s7_read_area(target, area="V", dtype="INT", start=0, count=1)
+
+
+@pytest.mark.unit
+def test_unknown_dtype_raises():
+    with pytest.raises(ValueError, match="Unknown S7 data type 'FLOAT'"):
+        ops._s7_addr("DB", "FLOAT", 0, 1)
+
+
+@pytest.mark.unit
 def test_s7_write_dry_run_does_not_write(s7_target):
     target, client = s7_target
     out = ops.s7_write_db(target, db=1, dtype="INT", start=0, value=99, dry_run=True)

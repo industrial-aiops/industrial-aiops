@@ -306,6 +306,18 @@ def _probe(target) -> tuple[bool, str]:
 
             out = mqtt_read_topic(target, count=1, timeout_s=3)
             return True, f"MQTT connected, messages={out.get('message_count')}"
+        if target.protocol == "hart":
+            from iaiops.connectors.hart.ops import hart_device_identity
+
+            info = hart_device_identity(target)
+            # The identity read reports an unreachable device as an error
+            # payload (not an exception) — surface it as a probe failure.
+            if info.get("error"):
+                return False, str(info["error"])[:200]
+            return True, (
+                f"HART identity mfr={info.get('manufacturer_id')} "
+                f"device_type={info.get('device_type')} device_id={info.get('device_id')}"
+            )
         if target.protocol in ("ethernetip", "eip"):
             from iaiops.connectors.eip.ops import eip_controller_info
 

@@ -51,6 +51,16 @@ _DATATYPE_NAMES = {
     20: "PropertySet", 21: "PropertySetList",
 }
 
+# Signed integer DataTypes are carried UNSIGNED in the protobuf oneof (Tahu spec):
+# Int8/Int16/Int32 ride ``int_value`` (uint32), Int64 rides ``long_value``
+# (uint64). Width in bits per datatype, for two's-complement reinterpretation.
+_SIGNED_INT_BITS = {1: 8, 2: 16, 3: 32, 4: 64}  # Int8, Int16, Int32, Int64
+
+
+def _reinterpret_signed(raw: int, bits: int) -> int:
+    """Two's-complement reinterpretation of an unsigned ``bits``-wide carrier value."""
+    return raw - (1 << bits) if raw >= (1 << (bits - 1)) else raw
+
 
 def _clamp_count(count: int) -> int:
     return max(1, min(int(count), MAX_MESSAGES))
@@ -104,7 +114,13 @@ def _metric_value(metric: Any) -> Any:
     if which is None:
         return None
     raw = getattr(metric, which)
-    if which in ("int_value", "long_value", "float_value", "double_value", "boolean_value"):
+    if which in ("int_value", "long_value"):
+        # Sparkplug carries signed ints unsigned: a metric with datatype Int16
+        # and value -5 arrives as int_value=65531. Reinterpret by the declared
+        # datatype so negative readings never decode as huge positives.
+        bits = _SIGNED_INT_BITS.get(int(metric.datatype))
+        return _reinterpret_signed(int(raw), bits) if bits else int(raw)
+    if which in ("float_value", "double_value", "boolean_value"):
         return raw
     if which == "string_value":
         return s(raw, 512)
@@ -295,6 +311,9 @@ class _SparkplugModel:
             node["born"] = True
             if mtype == "NBIRTH":
                 node["alias_map"] = {}
+                # Spec: NBIRTH restarts the edge node's seq counter at 0. Reset
+                # tracking so a rebirth is not flagged as a spurious seq gap.
+                node["last_seq"] = None
             self._learn_aliases(node, payload)
             decoded = decode_sparkplug_payload(payload, node["alias_map"])
             if parsed["device_id"]:

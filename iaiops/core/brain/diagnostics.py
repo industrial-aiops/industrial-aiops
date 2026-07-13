@@ -204,9 +204,21 @@ def _probe_connect(target: Any) -> tuple[bool, str]:
             info = server_info(target)
             return True, f"OPC-UA state={info.get('state')}"
         if protocol == "modbus":
-            from iaiops.connectors.modbus.ops import modbus_read_holding
+            from iaiops.connectors.modbus.ops import (
+                ModbusExceptionResponse,
+                modbus_read_holding,
+            )
 
-            modbus_read_holding(target, address=0, count=1)
+            # The probe reads holding register 0, which many live devices do not
+            # map. An exception response to that read PROVES the device is alive
+            # and reachable — only a transport/connect failure means 'down'.
+            try:
+                modbus_read_holding(target, address=0, count=1)
+            except ModbusExceptionResponse as exc:
+                return True, (
+                    f"Modbus device reachable (probe register refused: "
+                    f"{s(str(exc), 140)})"
+                )
             return True, "Modbus read OK"
         if protocol == "s7":
             from iaiops.connectors.s7.ops import s7_cpu_info

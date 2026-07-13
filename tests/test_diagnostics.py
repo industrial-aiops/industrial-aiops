@@ -128,6 +128,45 @@ def test_diagnose_cannot_connect(monkeypatch):
 
 
 @pytest.mark.unit
+def test_modbus_exception_response_is_not_cannot_connect(monkeypatch):
+    """A device answering with a Modbus exception PDU is ALIVE — the probe must
+    report it reachable, not 'network path down'."""
+    import iaiops.connectors.modbus.ops as modbus_ops
+
+    def _refused(target, address=0, count=1):
+        raise modbus_ops.ModbusExceptionResponse(
+            "Modbus read_holding_registers read at address 0 was REFUSED by the "
+            "device (exception response: IllegalDataAddress).",
+            protocol="modbus",
+        )
+
+    monkeypatch.setattr(modbus_ops, "modbus_read_holding", _refused)
+    target = TargetConfig(name="plc", protocol="modbus", host="10.0.0.9")
+    ok, detail = diag._probe_connect(target)
+    assert ok is True
+    assert "reachable" in detail
+    out = diag.diagnose_dataflow(target)
+    assert out["verdict"] != "cannot_connect"
+
+
+@pytest.mark.unit
+def test_modbus_transport_failure_is_cannot_connect(monkeypatch):
+    """A genuine transport/connect failure still localizes to cannot_connect."""
+    import iaiops.connectors.modbus.ops as modbus_ops
+    from iaiops.core.runtime.connection import OTConnectionError
+
+    def _down(target, address=0, count=1):
+        raise OTConnectionError("Could not connect to Modbus endpoint", protocol="modbus")
+
+    monkeypatch.setattr(modbus_ops, "modbus_read_holding", _down)
+    target = TargetConfig(name="plc", protocol="modbus", host="10.0.0.9")
+    ok, _detail = diag._probe_connect(target)
+    assert ok is False
+    out = diag.diagnose_dataflow(target)
+    assert out["verdict"] == "cannot_connect"
+
+
+@pytest.mark.unit
 def test_diagnose_stale_value(monkeypatch):
     old = datetime(2020, 1, 1, tzinfo=UTC).isoformat()
     monkeypatch.setattr(diag, "_probe_connect", lambda t: (True, "ok"))

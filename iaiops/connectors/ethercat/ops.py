@@ -394,7 +394,10 @@ def ethercat_set_state(
         try:
             reached = _state_name(obj.state_check(target_code, 50000))
         except Exception as exc:  # noqa: BLE001 — report, do not crash
-            reached = before
+            # The post-write check failed: the resulting state was NOT observed.
+            # Echoing the pre-write state would fabricate a reading — report
+            # unknown and surface the check error instead.
+            reached = None
             check_error = s(str(exc), 160)
         else:
             check_error = ""

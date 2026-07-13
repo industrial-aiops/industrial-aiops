@@ -29,22 +29,45 @@ _DTYPE_SIZE = {
     "WORD": 2, "INT": 2, "DWORD": 4, "DINT": 4, "REAL": 4, "LREAL": 8,
 }
 _AREA_LETTER = {"M": "M", "I": "I", "E": "I", "Q": "Q", "A": "Q"}
-_NONDB_SUFFIX = {"BYTE": "B", "WORD": "W", "INT": "W", "DWORD": "D",
-                 "DINT": "D", "REAL": "D", "LREAL": "D"}
+# Non-DB type token per the pyS7 address grammar (e.g. MB2 / MC2 / MSI10 /
+# MUSI10 / MI4 / MW4 / MDI6 / MD8 / MR12 / MLR16). Every token verified against
+# pyS7 2.8.x ``map_address_to_tag`` so each type reads its true width and sign
+# — 1-byte types are byte-addressed, INT/DINT stay signed, REAL/LREAL stay float.
+_NONDB_SUFFIX = {
+    "BYTE": "B", "CHAR": "C", "USINT": "USI", "SINT": "SI",
+    "WORD": "W", "INT": "I", "DWORD": "D", "DINT": "DI",
+    "REAL": "R", "LREAL": "LR",
+}
 
 
 def _s7_addr(area: str, dtype: str, start: int, db: int, bit: int = 0) -> str:
-    """Build a pyS7 address string from area/type/offset (vendor-neutral S7)."""
+    """Build a pyS7 address string from area/type/offset (vendor-neutral S7).
+
+    Raises ``ValueError`` for an unknown area or data type — silently
+    retargeting (e.g. defaulting to Merker memory) would fabricate data from
+    the wrong PLC location.
+    """
     area = area.upper()
     dtype = dtype.upper()
+    if dtype != "BIT" and dtype not in _NONDB_SUFFIX:
+        raise ValueError(
+            f"Unknown S7 data type '{dtype}'. Supported: BIT, "
+            f"{', '.join(sorted(_NONDB_SUFFIX))}."
+        )
     if area == "DB":
         if dtype == "BIT":
             return f"DB{db},X{start}.{bit}"
         return f"DB{db},{dtype}{start}"
-    letter = _AREA_LETTER.get(area, "M")
+    letter = _AREA_LETTER.get(area)
+    if letter is None:
+        raise ValueError(
+            f"Unknown S7 memory area '{area}'. Supported: DB (data block), "
+            f"M (merker/flags), I/E (inputs), Q/A (outputs). Refusing to guess — "
+            f"a defaulted area would read the wrong PLC memory."
+        )
     if dtype == "BIT":
         return f"{letter}{start}.{bit}"
-    return f"{letter}{_NONDB_SUFFIX.get(dtype, 'W')}{start}"
+    return f"{letter}{_NONDB_SUFFIX[dtype]}{start}"
 
 
 def _addr_series(area: str, dtype: str, start: int, db: int, bit: int, count: int) -> list[str]:

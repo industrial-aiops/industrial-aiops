@@ -104,3 +104,29 @@ def test_probe_bacnet_success_and_failure(monkeypatch):
     monkeypatch.setattr(bn, "bacnet_discover", _raise("bind fail"))
     ok, detail = doctor._probe_bacnet(_probe_target("bacnet"))
     assert ok is False and "bind fail" in detail
+
+
+def test_probe_hart_success_error_dict_and_exception(monkeypatch):
+    """A healthy HART endpoint must have a probe (no more 'No probe implemented'),
+    and both failure shapes — error dict and raised exception — report False."""
+    import iaiops.connectors.hart.ops as hart_ops
+
+    monkeypatch.setattr(
+        hart_ops, "hart_device_identity",
+        lambda t: {"manufacturer_id": 0x60, "device_type": 0x99, "device_id": 65536},
+    )
+    ok, detail = doctor._probe(_probe_target("hart"))
+    assert ok is True
+    assert "No probe implemented" not in detail
+    assert "mfr=96" in detail and "device_id=65536" in detail
+
+    monkeypatch.setattr(
+        hart_ops, "hart_device_identity",
+        lambda t: {"error": "no HART response (device/gateway unreachable)"},
+    )
+    ok, detail = doctor._probe(_probe_target("hart"))
+    assert ok is False and "no HART response" in detail
+
+    monkeypatch.setattr(hart_ops, "hart_device_identity", _raise("poll timed out"))
+    ok, detail = doctor._probe(_probe_target("hart"))
+    assert ok is False and "poll timed out" in detail

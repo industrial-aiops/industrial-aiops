@@ -59,6 +59,68 @@ def _data_payload(seq=1, value=22.0, historical=False):
     return p.SerializeToString()
 
 
+def _int_metric_payload(datatype: int, field: str, carrier: int, seq=1):
+    """A payload with one integer metric carried unsigned in ``field``."""
+    pb = _pb()
+    p = pb.Payload()
+    p.timestamp = 3000
+    p.seq = seq
+    m = p.metrics.add()
+    m.name = "Level"
+    m.datatype = datatype
+    setattr(m, field, carrier)
+    return p.SerializeToString()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "datatype,field,carrier,expected",
+    [
+        (1, "int_value", 0xFF, -1),                    # Int8 -1
+        (1, "int_value", 0x80, -128),                  # Int8 min
+        (2, "int_value", 65531, -5),                   # Int16 -5 (the bug: was 65531)
+        (3, "int_value", 0xFFFFFFFF, -1),              # Int32 -1
+        (4, "long_value", (1 << 64) - 42, -42),        # Int64 -42
+        (2, "int_value", 1234, 1234),                  # positive Int16 unchanged
+        (6, "int_value", 65531, 65531),                # UInt16 stays unsigned
+        (8, "long_value", (1 << 64) - 1, (1 << 64) - 1),  # UInt64 stays unsigned
+        (13, "long_value", 1720000000000, 1720000000000),  # DateTime ms untouched
+    ],
+)
+def test_signed_int_metrics_reinterpret_twos_complement(datatype, field, carrier, expected):
+    """Signed Sparkplug ints ride the protobuf UNSIGNED — decode must re-sign them."""
+    out = ops.decode_sparkplug_payload(_int_metric_payload(datatype, field, carrier))
+    assert out["metrics"][0]["value"] == expected
+
+
+@pytest.mark.unit
+def test_nbirth_resets_seq_tracking(monkeypatch):
+    """A node rebirth (NBIRTH seq=0) is NOT a seq gap — the spec resets the counter."""
+    msgs = [
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        {"topic": "spBv1.0/Plant1/NDATA/Edge1", "payload": _data_payload(seq=1)},
+        # Node drops and recovers: rebirth restarts the counter at 0.
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        {"topic": "spBv1.0/Plant1/NDATA/Edge1", "payload": _data_payload(seq=1)},
+    ]
+    monkeypatch.setattr(ops, "_collect", lambda t, topic, count, timeout_s: msgs)
+    out = ops.sparkplug_subscribe_sample(TARGET)
+    assert out["seq_gap_count"] == 0  # was a spurious {expected: 2, got: 0}
+
+
+@pytest.mark.unit
+def test_seq_gap_after_rebirth_still_flagged(monkeypatch):
+    """The reset must not swallow REAL gaps in the post-rebirth session."""
+    msgs = [
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        {"topic": "spBv1.0/Plant1/NDATA/Edge1", "payload": _data_payload(seq=4)},  # 0→4 gap
+    ]
+    monkeypatch.setattr(ops, "_collect", lambda t, topic, count, timeout_s: msgs)
+    out = ops.sparkplug_subscribe_sample(TARGET)
+    assert out["seq_gap_count"] == 1
+
+
 @pytest.mark.unit
 def test_decode_sparkplug_payload_full():
     out = ops.decode_sparkplug_payload(_birth_payload())

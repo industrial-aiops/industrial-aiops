@@ -413,18 +413,24 @@ class FinsTcpClient(_FinsBase):
     def connect(self) -> None:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(self._timeout)
-        self._sock.connect((self._host, self._port))
-        # Handshake: command 0 (client node address send; 0 = auto-assign) →
-        # command 1 response carrying (client node, server node).
-        payload = struct.pack(">I", self._client_node & 0xFF)
-        self._send_tcp(FINS_TCP_CMD_CLIENT_NODE, payload)
-        command, body = self._read_tcp()
-        if command != FINS_TCP_CMD_SERVER_NODE or len(body) < 8:
-            raise FinsFramingError(
-                f"FINS/TCP handshake failed: expected command 1 with 8-byte body, "
-                f"got command {command} with {len(body)} bytes."
-            )
-        client_node, server_node = struct.unpack(">II", body[:8])
+        try:
+            self._sock.connect((self._host, self._port))
+            # Handshake: command 0 (client node address send; 0 = auto-assign) →
+            # command 1 response carrying (client node, server node).
+            payload = struct.pack(">I", self._client_node & 0xFF)
+            self._send_tcp(FINS_TCP_CMD_CLIENT_NODE, payload)
+            command, body = self._read_tcp()
+            if command != FINS_TCP_CMD_SERVER_NODE or len(body) < 8:
+                raise FinsFramingError(
+                    f"FINS/TCP handshake failed: expected command 1 with 8-byte body, "
+                    f"got command {command} with {len(body)} bytes."
+                )
+            client_node, server_node = struct.unpack(">II", body[:8])
+        except Exception:
+            # A failed connect/handshake must not leak the socket: the session
+            # factory only tears down clients whose connect() succeeded.
+            self.close()
+            raise
         self._sa1 = client_node & 0xFF
         self._da1 = server_node & 0xFF
 

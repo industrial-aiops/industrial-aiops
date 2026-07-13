@@ -34,19 +34,88 @@ def _ack_frame(command_id: int, payload: bytes) -> bytes:
     return b"\xFF\xFF\xFF\xFF\xFF" + core + cs
 
 
+# cmd-0 identity payload: mfr 0x60, device type 0x99, device id 0x010000.
+IDENTITY_PAYLOAD = bytes([0, 0, 254, 0x60, 0x99, 4, 7, 5, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0])
+# The unique long address that identity derives to: (0x60 & 0x3F) 0x99 + device id.
+DISCOVERED_ADDRESS = bytes([0x20, 0x99, 0x01, 0x00, 0x00])
+CONFIGURED_ADDRESS_TEXT = "26:06:12:34:56"
+
+
+def _identity_ack() -> bytes:
+    return _ack_frame(0, IDENTITY_PAYLOAD)
+
+
+def _is_identity_poll(pdu: bytes) -> bool:
+    """True for the short-frame cmd-0 poll (delimiter 0x02 after the preamble)."""
+    return len(pdu) > 5 and pdu[5] == 0x02
+
+
 # ── codec (verified against the real hart-protocol library) ───────────────────
 
 @pytest.mark.unit
 def test_build_command_produces_real_hart_frame():
-    frame = codec.build_command("primary_variable")
+    frame = codec.build_command("primary_variable", address=DISCOVERED_ADDRESS)
     assert isinstance(frame, bytes) and frame.startswith(b"\xFF\xFF")
     assert b"\x82" in frame  # master-to-slave start delimiter
+    # The frame carries the CALLER's device address (top bit = primary master).
+    assert frame[6:11] == bytes([0x20 | 0x80, 0x99, 0x01, 0x00, 0x00])
 
 
 @pytest.mark.unit
 def test_build_command_rejects_unknown():
     with pytest.raises(ValueError, match="Unknown/unsupported HART read command"):
-        codec.build_command("write_everything")
+        codec.build_command("write_everything", address=DISCOVERED_ADDRESS)
+
+
+@pytest.mark.unit
+def test_build_command_rejects_short_address():
+    """The old fabricated 2-byte default must be impossible to send again."""
+    with pytest.raises(ValueError, match="must be 5 bytes"):
+        codec.build_command("primary_variable", address=b"\x80\x00")
+
+
+@pytest.mark.unit
+def test_build_identity_poll_is_short_frame_command_0():
+    frame = codec.build_identity_poll()
+    assert frame.startswith(b"\xFF\xFF\xFF\xFF\xFF")
+    assert frame[5] == 0x02          # short-frame master→slave delimiter
+    assert frame[6] == 0x80          # primary master + polling address 0
+    assert frame[7] == 0 and frame[8] == 0  # command 0, byte count 0
+    with pytest.raises(ValueError, match="polling address"):
+        codec.build_identity_poll(64)
+
+
+@pytest.mark.unit
+def test_unique_address_from_identity_roundtrip():
+    """The cmd-0 ACK parses back to the exact unique address discovery derives."""
+    messages = codec.parse_responses(_identity_ack())
+    assert codec.unique_address_from_identity(messages[0]) == DISCOVERED_ADDRESS
+
+
+@pytest.mark.unit
+def test_unique_address_refuses_non_identity_message():
+    payload = bytes([0, 0, 7]) + struct.pack(">f", 85.0)
+    messages = codec.parse_responses(_ack_frame(1, payload))  # a cmd-1 ACK
+    with pytest.raises(ValueError, match="cannot derive"):
+        codec.unique_address_from_identity(messages[0])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("text", ["26:06:12:34:56", "26 06 12 34 56", "2606123456"])
+def test_parse_long_address_formats(text):
+    assert codec.parse_long_address(text) == bytes([0x26, 0x06, 0x12, 0x34, 0x56])
+
+
+@pytest.mark.unit
+def test_parse_long_address_masks_master_burst_bits():
+    assert codec.parse_long_address("E6:06:12:34:56")[0] == 0x26
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("bad", ["zz:06:12:34:56", "26:06", ""])
+def test_parse_long_address_rejects_malformed(bad):
+    with pytest.raises(ValueError):
+        codec.parse_long_address(bad)
 
 
 @pytest.mark.unit
@@ -89,10 +158,17 @@ def test_session_initiate_payload_shape():
 # ── ops end-to-end with the wire transport monkeypatched ──────────────────────
 
 class _FakeSession:
-    """Stands in for a live HART-IP gateway: returns a crafted HART response."""
+    """Stands in for a live HART-IP gateway: returns crafted HART responses.
 
-    def __init__(self, response: bytes) -> None:
+    Answers the short-frame cmd-0 identity poll (the address-discovery step)
+    with a cmd-0 ACK, and every long-frame command with ``response``. Records
+    the sent PDUs so tests can assert WHICH address the reads were sent to.
+    """
+
+    def __init__(self, response: bytes, identity: bytes | None = None) -> None:
         self._response = response
+        self._identity = _identity_ack() if identity is None else identity
+        self.sent_pdus: list[bytes] = []
         self.opened = False
         self.closed = False
 
@@ -101,6 +177,9 @@ class _FakeSession:
 
     def send_hart_pdu(self, pdu: bytes) -> bytes:
         assert isinstance(pdu, bytes) and pdu  # the real command frame
+        self.sent_pdus.append(pdu)
+        if _is_identity_poll(pdu):
+            return self._identity
         return self._response
 
     def close(self) -> None:
@@ -132,10 +211,59 @@ def test_hart_primary_variable_end_to_end(hart_target):
 def test_hart_primary_variable_no_response(monkeypatch):
     from iaiops.connectors.hart import ops
 
-    session = _FakeSession(b"")  # gateway returned nothing parseable
+    session = _FakeSession(b"")  # identity poll answers; the cmd-1 read does not
     monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
     out = ops.hart_primary_variable(TargetConfig(name="x", protocol="hart", host="10.0.0.7"))
     assert "error" in out
+
+
+@pytest.mark.unit
+def test_reads_are_sent_to_the_discovered_address(hart_target):
+    """cmd-0 discovery runs first and the actual read carries THAT address —
+    never a fabricated default a real device would silently ignore."""
+    from iaiops.connectors.hart import ops
+
+    target, session = hart_target
+    ops.hart_primary_variable(target)
+    assert _is_identity_poll(session.sent_pdus[0])  # discovery step first
+    long_frame = session.sent_pdus[1]
+    # 5 preamble + 0x82 delimiter, then the 5-byte address (top bit = master).
+    assert long_frame[6:11] == bytes([DISCOVERED_ADDRESS[0] | 0x80]) + DISCOVERED_ADDRESS[1:]
+
+
+@pytest.mark.unit
+def test_configured_long_address_skips_discovery(hart_target):
+    from iaiops.connectors.hart import ops
+
+    target, session = hart_target
+    ops.hart_primary_variable(target, long_address=CONFIGURED_ADDRESS_TEXT)
+    assert not any(_is_identity_poll(p) for p in session.sent_pdus)
+    assert session.sent_pdus[0][6:11] == bytes([0x26 | 0x80, 0x06, 0x12, 0x34, 0x56])
+
+
+@pytest.mark.unit
+def test_discovery_failure_errors_instead_of_guessing(monkeypatch):
+    """No configured address AND no cmd-0 answer must ERROR, not fabricate."""
+    from iaiops.connectors.hart import ops
+    from iaiops.core.runtime.connection import OTConnectionError
+
+    session = _FakeSession(b"", identity=b"")  # nothing answers the poll
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
+    target = TargetConfig(name="x", protocol="hart", host="10.0.0.7")
+    with pytest.raises(OTConnectionError, match="identity poll"):
+        ops.hart_primary_variable(target)
+
+
+@pytest.mark.unit
+def test_bad_configured_long_address_is_teaching(monkeypatch):
+    from iaiops.connectors.hart import ops
+
+    session = _FakeSession(b"")
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
+    target = TargetConfig(name="x", protocol="hart", host="10.0.0.7")
+    with pytest.raises(ValueError, match="not valid hex"):
+        ops.hart_primary_variable(target, long_address="not-hex")
+    assert session.sent_pdus == []  # rejected before anything hit the wire
 
 
 def _hart_target_for(monkeypatch, response: bytes) -> TargetConfig:
@@ -249,12 +377,14 @@ class _HartIpTcpServer:
 
     It reads a framed request (length-delimited by the header byte_count exactly
     like the client must), then replies with a framed response: an empty body for
-    session-initiate/close, and the crafted HART long-frame ACK for token-passing.
+    session-initiate/close, the cmd-0 identity ACK for the short-frame identity
+    poll, and the crafted HART long-frame ACK for other token-passing PDUs.
     Bounded to a single connection; joined + closed in teardown.
     """
 
     def __init__(self, ack: bytes) -> None:
         self._ack = ack
+        self._identity_ack = _identity_ack()
         self._srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._srv.bind(("127.0.0.1", 0))
@@ -288,10 +418,9 @@ class _HartIpTcpServer:
                     return
                 meta = tx.parse_message(header)
                 body_len = meta["byte_count"] - tx.HEADER_LEN
-                if body_len:
-                    self._recv_exactly(conn, body_len)
+                body = self._recv_exactly(conn, body_len) if body_len else b""
                 if meta["message_id"] == tx.MID_TOKEN_PASSING:
-                    payload = self._ack
+                    payload = self._identity_ack if _is_identity_poll(body) else self._ack
                 else:
                     payload = b""
                 conn.sendall(
@@ -342,7 +471,9 @@ def test_hart_tcp_session_length_delimits_split_response(hart_tcp_server):
     session = tx.HartIpTcpSession("127.0.0.1", hart_tcp_server.port)
     session.open()
     try:
-        raw = session.send_hart_pdu(codec.build_command("primary_variable"))
+        raw = session.send_hart_pdu(
+            codec.build_command("primary_variable", address=DISCOVERED_ADDRESS)
+        )
     finally:
         session.close()
     messages = codec.parse_responses(raw)

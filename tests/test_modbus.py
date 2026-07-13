@@ -98,6 +98,42 @@ def test_read_error_is_teaching(monkeypatch):
         ops.modbus_read_holding(target, address=5, count=1)
 
 
+class _FakeExceptionResp(_FakeResp):
+    """Mirrors a pymodbus ExceptionResponse: isError() AND a non-zero exception_code."""
+
+    def __init__(self, exception_code=2):  # 2 = IllegalDataAddress
+        super().__init__(error=True)
+        self.exception_code = exception_code
+
+
+@pytest.mark.unit
+def test_exception_response_raises_distinguishable_error(monkeypatch):
+    """A Modbus exception PDU (device ALIVE, address refused) raises the
+    dedicated subclass so diagnostics can tell it from 'unreachable'."""
+    client = _FakeModbusClient()
+    client.read_holding_registers = lambda address, **kw: _FakeExceptionResp()
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(name="plc1", protocol="modbus", host="127.0.0.1")
+    with pytest.raises(ops.ModbusExceptionResponse, match="REFUSED"):
+        ops.modbus_read_holding(target, address=0, count=1)
+    # It is still an OTConnectionError, so existing callers keep working.
+    assert issubclass(ops.ModbusExceptionResponse, conn.OTConnectionError)
+
+
+@pytest.mark.unit
+def test_float32_odd_register_count_raises(modbus_target):
+    """An odd count with a pair-consuming decode must ERROR, not return []."""
+    with pytest.raises(ValueError, match="register PAIRS"):
+        ops.modbus_read_holding(modbus_target, address=0, count=1, decode="float32")
+
+
+@pytest.mark.unit
+def test_decode_registers_odd_pair_raises_all_32bit():
+    for decode in ("uint32", "int32", "float32"):
+        with pytest.raises(ValueError, match="even count"):
+            ops._decode_registers([1, 2, 3], decode)
+
+
 @pytest.mark.unit
 def test_modbus_health_summary_classifies(monkeypatch):
     client = _FakeModbusClient(registers=[95])
@@ -112,6 +148,31 @@ def test_modbus_health_summary_classifies(monkeypatch):
     assert out["overall"] == "alarm"  # 95 >= alarm_high 90
     assert out["counts"]["alarm"] == 1
     assert out["offenders"][0]["address"] == 0
+
+
+@pytest.mark.unit
+def test_modbus_health_summary_int16_decode(monkeypatch):
+    """Opt-in int16 decode classifies signed points correctly (e.g. -5 °C)."""
+    client = _FakeModbusClient(registers=[65531])  # 0xFFFB == -5 as int16
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(
+        name="plc1",
+        protocol="modbus",
+        host="127.0.0.1",
+        tags=(MonitorTag(ref="0", label="temp", alarm_low=0),),
+    )
+    out = ops.modbus_health_summary(target, decode="int16")
+    assert out["results"][0]["value"] == -5.0
+    assert out["overall"] == "alarm"  # -5 <= alarm_low 0; as uint16 it read 65531="ok"
+
+
+@pytest.mark.unit
+def test_modbus_health_summary_rejects_pair_decodes(monkeypatch):
+    client = _FakeModbusClient(registers=[1])
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(name="plc1", protocol="modbus", host="127.0.0.1")
+    with pytest.raises(ValueError, match="one register per address"):
+        ops.modbus_health_summary(target, addresses=[0], decode="float32")
 
 
 @pytest.mark.unit
@@ -320,9 +381,10 @@ def test_rtu_builds_serial_client(monkeypatch):
     captured: dict = {}
 
     class _FakeSerial:
-        def __init__(self, port, *, baudrate, parity, stopbits, bytesize):
+        def __init__(self, port, *, baudrate, parity, stopbits, bytesize, timeout):
             captured.update(
-                port=port, baudrate=baudrate, parity=parity, stopbits=stopbits, bytesize=bytesize
+                port=port, baudrate=baudrate, parity=parity, stopbits=stopbits,
+                bytesize=bytesize, timeout=timeout,
             )
 
     import pymodbus.client as pc
@@ -330,12 +392,13 @@ def test_rtu_builds_serial_client(monkeypatch):
     monkeypatch.setattr(pc, "ModbusSerialClient", _FakeSerial)
     target = TargetConfig(
         name="rtu1", protocol="modbus", transport="rtu", serial_port="/dev/ttyUSB0",
-        baudrate=9600, parity="E", stopbits=2, bytesize=7,
+        baudrate=9600, parity="E", stopbits=2, bytesize=7, timeout_s=2.5,
     )
     client = conn._build_modbus_client(target)
     assert isinstance(client, _FakeSerial)
     assert captured == {
-        "port": "/dev/ttyUSB0", "baudrate": 9600, "parity": "E", "stopbits": 2, "bytesize": 7,
+        "port": "/dev/ttyUSB0", "baudrate": 9600, "parity": "E", "stopbits": 2,
+        "bytesize": 7, "timeout": 2.5,  # the endpoint's timeout_s knob is honored
     }
 
 
@@ -344,16 +407,17 @@ def test_tcp_still_builds_tcp_client(monkeypatch):
     captured: dict = {}
 
     class _FakeTcp:
-        def __init__(self, host, *, port):
-            captured.update(host=host, port=port)
+        def __init__(self, host, *, port, timeout):
+            captured.update(host=host, port=port, timeout=timeout)
 
     import pymodbus.client as pc
 
     monkeypatch.setattr(pc, "ModbusTcpClient", _FakeTcp)
-    target = TargetConfig(name="tcp1", protocol="modbus", host="10.0.0.5", port=502)
+    target = TargetConfig(name="tcp1", protocol="modbus", host="10.0.0.5", port=502,
+                          timeout_s=3.5)
     client = conn._build_modbus_client(target)
     assert isinstance(client, _FakeTcp)
-    assert captured == {"host": "10.0.0.5", "port": 502}
+    assert captured == {"host": "10.0.0.5", "port": 502, "timeout": 3.5}
 
 
 @pytest.mark.unit
