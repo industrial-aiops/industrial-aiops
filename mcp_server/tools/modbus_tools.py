@@ -133,6 +133,7 @@ def modbus_health_summary(
     addresses: Optional[list[int]] = None,
     thresholds: Optional[dict[str, dict[str, float]]] = None,
     register_type: str = "holding",
+    decode: str = "uint16",
 ) -> dict:
     """[READ][risk=low] Classify Modbus registers against warn/alarm thresholds.
 
@@ -144,5 +145,9 @@ def modbus_health_summary(
         addresses: Register addresses to evaluate; omit to use configured tags.
         thresholds: Optional {address_str: {warn_high, alarm_high, ...}}.
         register_type: holding|input.
+        decode: uint16|int16 — how to interpret each register before
+            threshold comparison (int16 for bipolar/signed tags).
     """
-    return ops.modbus_health_summary(_target(endpoint), addresses, thresholds, register_type)
+    return ops.modbus_health_summary(
+        _target(endpoint), addresses, thresholds, register_type, decode
+    )

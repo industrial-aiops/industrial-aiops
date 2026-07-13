@@ -77,6 +77,38 @@ def test_read_holding_float32_decode(modbus_target):
 
 
 @pytest.mark.unit
+def test_float32_single_register_explains_empty_decode(modbus_target):
+    """A 2-register decode over 1 register must say WHY nothing was decoded."""
+    out = ops.modbus_read_holding(modbus_target, address=0, count=1, decode="float32")
+    assert out["decoded"] == []
+    assert "decode_note" in out
+    assert "2 registers" in out["decode_note"]
+
+
+@pytest.mark.unit
+def test_float32_odd_count_notes_undecoded_trailing_register(modbus_target):
+    """The trailing odd register of a pair decode is surfaced, never silently dropped."""
+    out = ops.modbus_read_holding(modbus_target, address=0, count=3, decode="uint32")
+    assert len(out["decoded"]) == 1
+    assert "decode_note" in out
+    assert "trailing" in out["decode_note"]
+
+
+@pytest.mark.unit
+def test_even_count_32bit_decode_has_no_note(modbus_target):
+    out = ops.modbus_read_holding(modbus_target, address=0, count=2, decode="float32")
+    assert len(out["decoded"]) == 1
+    assert "decode_note" not in out
+
+
+@pytest.mark.unit
+def test_16bit_decode_odd_count_has_no_note(modbus_target):
+    out = ops.modbus_read_holding(modbus_target, address=0, count=3, decode="int16")
+    assert len(out["decoded"]) == 3
+    assert "decode_note" not in out
+
+
+@pytest.mark.unit
 def test_read_coils(modbus_target):
     out = ops.modbus_read_coils(modbus_target, address=0, count=3)
     assert out["bits"] == [True, False, True]
@@ -99,6 +131,21 @@ def test_read_error_is_teaching(monkeypatch):
 
 
 @pytest.mark.unit
+def test_exception_response_raises_protocol_error_subclass(monkeypatch):
+    """A Modbus exception response raises OTProtocolError — still an
+    OTConnectionError (backward compat), but distinguishable: the device is alive."""
+    from iaiops.core.runtime.connection import OTProtocolError
+
+    assert issubclass(OTProtocolError, conn.OTConnectionError)
+    client = _FakeModbusClient()
+    client.read_holding_registers = lambda address, **kw: _FakeResp(error=True)
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(name="plc1", protocol="modbus", host="127.0.0.1")
+    with pytest.raises(OTProtocolError, match="address 5 failed"):
+        ops.modbus_read_holding(target, address=5, count=1)
+
+
+@pytest.mark.unit
 def test_modbus_health_summary_classifies(monkeypatch):
     client = _FakeModbusClient(registers=[95])
     monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
@@ -112,6 +159,53 @@ def test_modbus_health_summary_classifies(monkeypatch):
     assert out["overall"] == "alarm"  # 95 >= alarm_high 90
     assert out["counts"]["alarm"] == 1
     assert out["offenders"][0]["address"] == 0
+
+
+@pytest.mark.unit
+def test_modbus_health_summary_int16_negative_not_false_alarm(monkeypatch):
+    """int16 −10 on the wire is 65526; decoded signed it must NOT trip alarm_high."""
+    client = _FakeModbusClient(registers=[65526])
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(
+        name="plc1",
+        protocol="modbus",
+        host="127.0.0.1",
+        tags=(MonitorTag(ref="0", label="level", warn_high=70, alarm_high=90),),
+    )
+    out = ops.modbus_health_summary(target, decode="int16")
+    assert out["results"][0]["value"] == -10.0
+    assert out["overall"] == "ok"
+    assert out["counts"]["alarm"] == 0
+
+
+@pytest.mark.unit
+def test_modbus_health_summary_int16_low_bound_alarm(monkeypatch):
+    """A decoded negative value still classifies against low bounds."""
+    client = _FakeModbusClient(registers=[65526])  # int16 −10
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(
+        name="plc1",
+        protocol="modbus",
+        host="127.0.0.1",
+        tags=(MonitorTag(ref="0", label="level", alarm_low=-5),),
+    )
+    out = ops.modbus_health_summary(target, decode="int16")
+    assert out["overall"] == "alarm"  # −10 < alarm_low −5
+
+
+@pytest.mark.unit
+def test_modbus_health_summary_default_decode_stays_unsigned(monkeypatch):
+    client = _FakeModbusClient(registers=[65526])
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(
+        name="plc1",
+        protocol="modbus",
+        host="127.0.0.1",
+        tags=(MonitorTag(ref="0", label="raw", warn_high=70000),),
+    )
+    out = ops.modbus_health_summary(target)
+    assert out["results"][0]["value"] == 65526.0
+    assert out["overall"] == "ok"
 
 
 @pytest.mark.unit
@@ -320,9 +414,10 @@ def test_rtu_builds_serial_client(monkeypatch):
     captured: dict = {}
 
     class _FakeSerial:
-        def __init__(self, port, *, baudrate, parity, stopbits, bytesize):
+        def __init__(self, port, *, baudrate, parity, stopbits, bytesize, timeout):
             captured.update(
-                port=port, baudrate=baudrate, parity=parity, stopbits=stopbits, bytesize=bytesize
+                port=port, baudrate=baudrate, parity=parity, stopbits=stopbits,
+                bytesize=bytesize, timeout=timeout,
             )
 
     import pymodbus.client as pc
@@ -330,12 +425,13 @@ def test_rtu_builds_serial_client(monkeypatch):
     monkeypatch.setattr(pc, "ModbusSerialClient", _FakeSerial)
     target = TargetConfig(
         name="rtu1", protocol="modbus", transport="rtu", serial_port="/dev/ttyUSB0",
-        baudrate=9600, parity="E", stopbits=2, bytesize=7,
+        baudrate=9600, parity="E", stopbits=2, bytesize=7, timeout_s=4.0,
     )
     client = conn._build_modbus_client(target)
     assert isinstance(client, _FakeSerial)
     assert captured == {
         "port": "/dev/ttyUSB0", "baudrate": 9600, "parity": "E", "stopbits": 2, "bytesize": 7,
+        "timeout": 4.0,
     }
 
 
@@ -344,16 +440,16 @@ def test_tcp_still_builds_tcp_client(monkeypatch):
     captured: dict = {}
 
     class _FakeTcp:
-        def __init__(self, host, *, port):
-            captured.update(host=host, port=port)
+        def __init__(self, host, *, port, timeout):
+            captured.update(host=host, port=port, timeout=timeout)
 
     import pymodbus.client as pc
 
     monkeypatch.setattr(pc, "ModbusTcpClient", _FakeTcp)
-    target = TargetConfig(name="tcp1", protocol="modbus", host="10.0.0.5", port=502)
+    target = TargetConfig(name="tcp1", protocol="modbus", host="10.0.0.5", port=502, timeout_s=2.5)
     client = conn._build_modbus_client(target)
     assert isinstance(client, _FakeTcp)
-    assert captured == {"host": "10.0.0.5", "port": 502}
+    assert captured == {"host": "10.0.0.5", "port": 502, "timeout": 2.5}
 
 
 @pytest.mark.unit

@@ -156,3 +156,43 @@ def test_eip_builder_sets_socket_timeout(monkeypatch):
     )
     client = connection._build_eip_client(target)
     assert client.socket_timeout == 4.5
+
+
+class _FakeModbusTcpClient:
+    """Records the constructor timeout (pymodbus defaults to 3s without it)."""
+
+    def __init__(self, host: str, *, port: int, timeout: float = 3) -> None:
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+
+
+@pytest.mark.unit
+def test_modbus_tcp_builder_passes_timeout(monkeypatch):
+    import pymodbus.client as pc
+
+    monkeypatch.setattr(pc, "ModbusTcpClient", _FakeModbusTcpClient)
+    target = TargetConfig(name="t", protocol="modbus", host="10.0.0.9", timeout_s=4.0)
+    client = connection._build_modbus_client(target)
+    assert client.timeout == 4.0
+
+
+class _FakeModbusSerialClient:
+    """Records the constructor timeout for the RTU (serial) transport."""
+
+    def __init__(self, port: str, *, baudrate: int, parity: str, stopbits: int,
+                 bytesize: int, timeout: float = 3) -> None:
+        self.port = port
+        self.timeout = timeout
+
+
+@pytest.mark.unit
+def test_modbus_serial_builder_passes_timeout(monkeypatch):
+    import pymodbus.client as pc
+
+    monkeypatch.setattr(pc, "ModbusSerialClient", _FakeModbusSerialClient)
+    target = TargetConfig(
+        name="t", protocol="modbus", transport="rtu", serial_port="/dev/ttyUSB0", timeout_s=6.5
+    )
+    client = connection._build_modbus_client(target)
+    assert client.timeout == 6.5

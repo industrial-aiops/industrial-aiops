@@ -195,7 +195,14 @@ def _verdict(hops: list[dict], verdict: str, diagnosis: str, action: str) -> dic
 
 
 def _probe_connect(target: Any) -> tuple[bool, str]:
-    """Lightweight per-protocol connectivity probe; returns (ok, detail)."""
+    """Lightweight per-protocol connectivity probe; returns (ok, detail).
+
+    A protocol-level exception response (``OTProtocolError``, e.g. a Modbus
+    device that does not map the probed register) PROVES the endpoint is alive
+    and reachable — it answered — so it counts as connected, not offline.
+    """
+    from iaiops.core.runtime.connection import OTProtocolError
+
     protocol = getattr(target, "protocol", "")
     try:
         if protocol == "opcua":
@@ -228,6 +235,11 @@ def _probe_connect(target: Any) -> tuple[bool, str]:
 
             out = mqtt_read_topic(target, count=1, timeout_s=3)
             return True, f"MQTT msgs={out.get('message_count')}"
+    except OTProtocolError as exc:
+        return True, (
+            f"Endpoint reachable and alive — it responded with a protocol-level "
+            f"exception to the probe ({str(exc)[:120]})."
+        )
     except Exception as exc:  # noqa: BLE001 — connectivity is a status, not a crash
         return False, str(exc)[:200]
     return False, f"No connectivity probe for protocol '{protocol}'."
