@@ -8,23 +8,15 @@ Discovery + identify ONLY — no RT cyclic data, no DCP Set (set-name/ip/blink).
 
 from __future__ import annotations
 
-import json
-
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.profinet import ops
 
 profinet_app = typer.Typer(
     help="PROFINET-DCP read-only discovery/identify (pnio-dcp; raw-socket/L2).",
     no_args_is_help=True,
 )
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @profinet_app.command("discover")

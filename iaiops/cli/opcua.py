@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import json
-
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.opcua import discovery as disc
 from iaiops.connectors.opcua import ops
 from iaiops.core.brain import analysis
@@ -15,11 +12,6 @@ from iaiops.core.brain import monitor as mon
 
 opcua_app = typer.Typer(help="OPC-UA read-only telemetry & problem surfacing.",
                         no_args_is_help=True)
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @opcua_app.command("info")

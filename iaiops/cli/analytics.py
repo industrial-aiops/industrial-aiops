@@ -10,9 +10,8 @@ import json
 from pathlib import Path
 
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import cli_errors, get_manager
+from iaiops.cli._common import _emit, cli_errors, get_manager
 from iaiops.core.brain import alias_store as als
 from iaiops.core.brain import asset_inventory as asset
 from iaiops.core.brain import asset_model as amodel
@@ -20,11 +19,6 @@ from iaiops.core.brain import oee
 
 analytics_app = typer.Typer(help="OEE / downtime / asset-inventory analytics (read-only).",
                             no_args_is_help=True)
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 def _load_json(path: Path):

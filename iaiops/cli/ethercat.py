@@ -8,23 +8,15 @@ OT-dangerous (dry-run unless ``--apply`` + double-confirm).
 
 from __future__ import annotations
 
-import json
-
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
 from iaiops.connectors.ethercat import ops
 
 ethercat_app = typer.Typer(
     help="EtherCAT read-first telemetry (pysoem/SOEM; Linux+root+NIC+slaves).",
     no_args_is_help=True,
 )
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @ethercat_app.command("master")

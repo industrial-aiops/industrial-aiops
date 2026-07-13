@@ -98,6 +98,149 @@ def _write_endpoints(endpoints: list[dict]) -> None:
     )
 
 
+def _prompt_opcua(entry: dict, name: str, store):
+    entry["endpoint_url"] = typer.prompt(
+        "OPC-UA endpoint URL", default="opc.tcp://localhost:4840"
+    ).strip()
+    username = typer.prompt("Username (optional, Enter for anonymous)", default="").strip()
+    if username:
+        entry["username"] = username
+        store = _maybe_store_password(store, name)
+    return entry, store
+
+
+def _prompt_modbus(entry: dict, name: str, store):
+    entry["host"] = typer.prompt("Modbus host (IP/FQDN)").strip()
+    entry["port"] = typer.prompt("Port", default=DEFAULT_MODBUS_PORT, type=int)
+    entry["unit_id"] = typer.prompt("Unit/device id", default=1, type=int)
+    return entry, store
+
+
+def _prompt_s7(entry: dict, name: str, store):
+    entry["host"] = typer.prompt("S7 PLC host (IP/FQDN)").strip()
+    entry["port"] = typer.prompt("Port", default=DEFAULT_S7_PORT, type=int)
+    entry["rack"] = typer.prompt("Rack (0 for S7-1200/1500)", default=0, type=int)
+    entry["slot"] = typer.prompt("Slot (1 for S7-1200/1500, 2 for S7-300/400)",
+                                 default=1, type=int)
+    return entry, store
+
+
+def _prompt_mc(entry: dict, name: str, store):
+    entry["host"] = typer.prompt("Mitsubishi PLC host (IP/FQDN)").strip()
+    entry["port"] = typer.prompt("Port", default=DEFAULT_MC_PORT, type=int)
+    entry["plctype"] = typer.prompt("PLC type (Q|L|QnA|iQ-R|iQ-L)", default="Q").strip()
+    return entry, store
+
+
+def _prompt_eip(entry: dict, name: str, store):
+    entry["protocol"] = "ethernetip"
+    entry["host"] = typer.prompt("EtherNet/IP (Logix) host (IP/FQDN)").strip()
+    entry["slot"] = typer.prompt(
+        "Controller slot (0 for CompactLogix; CPU slot for ControlLogix)",
+        default=0, type=int,
+    )
+    entry["port"] = typer.prompt("Port", default=DEFAULT_EIP_PORT, type=int)
+    return entry, store
+
+
+def _prompt_ethercat(entry: dict, name: str, store):
+    console.print(
+        "[yellow]EtherCAT needs Linux + root (or CAP_NET_RAW) + a dedicated NIC "
+        "cabled to the bus + real slaves, and the optional extra "
+        "'pip install iaiops[ethercat]'. No software simulator; macOS "
+        "unsupported.[/]"
+    )
+    entry["nic"] = typer.prompt(
+        "Dedicated NIC interface name (e.g. eth1)", default="eth1"
+    ).strip()
+    entry["expected_slaves"] = typer.prompt(
+        "Expected slave count (0 = unknown / do not check)", default=0, type=int
+    )
+    return entry, store
+
+
+def _prompt_profinet(entry: dict, name: str, store):
+    console.print(
+        "[yellow]PROFINET-DCP needs raw-socket access (root/admin/CAP_NET_RAW) on "
+        "the NIC on the PROFINET subnet, and the optional extra "
+        "'pip install iaiops[profinet]'. Read-only discovery/identify — no RT "
+        "cyclic data.[/]"
+    )
+    entry["host"] = typer.prompt(
+        "THIS machine's IP on the PROFINET subnet (DCP broadcast source)"
+    ).strip()
+    return entry, store
+
+
+def _prompt_bacnet(entry: dict, name: str, store):
+    console.print(
+        "[yellow]BACnet/IP read-only facility/HVAC monitoring — optional extra "
+        "'pip install iaiops[bacnet]'. Preview: not yet validated against live gear.[/]"
+    )
+    entry["host"] = typer.prompt(
+        "THIS machine's BACnet/IP interface (ip or ip/mask, e.g. 10.0.0.5/24)"
+    ).strip()
+    entry["port"] = typer.prompt("Port", default=DEFAULT_BACNET_PORT, type=int)
+    return entry, store
+
+
+def _prompt_mtconnect(entry: dict, name: str, store):
+    entry["agent_url"] = typer.prompt(
+        "MTConnect agent base URL", default="http://localhost:5000"
+    ).strip()
+    return entry, store
+
+
+def _prompt_iolink(entry: dict, name: str, store):
+    console.print(
+        "[yellow]IO-Link master JSON interface (read-only sensor visibility) — "
+        "'pip install iaiops[iolink]'. flavor: iotcore (ifm IoT-Core, default) "
+        "or rest (plain-REST masters).[/]"
+    )
+    entry["agent_url"] = typer.prompt(
+        "IO-Link master base URL", default="http://192.168.0.10"
+    ).strip()
+    entry["flavor"] = typer.prompt(
+        "JSON flavor (iotcore|rest)", default="iotcore"
+    ).strip().lower()
+    return entry, store
+
+
+def _prompt_mqtt(entry: dict, name: str, store):
+    entry["host"] = typer.prompt("MQTT broker host (IP/FQDN)").strip()
+    entry["use_tls"] = typer.confirm("Use TLS?", default=False)
+    default_port = 8883 if entry["use_tls"] else DEFAULT_MQTT_PORT
+    entry["port"] = typer.prompt("Port", default=default_port, type=int)
+    entry["topic"] = typer.prompt(
+        "Default topic filter", default="spBv1.0/#"
+    ).strip()
+    username = typer.prompt("Username (optional, Enter for none)", default="").strip()
+    if username:
+        entry["username"] = username
+        store = _maybe_store_password(store, name)
+    return entry, store
+
+
+# CLI-local dispatch table (typer-coupled prompts stay out of the UI-agnostic core
+# capability registry). One keyed lookup instead of an if/elif ladder. Protocols
+# absent here (fins/hart/secsgem) intentionally collect only name+protocol, exactly
+# as the previous ladder's fall-through did — do not add prompts without intent.
+_PROMPT_HANDLERS = {
+    "opcua": _prompt_opcua,
+    "modbus": _prompt_modbus,
+    "s7": _prompt_s7,
+    "mc": _prompt_mc,
+    "ethernetip": _prompt_eip,
+    "eip": _prompt_eip,
+    "ethercat": _prompt_ethercat,
+    "profinet": _prompt_profinet,
+    "bacnet": _prompt_bacnet,
+    "mtconnect": _prompt_mtconnect,
+    "iolink": _prompt_iolink,
+    "mqtt": _prompt_mqtt,
+}
+
+
 def _prompt_protocol(protocol: str, name: str, store):
     """Collect per-protocol connection details; returns (entry, store).
 
@@ -105,97 +248,10 @@ def _prompt_protocol(protocol: str, name: str, store):
     holds only non-secret fields.
     """
     entry: dict = {"name": name, "protocol": protocol}
-    if protocol == "opcua":
-        entry["endpoint_url"] = typer.prompt(
-            "OPC-UA endpoint URL", default="opc.tcp://localhost:4840"
-        ).strip()
-        username = typer.prompt("Username (optional, Enter for anonymous)", default="").strip()
-        if username:
-            entry["username"] = username
-            store = _maybe_store_password(store, name)
-    elif protocol == "modbus":
-        entry["host"] = typer.prompt("Modbus host (IP/FQDN)").strip()
-        entry["port"] = typer.prompt("Port", default=DEFAULT_MODBUS_PORT, type=int)
-        entry["unit_id"] = typer.prompt("Unit/device id", default=1, type=int)
-    elif protocol == "s7":
-        entry["host"] = typer.prompt("S7 PLC host (IP/FQDN)").strip()
-        entry["port"] = typer.prompt("Port", default=DEFAULT_S7_PORT, type=int)
-        entry["rack"] = typer.prompt("Rack (0 for S7-1200/1500)", default=0, type=int)
-        entry["slot"] = typer.prompt("Slot (1 for S7-1200/1500, 2 for S7-300/400)",
-                                     default=1, type=int)
-    elif protocol == "mc":
-        entry["host"] = typer.prompt("Mitsubishi PLC host (IP/FQDN)").strip()
-        entry["port"] = typer.prompt("Port", default=DEFAULT_MC_PORT, type=int)
-        entry["plctype"] = typer.prompt("PLC type (Q|L|QnA|iQ-R|iQ-L)", default="Q").strip()
-    elif protocol in ("ethernetip", "eip"):
-        entry["protocol"] = "ethernetip"
-        entry["host"] = typer.prompt("EtherNet/IP (Logix) host (IP/FQDN)").strip()
-        entry["slot"] = typer.prompt(
-            "Controller slot (0 for CompactLogix; CPU slot for ControlLogix)",
-            default=0, type=int,
-        )
-        entry["port"] = typer.prompt("Port", default=DEFAULT_EIP_PORT, type=int)
-    elif protocol == "ethercat":
-        console.print(
-            "[yellow]EtherCAT needs Linux + root (or CAP_NET_RAW) + a dedicated NIC "
-            "cabled to the bus + real slaves, and the optional extra "
-            "'pip install iaiops[ethercat]'. No software simulator; macOS "
-            "unsupported.[/]"
-        )
-        entry["nic"] = typer.prompt(
-            "Dedicated NIC interface name (e.g. eth1)", default="eth1"
-        ).strip()
-        entry["expected_slaves"] = typer.prompt(
-            "Expected slave count (0 = unknown / do not check)", default=0, type=int
-        )
-    elif protocol == "profinet":
-        console.print(
-            "[yellow]PROFINET-DCP needs raw-socket access (root/admin/CAP_NET_RAW) on "
-            "the NIC on the PROFINET subnet, and the optional extra "
-            "'pip install iaiops[profinet]'. Read-only discovery/identify — no RT "
-            "cyclic data.[/]"
-        )
-        entry["host"] = typer.prompt(
-            "THIS machine's IP on the PROFINET subnet (DCP broadcast source)"
-        ).strip()
-    elif protocol == "bacnet":
-        console.print(
-            "[yellow]BACnet/IP read-only facility/HVAC monitoring — optional extra "
-            "'pip install iaiops[bacnet]'. Preview: not yet validated against live gear.[/]"
-        )
-        entry["host"] = typer.prompt(
-            "THIS machine's BACnet/IP interface (ip or ip/mask, e.g. 10.0.0.5/24)"
-        ).strip()
-        entry["port"] = typer.prompt("Port", default=DEFAULT_BACNET_PORT, type=int)
-    elif protocol == "mtconnect":
-        entry["agent_url"] = typer.prompt(
-            "MTConnect agent base URL", default="http://localhost:5000"
-        ).strip()
-    elif protocol == "iolink":
-        console.print(
-            "[yellow]IO-Link master JSON interface (read-only sensor visibility) — "
-            "'pip install iaiops[iolink]'. flavor: iotcore (ifm IoT-Core, default) "
-            "or rest (plain-REST masters).[/]"
-        )
-        entry["agent_url"] = typer.prompt(
-            "IO-Link master base URL", default="http://192.168.0.10"
-        ).strip()
-        entry["flavor"] = typer.prompt(
-            "JSON flavor (iotcore|rest)", default="iotcore"
-        ).strip().lower()
-    elif protocol == "mqtt":
-        entry["host"] = typer.prompt("MQTT broker host (IP/FQDN)").strip()
-        entry["use_tls"] = typer.confirm("Use TLS?", default=False)
-        default_port = 8883 if entry["use_tls"] else DEFAULT_MQTT_PORT
-        entry["port"] = typer.prompt("Port", default=default_port, type=int)
-        entry["topic"] = typer.prompt(
-            "Default topic filter", default="spBv1.0/#"
-        ).strip()
-        username = typer.prompt("Username (optional, Enter for none)", default="").strip()
-        if username:
-            entry["username"] = username
-            store = _maybe_store_password(store, name)
-    return entry, store
+    handler = _PROMPT_HANDLERS.get(protocol)
+    if handler is None:
+        return entry, store
+    return handler(entry, name, store)
 
 
 def _maybe_store_password(store, name: str):

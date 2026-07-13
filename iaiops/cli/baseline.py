@@ -9,24 +9,15 @@ margin are flagged — every flag cites its baseline samples.
 
 from __future__ import annotations
 
-import json
-
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import cli_errors
+from iaiops.cli._common import _emit, cli_errors
 from iaiops.core.brain import baseline_store as bls
-
-console = Console()
 
 baseline_app = typer.Typer(
     help="Conservative change-log baseline over collected local history "
     "(learn / check / change / status). Local metadata only — no device I/O."
 )
-
-
-def _emit(result: dict) -> None:
-    console.print_json(json.dumps(result, default=str))
 
 
 @baseline_app.command("learn")
