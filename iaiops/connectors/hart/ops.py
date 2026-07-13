@@ -23,11 +23,40 @@ def _first_response(raw: bytes) -> Any | None:
     return messages[0] if messages else None
 
 
+def _resolve_address(target: Any, session: Any) -> bytes:
+    """Resolve the device's REAL 5-byte unique address: config first, else Command 0.
+
+    A HART device only answers long frames carrying its own unique address
+    (expanded device type + device id), so ops never guess one: either the
+    endpoint config supplies ``long_address``, or a short-frame Command 0 poll
+    (polling address from the endpoint's ``poll_address`` when present, default
+    0 = point-to-point) asks the device to identify itself. Resolved once per
+    call and reused within it — no global mutable cache.
+    """
+    configured = str(getattr(target, "long_address", "") or "")
+    if configured:
+        return codec.parse_long_address(configured)
+    poll_address = int(getattr(target, "poll_address", 0) or 0)
+    raw = session.send_hart_pdu(codec.build_poll_command(poll_address))
+    msg = _first_response(raw)
+    if msg is None:
+        raise OTConnectionError(
+            f"HART endpoint '{getattr(target, 'name', '?')}' did not answer the "
+            f"Command 0 identity poll (polling address {poll_address}), so its "
+            f"unique address could not be discovered and no read was attempted. "
+            f"Check the device is on this HART-IP gateway/loop and at that polling "
+            f"address, or set long_address: '26 06 12 34 56' (10 hex digits) on "
+            f"the endpoint to address it directly.",
+            endpoint=getattr(target, "name", "?"), protocol="hart",
+        )
+    return codec.unique_address_from_identity(msg)
+
+
 def _read(target: Any, command: str) -> Any | None:
     """Open a session, send one universal read command, return the parsed message."""
     with hart_session(target) as session:
-        pdu = codec.build_command(command)
-        raw = session.send_hart_pdu(pdu)
+        address = _resolve_address(target, session)
+        raw = session.send_hart_pdu(codec.build_command(command, address))
     return _first_response(raw)
 
 
@@ -120,7 +149,10 @@ def hart_burst_sample(target: Any, samples: int = 3) -> dict:
     n = max(1, min(int(samples), _MAX_BURST_SAMPLES))
     collected: list[dict] = []
     with hart_session(target) as session:
-        pdu = codec.build_command("dynamic_variables")
+        # One address resolution (config or Command 0 discovery) reused for the
+        # whole burst — never re-polled mid-call, never cached across calls.
+        address = _resolve_address(target, session)
+        pdu = codec.build_command("dynamic_variables", address)
         for index in range(n):
             msg = _first_response(session.send_hart_pdu(pdu))
             if msg is None:

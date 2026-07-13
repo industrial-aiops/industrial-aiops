@@ -96,6 +96,32 @@ def _raise(msg):
     return _fn
 
 
+def test_probe_hart_success_error_dict_and_exception(monkeypatch):
+    """hart is in SUPPORTED_PROTOCOLS, so _probe must implement it: a healthy
+    endpoint is green, and both failure shapes surface the real reason (never
+    "No probe implemented for protocol 'hart'")."""
+    import iaiops.connectors.hart.ops as hart_ops
+
+    monkeypatch.setattr(
+        hart_ops, "hart_device_identity",
+        lambda t: {"endpoint": "ep", "manufacturer_id": 0x26, "device_id": 0x123456},
+    )
+    ok, detail = doctor._probe(_probe_target("hart"))
+    assert ok is True and "HART" in detail
+    assert "No probe implemented" not in detail
+
+    monkeypatch.setattr(
+        hart_ops, "hart_device_identity",
+        lambda t: {"endpoint": "ep", "error": "no HART response"},
+    )
+    ok, detail = doctor._probe(_probe_target("hart"))
+    assert ok is False and "no HART response" in detail
+
+    monkeypatch.setattr(hart_ops, "hart_device_identity", _raise("gateway down"))
+    ok, detail = doctor._probe(_probe_target("hart"))
+    assert ok is False and "gateway down" in detail
+
+
 def test_probe_bacnet_success_and_failure(monkeypatch):
     import iaiops.connectors.bacnet.ops as bn
     monkeypatch.setattr(bn, "bacnet_discover", lambda t: {"device_count": 4})

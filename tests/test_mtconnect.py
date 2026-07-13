@@ -141,6 +141,69 @@ def test_xml_with_dtd_is_rejected(monkeypatch):
         ops.mtconnect_current(target)
 
 
+# ── response size cap (streamed fetch; memory-DoS defense) ────────────────────
+
+class _FakeStreamResponse:
+    """Stands in for requests' streamed Response: chunked body, no network."""
+
+    def __init__(self, chunks):
+        self._chunks = chunks
+        self.chunks_served = 0
+
+    def raise_for_status(self):
+        pass
+
+    def iter_content(self, chunk_size):
+        for chunk in self._chunks:
+            self.chunks_served += 1
+            yield chunk
+
+    def close(self):
+        pass
+
+
+def _patch_requests_get(monkeypatch, response):
+    import requests
+
+    def _fake_get(url, timeout=10, stream=False):
+        assert stream is True  # the fetch must stream, not buffer via resp.text
+        return response
+
+    monkeypatch.setattr(requests, "get", _fake_get)
+
+
+@pytest.mark.unit
+def test_http_get_refuses_oversized_response(monkeypatch):
+    """A body over the 4 MiB cap is refused mid-stream, not read into memory."""
+    chunks = [b"x" * 1_048_576] * 8  # 8 MiB total, 1 MiB chunks
+    resp = _FakeStreamResponse(chunks)
+    _patch_requests_get(monkeypatch, resp)
+    with pytest.raises(ValueError, match="response size cap"):
+        ops._http_get("http://h:5000/current")
+    assert resp.chunks_served < len(chunks)  # aborted before draining the body
+
+
+@pytest.mark.unit
+def test_http_get_normal_response_streams_through(monkeypatch):
+    body = CURRENT_XML.encode()
+    chunks = [body[i:i + 1000] for i in range(0, len(body), 1000)]
+    _patch_requests_get(monkeypatch, _FakeStreamResponse(chunks))
+    target = TargetConfig(name="vmc1", protocol="mtconnect", agent_url="http://h:5000")
+    out = ops.mtconnect_current(target)  # full real path through the capped fetch
+    assert out["observation_count"] > 0
+
+
+@pytest.mark.unit
+def test_http_get_rejects_doctype_on_first_chunk(monkeypatch):
+    """The DTD/entity guard runs on the FIRST chunk, before the rest downloads."""
+    evil_head = b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "boom">]>'
+    resp = _FakeStreamResponse([evil_head, b"<x>" + b"y" * 4096 + b"</x>"])
+    _patch_requests_get(monkeypatch, resp)
+    with pytest.raises(ValueError, match="DTD/entity"):
+        ops._http_get("http://h:5000/current")
+    assert resp.chunks_served == 1  # refused without consuming the remainder
+
+
 @pytest.mark.unit
 def test_oee_snapshot_running(cnc_target):
     out = ops.mtconnect_oee_snapshot(cnc_target)
