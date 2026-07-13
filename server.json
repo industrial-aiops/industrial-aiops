@@ -19,8 +19,8 @@
       "environmentVariables": [
         {
           "name": "IAIOPS_MCP",
-          "description": "Tool-menu selection: comma-separated protocols or a named profile (e.g. 'fab', 'process', 'building', 'opcua,modbus'). Default: all.",
-          "isRequired": false,
+          "description": "Tool-menu selection: comma-separated protocols or a named profile (e.g. 'fab', 'process', 'building', 'opcua,modbus'). No default since 0.10.0 — unset prints the selection menu and exits; set to a profile name (e.g. factory) or comma-list of protocols.",
+          "isRequired": true,
           "isSecret": false
         },
         {

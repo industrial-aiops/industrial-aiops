@@ -1,7 +1,7 @@
 """MCP tool-set selection ("the menu") — pick which protocol tool groups a
 server process exposes.
 
-A site typically runs only 1-2 protocols; exposing all 12 floods the model with
+A site typically runs only 1-2 protocols; exposing all 14 floods the model with
 tools it can't use. Selection comes from the ``IAIOPS_MCP`` env var — a
 comma-separated list of protocol keys and/or named profiles, e.g.::
 
@@ -162,7 +162,7 @@ NO_BRAIN_ENV = "IAIOPS_MCP_NO_BRAIN"
 # brain (~49) plus a full edition's protocols and per-edition EDITION_MODULES now
 # lands a legitimate edition in the ~60-85 range (e.g. building ≈ 83), so 60 fired
 # on normal editions. 100 sits above any single intended edition yet still flags a
-# genuine flood — notably IAIOPS_MCP=all (12 protocols + brain, ~140 tools) — which
+# genuine flood — notably IAIOPS_MCP=all (14 protocols + brain, ~140 tools) — which
 # is the "you probably don't want everything" case the warning is meant to catch.
 TOOL_FLOOD_WARN_THRESHOLD = 100
 

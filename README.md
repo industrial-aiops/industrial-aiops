@@ -170,7 +170,7 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 
 *(The energy protocols — IEC-104 / DNP3 / IEC-61850 — moved to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) in 0.8.0; their tool matrix lives in that repo.)*
 
-**166 governed tools** = 156 read + 10 MOC-gated writes (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 156 reads include the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — **the old names are removed in 0.12.0**. Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**166 governed tools** = 156 read + 10 MOC-gated writes (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 156 reads include the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -363,12 +363,12 @@ iaiops doctor               # config + per-protocol connectivity probe (point at
 iaiops protocols            # the capability map
 ```
 
-Protocol extras: `opcua` · `modbus` · `s7` · `mc` · `fins` (stdlib — pins nothing) · `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · plus `tdengine` · `iotdb` · `influxdb` (historian sinks) · `nats` (stream egress) · `ollama` (on-box LLM narration) · `export` (Parquet) · `all` (every pip-installable connector).
+Protocol extras: `opcua` · `modbus` · `s7` · `mc` · `fins` (stdlib — pins nothing) · `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · `bas` (BAS supervisory REST — reuses the mtconnect HTTP pin) · `ignition` (Ignition Gateway read layer — reuses the mtconnect HTTP pin) · plus `tdengine` · `iotdb` · `influxdb` (historian sinks) · `nats` (stream egress) · `ollama` (on-box LLM narration) · `export` (Parquet) · `all` (every pip-installable connector).
 
 > **Adapter belt** (`docs/ADAPTERS.md`): iaiops is a small neutral core (`ingress → normalize/govern/RCA → egress`) with pluggable, lazily-imported adapters — bind no store/bus/host/model, install only what a site runs. The RCA core is deterministic + cited, **not a black box** (`docs/RCA.md`); footprint is small by design (`docs/FOOTPRINT.md`).
 
 **Edition bundles** (match the same-named `IAIOPS_MCP` profiles — install the protocols a vertical runs):
-`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set: opcua + modbus + s7 + mc + fins + eip + mtconnect + sparkplug + ethercat + profinet + iolink) · `process` (opcua + modbus + hart) · `building` (bacnet + modbus + opcua + iolink) · `water` (modbus + opcua + hart) · `renewables` (光伏/风电: modbus + opcua + sparkplug — PV inverters (SUN2000/Growatt) + wind turbines + plant SCADA; device-level monitoring + PdM via baseline/RCA) · `plcnext` (opcua + modbus). The grid/substation energy bundle (IEC-104/DNP3/61850) ships in [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
+`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set: opcua + modbus + s7 + mc + fins + eip + mtconnect + sparkplug + ethercat + profinet + iolink + ignition) · `process` (opcua + modbus + hart) · `building` (bacnet + modbus + opcua + iolink + bas) · `water` (modbus + opcua + hart) · `warehouse` (仓储/物料搬运: eip + profinet + modbus + opcua + sparkplug) · `clinical` (医疗设施: bacnet + modbus + opcua) · `renewables` (光伏/风电: modbus + opcua + sparkplug — PV inverters (SUN2000/Growatt) + wind turbines + plant SCADA; device-level monitoring + PdM via baseline/RCA) · `plcnext` (opcua + modbus). The grid/substation energy bundle (IEC-104/DNP3/61850) ships in [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
 
 ### Master password
 Secrets (per-endpoint passwords, MQTT credentials) are **never** stored in plaintext — they live in `~/.iaiops/secrets.enc` (Fernet + scrypt). Export `IAIOPS_MASTER_PASSWORD` so the MCP server/CLI can unlock non-interactively:
@@ -693,7 +693,7 @@ IAIOPS_MCP=opcua,modbus iaiops-mcp   # two protocols + brain
 IAIOPS_MCP=fab          iaiops-mcp   # named profile (secsgem+opcua+s7+modbus)
 IAIOPS_MCP=opcua        iaiops-mcp   # effectively a single-protocol MCP
 IAIOPS_MCP=all          iaiops-mcp   # everything — explicit opt-in only
-                                     # (logs a tool-flood warning above 60 tools)
+                                     # (logs a tool-flood warning above 100 tools)
 ```
 
 **Named entry-point sugar.** For the common single-protocol / single-edition case
@@ -721,7 +721,7 @@ IAIOPS_MCP_NO_BRAIN=1 iaiops-mcp-modbus
 ```
 
 Named profiles: `all` · `brain` · `fab` · `factory` · `process` · `building` ·
-`water` · `plcnext`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
+`plcnext` · `water` · `renewables` · `warehouse` · `clinical`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
 server entry — or point the entry straight at the matching `iaiops-mcp-<name>`
 script — one entry per site/line, each a lean single- or dual-protocol server.
 

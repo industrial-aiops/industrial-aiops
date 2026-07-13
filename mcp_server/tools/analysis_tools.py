@@ -3,8 +3,9 @@
 ``health_summary`` and ``anomaly_scan`` are OPC-UA-specific and moved to
 ``mcp_server.tools.opcua_tools`` as ``opcua_health_summary`` /
 ``opcua_anomaly_scan`` (registered with the opcua protocol module only).
-These brain-registered aliases delegate to the same implementations and are
-removed in 0.11.
+These brain-registered aliases delegate to the same implementations (renamed
+in 0.10.0). They are still registered and will be removed in a future release
+(target: 1.0.0).
 """
 
 from typing import Optional
@@ -14,10 +15,12 @@ from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
 _HEALTH_SUMMARY_DEPRECATION = (
-    "renamed to opcua_health_summary; this alias is removed in 0.11"
+    "renamed to opcua_health_summary in 0.10.0; this deprecated alias is still "
+    "registered and will be removed in a future release (target: 1.0.0)"
 )
 _ANOMALY_SCAN_DEPRECATION = (
-    "renamed to opcua_anomaly_scan; this alias is removed in 0.11"
+    "renamed to opcua_anomaly_scan in 0.10.0; this deprecated alias is still "
+    "registered and will be removed in a future release (target: 1.0.0)"
 )
 
 
