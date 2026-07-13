@@ -6,7 +6,9 @@ nothing touches the real ``~/.iaiops``.
 
 from __future__ import annotations
 
-import importlib
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -142,5 +144,21 @@ def test_missing_secret_message_lists_available(store_dir):
 
 
 @pytest.mark.unit
-def test_module_reimport_clean(store_dir):
-    importlib.reload(ss)
+def test_module_reimport_clean():
+    """A fresh (re)import of the module succeeds — checked in a subprocess.
+
+    An in-process ``importlib.reload`` recreates the module's classes, so
+    ``SecretStoreError`` references from-imported earlier by connector modules
+    (bas/ignition ops) no longer match ``except SecretStoreError`` — poisoning
+    every later test in the session (order-dependent failures).
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    code = "import importlib, iaiops.core.runtime.secretstore as ss; importlib.reload(ss)"
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+        timeout=60,
+    )
+    assert proc.returncode == 0, f"module reimport failed:\n{proc.stderr}"
