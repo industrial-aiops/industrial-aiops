@@ -129,9 +129,14 @@ class MockFinsUdpServer:
 
 
 class MockFinsTcpServer:
-    """Threaded FINS/TCP responder: node handshake + length-delimited frames."""
+    """Threaded FINS/TCP responder: node handshake + length-delimited frames.
 
-    def __init__(self) -> None:
+    ``reject_handshake=True`` answers the node-address handshake with FINS/TCP
+    error 0x25 ("all node addresses in use") instead of assigning a node.
+    """
+
+    def __init__(self, *, reject_handshake: bool = False) -> None:
+        self.reject_handshake = reject_handshake
         self.plc = _FinsPlcModel()
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.bind(("127.0.0.1", 0))
@@ -154,6 +159,10 @@ class MockFinsTcpServer:
                     _magic, length, command, _err = FINS_TCP_HEADER.unpack(header)
                     body = self._recv_exactly(conn_sock, length - 8)
                     if command == 0:  # handshake: assign client node 42, server 1
+                        if self.reject_handshake:
+                            reply = FINS_TCP_HEADER.pack(FINS_TCP_MAGIC, 8, 3, 0x25)
+                            conn_sock.sendall(reply)
+                            return
                         reply = FINS_TCP_HEADER.pack(FINS_TCP_MAGIC, 16, 1, 0)
                         conn_sock.sendall(reply + struct.pack(">II", 42, 1))
                     elif command == 2:
@@ -366,6 +375,48 @@ def test_fins_tcp_handshake_and_read():
         )
         out = ops.fins_read_words(target, "DM", 100, count=3)
         assert out["words"] == [10, 20, 30]
+    finally:
+        server.close()
+
+
+@pytest.mark.integration
+def test_fins_tcp_handshake_failure_closes_socket():
+    """A failed node-address handshake must not leak the TCP socket.
+
+    Regression: connect() left self._sock open when the handshake raised, and
+    the session factory skips teardown on connect failure — in the long-lived
+    MCP server that leaked one FD per call, and the 0x25 "all node addresses
+    in use" case was self-reinforcing (half-open conns held server node slots).
+    """
+    server = MockFinsTcpServer(reject_handshake=True)
+    try:
+        client = fins_client.FinsTcpClient("127.0.0.1", server.port, timeout_s=2.0)
+        with pytest.raises(fins_client.FinsError, match="0x00000025"):
+            client.connect()
+        assert client._sock is None  # socket closed + state reset, no FD leak
+    finally:
+        server.close()
+
+
+@pytest.mark.integration
+def test_fins_tcp_handshake_garbage_reply_closes_socket():
+    """A framing error during the handshake must also close the socket."""
+
+    class _GarbageServer(MockFinsTcpServer):
+        def _serve(self) -> None:
+            try:
+                conn_sock, _ = self._sock.accept()
+            except OSError:
+                return
+            with conn_sock:
+                conn_sock.sendall(b"NOTFINS!" + b"\x00" * 8)
+
+    server = _GarbageServer()
+    try:
+        client = fins_client.FinsTcpClient("127.0.0.1", server.port, timeout_s=2.0)
+        with pytest.raises(FinsFramingError, match="magic mismatch"):
+            client.connect()
+        assert client._sock is None
     finally:
         server.close()
 

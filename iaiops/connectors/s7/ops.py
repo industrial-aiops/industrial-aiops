@@ -29,8 +29,14 @@ _DTYPE_SIZE = {
     "WORD": 2, "INT": 2, "DWORD": 4, "DINT": 4, "REAL": 4, "LREAL": 8,
 }
 _AREA_LETTER = {"M": "M", "I": "I", "E": "I", "Q": "Q", "A": "Q"}
-_NONDB_SUFFIX = {"BYTE": "B", "WORD": "W", "INT": "W", "DWORD": "D",
-                 "DINT": "D", "REAL": "D", "LREAL": "D"}
+# Exact pyS7 non-DB tokens per data type (e.g. MB16=byte, MC9=char, MI14=signed
+# 16-bit, MR84=32-bit float, MLR84=64-bit float). Each token must decode to the
+# declared type — a wrong token silently returns wrong-width/wrong-sign values.
+_NONDB_SUFFIX = {
+    "BYTE": "B", "CHAR": "C", "USINT": "USINT", "SINT": "SINT",
+    "WORD": "W", "INT": "I", "DWORD": "D", "DINT": "DI",
+    "REAL": "R", "LREAL": "LR",
+}
 
 
 def _s7_addr(area: str, dtype: str, start: int, db: int, bit: int = 0) -> str:
@@ -41,10 +47,22 @@ def _s7_addr(area: str, dtype: str, start: int, db: int, bit: int = 0) -> str:
         if dtype == "BIT":
             return f"DB{db},X{start}.{bit}"
         return f"DB{db},{dtype}{start}"
-    letter = _AREA_LETTER.get(area, "M")
+    letter = _AREA_LETTER.get(area)
+    if letter is None:
+        raise ValueError(
+            f"Unknown S7 area '{area}'. Supported areas: DB (data blocks), "
+            f"M (merker/flags), I/E (inputs), Q/A (outputs). Timers/counters are "
+            f"not supported by this connector — never guessing another area."
+        )
     if dtype == "BIT":
         return f"{letter}{start}.{bit}"
-    return f"{letter}{_NONDB_SUFFIX.get(dtype, 'W')}{start}"
+    suffix = _NONDB_SUFFIX.get(dtype)
+    if suffix is None:
+        raise ValueError(
+            f"Data type '{dtype}' is not supported for non-DB area '{area}'. "
+            f"Supported: BIT, {', '.join(sorted(_NONDB_SUFFIX))}."
+        )
+    return f"{letter}{suffix}{start}"
 
 
 def _addr_series(area: str, dtype: str, start: int, db: int, bit: int, count: int) -> list[str]:
