@@ -61,8 +61,8 @@ def test_narrate_is_cited_only_and_uses_provider():
     fp = FakeProvider()
     out = narrate_rca_verdict({"verdict": "insufficient_evidence"}, fp)
     assert out == "narrated"
-    assert "insufficient_evidence" in fp.prompt   # the real verdict is handed to the model
-    assert "Do not invent" in fp.system           # strict, cited-only steer
+    assert "insufficient_evidence" in fp.prompt  # the real verdict is handed to the model
+    assert "Do not invent" in fp.system  # strict, cited-only steer
 
 
 @pytest.mark.unit

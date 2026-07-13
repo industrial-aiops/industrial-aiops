@@ -99,7 +99,12 @@ class WorksheetRow:
 
 
 WORKSHEET_COLUMNS = (
-    "alarm_id", "count", "pct_of_total", "chattering", "in_flood", "recommendation",
+    "alarm_id",
+    "count",
+    "pct_of_total",
+    "chattering",
+    "in_flood",
+    "recommendation",
 )
 
 
@@ -193,8 +198,11 @@ def detect_floods(
 
 
 def _episode(
-    start: datetime, end: datetime, evts: list[tuple[datetime, str]],
-    peak: int, window_s: float,
+    start: datetime,
+    end: datetime,
+    evts: list[tuple[datetime, str]],
+    peak: int,
+    window_s: float,
 ) -> FloodEpisode:
     counts: dict[str, int] = {}
     for _, src in evts:
@@ -242,13 +250,15 @@ def chattering_alarms(
         if max_in_window < min_cycles:
             continue
         span_s = max((seq[-1][0] - seq[0][0]).total_seconds(), 1.0)
-        out.append(ChatteringAlarm(
-            source=src,
-            cycles=len(cycle_times),
-            cycles_per_hour=round(len(cycle_times) * 3600.0 / span_s, 2),
-            max_cycles_in_window=max_in_window,
-            window_s=window_s,
-        ))
+        out.append(
+            ChatteringAlarm(
+                source=src,
+                cycles=len(cycle_times),
+                cycles_per_hour=round(len(cycle_times) * 3600.0 / span_s, 2),
+                max_cycles_in_window=max_in_window,
+                window_s=window_s,
+            )
+        )
     out.sort(key=lambda c: (c.max_cycles_in_window, c.cycles), reverse=True)
     return out
 
@@ -383,8 +393,7 @@ def flood_summary(
 
 def acts_to_events(acts: list[tuple[datetime, str]]) -> list[dict]:
     """Re-shape normalized activations back into event dicts (helper, pure)."""
-    return [{"source": src, "timestamp": ts.isoformat(), "state": "ACTIVE"}
-            for ts, src in acts]
+    return [{"source": src, "timestamp": ts.isoformat(), "state": "ACTIVE"} for ts, src in acts]
 
 
 # ─── 5. rationalization worksheet ────────────────────────────────────────────
@@ -420,21 +429,24 @@ def rationalization_worksheet(
             pct_of_total=round(100.0 * n / total, 2),
             chattering=src in chattering,
             in_flood=src in in_flood,
-            recommendation=_recommendation(src in chattering, src in in_flood,
-                                           100.0 * n / total),
+            recommendation=_recommendation(src in chattering, src in in_flood, 100.0 * n / total),
         )
         for src, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
     ]
-    return rows[:max(1, int(max_rows))]
+    return rows[: max(1, int(max_rows))]
 
 
 def _recommendation(chattering: bool, in_flood: bool, share_pct: float) -> str:
     if chattering:
-        return ("Add on/off delay or deadband; review setpoint (ISA-18.2 "
-                "chattering — top rationalization candidate).")
+        return (
+            "Add on/off delay or deadband; review setpoint (ISA-18.2 "
+            "chattering — top rationalization candidate)."
+        )
     if in_flood and share_pct >= 5.0:
-        return ("Flood contributor — evaluate state-based/dynamic suppression "
-                "and alarm priority during upsets.")
+        return (
+            "Flood contributor — evaluate state-based/dynamic suppression "
+            "and alarm priority during upsets."
+        )
     if share_pct >= 10.0:
         return "High share of total load — verify setpoint, priority, and consequence."
     return "Retain; monitor in the next rationalization review."
@@ -515,14 +527,16 @@ def alarm_cascade(events: list, window_s: float = 60.0, min_cascade: int = 2) ->
         counts: dict[str, int] = {}
         for _ts, src in group:
             counts[src] = counts.get(src, 0) + 1
-        out.append({
-            "root": {"source": root_src, "ts": root_ts.isoformat()},
-            "size": len(group),
-            "distinct_sources": len(counts),
-            "span_s": round((group[-1][0] - group[0][0]).total_seconds(), 2),
-            "members": list(counts.keys())[:100],
-            "chattering": [src for src, n in counts.items() if n > 1][:50],
-        })
+        out.append(
+            {
+                "root": {"source": root_src, "ts": root_ts.isoformat()},
+                "size": len(group),
+                "distinct_sources": len(counts),
+                "span_s": round((group[-1][0] - group[0][0]).total_seconds(), 2),
+                "members": list(counts.keys())[:100],
+                "chattering": [src for src, n in counts.items() if n > 1][:50],
+            }
+        )
     out.sort(key=lambda c: c["size"], reverse=True)
     return {"cascade_count": len(out), "total_activations": len(acts), "cascades": out[:50]}
 

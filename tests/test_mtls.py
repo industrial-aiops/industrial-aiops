@@ -45,9 +45,13 @@ def fake_opcua(monkeypatch):
 @pytest.mark.unit
 def test_opcua_cert_security_applied(fake_opcua):
     t = TargetConfig(
-        name="p", protocol="opcua", endpoint_url="opc.tcp://x:4840",
-        security_policy="Basic256Sha256", security_mode="SignAndEncrypt",
-        client_cert="/etc/iaiops/c.der", client_key="/etc/iaiops/k.pem",
+        name="p",
+        protocol="opcua",
+        endpoint_url="opc.tcp://x:4840",
+        security_policy="Basic256Sha256",
+        security_mode="SignAndEncrypt",
+        client_cert="/etc/iaiops/c.der",
+        client_key="/etc/iaiops/k.pem",
         server_cert="/etc/iaiops/s.der",
     )
     conn._build_opcua_client(t)
@@ -60,8 +64,11 @@ def test_opcua_cert_security_applied(fake_opcua):
 def test_opcua_cert_defaults_policy_and_mode(fake_opcua):
     # cert+key present but policy/mode left "None" → sensible secure defaults.
     t = TargetConfig(
-        name="p", protocol="opcua", endpoint_url="opc.tcp://x:4840",
-        client_cert="/c.der", client_key="/k.pem",
+        name="p",
+        protocol="opcua",
+        endpoint_url="opc.tcp://x:4840",
+        client_cert="/c.der",
+        client_key="/k.pem",
     )
     conn._build_opcua_client(t)
     assert fake_opcua[0].calls["sec"] == "Basic256Sha256,SignAndEncrypt,/c.der,/k.pem"
@@ -102,12 +109,19 @@ def fake_mqtt(monkeypatch):
 @pytest.mark.unit
 def test_mqtt_client_cert_mutual_auth(fake_mqtt):
     t = TargetConfig(
-        name="b", protocol="mqtt", host="broker", use_tls=True,
-        ca_cert="/ca.pem", client_cert="/c.pem", client_key="/k.pem",
+        name="b",
+        protocol="mqtt",
+        host="broker",
+        use_tls=True,
+        ca_cert="/ca.pem",
+        client_cert="/c.pem",
+        client_key="/k.pem",
     )
     conn._build_mqtt_client(t)
     assert fake_mqtt[0].calls["tls"] == {
-        "ca_certs": "/ca.pem", "certfile": "/c.pem", "keyfile": "/k.pem",
+        "ca_certs": "/ca.pem",
+        "certfile": "/c.pem",
+        "keyfile": "/k.pem",
     }
 
 
@@ -137,11 +151,20 @@ def test_mqtt_no_tls_no_certs(fake_mqtt):
 def test_config_parses_cert_paths_and_aliases():
     from iaiops.core.runtime.config import _parse_target
 
-    t = _parse_target({
-        "name": "p", "protocol": "opcua", "endpoint_url": "opc.tcp://x:4840",
-        "ca_certs": "/ca.pem", "certfile": "/c.pem", "keyfile": "/k.pem",
-        "server_cert": "/s.der",
-    })
+    t = _parse_target(
+        {
+            "name": "p",
+            "protocol": "opcua",
+            "endpoint_url": "opc.tcp://x:4840",
+            "ca_certs": "/ca.pem",
+            "certfile": "/c.pem",
+            "keyfile": "/k.pem",
+            "server_cert": "/s.der",
+        }
+    )
     assert (t.ca_cert, t.client_cert, t.client_key, t.server_cert) == (
-        "/ca.pem", "/c.pem", "/k.pem", "/s.der",
+        "/ca.pem",
+        "/c.pem",
+        "/k.pem",
+        "/s.der",
     )

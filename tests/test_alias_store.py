@@ -18,17 +18,35 @@ from iaiops.core.brain import asset_model as am
 
 # ── extraction from an asset-model run ─────────────────────────────────────────
 
+
 def _model():
     feeds = [
-        {"protocol": "opcua", "source": "line1", "tags": [
-            {"browse_name": "Temperature", "asset": "Line1", "class": "temperature",
-             "node_id": "ns=2;i=1"},
-            {"browse_name": "Pressure", "asset": "Line1", "class": "pressure",
-             "node_id": "ns=2;i=2"},
-        ]},
-        {"protocol": "modbus", "source": "meter1", "asset": "Line1", "tags": [
-            {"tag": "voltage_l1", "address": 0},
-        ]},
+        {
+            "protocol": "opcua",
+            "source": "line1",
+            "tags": [
+                {
+                    "browse_name": "Temperature",
+                    "asset": "Line1",
+                    "class": "temperature",
+                    "node_id": "ns=2;i=1",
+                },
+                {
+                    "browse_name": "Pressure",
+                    "asset": "Line1",
+                    "class": "pressure",
+                    "node_id": "ns=2;i=2",
+                },
+            ],
+        },
+        {
+            "protocol": "modbus",
+            "source": "meter1",
+            "asset": "Line1",
+            "tags": [
+                {"tag": "voltage_l1", "address": 0},
+            ],
+        },
     ]
     return am.cross_protocol_asset_model(feeds, site="plant")
 
@@ -37,7 +55,9 @@ def _model():
 def test_extract_alias_map_keys_on_canonical_alias():
     amap = als.extract_alias_map(_model())
     assert set(amap) == {
-        "plant.line1.temperature", "plant.line1.pressure", "plant.line1.voltage",
+        "plant.line1.temperature",
+        "plant.line1.pressure",
+        "plant.line1.voltage",
     }
     entry = amap["plant.line1.temperature"]
     assert entry["ref"] == "ns=2;i=1"
@@ -63,6 +83,7 @@ def test_extract_rejects_non_model():
 
 # ── persistence (save / load round-trip) ───────────────────────────────────────
 
+
 @pytest.mark.unit
 def test_save_then_load_round_trips(tmp_path):
     amap = als.extract_alias_map(_model())
@@ -83,8 +104,15 @@ def test_save_uses_owner_only_permissions(tmp_path):
 
 @pytest.mark.unit
 def test_save_is_deterministic_for_same_map(tmp_path):
-    amap = {"p.l.temperature": {"ref": "ns=2;i=1", "protocol": "opcua",
-                                "asset": "L", "name": "Temperature", "class": "temperature"}}
+    amap = {
+        "p.l.temperature": {
+            "ref": "ns=2;i=1",
+            "protocol": "opcua",
+            "asset": "L",
+            "name": "Temperature",
+            "class": "temperature",
+        }
+    }
     p1 = als.save_alias_map("s1", amap, base_dir=tmp_path)
     body1 = p1.read_text("utf-8")
     body2 = als.save_alias_map("s1", amap, base_dir=tmp_path).read_text("utf-8")
@@ -130,9 +158,9 @@ def test_list_sites(tmp_path):
 
 # ── diff ───────────────────────────────────────────────────────────────────────
 
+
 def _entry(ref, alias_class, name="N", proto="opcua", asset="L"):
-    return {"ref": ref, "protocol": proto, "asset": asset, "name": name,
-            "class": alias_class}
+    return {"ref": ref, "protocol": proto, "asset": asset, "name": name, "class": alias_class}
 
 
 @pytest.mark.unit
@@ -172,8 +200,7 @@ def test_diff_reclassified_same_ref_and_alias_new_class():
     diff = als.diff_alias_map(prev, curr)
     assert diff["renamed"] == []
     assert diff["reclassified"] == [
-        {"alias": "s.l.flow", "protocol": "opcua", "ref": "ns=2;i=3",
-         "from": "other", "to": "flow"}
+        {"alias": "s.l.flow", "protocol": "opcua", "ref": "ns=2;i=3", "from": "other", "to": "flow"}
     ]
     assert diff["verdict"] == "changed"
 

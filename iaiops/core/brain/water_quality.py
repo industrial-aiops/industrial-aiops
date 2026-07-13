@@ -74,9 +74,13 @@ def _grade(point: dict, limits: dict) -> dict:
 
 
 def _wq_flag(band: dict, value: float, side: str, bound: float) -> dict:
-    return {"parameter": band["label"], "value": value, "unit": band["unit"],
-            "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
-                      f"{bound}{band['unit']} limit"}
+    return {
+        "parameter": band["label"],
+        "value": value,
+        "unit": band["unit"],
+        "detail": f"{band['label']} {value}{band['unit']} is {side} of the "
+        f"{bound}{band['unit']} limit",
+    }
 
 
 def _has_reading(point: dict, limits: dict) -> bool:

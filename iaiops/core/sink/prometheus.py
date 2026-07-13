@@ -41,8 +41,7 @@ def _escape_label(value: object) -> str:
 
 def _gauge_lines(db_path: Path | str | None) -> list[str]:
     lines = [
-        f"# HELP {GAUGE_NAME} Latest collected value per OT tag "
-        f"(from the local SQLite sink).",
+        f"# HELP {GAUGE_NAME} Latest collected value per OT tag (from the local SQLite sink).",
         f"# TYPE {GAUGE_NAME} gauge",
     ]
     for sample in latest_samples(db_path, limit=MAX_SERIES):
@@ -67,9 +66,7 @@ def _audit_counts(audit_db_path: Path | str | None) -> tuple[int, int]:
         try:
             total = int(conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0])
             errors = int(
-                conn.execute(
-                    "SELECT COUNT(*) FROM audit_log WHERE status != 'ok'"
-                ).fetchone()[0]
+                conn.execute("SELECT COUNT(*) FROM audit_log WHERE status != 'ok'").fetchone()[0]
             )
         finally:
             conn.close()
@@ -86,20 +83,31 @@ def render_metrics(
     """Render the full Prometheus text-format payload (gauges + counters)."""
     audit_total, tool_errors = _audit_counts(audit_db_path)
     counters = (
-        ("iaiops_samples_written_total",
-         "Rows in the local SQLite sink (data.db).", count_samples(db_path)),
-        ("iaiops_audit_events_total",
-         "Governed tool calls recorded in the audit log.", audit_total),
-        ("iaiops_tool_errors_total",
-         "Governed tool calls whose audit status is not 'ok'.", tool_errors),
+        (
+            "iaiops_samples_written_total",
+            "Rows in the local SQLite sink (data.db).",
+            count_samples(db_path),
+        ),
+        (
+            "iaiops_audit_events_total",
+            "Governed tool calls recorded in the audit log.",
+            audit_total,
+        ),
+        (
+            "iaiops_tool_errors_total",
+            "Governed tool calls whose audit status is not 'ok'.",
+            tool_errors,
+        ),
     )
     lines = _gauge_lines(db_path)
     for name, help_text, value in counters:
-        lines.extend((
-            f"# HELP {name} {help_text}",
-            f"# TYPE {name} counter",
-            f"{name} {int(value)}",
-        ))
+        lines.extend(
+            (
+                f"# HELP {name} {help_text}",
+                f"# TYPE {name} counter",
+                f"{name} {int(value)}",
+            )
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -134,9 +142,12 @@ class MetricsHTTPServer(ThreadingHTTPServer):
 
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int],
-                 db_path: Path | str | None = None,
-                 audit_db_path: Path | str | None = None) -> None:
+    def __init__(
+        self,
+        address: tuple[str, int],
+        db_path: Path | str | None = None,
+        audit_db_path: Path | str | None = None,
+    ) -> None:
         super().__init__(address, _MetricsHandler)
         self.db_path = db_path
         self.audit_db_path = audit_db_path
@@ -149,9 +160,13 @@ class MetricsServer:
     loud warning — tag names/endpoint labels become visible to the network).
     """
 
-    def __init__(self, host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
-                 db_path: Path | str | None = None,
-                 audit_db_path: Path | str | None = None) -> None:
+    def __init__(
+        self,
+        host: str = DEFAULT_HOST,
+        port: int = DEFAULT_PORT,
+        db_path: Path | str | None = None,
+        audit_db_path: Path | str | None = None,
+    ) -> None:
         if not 0 <= int(port) <= 65535:
             raise ValueError(f"port must be 0..65535 (got {port}).")
         if host == "0.0.0.0":  # nosec B104 — operator's explicit choice; warned

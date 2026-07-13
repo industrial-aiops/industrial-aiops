@@ -119,9 +119,7 @@ def test_rotate_rejects_empty_new_password(store_dir):
 
 @pytest.mark.unit
 def test_migrate_legacy_env(store_dir):
-    (store_dir / ".env").write_text(
-        "OT_LINE1_PASSWORD=legacy-pw\n# comment\nFOO=bar\n"
-    )
+    (store_dir / ".env").write_text("OT_LINE1_PASSWORD=legacy-pw\n# comment\nFOO=bar\n")
     imported = ss.migrate_legacy_env("OT_", "_PASSWORD", "pw")
     assert "line1" in imported
     reopened = ss.SecretStore.unlock("pw")

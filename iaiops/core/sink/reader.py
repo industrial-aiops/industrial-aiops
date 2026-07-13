@@ -97,10 +97,12 @@ def _reject_endpoint_filter(flt: SampleFilter, reader: str) -> None:
 class SQLiteReader:
     """Reader over the local SQLite store — thin delegate to sqlite_local."""
 
-    def __init__(self, db_path: Path | str | None = None, database: str = "",
-                 **_ignored: Any) -> None:
-        self._path = Path(db_path or database).expanduser() \
-            if (db_path or database) else local_db_path()
+    def __init__(
+        self, db_path: Path | str | None = None, database: str = "", **_ignored: Any
+    ) -> None:
+        self._path = (
+            Path(db_path or database).expanduser() if (db_path or database) else local_db_path()
+        )
 
     def query(self, flt: SampleFilter) -> list[dict]:
         return query_samples(flt, db_path=self._path)
@@ -120,10 +122,7 @@ class SQLiteReader:
             ).fetchall()
         finally:
             conn.close()
-        return [
-            {"tag": r[0], "rows": int(r[1]), "first_ts": r[2], "last_ts": r[3]}
-            for r in rows
-        ]
+        return [{"tag": r[0], "rows": int(r[1]), "first_ts": r[2], "last_ts": r[3]} for r in rows]
 
     def close(self) -> None:
         """Connections are per-call in the query layer — nothing to release."""
@@ -141,10 +140,16 @@ class TDengineReader:
     single-quote-escaped, and the limit is a validated Python int.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 6030,
-                 user: str = "root", password: str = "taosdata",
-                 database: str = "iaiops", stable: str = "ot_metric",
-                 **_ignored: Any) -> None:
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 6030,
+        user: str = "root",
+        password: str = "taosdata",
+        database: str = "iaiops",
+        stable: str = "ot_metric",
+        **_ignored: Any,
+    ) -> None:
         self._host = host
         self._port = int(port or 6030)
         self._user = user
@@ -162,8 +167,11 @@ class TDengineReader:
                 "reader (same extra as the sink): 'pip install iaiops[tdengine]'."
             ) from exc
         self._conn = taos.connect(
-            host=self._host, port=self._port, user=self._user,
-            password=self._password, database=self._database,
+            host=self._host,
+            port=self._port,
+            user=self._user,
+            password=self._password,
+            database=self._database,
         )
 
     def _cursor(self) -> Any:
@@ -213,8 +221,12 @@ class TDengineReader:
         cur = self._cursor()
         cur.execute(sql)
         return [
-            {"tag": s(str(r[0]), 128), "rows": int(r[1]),
-             "first_ts": s(str(r[2]), 40), "last_ts": s(str(r[3]), 40)}
+            {
+                "tag": s(str(r[0]), 128),
+                "rows": int(r[1]),
+                "first_ts": s(str(r[2]), 40),
+                "last_ts": s(str(r[3]), 40),
+            }
             for r in cur.fetchall()
         ]
 
@@ -237,9 +249,15 @@ class IoTDBReader:
     are validated ISO timestamps converted to epoch-millis Python ints.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 6667,
-                 user: str = "root", password: str = "root",
-                 database: str = "root.iaiops", **_ignored: Any) -> None:
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 6667,
+        user: str = "root",
+        password: str = "root",
+        database: str = "root.iaiops",
+        **_ignored: Any,
+    ) -> None:
         self._host = host
         self._port = int(port or 6667)
         self._user = user
@@ -266,8 +284,7 @@ class IoTDBReader:
     def _device(self, tag: str | None) -> str:
         from iaiops.core.sink.iotdb import _sanitize_path
 
-        return f"{self._database}.{_sanitize_path(tag)}" if tag \
-            else f"{self._database}.*"
+        return f"{self._database}.{_sanitize_path(tag)}" if tag else f"{self._database}.*"
 
     def query(self, flt: SampleFilter) -> list[dict]:
         checked = validate_filter(flt)
@@ -318,12 +335,14 @@ class IoTDBReader:
                     entry["last_ts"] = _millis_to_iso(value)
         for tag in sorted(per_tag)[:capped]:
             entry = per_tag[tag]
-            out.append({
-                "tag": entry["tag"],
-                "rows": entry.get("rows", 0),
-                "first_ts": entry.get("first_ts", ""),
-                "last_ts": entry.get("last_ts", ""),
-            })
+            out.append(
+                {
+                    "tag": entry["tag"],
+                    "rows": entry.get("rows", 0),
+                    "first_ts": entry.get("first_ts", ""),
+                    "last_ts": entry.get("last_ts", ""),
+                }
+            )
         return out
 
     def _collect_rows(self, dataset: Any, last_query: bool = False) -> list[dict]:
@@ -341,8 +360,7 @@ class IoTDBReader:
                 value = _field_value(field)
                 if value is None:
                     continue
-                rows.append(_sample_row(ts, _tag_from_path(col, self._database),
-                                        num(value)))
+                rows.append(_sample_row(ts, _tag_from_path(col, self._database), num(value)))
         return rows
 
     def close(self) -> None:
@@ -384,7 +402,7 @@ def _tag_from_path(column: str, database: str) -> str:
     text = str(column)
     prefix = f"{database}."
     if text.startswith(prefix):
-        text = text[len(prefix):]
+        text = text[len(prefix) :]
     if text.endswith(".value"):
         text = text[: -len(".value")]
     return s(text, 128)

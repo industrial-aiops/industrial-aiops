@@ -76,12 +76,10 @@ def mc_read_many(
     return {
         "endpoint": s(target.name, 64),
         "words": [
-            {"device": s(d, 32), "value": int(v)}
-            for d, v in zip(words, list(wvals), strict=False)
+            {"device": s(d, 32), "value": int(v)} for d, v in zip(words, list(wvals), strict=False)
         ],
         "dwords": [
-            {"device": s(d, 32), "value": int(v)}
-            for d, v in zip(dwords, list(dvals), strict=False)
+            {"device": s(d, 32), "value": int(v)} for d, v in zip(dwords, list(dvals), strict=False)
         ],
     }
 
@@ -100,8 +98,10 @@ def mc_write_words(
         return {"endpoint": s(target.name, 64), "error": "No values to write."}
     with mc_session(target) as client:
         try:
-            before = [int(v) for v in client.batchread_wordunits(
-                headdevice=headdevice, readsize=len(vals))]
+            before = [
+                int(v)
+                for v in client.batchread_wordunits(headdevice=headdevice, readsize=len(vals))
+            ]
             read_error = ""
         except Exception as exc:  # noqa: BLE001 — record the read-back failure
             before = []

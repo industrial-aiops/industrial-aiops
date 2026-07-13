@@ -272,8 +272,13 @@ def uns_live_audit(
     Example: uns_live_audit(topic="factory/#", duration_s=8, allowed_roots=["factory"]).
     """
     return live.uns_live_audit(
-        _target(endpoint), topic, duration_s, max_msgs,
-        allowed_roots, min_segments, max_leaf_parents,
+        _target(endpoint),
+        topic,
+        duration_s,
+        max_msgs,
+        allowed_roots,
+        min_segments,
+        max_leaf_parents,
     )
 
 

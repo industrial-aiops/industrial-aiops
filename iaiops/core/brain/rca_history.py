@@ -66,13 +66,11 @@ def gather_pre_incident(
     try:
         reader = get_reader(hist.reader, **hist.reader_opts())
     except Exception as exc:  # noqa: BLE001 — missing extra etc. → honest error
-        return {**bundle, "tags": [], "tag_count": 0, "sample_count": 0,
-                "error": s(str(exc), 200)}
+        return {**bundle, "tags": [], "tag_count": 0, "sample_count": 0, "error": s(str(exc), 200)}
     try:
         tags = _pull_tags(reader, since, until, refs)
     except Exception as exc:  # noqa: BLE001 — a query failure must not break RCA
-        return {**bundle, "tags": [], "tag_count": 0, "sample_count": 0,
-                "error": s(str(exc), 200)}
+        return {**bundle, "tags": [], "tag_count": 0, "sample_count": 0, "error": s(str(exc), 200)}
     finally:
         _close(reader)
     return {
@@ -83,22 +81,24 @@ def gather_pre_incident(
     }
 
 
-def _pull_tags(
-    reader: Any, since: str, until: str, refs: list[str] | None
-) -> list[dict]:
+def _pull_tags(reader: Any, since: str, until: str, refs: list[str] | None) -> list[dict]:
     """Query the window (per-ref when refs given, else grouped) into tag series."""
     if refs:
         wanted = [s(str(r), 128) for r in refs if r][:MAX_HISTORY_TAGS]
         out: list[dict] = []
         for ref in wanted:
-            rows = reader.query(SampleFilter(
-                since=since, until=until, tag=ref, limit=MAX_SAMPLES_PER_TAG,
-            ))
+            rows = reader.query(
+                SampleFilter(
+                    since=since,
+                    until=until,
+                    tag=ref,
+                    limit=MAX_SAMPLES_PER_TAG,
+                )
+            )
             if rows:
                 out.append(_series(ref, rows))
         return out
-    rows = reader.query(SampleFilter(since=since, until=until,
-                                     limit=MAX_WINDOW_ROWS))
+    rows = reader.query(SampleFilter(since=since, until=until, limit=MAX_WINDOW_ROWS))
     grouped: dict[str, list[dict]] = {}
     for row in rows:
         tag = s(str(row.get("tag", "")), 128)
@@ -128,5 +128,9 @@ def _close(reader: Any) -> None:
             pass
 
 
-__all__ = ["gather_pre_incident", "PRE_INCIDENT_WINDOW_S", "MAX_HISTORY_TAGS",
-           "MAX_SAMPLES_PER_TAG"]
+__all__ = [
+    "gather_pre_incident",
+    "PRE_INCIDENT_WINDOW_S",
+    "MAX_HISTORY_TAGS",
+    "MAX_SAMPLES_PER_TAG",
+]

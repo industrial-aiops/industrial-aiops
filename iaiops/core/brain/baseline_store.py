@@ -26,8 +26,8 @@ from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
 STORE_FILENAME = "baselines.json"
 _FORMAT_VERSION = 1
-MAX_CHANGES_PER_TAG = 50    # change log kept bounded (newest wins)
-MAX_STATUS_TAGS = 100       # bounded listing for baseline_status
+MAX_CHANGES_PER_TAG = 50  # change log kept bounded (newest wins)
+MAX_STATUS_TAGS = 100  # bounded listing for baseline_status
 HISTORY_QUERY_LIMIT = bl.MAX_SAMPLES
 MIN_CHECK_WINDOW_S = 60.0
 MAX_CHECK_WINDOW_S = 7 * 86_400.0
@@ -242,9 +242,7 @@ def status_flow(tag: str | None = None, base_dir: Path | None = None) -> dict:
         "tracked_tags": len(tags),
         "listed": min(len(tags), MAX_STATUS_TAGS),
         "truncated": len(tags) > MAX_STATUS_TAGS,
-        "tags": [
-            _tag_status(t, _record(store, t)) for t in tags[:MAX_STATUS_TAGS]
-        ],
+        "tags": [_tag_status(t, _record(store, t)) for t in tags[:MAX_STATUS_TAGS]],
     }
 
 

@@ -35,9 +35,7 @@ def run_doctor(skip_probe: bool = False) -> int:
     if CONFIG_FILE.exists():
         _console.print(f"[green]✓ Config file present: {CONFIG_FILE}[/]")
     else:
-        _console.print(
-            f"[yellow]! No config file ({CONFIG_FILE}); run 'iaiops init'.[/]"
-        )
+        _console.print(f"[yellow]! No config file ({CONFIG_FILE}); run 'iaiops init'.[/]")
 
     try:
         config = load_config()
@@ -140,8 +138,7 @@ def _report_opcua_probe(target) -> int:
         # probe failed but the diagnosis re-connect succeeded — a transient blip,
         # not a real fault; don't print a red ✗ ok.
         _console.print(
-            f"[green]✓ Reachable '{target.name}' — recovered on retry "
-            f"({v['diagnosis']})[/]"
+            f"[green]✓ Reachable '{target.name}' — recovered on retry ({v['diagnosis']})[/]"
         )
         return 0
     _console.print(f"[red]✗ OPC-UA '{target.name}' — {v['class']}: {v['diagnosis']}[/]")

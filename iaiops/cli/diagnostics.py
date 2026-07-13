@@ -17,8 +17,9 @@ from iaiops.core.brain import diagnostics as diag
 from iaiops.core.brain import rca as rca_brain
 from iaiops.core.brain import rca_collect, rca_weights
 
-diag_app = typer.Typer(help="Cross-protocol intelligent troubleshooting (read-only).",
-                       no_args_is_help=True)
+diag_app = typer.Typer(
+    help="Cross-protocol intelligent troubleshooting (read-only).", no_args_is_help=True
+)
 
 
 def _load_json(path: Path):
@@ -58,10 +59,16 @@ def alarm_flood_cmd(
     """ISA-18.2 deep flood report: episodes + chattering + stale + summary."""
     from iaiops.core.brain import alarm_flood as flood
 
-    _emit(flood.alarm_flood_report(
-        _load_json(input), window_s, threshold,
-        stale_after_s=stale_after_s, max_episodes=max_episodes, max_rows=max_rows,
-    ))
+    _emit(
+        flood.alarm_flood_report(
+            _load_json(input),
+            window_s,
+            threshold,
+            stale_after_s=stale_after_s,
+            max_episodes=max_episodes,
+            max_rows=max_rows,
+        )
+    )
 
 
 @diag_app.command("alarm-worksheet")
@@ -101,8 +108,9 @@ def tags_cmd(
 @diag_app.command("dataquality")
 @cli_errors
 def dataquality_cmd(
-    input: Path = typer.Option(..., "--input",
-                               help="JSON file: list of {endpoint, tags:[{ref, samples}]}"),
+    input: Path = typer.Option(
+        ..., "--input", help="JSON file: list of {endpoint, tags:[{ref, samples}]}"
+    ),
     staleness_s: float = typer.Option(300.0, "--staleness-s"),
     now: str = typer.Option(None, "--now", help="ISO-8601 staleness reference (deterministic)"),
 ) -> None:
@@ -113,8 +121,9 @@ def dataquality_cmd(
 @diag_app.command("dataquality-fleet")
 @cli_errors
 def dataquality_fleet_cmd(
-    input: Path = typer.Option(..., "--input",
-                               help="JSON file: list of {endpoint, tags:[{ref, samples}]}"),
+    input: Path = typer.Option(
+        ..., "--input", help="JSON file: list of {endpoint, tags:[{ref, samples}]}"
+    ),
     staleness_s: float = typer.Option(300.0, "--staleness-s"),
     now: str = typer.Option(None, "--now", help="ISO-8601 staleness reference (deterministic)"),
     top_n: int = typer.Option(10, "--top-n", help="How many endpoints / bad-quality rows"),
@@ -147,12 +156,14 @@ def historian_cmd(
 @cli_errors
 def rca_cmd(
     input: Path = typer.Option(
-        ..., "--input",
+        ...,
+        "--input",
         help="JSON evidence bundle: {window, alarms?, tags?, dataflow?, state_series?}",
     ),
     lead_window_s: float = typer.Option(300.0, "--lead-window-s"),
     weights: Path = typer.Option(
-        None, "--weights",
+        None,
+        "--weights",
         help="JSON file: per-site {cause: weight} override (e.g. from 'diag learn-weights')",
     ),
 ) -> None:
@@ -169,22 +180,25 @@ def rca_cmd(
     if not isinstance(bundle, dict) or "window" not in bundle:
         raise ValueError("Bundle must be an object with at least a 'window' key.")
     cause_weights = _load_json(weights) if weights else bundle.get("cause_weights")
-    _emit(rca_brain.downtime_rca(
-        window=bundle.get("window"),
-        alarms=bundle.get("alarms"),
-        tags=bundle.get("tags"),
-        dataflow=bundle.get("dataflow"),
-        state_series=bundle.get("state_series"),
-        lead_window_s=lead_window_s,
-        cause_weights=cause_weights,
-    ))
+    _emit(
+        rca_brain.downtime_rca(
+            window=bundle.get("window"),
+            alarms=bundle.get("alarms"),
+            tags=bundle.get("tags"),
+            dataflow=bundle.get("dataflow"),
+            state_series=bundle.get("state_series"),
+            lead_window_s=lead_window_s,
+            cause_weights=cause_weights,
+        )
+    )
 
 
 @diag_app.command("learn-weights")
 @cli_errors
 def learn_weights_cmd(
     input: Path = typer.Option(
-        ..., "--input",
+        ...,
+        "--input",
         help="JSON file: list of confirmed incidents [{cause, signals:[...]}]",
     ),
     min_samples: int = typer.Option(8, "--min-samples"),
@@ -219,12 +233,14 @@ def rca_live_cmd(
     conditions, then runs the copilot. Read-only and advisory — nothing is executed.
     """
     window = {"start": start, "end": end, "asset": asset}
-    _emit(rca_collect.downtime_rca_live(
-        resolve_target(endpoint),
-        window={k: v for k, v in window.items() if v is not None},
-        refs=list(ref) if ref else None,
-        sample_count=sample_count,
-        interval_ms=interval_ms,
-        include_alarms=not no_alarms,
-        lead_window_s=lead_window_s,
-    ))
+    _emit(
+        rca_collect.downtime_rca_live(
+            resolve_target(endpoint),
+            window={k: v for k, v in window.items() if v is not None},
+            refs=list(ref) if ref else None,
+            sample_count=sample_count,
+            interval_ms=interval_ms,
+            include_alarms=not no_alarms,
+            lead_window_s=lead_window_s,
+        )
+    )

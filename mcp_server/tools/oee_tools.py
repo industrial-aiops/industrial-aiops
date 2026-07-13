@@ -36,9 +36,7 @@ def oee_compute(
     Example: oee_compute(planned_time_s=28800, run_time_s=25200,
         ideal_cycle_time_s=2.0, total_count=12000, good_count=11800).
     """
-    return ops.oee_compute(
-        planned_time_s, run_time_s, ideal_cycle_time_s, total_count, good_count
-    )
+    return ops.oee_compute(planned_time_s, run_time_s, ideal_cycle_time_s, total_count, good_count)
 
 
 @mcp.tool()
@@ -70,9 +68,7 @@ def downtime_events(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def oee_multidim(
-    records: list[dict[str, Any]], dimensions: Optional[list[str]] = None
-) -> dict:
+def oee_multidim(records: list[dict[str, Any]], dimensions: Optional[list[str]] = None) -> dict:
     """[READ][risk=low] Aggregate OEE across dimensions (machine × part × shift).
 
     Args:

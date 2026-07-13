@@ -46,10 +46,18 @@ class _FakeLogixDriver:
 
     def get_tag_list(self):
         return [
-            {"tag_name": "Speed", "data_type": "REAL", "tag_type": "atomic",
-             "dimensions": [0, 0, 0]},
-            {"tag_name": "Motor", "data_type": {"name": "MotorUDT"}, "tag_type": "struct",
-             "dimensions": [0, 0, 0]},
+            {
+                "tag_name": "Speed",
+                "data_type": "REAL",
+                "tag_type": "atomic",
+                "dimensions": [0, 0, 0],
+            },
+            {
+                "tag_name": "Motor",
+                "data_type": {"name": "MotorUDT"},
+                "tag_type": "struct",
+                "dimensions": [0, 0, 0],
+            },
         ]
 
     def read(self, *tags):

@@ -20,9 +20,15 @@ from iaiops.core.sink.base import SinkError
 class InfluxDBSink:
     """Uniform sink over the InfluxDB line-protocol write endpoint (v1 or v2). 待核实."""
 
-    def __init__(self, url: str = "http://localhost:8086", token: str = "",
-                 org: str = "", bucket: str = "", database: str = "iaiops",
-                 timeout_s: float = 10.0) -> None:
+    def __init__(
+        self,
+        url: str = "http://localhost:8086",
+        token: str = "",
+        org: str = "",
+        bucket: str = "",
+        database: str = "iaiops",
+        timeout_s: float = 10.0,
+    ) -> None:
         self._url = (url or "http://localhost:8086").rstrip("/")
         self._token = token or ""
         self._org = org or ""
@@ -36,8 +42,10 @@ class InfluxDBSink:
             return (
                 f"{self._url}/api/v2/write",
                 {"org": self._org, "bucket": self._bucket, "precision": "ns"},
-                {"Authorization": f"Token {self._token}",
-                 "Content-Type": "text/plain; charset=utf-8"},
+                {
+                    "Authorization": f"Token {self._token}",
+                    "Content-Type": "text/plain; charset=utf-8",
+                },
             )
         return (  # v1
             f"{self._url}/write",
@@ -61,15 +69,16 @@ class InfluxDBSink:
         url, params, headers = self._endpoint()
         try:
             resp = requests.post(
-                url, params=params, headers=headers,
-                data="\n".join(lines).encode("utf-8"), timeout=self._timeout,
+                url,
+                params=params,
+                headers=headers,
+                data="\n".join(lines).encode("utf-8"),
+                timeout=self._timeout,
             )
         except requests.RequestException as exc:
             raise SinkError(f"InfluxDB write to {url} failed: {exc}") from exc
         if resp.status_code >= 300:
-            raise SinkError(
-                f"InfluxDB write returned HTTP {resp.status_code}: {resp.text[:200]}"
-            )
+            raise SinkError(f"InfluxDB write returned HTTP {resp.status_code}: {resp.text[:200]}")
         return len(lines)
 
     def close(self) -> None:  # stateless HTTP — nothing to close.

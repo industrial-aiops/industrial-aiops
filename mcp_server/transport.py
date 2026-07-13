@@ -28,8 +28,10 @@ PORT_ENV = "IAIOPS_MCP_PORT"
 
 # Canonical transports + accepted aliases.
 _ALIASES = {
-    "stdio": "stdio", "sse": "sse",
-    "streamable-http": "streamable-http", "http": "streamable-http",
+    "stdio": "stdio",
+    "sse": "sse",
+    "streamable-http": "streamable-http",
+    "http": "streamable-http",
 }
 VALID_TRANSPORTS = ("stdio", "sse", "streamable-http")
 
@@ -86,7 +88,8 @@ def run_server(mcp) -> None:
         logger.warning(
             "%s=%s exposes the MCP server on a non-loopback interface with NO IP allowlist — "
             "front it with a gateway or set IAIOPS_ALLOWLIST_IPS.",
-            HOST_ENV, host,
+            HOST_ENV,
+            host,
         )
 
     import uvicorn
@@ -95,5 +98,12 @@ def run_server(mcp) -> None:
     uvicorn.run(app, host=host, port=port, log_level="info")
 
 
-__all__ = ["resolve_transport", "run_server", "TransportError", "VALID_TRANSPORTS",
-           "TRANSPORT_ENV", "HOST_ENV", "PORT_ENV"]
+__all__ = [
+    "resolve_transport",
+    "run_server",
+    "TransportError",
+    "VALID_TRANSPORTS",
+    "TRANSPORT_ENV",
+    "HOST_ENV",
+    "PORT_ENV",
+]

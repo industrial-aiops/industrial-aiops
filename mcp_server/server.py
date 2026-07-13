@@ -85,8 +85,7 @@ def assert_all_tools_governed() -> None:
     )
     if ungoverned:
         raise RuntimeError(
-            "Ungoverned MCP tools registered (missing @governed_tool): "
-            + ", ".join(ungoverned)
+            "Ungoverned MCP tools registered (missing @governed_tool): " + ", ".join(ungoverned)
         )
 
 

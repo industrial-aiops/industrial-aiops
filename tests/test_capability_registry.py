@@ -124,6 +124,14 @@ def test_session_supported_set_is_stable() -> None:
     """The stateful-session protocol set (used in the teaching error message) is the
     exact set the pre-registry routing dict carried."""
     assert session_supported_protocols() == [
-        "eip", "ethernetip", "fins", "iolink", "mc", "modbus",
-        "mqtt", "opcua", "s7", "secsgem",
+        "eip",
+        "ethernetip",
+        "fins",
+        "iolink",
+        "mc",
+        "modbus",
+        "mqtt",
+        "opcua",
+        "s7",
+        "secsgem",
     ]

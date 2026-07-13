@@ -29,9 +29,7 @@ _CATCH_ALL = "all"
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize(
-    "profile", [p for p in NAMED_PROFILES if p != _CATCH_ALL]
-)
+@pytest.mark.parametrize("profile", [p for p in NAMED_PROFILES if p != _CATCH_ALL])
 def test_named_edition_does_not_trip_flood_warning(profile):
     """Each legitimate named edition expands to <= threshold tools (no warning)."""
     count = selection_tool_count(profile)
@@ -54,9 +52,7 @@ def test_all_profile_still_trips_flood_warning():
 @pytest.mark.unit
 def test_threshold_sits_above_largest_legitimate_edition_but_below_all():
     """Sanity: threshold is bracketed by the largest named edition and ``all``."""
-    largest_named = max(
-        selection_tool_count(p) for p in NAMED_PROFILES if p != _CATCH_ALL
-    )
+    largest_named = max(selection_tool_count(p) for p in NAMED_PROFILES if p != _CATCH_ALL)
     all_count = selection_tool_count(_CATCH_ALL)
     assert largest_named <= TOOL_FLOOD_WARN_THRESHOLD < all_count, (
         f"largest named edition={largest_named}, threshold="

@@ -14,8 +14,13 @@ from iaiops.core.llm.base import LLMError
 class OllamaProvider:
     """Uniform provider over the Ollama ``/api/chat`` endpoint (待核实)."""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.1",
-                 timeout_s: float = 60.0, temperature: float = 0.1) -> None:
+    def __init__(
+        self,
+        base_url: str = "http://localhost:11434",
+        model: str = "llama3.1",
+        timeout_s: float = 60.0,
+        temperature: float = 0.1,
+    ) -> None:
         self._url = (base_url or "http://localhost:11434").rstrip("/")
         self._model = model or "llama3.1"
         self._timeout = float(timeout_s or 60.0)

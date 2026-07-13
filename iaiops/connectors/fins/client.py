@@ -147,8 +147,14 @@ class FinsFramingError(FinsError):
 class FinsEndCodeError(FinsError):
     """The PLC answered with a non-zero FINS end code."""
 
-    def __init__(self, end_code: int, *, relay_error: bool = False,
-                 fatal_cpu_error: bool = False, non_fatal_cpu_error: bool = False) -> None:
+    def __init__(
+        self,
+        end_code: int,
+        *,
+        relay_error: bool = False,
+        fatal_cpu_error: bool = False,
+        non_fatal_cpu_error: bool = False,
+    ) -> None:
         self.end_code = end_code
         self.relay_error = relay_error
         self.fatal_cpu_error = fatal_cpu_error
@@ -197,17 +203,24 @@ def build_fins_frame(
 ) -> bytes:
     """Build a raw FINS frame: 10-byte header (ICF/RSV/GCT/DNA/DA1/DA2/SNA/SA1/SA2/SID)
     followed by the command bytes (MRC/SRC + parameters). Pure / unit-testable."""
-    header = bytes((
-        ICF_COMMAND, 0x00, gct & 0xFF,
-        dna & 0xFF, da1 & 0xFF, da2 & 0xFF,
-        sna & 0xFF, sa1 & 0xFF, sa2 & 0xFF,
-        sid & 0xFF,
-    ))
+    header = bytes(
+        (
+            ICF_COMMAND,
+            0x00,
+            gct & 0xFF,
+            dna & 0xFF,
+            da1 & 0xFF,
+            da2 & 0xFF,
+            sna & 0xFF,
+            sa1 & 0xFF,
+            sa2 & 0xFF,
+            sid & 0xFF,
+        )
+    )
     return header + command
 
 
-def parse_fins_response(data: bytes, *, expect_sid: int, expect_mrc: int,
-                        expect_src: int) -> bytes:
+def parse_fins_response(data: bytes, *, expect_sid: int, expect_mrc: int, expect_src: int) -> bytes:
     """Validate a FINS response frame; return the payload AFTER the end code.
 
     Checks (bounded, fail-fast): minimum length, response ICF bit, SID match
@@ -248,7 +261,7 @@ def parse_fins_response(data: bytes, *, expect_sid: int, expect_mrc: int,
             fatal_cpu_error=bool(sub & 0x80),
             non_fatal_cpu_error=bool(sub & 0x40),
         )
-    return data[FINS_HEADER_LEN + 4:]
+    return data[FINS_HEADER_LEN + 4 :]
 
 
 def _last_ip_octet(host: str) -> int:
@@ -284,36 +297,35 @@ class _FinsBase:
         return self._sid
 
     # -- command helpers ----------------------------------------------------
-    def memory_area_read(self, area_code: int, address: int, bit: int,
-                         count: int) -> bytes:
+    def memory_area_read(self, area_code: int, address: int, bit: int, count: int) -> bytes:
         cmd = bytes(CMD_MEMORY_AREA_READ) + struct.pack(
             ">BHBH", area_code & 0xFF, address & 0xFFFF, bit & 0xFF, count & 0xFFFF
         )
         return self.execute(cmd)
 
-    def memory_area_write(self, area_code: int, address: int, bit: int,
-                          data: bytes, count: int) -> bytes:
-        cmd = bytes(CMD_MEMORY_AREA_WRITE) + struct.pack(
-            ">BHBH", area_code & 0xFF, address & 0xFFFF, bit & 0xFF, count & 0xFFFF
-        ) + data
+    def memory_area_write(
+        self, area_code: int, address: int, bit: int, data: bytes, count: int
+    ) -> bytes:
+        cmd = (
+            bytes(CMD_MEMORY_AREA_WRITE)
+            + struct.pack(">BHBH", area_code & 0xFF, address & 0xFFFF, bit & 0xFF, count & 0xFFFF)
+            + data
+        )
         return self.execute(cmd)
 
     def read_words(self, area_code: int, address: int, count: int) -> list[int]:
         payload = self.memory_area_read(area_code, address, 0, count)
         if len(payload) < 2 * count:
             raise FinsFramingError(
-                f"FINS word-read payload too short: {len(payload)} bytes for "
-                f"{count} words."
+                f"FINS word-read payload too short: {len(payload)} bytes for {count} words."
             )
         return list(struct.unpack(f">{count}H", payload[: 2 * count]))
 
-    def read_bits(self, area_code: int, address: int, bit: int,
-                  count: int) -> list[bool]:
+    def read_bits(self, area_code: int, address: int, bit: int, count: int) -> list[bool]:
         payload = self.memory_area_read(area_code, address, bit, count)
         if len(payload) < count:
             raise FinsFramingError(
-                f"FINS bit-read payload too short: {len(payload)} bytes for "
-                f"{count} bits."
+                f"FINS bit-read payload too short: {len(payload)} bytes for {count} bits."
             )
         return [bool(b & 0x01) for b in payload[:count]]
 
@@ -352,9 +364,15 @@ class _FinsBase:
 class FinsUdpClient(_FinsBase):
     """FINS/UDP client: one datagram per request/response, SID-matched, no retry."""
 
-    def __init__(self, host: str, port: int = DEFAULT_FINS_PORT, *,
-                 da1: int | None = None, sa1: int = 1,
-                 timeout_s: float = 10.0) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int = DEFAULT_FINS_PORT,
+        *,
+        da1: int | None = None,
+        sa1: int = 1,
+        timeout_s: float = 10.0,
+    ) -> None:
         self._host = host
         self._port = int(port or DEFAULT_FINS_PORT)
         self._timeout = float(timeout_s)
@@ -373,8 +391,14 @@ class FinsUdpClient(_FinsBase):
             raise FinsError("FINS/UDP client is not connected (call connect()).")
         sid = self._next_sid()
         frame = build_fins_frame(
-            sid=sid, dna=self._dna, da1=self._da1, da2=self._da2,
-            sna=self._sna, sa1=self._sa1, sa2=self._sa2, command=command,
+            sid=sid,
+            dna=self._dna,
+            da1=self._da1,
+            da2=self._da2,
+            sna=self._sna,
+            sa1=self._sa1,
+            sa2=self._sa2,
+            command=command,
         )
         self._sock.sendto(frame, (self._host, self._port))
         data, _addr = self._sock.recvfrom(MAX_RESPONSE_BYTES)
@@ -398,8 +422,14 @@ class FinsTcpClient(_FinsBase):
     loopback-tested against the in-repo mock responder.
     """
 
-    def __init__(self, host: str, port: int = DEFAULT_FINS_PORT, *,
-                 client_node: int = 0, timeout_s: float = 10.0) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int = DEFAULT_FINS_PORT,
+        *,
+        client_node: int = 0,
+        timeout_s: float = 10.0,
+    ) -> None:
         self._host = host
         self._port = int(port or DEFAULT_FINS_PORT)
         self._timeout = float(timeout_s)
@@ -441,8 +471,14 @@ class FinsTcpClient(_FinsBase):
             raise FinsError("FINS/TCP client is not connected (call connect()).")
         sid = self._next_sid()
         frame = build_fins_frame(
-            sid=sid, dna=self._dna, da1=self._da1, da2=self._da2,
-            sna=self._sna, sa1=self._sa1, sa2=self._sa2, command=command,
+            sid=sid,
+            dna=self._dna,
+            da1=self._da1,
+            da2=self._da2,
+            sna=self._sna,
+            sa1=self._sa1,
+            sa2=self._sa2,
+            command=command,
         )
         self._send_tcp(FINS_TCP_CMD_FINS_FRAME, frame)
         tcp_command, body = self._read_tcp()
@@ -466,17 +502,14 @@ class FinsTcpClient(_FinsBase):
         magic, length, command, error_code = FINS_TCP_HEADER.unpack(header)
         if magic != FINS_TCP_MAGIC:
             raise FinsFramingError(
-                f"FINS/TCP magic mismatch: {magic!r} — the peer is not speaking "
-                f"FINS/TCP framing."
+                f"FINS/TCP magic mismatch: {magic!r} — the peer is not speaking FINS/TCP framing."
             )
         if error_code != 0:
             meaning = FINS_TCP_ERRORS.get(error_code, "unlisted FINS/TCP error")
             raise FinsError(f"FINS/TCP error 0x{error_code:08X}: {meaning}")
         body_len = int(length) - 8
         if body_len < 0 or body_len > MAX_RESPONSE_BYTES:
-            raise FinsFramingError(
-                f"FINS/TCP length field out of bounds ({length})."
-            )
+            raise FinsFramingError(f"FINS/TCP length field out of bounds ({length}).")
         body = self._recv_exactly(body_len) if body_len else b""
         return int(command), body
 
@@ -487,9 +520,7 @@ class FinsTcpClient(_FinsBase):
         while got < n:
             chunk = self._sock.recv(n - got)
             if not chunk:
-                raise FinsFramingError(
-                    f"FINS/TCP connection closed after {got}/{n} bytes."
-                )
+                raise FinsFramingError(f"FINS/TCP connection closed after {got}/{n} bytes.")
             chunks.append(chunk)
             got += len(chunk)
         return b"".join(chunks)

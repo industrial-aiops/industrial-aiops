@@ -36,6 +36,7 @@ _ENTRY_FIELDS = ("ref", "protocol", "asset", "name", "class")
 
 # ── extraction from an asset-model run ─────────────────────────────────────────
 
+
 def extract_alias_map(model: Any) -> dict[str, dict[str, str]]:
     """Build an adopted alias map from a ``cross_protocol_asset_model`` result.
 
@@ -67,6 +68,7 @@ def extract_alias_map(model: Any) -> dict[str, dict[str, str]]:
 
 
 # ── persistence ────────────────────────────────────────────────────────────────
+
 
 def _safe_site(site: Any) -> str:
     """Validate a site label as a safe filesystem leaf (no traversal)."""
@@ -111,8 +113,7 @@ def _validate_map(alias_map: Any, label: str) -> dict[str, dict]:
     for alias, entry in alias_map.items():
         if not isinstance(entry, dict):
             raise ValueError(
-                f"{label} entry for alias '{alias}' must be an object, got "
-                f"{type(entry).__name__}."
+                f"{label} entry for alias '{alias}' must be an object, got {type(entry).__name__}."
             )
     return alias_map
 
@@ -190,6 +191,7 @@ def list_sites(*, base_dir: Path | None = None) -> list[str]:
 
 # ── cross-run diff ─────────────────────────────────────────────────────────────
 
+
 def _identity(alias: str, entry: dict) -> tuple[str, str, str]:
     """Stable identity of a tag: its (protocol, ref) when it has a ref, else alias.
 
@@ -243,20 +245,24 @@ def diff_alias_map(previous: Any, current: Any) -> dict:
             continue
         palias, pentry = prev_idx[ident]
         if alias != palias:
-            renamed.append({
-                "protocol": str(entry.get("protocol") or ""),
-                "ref": str(entry.get("ref") or ""),
-                "from": palias,
-                "to": alias,
-            })
+            renamed.append(
+                {
+                    "protocol": str(entry.get("protocol") or ""),
+                    "ref": str(entry.get("ref") or ""),
+                    "from": palias,
+                    "to": alias,
+                }
+            )
         elif str(pentry.get("class") or "") != str(entry.get("class") or ""):
-            reclassified.append({
-                "alias": alias,
-                "protocol": str(entry.get("protocol") or ""),
-                "ref": str(entry.get("ref") or ""),
-                "from": str(pentry.get("class") or ""),
-                "to": str(entry.get("class") or ""),
-            })
+            reclassified.append(
+                {
+                    "alias": alias,
+                    "protocol": str(entry.get("protocol") or ""),
+                    "ref": str(entry.get("ref") or ""),
+                    "from": str(pentry.get("class") or ""),
+                    "to": str(entry.get("class") or ""),
+                }
+            )
     for ident, (alias, entry) in prev_idx.items():
         if ident not in curr_idx:
             removed.append(_public(alias, entry))

@@ -10,8 +10,11 @@ from iaiops.core.brain import oee
 @pytest.mark.unit
 def test_oee_compute_classic():
     out = oee.oee_compute(
-        planned_time_s=28800, run_time_s=25200, ideal_cycle_time_s=2.0,
-        total_count=12000, good_count=11800,
+        planned_time_s=28800,
+        run_time_s=25200,
+        ideal_cycle_time_s=2.0,
+        total_count=12000,
+        good_count=11800,
     )
     # Availability 25200/28800 = 0.875
     assert out["availability"]["value"] == pytest.approx(0.875, abs=1e-3)
@@ -64,10 +67,26 @@ def test_downtime_min_duration_filters():
 @pytest.mark.unit
 def test_oee_multidim_aggregates_and_ranks():
     records = [
-        {"machine": "M1", "part": "A", "shift": "day", "planned_time_s": 3600,
-         "run_time_s": 3600, "ideal_cycle_time_s": 1.0, "total_count": 3600, "good_count": 3600},
-        {"machine": "M2", "part": "A", "shift": "day", "planned_time_s": 3600,
-         "run_time_s": 1800, "ideal_cycle_time_s": 1.0, "total_count": 1800, "good_count": 1000},
+        {
+            "machine": "M1",
+            "part": "A",
+            "shift": "day",
+            "planned_time_s": 3600,
+            "run_time_s": 3600,
+            "ideal_cycle_time_s": 1.0,
+            "total_count": 3600,
+            "good_count": 3600,
+        },
+        {
+            "machine": "M2",
+            "part": "A",
+            "shift": "day",
+            "planned_time_s": 3600,
+            "run_time_s": 1800,
+            "ideal_cycle_time_s": 1.0,
+            "total_count": 1800,
+            "good_count": 1000,
+        },
     ]
     out = oee.oee_multidim(records, dimensions=["machine", "part"])
     assert out["group_count"] == 2

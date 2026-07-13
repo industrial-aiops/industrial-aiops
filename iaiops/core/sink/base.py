@@ -47,13 +47,15 @@ def normalize_points(points: list[Any]) -> list[dict]:
         if raw is None:  # explicit fallback so a present value=None doesn't mask present_value
             raw = item.get("present_value")
         value = num(raw)
-        out.append({
-            "metric": s(metric, 128),
-            "value": value if value is not None else s(raw, 128),
-            "numeric": value is not None,
-            "timestamp": s(item.get("timestamp", item.get("recorded_at", "")), 40),
-            "tags": _tags(item),
-        })
+        out.append(
+            {
+                "metric": s(metric, 128),
+                "value": value if value is not None else s(raw, 128),
+                "numeric": value is not None,
+                "timestamp": s(item.get("timestamp", item.get("recorded_at", "")), 40),
+                "tags": _tags(item),
+            }
+        )
     return out
 
 
@@ -99,9 +101,7 @@ def get_sink(kind: str, **opts: Any) -> Any:
         from iaiops.core.sink.influxdb import InfluxDBSink
 
         return InfluxDBSink(**opts)
-    raise SinkError(
-        f"Unknown historian sink '{kind}'. Supported: {', '.join(SUPPORTED_SINKS)}."
-    )
+    raise SinkError(f"Unknown historian sink '{kind}'. Supported: {', '.join(SUPPORTED_SINKS)}.")
 
 
 __all__ = [

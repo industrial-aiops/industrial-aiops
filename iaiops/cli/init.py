@@ -93,9 +93,7 @@ def _write_endpoints(endpoints: list[dict]) -> None:
         CONFIG_DIR.chmod(0o700)
     except OSError:
         pass
-    CONFIG_FILE.write_text(
-        yaml.safe_dump({"endpoints": endpoints}, sort_keys=False), "utf-8"
-    )
+    CONFIG_FILE.write_text(yaml.safe_dump({"endpoints": endpoints}, sort_keys=False), "utf-8")
 
 
 def _prompt_opcua(entry: dict, name: str, store):
@@ -120,8 +118,7 @@ def _prompt_s7(entry: dict, name: str, store):
     entry["host"] = typer.prompt("S7 PLC host (IP/FQDN)").strip()
     entry["port"] = typer.prompt("Port", default=DEFAULT_S7_PORT, type=int)
     entry["rack"] = typer.prompt("Rack (0 for S7-1200/1500)", default=0, type=int)
-    entry["slot"] = typer.prompt("Slot (1 for S7-1200/1500, 2 for S7-300/400)",
-                                 default=1, type=int)
+    entry["slot"] = typer.prompt("Slot (1 for S7-1200/1500, 2 for S7-300/400)", default=1, type=int)
     return entry, store
 
 
@@ -137,7 +134,8 @@ def _prompt_eip(entry: dict, name: str, store):
     entry["host"] = typer.prompt("EtherNet/IP (Logix) host (IP/FQDN)").strip()
     entry["slot"] = typer.prompt(
         "Controller slot (0 for CompactLogix; CPU slot for ControlLogix)",
-        default=0, type=int,
+        default=0,
+        type=int,
     )
     entry["port"] = typer.prompt("Port", default=DEFAULT_EIP_PORT, type=int)
     return entry, store
@@ -150,9 +148,7 @@ def _prompt_ethercat(entry: dict, name: str, store):
         "'pip install iaiops[ethercat]'. No software simulator; macOS "
         "unsupported.[/]"
     )
-    entry["nic"] = typer.prompt(
-        "Dedicated NIC interface name (e.g. eth1)", default="eth1"
-    ).strip()
+    entry["nic"] = typer.prompt("Dedicated NIC interface name (e.g. eth1)", default="eth1").strip()
     entry["expected_slaves"] = typer.prompt(
         "Expected slave count (0 = unknown / do not check)", default=0, type=int
     )
@@ -200,9 +196,7 @@ def _prompt_iolink(entry: dict, name: str, store):
     entry["agent_url"] = typer.prompt(
         "IO-Link master base URL", default="http://192.168.0.10"
     ).strip()
-    entry["flavor"] = typer.prompt(
-        "JSON flavor (iotcore|rest)", default="iotcore"
-    ).strip().lower()
+    entry["flavor"] = typer.prompt("JSON flavor (iotcore|rest)", default="iotcore").strip().lower()
     return entry, store
 
 
@@ -211,9 +205,7 @@ def _prompt_mqtt(entry: dict, name: str, store):
     entry["use_tls"] = typer.confirm("Use TLS?", default=False)
     default_port = 8883 if entry["use_tls"] else DEFAULT_MQTT_PORT
     entry["port"] = typer.prompt("Port", default=default_port, type=int)
-    entry["topic"] = typer.prompt(
-        "Default topic filter", default="spBv1.0/#"
-    ).strip()
+    entry["topic"] = typer.prompt("Default topic filter", default="spBv1.0/#").strip()
     username = typer.prompt("Username (optional, Enter for none)", default="").strip()
     if username:
         entry["username"] = username
@@ -292,9 +284,7 @@ def init_cmd() -> None:
             endpoints = [e for e in endpoints if e.get("name") != name]
             existing_names.discard(name)
 
-        protocol = typer.prompt(
-            f"Protocol {SUPPORTED_PROTOCOLS}", default="opcua"
-        ).strip()
+        protocol = typer.prompt(f"Protocol {SUPPORTED_PROTOCOLS}", default="opcua").strip()
         if protocol not in SUPPORTED_PROTOCOLS:
             console.print("[yellow]Unknown protocol; defaulting to 'opcua'.[/]")
             protocol = "opcua"

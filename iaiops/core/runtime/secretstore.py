@@ -153,9 +153,7 @@ class SecretStore:
         try:
             raw = json.loads(SECRETS_FILE.read_text("utf-8"))
         except (OSError, ValueError) as exc:
-            raise SecretStoreError(
-                f"Could not read secret store {SECRETS_FILE}: {exc}"
-            ) from exc
+            raise SecretStoreError(f"Could not read secret store {SECRETS_FILE}: {exc}") from exc
 
         if raw.get("version") != _FORMAT_VERSION:
             raise SecretStoreError(

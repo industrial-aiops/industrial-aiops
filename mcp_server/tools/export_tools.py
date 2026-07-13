@@ -61,19 +61,27 @@ def export_data(
     """
     kind = (fmt or "").strip().lower()
     if kind not in EXPORT_FORMATS:
-        raise ValueError(
-            f"Unknown format '{fmt}'. Supported: {', '.join(EXPORT_FORMATS)}."
-        )
+        raise ValueError(f"Unknown format '{fmt}'. Supported: {', '.join(EXPORT_FORMATS)}.")
     if not 1 <= int(limit) <= MAX_TOOL_LIMIT:
         raise ValueError(f"limit must be 1..{MAX_TOOL_LIMIT} (got {limit}).")
     target = Path(out_path).expanduser() if out_path else _default_out_path(kind)
     result = export_samples(
-        kind, target, since=since, until=until, endpoint=endpoint, tag=tag,
+        kind,
+        target,
+        since=since,
+        until=until,
+        endpoint=endpoint,
+        tag=tag,
         limit=int(limit),
     )
     preview = query_samples(
-        SampleFilter(since=since, until=until, endpoint=endpoint, tag=tag,
-                     limit=min(int(limit), MAX_INLINE_ROWS)),
+        SampleFilter(
+            since=since,
+            until=until,
+            endpoint=endpoint,
+            tag=tag,
+            limit=min(int(limit), MAX_INLINE_ROWS),
+        ),
     )
     return {
         **result,

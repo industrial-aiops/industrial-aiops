@@ -38,9 +38,7 @@ def _build_fins_client(target: TargetConfig) -> FinsUdpClient | FinsTcpClient:
         )
     # UDP default: destination node defaults to the PLC IP's last octet (the
     # common automatic-address-conversion convention, 待核实 per site).
-    return FinsUdpClient(
-        target.host, target.port or DEFAULT_FINS_PORT, timeout_s=target.timeout_s
-    )
+    return FinsUdpClient(target.host, target.port or DEFAULT_FINS_PORT, timeout_s=target.timeout_s)
 
 
 def _connect_fins(client: FinsUdpClient | FinsTcpClient, target: TargetConfig) -> None:

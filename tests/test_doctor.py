@@ -74,18 +74,21 @@ def test_diagnose_opcua_never_raises(monkeypatch):
 
 
 def _probe_target(protocol, **extra):
-    return SimpleNamespace(name="ep", protocol=protocol, host="10.0.0.5",
-                           nic="", port=0, unit_id=1, **extra)
+    return SimpleNamespace(
+        name="ep", protocol=protocol, host="10.0.0.5", nic="", port=0, unit_id=1, **extra
+    )
 
 
 def test_probe_profinet_success_and_failure(monkeypatch):
     import iaiops.connectors.profinet.ops as pn
+
     monkeypatch.setattr(pn, "profinet_discover", lambda t: {"station_count": 3})
     ok, detail = doctor._probe_profinet(_probe_target("profinet"))
     assert ok is True and "stations_found=3" in detail
 
-    monkeypatch.setattr(pn, "profinet_discover",
-                        lambda t: (_ for _ in ()).throw(RuntimeError("no raw socket")))
+    monkeypatch.setattr(
+        pn, "profinet_discover", lambda t: (_ for _ in ()).throw(RuntimeError("no raw socket"))
+    )
     ok, detail = doctor._probe_profinet(_probe_target("profinet"))
     assert ok is False and "no raw socket" in detail
 
@@ -93,6 +96,7 @@ def test_probe_profinet_success_and_failure(monkeypatch):
 def _raise(msg):
     def _fn(_t):
         raise RuntimeError(msg)
+
     return _fn
 
 
@@ -103,7 +107,8 @@ def test_probe_hart_success_error_dict_and_exception(monkeypatch):
     import iaiops.connectors.hart.ops as hart_ops
 
     monkeypatch.setattr(
-        hart_ops, "hart_device_identity",
+        hart_ops,
+        "hart_device_identity",
         lambda t: {"endpoint": "ep", "manufacturer_id": 0x26, "device_id": 0x123456},
     )
     ok, detail = doctor._probe(_probe_target("hart"))
@@ -111,7 +116,8 @@ def test_probe_hart_success_error_dict_and_exception(monkeypatch):
     assert "No probe implemented" not in detail
 
     monkeypatch.setattr(
-        hart_ops, "hart_device_identity",
+        hart_ops,
+        "hart_device_identity",
         lambda t: {"endpoint": "ep", "error": "no HART response"},
     )
     ok, detail = doctor._probe(_probe_target("hart"))
@@ -124,6 +130,7 @@ def test_probe_hart_success_error_dict_and_exception(monkeypatch):
 
 def test_probe_bacnet_success_and_failure(monkeypatch):
     import iaiops.connectors.bacnet.ops as bn
+
     monkeypatch.setattr(bn, "bacnet_discover", lambda t: {"device_count": 4})
     ok, detail = doctor._probe_bacnet(_probe_target("bacnet"))
     assert ok is True and "devices_found=4" in detail

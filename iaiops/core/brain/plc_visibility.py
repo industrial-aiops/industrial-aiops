@@ -91,7 +91,7 @@ def _documentation(outline: ProgramOutline, blocks: list[Block]) -> dict:
     lines = outline.line_count or 0
     ratio = round((outline.comment_count or 0) / lines, 3) if lines else 0.0
     if not lines:
-        band = "unknown"          # nothing to document — never a risk signal
+        band = "unknown"  # nothing to document — never a risk signal
     elif ratio >= _WELL_COMMENTED:
         band = "well_commented"
     elif ratio >= _SPARSE_COMMENTED:
@@ -104,8 +104,12 @@ def _documentation(outline: ProgramOutline, blocks: list[Block]) -> dict:
         for b in blocks
         if not (b.comment or "").strip()
     ]
-    return {"comment_ratio": ratio, "band": band,
-            "uncommented_block_count": len(poorly), "uncommented_blocks": poorly[:MAX_ROWS]}
+    return {
+        "comment_ratio": ratio,
+        "band": band,
+        "uncommented_block_count": len(poorly),
+        "uncommented_blocks": poorly[:MAX_ROWS],
+    }
 
 
 def _unreferenced_blocks(blocks: list[Block], called: set[str]) -> list[dict]:
@@ -152,8 +156,14 @@ def _risky_constructs(blocks: list[Block]) -> dict:
                 loops.append({**cite, "kind": br.kind})
         for tc in b.timers_counters:
             if tc.kind == "RTO":
-                retentive.append({"block": b.name, "name": tc.name,
-                                  "source_file": tc.source_file, "line": tc.line})
+                retentive.append(
+                    {
+                        "block": b.name,
+                        "name": tc.name,
+                        "source_file": tc.source_file,
+                        "line": tc.line,
+                    }
+                )
     return {
         "unconditional_jumps": jumps[:MAX_ROWS],
         "unconditional_jump_count": len(jumps),

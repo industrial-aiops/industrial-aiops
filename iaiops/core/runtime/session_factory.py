@@ -100,8 +100,7 @@ def make_session(
     def session(target: TargetConfig, **kwargs: Any) -> Iterator[Any]:
         if target.protocol not in allowed:
             raise OTConnectionError(
-                f"Endpoint '{target.name}' is protocol '{target.protocol}', "
-                f"not {protocol}.",
+                f"Endpoint '{target.name}' is protocol '{target.protocol}', not {protocol}.",
                 endpoint=target.name,
                 protocol=target.protocol,
             )

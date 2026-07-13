@@ -36,8 +36,12 @@ def spc_check(
     """
     values = _values(series)
     if len(values) < MIN_SAMPLES:
-        return {"samples": len(values), "verdict": "insufficient_data",
-                "needed": MIN_SAMPLES, "note": _NOTE}
+        return {
+            "samples": len(values),
+            "verdict": "insufficient_data",
+            "needed": MIN_SAMPLES,
+            "note": _NOTE,
+        }
 
     center = float(target) if target is not None else mean(values)
     sd = float(sigma) if sigma is not None else pstdev(values)
@@ -91,15 +95,19 @@ def _rule_violations(values: list[float], center: float, sd: float) -> list[dict
 
 
 def _run_rule(
-    zs: list[float], sides: list[int], zmin: float, window: int, need: int,
-    rule: int, label: str,
+    zs: list[float],
+    sides: list[int],
+    zmin: float,
+    window: int,
+    need: int,
+    rule: int,
+    label: str,
 ) -> list[dict]:
     """Rule 2/3: ``need`` of ``window`` consecutive points beyond ``zmin``σ, same side."""
     hits: list[dict] = []
     for i in range(len(zs) - window + 1):
         for side in (1, -1):
-            count = sum(1 for j in range(i, i + window)
-                        if sides[j] == side and abs(zs[j]) > zmin)
+            count = sum(1 for j in range(i, i + window) if sides[j] == side and abs(zs[j]) > zmin)
             if count >= need:
                 hits.append(_hit(rule, i + window - 1, f"{label} (same side)"))
                 break

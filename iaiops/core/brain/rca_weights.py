@@ -39,8 +39,8 @@ from iaiops.core.brain.rca import (
 # localizing root cause, so it is intentionally excluded here.
 LEARNABLE_CAUSES: frozenset[str] = frozenset(CAUSE_KEYWORDS)
 
-MIN_HISTORY = 8          # below this many incidents ⇒ keep defaults entirely
-MIN_CAUSE_SAMPLES = 3    # below this many observations ⇒ keep that cause neutral
+MIN_HISTORY = 8  # below this many incidents ⇒ keep defaults entirely
+MIN_CAUSE_SAMPLES = 3  # below this many observations ⇒ keep that cause neutral
 NEUTRAL_PRECISION = 0.5  # chance level: precision here ⇒ multiplier 1.0
 DEFAULT_SMOOTHING = 1.0  # Laplace pseudo-count pulling toward NEUTRAL_PRECISION
 
@@ -88,9 +88,7 @@ def learn_cause_weights(
 def _validate_history(history: Any) -> list[dict]:
     """Coerce + validate the corpus at the boundary; teaches on malformed rows."""
     if not isinstance(history, list):
-        raise ValueError(
-            "history must be a list of {cause, signals} incident records."
-        )
+        raise ValueError("history must be a list of {cause, signals} incident records.")
     incidents: list[dict] = []
     for i, raw in enumerate(history):
         if not isinstance(raw, dict):
@@ -138,8 +136,10 @@ def _estimate(
         else:
             raw = precision / NEUTRAL_PRECISION
             mult = round(max(MIN_CAUSE_WEIGHT, min(raw, MAX_CAUSE_WEIGHT)), 4)
-            note = (f"{hit}/{sup} confirmed when evidence named it "
-                    f"(smoothed precision={round(precision, 4)})")
+            note = (
+                f"{hit}/{sup} confirmed when evidence named it "
+                f"(smoothed precision={round(precision, 4)})"
+            )
         per_cause[cause] = {
             "support": sup,
             "hits": hit,

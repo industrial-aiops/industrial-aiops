@@ -51,8 +51,12 @@ def control_loop_health(
         {"pv":72.0,"sp":75,"op":100}, ...]).
     """
     return cl.control_loop_health(
-        samples, offset_band=offset_band, op_min=op_min, op_max=op_max,
-        sat_pct=sat_pct, osc_index_max=osc_index_max,
+        samples,
+        offset_band=offset_band,
+        op_min=op_min,
+        op_max=op_max,
+        sat_pct=sat_pct,
+        osc_index_max=osc_index_max,
     )
 
 

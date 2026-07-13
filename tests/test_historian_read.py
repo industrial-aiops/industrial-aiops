@@ -43,8 +43,11 @@ def home(tmp_path, monkeypatch):
 def _seed(home, tag: str = "line1.temp", n: int = 12, value: float | None = None):
     """Write n points inside the 2h pre-incident window before WINDOW.start."""
     points = [
-        {"ref": tag, "value": value if value is not None else float(i),
-         "timestamp": f"2026-07-02T09:{10 + i:02d}:00+00:00"}
+        {
+            "ref": tag,
+            "value": value if value is not None else float(i),
+            "timestamp": f"2026-07-02T09:{10 + i:02d}:00+00:00",
+        }
         for i in range(n)
     ]
     result = historian_push(points, "sqlite", db_path=home / "data.db")
@@ -59,17 +62,24 @@ def _seed(home, tag: str = "line1.temp", n: int = 12, value: float | None = None
 def test_sqlite_reader_roundtrip(home):
     db = _seed(home, n=10)
     reader = SQLiteReader(db_path=db)
-    rows = reader.query(SampleFilter(tag="line1.temp",
-                                     since="2026-07-02T09:12:00+00:00",
-                                     until="2026-07-02T09:15:00+00:00"))
+    rows = reader.query(
+        SampleFilter(
+            tag="line1.temp", since="2026-07-02T09:12:00+00:00", until="2026-07-02T09:15:00+00:00"
+        )
+    )
     assert [r["value"] for r in rows] == [2.0, 3.0, 4.0, 5.0]
     assert all(r["tag"] == "line1.temp" for r in rows)
     latest = reader.latest()
     assert latest and latest[0]["value"] == 9.0
     cov = reader.coverage()
-    assert cov == [{"tag": "line1.temp", "rows": 10,
-                    "first_ts": "2026-07-02T09:10:00+00:00",
-                    "last_ts": "2026-07-02T09:19:00+00:00"}]
+    assert cov == [
+        {
+            "tag": "line1.temp",
+            "rows": 10,
+            "first_ts": "2026-07-02T09:10:00+00:00",
+            "last_ts": "2026-07-02T09:19:00+00:00",
+        }
+    ]
 
 
 @pytest.mark.unit
@@ -80,8 +90,7 @@ def test_sqlite_reader_filter_validation(home):
     with pytest.raises(ValueError, match="limit"):
         reader.query(SampleFilter(limit=0))
     with pytest.raises(ValueError, match="after"):
-        reader.query(SampleFilter(since="2026-07-02T10:00:00",
-                                  until="2026-07-02T09:00:00"))
+        reader.query(SampleFilter(since="2026-07-02T10:00:00", until="2026-07-02T09:00:00"))
     with pytest.raises(ValueError, match="limit"):
         reader.coverage(limit=0)
 
@@ -135,10 +144,14 @@ def fake_taos(monkeypatch):
 @pytest.mark.unit
 def test_tdengine_reader_query_sql_and_shape(fake_taos):
     reader = TDengineReader(database="iaiops; DROP", stable="ot_metric")
-    rows = reader.query(SampleFilter(
-        tag="line1.temp' OR '1'='1", since="2026-07-02T08:00:00+00:00",
-        until="2026-07-02T10:00:00Z", limit=50,
-    ))
+    rows = reader.query(
+        SampleFilter(
+            tag="line1.temp' OR '1'='1",
+            since="2026-07-02T08:00:00+00:00",
+            until="2026-07-02T10:00:00Z",
+            limit=50,
+        )
+    )
     sql = fake_taos.executed[-1]
     # Identifiers sanitized, bounds normalized ISO, tag quote-escaped, limit int.
     assert sql == (
@@ -148,8 +161,17 @@ def test_tdengine_reader_query_sql_and_shape(fake_taos):
         " AND metric = 'line1.temp'' OR ''1''=''1'"
         " ORDER BY ts LIMIT 50"
     )
-    assert rows == [{"ts": "2026-07-02 09:30:00", "endpoint": "", "protocol": "",
-                     "tag": "line1.temp", "value": 21.5, "quality": "", "unit": ""}]
+    assert rows == [
+        {
+            "ts": "2026-07-02 09:30:00",
+            "endpoint": "",
+            "protocol": "",
+            "tag": "line1.temp",
+            "value": 21.5,
+            "quality": "",
+            "unit": "",
+        }
+    ]
 
 
 @pytest.mark.unit
@@ -158,11 +180,11 @@ def test_tdengine_reader_coverage_and_validation(fake_taos):
     reader = TDengineReader()
     cov = reader.coverage(limit=10)
     assert fake_taos.executed[-1] == (
-        "SELECT metric, COUNT(*), MIN(ts), MAX(ts) FROM iaiops.ot_metric "
-        "GROUP BY metric LIMIT 10"
+        "SELECT metric, COUNT(*), MIN(ts), MAX(ts) FROM iaiops.ot_metric GROUP BY metric LIMIT 10"
     )
-    assert cov == [{"tag": "line1.temp", "rows": 42,
-                    "first_ts": "2026-07-01", "last_ts": "2026-07-02"}]
+    assert cov == [
+        {"tag": "line1.temp", "rows": 42, "first_ts": "2026-07-01", "last_ts": "2026-07-02"}
+    ]
     with pytest.raises(ValueError, match="ISO-8601"):
         reader.query(SampleFilter(since="yesterday"))
     with pytest.raises(ValueError, match="endpoint"):
@@ -236,10 +258,14 @@ def test_iotdb_reader_query_sql_and_shape(fake_iotdb):
         [_FakeRecord(1_782_984_600_000, [21.5])],
     )
     reader = IoTDBReader()
-    rows = reader.query(SampleFilter(
-        tag="line1.temp", since="2026-07-02T08:00:00+00:00",
-        until="2026-07-02T10:00:00+00:00", limit=50,
-    ))
+    rows = reader.query(
+        SampleFilter(
+            tag="line1.temp",
+            since="2026-07-02T08:00:00+00:00",
+            until="2026-07-02T10:00:00+00:00",
+            limit=50,
+        )
+    )
     # Path segment sanitized (dots → underscores), bounds are epoch-millis ints.
     assert fake_iotdb.executed[-1] == (
         "SELECT value FROM root.iaiops.line1_temp"
@@ -255,8 +281,11 @@ def test_iotdb_reader_query_sql_and_shape(fake_iotdb):
 @pytest.mark.unit
 def test_iotdb_reader_coverage_parses_aggregates(fake_iotdb):
     fake_iotdb.dataset = _FakeDataSet(
-        ["count(root.iaiops.t1.value)", "min_time(root.iaiops.t1.value)",
-         "max_time(root.iaiops.t1.value)"],
+        [
+            "count(root.iaiops.t1.value)",
+            "min_time(root.iaiops.t1.value)",
+            "max_time(root.iaiops.t1.value)",
+        ],
         [_FakeRecord(0, [7, 1_782_979_200_000, 1_782_986_400_000])],
     )
     cov = IoTDBReader().coverage(limit=10)
@@ -273,15 +302,24 @@ def test_iotdb_reader_coverage_parses_aggregates(fake_iotdb):
 
 # ─── RCA: additive historian evidence ────────────────────────────────────────
 
-_ALARMS = [{"source": "M1_DRIVE", "timestamp": "2026-07-02T09:59:30+00:00",
-            "message": "motor overload trip"}]
+_ALARMS = [
+    {
+        "source": "M1_DRIVE",
+        "timestamp": "2026-07-02T09:59:30+00:00",
+        "message": "motor overload trip",
+    }
+]
 
 
 @pytest.mark.unit
 def test_gather_pre_incident_none_without_config():
     assert rca_history.gather_pre_incident(WINDOW, config=AppConfig()) is None
-    assert rca_history.gather_pre_incident({}, config=AppConfig(
-        historian=HistorianConfig(reader="sqlite"))) is None  # no window.start
+    assert (
+        rca_history.gather_pre_incident(
+            {}, config=AppConfig(historian=HistorianConfig(reader="sqlite"))
+        )
+        is None
+    )  # no window.start
 
 
 @pytest.mark.unit
@@ -307,22 +345,24 @@ def test_rca_cites_historian_evidence_when_configured(home, monkeypatch):
     assert summary["historian_source"] == "historian:sqlite"
     assert summary["historian_tags_supplied"] == 1
     assert summary["historian_sample_count"] == 12
-    cites = [e for h in result["hypotheses"] for e in h["evidence"]
-             if e["signal"] == "historian_trend"]
+    cites = [
+        e for h in result["hypotheses"] for e in h["evidence"] if e["signal"] == "historian_trend"
+    ]
     assert cites, "flatline pre-incident trend must be cited"
     assert cites[0]["source"] == "historian:sqlite"
     assert cites[0]["ref"] == "line1.temp"
     assert cites[0]["sample_count"] == 12
-    assert cites[0]["window"] == {"since": "2026-07-02T08:00:00+00:00",
-                                  "until": "2026-07-02T10:00:00+00:00"}
+    assert cites[0]["window"] == {
+        "since": "2026-07-02T08:00:00+00:00",
+        "until": "2026-07-02T10:00:00+00:00",
+    }
     # Additive: the alarm evidence from the baseline path is still present.
     assert summary["alarms_supplied"] == 1
 
 
 @pytest.mark.unit
 def test_gather_pre_incident_reader_failure_degrades_honestly(monkeypatch):
-    cfg = AppConfig(historian=HistorianConfig(
-        reader="sqlite", db_path="/nonexistent/nowhere.db"))
+    cfg = AppConfig(historian=HistorianConfig(reader="sqlite", db_path="/nonexistent/nowhere.db"))
     bundle = rca_history.gather_pre_incident(WINDOW, config=cfg)
     assert bundle is not None
     assert bundle["tags"] == [] and bundle["sample_count"] == 0

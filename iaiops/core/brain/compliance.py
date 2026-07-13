@@ -178,16 +178,32 @@ DENGBAO_LEVELS: dict[str, dict[str, str]] = {
 }
 
 _DENGBAO_LEVEL_META: tuple[dict, ...] = (
-    {"id": "l2", "name": "第二级 (S2A2G2 系统审计保护级)",
-     "note": "一般商用/非关键系统的常见目标。"},
-    {"id": "l3", "name": "第三级 (S3A3G3 安全标记保护级)",
-     "note": "工控关键信息基础设施的常见强制目标。"},
+    {
+        "id": "l2",
+        "name": "第二级 (S2A2G2 系统审计保护级)",
+        "note": "一般商用/非关键系统的常见目标。",
+    },
+    {
+        "id": "l3",
+        "name": "第三级 (S3A3G3 安全标记保护级)",
+        "note": "工控关键信息基础设施的常见强制目标。",
+    },
 )
 
 # Accepts l2/l3, 二级/三级, 2/3, level2/level3 — normalized to 'l2'/'l3'.
 _DENGBAO_LEVEL_ALIASES: dict[str, str] = {
-    "l2": "l2", "2": "l2", "二级": "l2", "二": "l2", "level2": "l2", "s2a2g2": "l2",
-    "l3": "l3", "3": "l3", "三级": "l3", "三": "l3", "level3": "l3", "s3a3g3": "l3",
+    "l2": "l2",
+    "2": "l2",
+    "二级": "l2",
+    "二": "l2",
+    "level2": "l2",
+    "s2a2g2": "l2",
+    "l3": "l3",
+    "3": "l3",
+    "三级": "l3",
+    "三": "l3",
+    "level3": "l3",
+    "s3a3g3": "l3",
 }
 
 
@@ -207,12 +223,24 @@ def _normalize_dengbao_level(level: str | None) -> str | None:
 
 # The frameworks iaiops maps its governance posture onto.
 FRAMEWORKS: tuple[dict, ...] = (
-    {"id": "gjzn", "name": "《工控系统网络安全防护指南》",
-     "region": "CN · 工信部", "kind": "指南 / guidance"},
-    {"id": "dengbao", "name": "网络安全等级保护 2.0 (GB/T 22239-2019)",
-     "region": "CN · 强制分级", "kind": "graded scheme"},
-    {"id": "iec62443", "name": "IEC 62443 (IACS 工控信息安全)",
-     "region": "international", "kind": "标准 / standard"},
+    {
+        "id": "gjzn",
+        "name": "《工控系统网络安全防护指南》",
+        "region": "CN · 工信部",
+        "kind": "指南 / guidance",
+    },
+    {
+        "id": "dengbao",
+        "name": "网络安全等级保护 2.0 (GB/T 22239-2019)",
+        "region": "CN · 强制分级",
+        "kind": "graded scheme",
+    },
+    {
+        "id": "iec62443",
+        "name": "IEC 62443 (IACS 工控信息安全)",
+        "region": "international",
+        "kind": "标准 / standard",
+    },
 )
 
 
@@ -224,8 +252,9 @@ def compliance_mapping() -> dict:
     """
     rows = sorted(CONTROLS, key=lambda c: _STATUS_ORDER.get(c["status"], 3))
     rows = [{**c, "crosswalk": _CROSSWALK.get(c["pillar"], {})} for c in rows]
-    summary = {s: sum(1 for c in CONTROLS if c["status"] == s)
-               for s in ("addressed", "partial", "待核实")}
+    summary = {
+        s: sum(1 for c in CONTROLS if c["status"] == s) for s in ("addressed", "partial", "待核实")
+    }
     return {
         "framework": "《工控系统网络安全防护指南》(industrial control system "
         "cybersecurity protection guidance)",
@@ -246,13 +275,15 @@ def compliance_frameworks() -> dict:
     crosswalk = []
     for c in CONTROLS:
         xw = _CROSSWALK.get(c["pillar"], {})
-        crosswalk.append({
-            "pillar": c["pillar"],
-            "gjzn": c["requirement"],
-            "dengbao": xw.get("dengbao", "待核实"),
-            "iec62443": xw.get("iec62443", "待核实"),
-            "iaiops_status": c["status"],
-        })
+        crosswalk.append(
+            {
+                "pillar": c["pillar"],
+                "gjzn": c["requirement"],
+                "dengbao": xw.get("dengbao", "待核实"),
+                "iec62443": xw.get("iec62443", "待核实"),
+                "iaiops_status": c["status"],
+            }
+        )
     return {
         "frameworks": list(FRAMEWORKS),
         "framework_count": len(FRAMEWORKS),

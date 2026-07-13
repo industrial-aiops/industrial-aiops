@@ -34,7 +34,12 @@ MAX_PDO_BYTES = 1024  # bounded process-data snapshot
 
 # EtherCAT AL-state numeric codes ↔ names (SOEM/ETG.1000 values).
 EC_STATE_NAMES: dict[int, str] = {
-    0: "NONE", 1: "INIT", 2: "PREOP", 3: "BOOT", 4: "SAFEOP", 8: "OP",
+    0: "NONE",
+    1: "INIT",
+    2: "PREOP",
+    3: "BOOT",
+    4: "SAFEOP",
+    8: "OP",
 }
 EC_STATE_VALUES: dict[str, int] = {v: k for k, v in EC_STATE_NAMES.items()}
 
@@ -167,12 +172,14 @@ def _sm_config(sl: Any) -> list[dict]:
             length = int(getattr(sm, "sm_length", 0) or 0)
             if start == 0 and length == 0:
                 continue
-            out.append({
-                "index": i,
-                "start_addr": start,
-                "length": length,
-                "flags": int(getattr(sm, "sm_flags", 0) or 0),
-            })
+            out.append(
+                {
+                    "index": i,
+                    "start_addr": start,
+                    "length": length,
+                    "flags": int(getattr(sm, "sm_flags", 0) or 0),
+                }
+            )
     except Exception:  # noqa: BLE001 — SM table is optional/driver-specific
         return out
     return out
@@ -188,12 +195,14 @@ def _fmmu_config(sl: Any) -> list[dict]:
             length = int(getattr(fm, "log_length", 0) or 0)
             if la == 0 and length == 0:
                 continue
-            out.append({
-                "index": i,
-                "log_start": la,
-                "log_length": length,
-                "type": int(getattr(fm, "fmmu_type", 0) or 0),
-            })
+            out.append(
+                {
+                    "index": i,
+                    "log_start": la,
+                    "log_length": length,
+                    "type": int(getattr(fm, "fmmu_type", 0) or 0),
+                }
+            )
     except Exception:  # noqa: BLE001 — FMMU table is optional/driver-specific
         return out
     return out
@@ -211,11 +220,13 @@ def _od_summary(sl: Any) -> list[dict]:
             entries = list(getattr(obj, "entries", []) or [])
         except Exception:  # noqa: BLE001
             entries = []
-        out.append({
-            "index": f"0x{int(getattr(obj, 'index', 0) or 0):04X}",
-            "name": s(getattr(obj, "name", ""), 64),
-            "entry_count": len(entries),
-        })
+        out.append(
+            {
+                "index": f"0x{int(getattr(obj, 'index', 0) or 0):04X}",
+                "name": s(getattr(obj, "name", ""), 64),
+                "entry_count": len(entries),
+            }
+        )
     return out
 
 

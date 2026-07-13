@@ -25,14 +25,25 @@ from iaiops.core.sink.push import historian_push
 def store(tmp_path):
     path = tmp_path / "data.db"
     points = [
-        {"ref": "line1.temp", "value": 21.5, "timestamp": "2026-07-01T00:00:00Z",
-         "quality": "good", "unit": "C"},
-        {"ref": "line1.temp", "value": 23.5, "timestamp": "2026-07-01T01:00:00Z",
-         "quality": "good", "unit": "C"},
+        {
+            "ref": "line1.temp",
+            "value": 21.5,
+            "timestamp": "2026-07-01T00:00:00Z",
+            "quality": "good",
+            "unit": "C",
+        },
+        {
+            "ref": "line1.temp",
+            "value": 23.5,
+            "timestamp": "2026-07-01T01:00:00Z",
+            "quality": "good",
+            "unit": "C",
+        },
         {"ref": "line1.state", "value": "RUNNING"},  # text → export-only, no gauge
     ]
-    assert "error" not in historian_push(points, "sqlite", db_path=path,
-                                         endpoint="plc1", protocol="modbus")
+    assert "error" not in historian_push(
+        points, "sqlite", db_path=path, endpoint="plc1", protocol="modbus"
+    )
     return path
 
 
@@ -41,8 +52,7 @@ def audit_db(tmp_path):
     path = tmp_path / "audit.db"
     conn = sqlite3.connect(str(path))
     conn.execute("CREATE TABLE audit_log (id INTEGER PRIMARY KEY, status TEXT)")
-    conn.executemany("INSERT INTO audit_log (status) VALUES (?)",
-                     [("ok",), ("ok",), ("error",)])
+    conn.executemany("INSERT INTO audit_log (status) VALUES (?)", [("ok",), ("ok",), ("error",)])
     conn.commit()
     conn.close()
     return path
@@ -53,8 +63,9 @@ def test_render_gauges_latest_numeric_only(store, tmp_path):
     text = render_metrics(store, audit_db_path=tmp_path / "no-audit.db")
     assert f"# HELP {GAUGE_NAME}" in text
     assert f"# TYPE {GAUGE_NAME} gauge" in text
-    assert (f'{GAUGE_NAME}{{endpoint="plc1",protocol="modbus",'
-            f'tag="line1.temp",unit="C"}} 23.5') in text
+    assert (
+        f'{GAUGE_NAME}{{endpoint="plc1",protocol="modbus",tag="line1.temp",unit="C"}} 23.5'
+    ) in text
     assert "line1.state" not in text  # text values are not gauges
     assert "iaiops_samples_written_total 3" in text
     assert "iaiops_audit_events_total 0" in text  # missing audit db → 0, no crash
@@ -80,7 +91,9 @@ def test_render_empty_store_is_valid(tmp_path):
 def test_label_escaping(tmp_path):
     path = tmp_path / "data.db"
     historian_push(
-        [{"ref": 'we"ird\\tag\nname', "value": 1.0}], "sqlite", db_path=path,
+        [{"ref": 'we"ird\\tag\nname', "value": 1.0}],
+        "sqlite",
+        db_path=path,
     )
     text = render_metrics(path, audit_db_path=tmp_path / "no-audit.db")
     assert 'tag="we\\"ird\\\\tag\\nname"' in text
@@ -88,8 +101,9 @@ def test_label_escaping(tmp_path):
 
 @pytest.mark.unit
 def test_http_endpoint_smoke(store, tmp_path):
-    server = MetricsServer(host="127.0.0.1", port=0, db_path=store,
-                           audit_db_path=tmp_path / "no-audit.db")
+    server = MetricsServer(
+        host="127.0.0.1", port=0, db_path=store, audit_db_path=tmp_path / "no-audit.db"
+    )
     server.start()
     try:
         url = f"http://127.0.0.1:{server.port}/metrics"

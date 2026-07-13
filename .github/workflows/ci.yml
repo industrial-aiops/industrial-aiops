@@ -63,6 +63,9 @@ jobs:
       - name: ruff check
         run: uv run --no-sync ruff check .
 
+      - name: ruff format (check)
+        run: uv run --no-sync ruff format --check .
+
       # --severity-level medium: bandit exits non-zero on any finding at/above the
       # threshold. The project's gate is "0 Medium+" (the ~40 Low B110 try/except
       # are accepted), so without this it would fail on those Low findings.

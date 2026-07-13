@@ -30,9 +30,7 @@ def opcua_server_info(endpoint: Optional[str] = None) -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("list")
-def opcua_browse(
-    node_id: str = "i=85", endpoint: Optional[str] = None, depth: int = 2
-) -> list:
+def opcua_browse(node_id: str = "i=85", endpoint: Optional[str] = None, depth: int = 2) -> list:
     """[READ][risk=low] Browse the OPC-UA node tree from a node id (bounded depth).
 
     Args:
@@ -167,7 +165,9 @@ def opcua_diagnose_connection(endpoint: Optional[str] = None) -> dict:
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def opcua_discover_tags(
-    endpoint: Optional[str] = None, root: str = "i=85", max_depth: int = 6,
+    endpoint: Optional[str] = None,
+    root: str = "i=85",
+    max_depth: int = 6,
     include_standard: bool = False,
 ) -> dict:
     """[READ][risk=low] Auto-discover OPC-UA tags and build a semantic asset model.

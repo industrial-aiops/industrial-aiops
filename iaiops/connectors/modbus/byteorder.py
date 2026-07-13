@@ -132,9 +132,7 @@ def detect_byte_order(
     width = _TYPE_WIDTH[value_type]
     regs = [int(r) & 0xFFFF for r in registers]
     if len(regs) < width:
-        raise ValueError(
-            f"value_type {value_type!r} needs {width} register(s); got {len(regs)}."
-        )
+        raise ValueError(f"value_type {value_type!r} needs {width} register(s); got {len(regs)}.")
     if hint is None and value_min is None and value_max is None:
         raise ValueError(
             "Provide a 'hint' value and/or a 'value_min'/'value_max' range so the "

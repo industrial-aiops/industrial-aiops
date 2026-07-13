@@ -16,9 +16,14 @@ from iaiops.core.sink.base import SinkError
 class IoTDBSink:
     """Uniform sink over an IoTDB Session (待核实)."""
 
-    def __init__(self, host: str = "localhost", port: int = 6667,
-                 user: str = "root", password: str = "root",
-                 database: str = "root.iaiops") -> None:
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 6667,
+        user: str = "root",
+        password: str = "root",
+        database: str = "root.iaiops",
+    ) -> None:
         self._host = host
         self._port = int(port or 6667)
         self._user = user

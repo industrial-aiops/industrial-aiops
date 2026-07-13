@@ -7,8 +7,9 @@ import typer
 from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.hart import ops
 
-hart_app = typer.Typer(help="HART-IP read-only process-instrumentation telemetry.",
-                       no_args_is_help=True)
+hart_app = typer.Typer(
+    help="HART-IP read-only process-instrumentation telemetry.", no_args_is_help=True
+)
 
 
 @hart_app.command("identity")

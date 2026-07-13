@@ -50,10 +50,16 @@ def uns_topic_audit(
     depths = [len(parts) for parts in segs]
     roots = {parts[0] for parts in segs if parts}
 
-    bad_root = sorted({s(parts[0], 64) for parts in segs
-                       if allowed_roots and parts and parts[0] not in allowed_roots})
-    too_shallow = sorted({s(SEP.join(parts), 200) for parts in segs
-                          if len(parts) < max(0, int(min_segments))})
+    bad_root = sorted(
+        {
+            s(parts[0], 64)
+            for parts in segs
+            if allowed_roots and parts and parts[0] not in allowed_roots
+        }
+    )
+    too_shallow = sorted(
+        {s(SEP.join(parts), 200) for parts in segs if len(parts) < max(0, int(min_segments))}
+    )
     casing = _casing_collisions(segs)
     scattered = _scattered_leaves(segs, max_leaf_parents)
     deep = _depth_outliers(raw, depths)
@@ -75,7 +81,8 @@ def uns_topic_audit(
         "root_count": len(roots),
         "roots": sorted(s(r, 64) for r in roots)[:50],
         "depth": {
-            "min": min(depths), "max": max(depths),
+            "min": min(depths),
+            "max": max(depths),
             "mean": round(statistics.fmean(depths), 2),
         },
         "verdict": verdict,
@@ -98,8 +105,10 @@ def uns_schema_drift(baseline: Any, current: Any) -> dict:
     base = _normalize_schema(baseline)
     curr = _normalize_schema(current)
     if base is None or curr is None:
-        return {"error": "baseline/current must be {node:{metric:datatype}} or "
-                "[{node, metrics:[{name, datatype}]}]."}
+        return {
+            "error": "baseline/current must be {node:{metric:datatype}} or "
+            "[{node, metrics:[{name, datatype}]}]."
+        }
 
     node_changes: list[dict] = []
     breaking = additive = False
@@ -115,15 +124,19 @@ def uns_schema_drift(baseline: Any, current: Any) -> dict:
             breaking = True
         if added or node not in base:
             additive = True
-        node_changes.append({
-            "node": s(node, 128),
-            "node_status": "added" if node not in base else
-            ("removed" if node not in curr else "modified"),
-            "added": [s(m, 96) for m in added],
-            "removed": [s(m, 96) for m in removed],
-            "type_changed": [{"metric": s(m, 96), "from": s(b[m], 32), "to": s(c[m], 32)}
-                             for m in changed],
-        })
+        node_changes.append(
+            {
+                "node": s(node, 128),
+                "node_status": "added"
+                if node not in base
+                else ("removed" if node not in curr else "modified"),
+                "added": [s(m, 96) for m in added],
+                "removed": [s(m, 96) for m in removed],
+                "type_changed": [
+                    {"metric": s(m, 96), "from": s(b[m], 32), "to": s(c[m], 32)} for m in changed
+                ],
+            }
+        )
 
     verdict = "breaking" if breaking else ("additive" if additive else "none")
     return {
@@ -148,7 +161,8 @@ def _casing_collisions(segs: list[list[str]]) -> list[str]:
             by_lower.setdefault(p.lower(), set()).add(p)
     return sorted(
         f"{lower}: {sorted(s(v, 48) for v in variants)}"
-        for lower, variants in by_lower.items() if len(variants) > 1
+        for lower, variants in by_lower.items()
+        if len(variants) > 1
     )
 
 
@@ -160,7 +174,8 @@ def _scattered_leaves(segs: list[list[str]], max_parents: int) -> list[str]:
             parents.setdefault(parts[-1], set()).add(parts[-2])
     return sorted(
         f"{s(leaf, 64)} under {len(ps)} parents"
-        for leaf, ps in parents.items() if len(ps) > max(1, int(max_parents))
+        for leaf, ps in parents.items()
+        if len(ps) > max(1, int(max_parents))
     )
 
 

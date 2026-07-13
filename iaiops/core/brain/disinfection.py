@@ -50,25 +50,43 @@ def _grade(point: dict, global_required: float | None) -> dict | None:
     residual = point.get("free_chlorine_mg_l", point.get("residual_mg_l"))
     t10 = point.get("contact_time_min", point.get("t10_min"))
     if not isinstance(residual, (int, float)) or not isinstance(t10, (int, float)):
-        return {"location": location, "achievedCt": None, "requiredCt": None,
-                "ctRatio": None, "status": "no_data",
-                "detail": "missing free_chlorine_mg_l or contact_time_min"}
+        return {
+            "location": location,
+            "achievedCt": None,
+            "requiredCt": None,
+            "ctRatio": None,
+            "status": "no_data",
+            "detail": "missing free_chlorine_mg_l or contact_time_min",
+        }
     baffle = point.get("baffle_factor", 1.0)
     baffle = float(baffle) if isinstance(baffle, (int, float)) else 1.0
     achieved = round(float(residual) * float(t10) * baffle, 3)
 
     required = point.get("required_ct", global_required)
     if not isinstance(required, (int, float)) or required <= 0:
-        return {"location": location, "achievedCt": achieved, "requiredCt": None,
-                "ctRatio": None, "status": "no_target",
-                "detail": f"achieved CT {achieved} mg·min/L; no required_ct supplied to judge it"}
+        return {
+            "location": location,
+            "achievedCt": achieved,
+            "requiredCt": None,
+            "ctRatio": None,
+            "status": "no_target",
+            "detail": f"achieved CT {achieved} mg·min/L; no required_ct supplied to judge it",
+        }
 
     ratio = round(achieved / float(required), 3)
     status = "adequate" if ratio >= 1.0 else "insufficient"
-    detail = (f"achieved CT {achieved} vs required {required} mg·min/L "
-              f"(ratio {ratio}) — {'meets' if status == 'adequate' else 'BELOW'} the credit")
-    return {"location": location, "achievedCt": achieved, "requiredCt": float(required),
-            "ctRatio": ratio, "status": status, "detail": detail}
+    detail = (
+        f"achieved CT {achieved} vs required {required} mg·min/L "
+        f"(ratio {ratio}) — {'meets' if status == 'adequate' else 'BELOW'} the credit"
+    )
+    return {
+        "location": location,
+        "achievedCt": achieved,
+        "requiredCt": float(required),
+        "ctRatio": ratio,
+        "status": status,
+        "detail": detail,
+    }
 
 
 __all__ = ["disinfection_ct", "MAX_ROWS"]

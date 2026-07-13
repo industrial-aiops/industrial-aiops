@@ -62,7 +62,13 @@ def downtime_triage(
     echoed under ``cascade`` / ``rca`` / ``precursor_forecasts`` for drill-down.
     """
     rca = downtime_rca(
-        window, alarms, tags, dataflow, state_series, lead_window_s, cause_weights,
+        window,
+        alarms,
+        tags,
+        dataflow,
+        state_series,
+        lead_window_s,
+        cause_weights,
         historian=historian,
     )
     cascade = alarm_cascade(alarms or [], window_s=cascade_window_s)
@@ -96,19 +102,23 @@ def _forecast_precursors(precursors: list[dict] | None, imminent_within_s: float
             continue
         fc = pdm_forecast(
             p["series"],
-            warn_high=p.get("warn_high"), alarm_high=p.get("alarm_high"),
-            warn_low=p.get("warn_low"), alarm_low=p.get("alarm_low"),
+            warn_high=p.get("warn_high"),
+            alarm_high=p.get("alarm_high"),
+            warn_low=p.get("warn_low"),
+            alarm_low=p.get("alarm_low"),
             imminent_within_s=imminent_within_s,
         )
         if fc.get("status") in _PRECURSOR_STATUSES:
-            flagged.append({
-                "signal": p.get("signal"),
-                "status": fc.get("status"),
-                "direction": fc.get("direction"),
-                "eta_to_limit": fc.get("eta_to_limit"),
-                "unit": fc.get("unit"),
-                "limit": fc.get("limit"),
-            })
+            flagged.append(
+                {
+                    "signal": p.get("signal"),
+                    "status": fc.get("status"),
+                    "direction": fc.get("direction"),
+                    "eta_to_limit": fc.get("eta_to_limit"),
+                    "unit": fc.get("unit"),
+                    "limit": fc.get("limit"),
+                }
+            )
     flagged.sort(key=lambda f: (f["status"] != "imminent", _eta_key(f)))
     return flagged
 
@@ -170,16 +180,20 @@ def _cross_check(first_look: dict | None, rca: dict) -> dict:
     source = str(first_look["source"])
     cause = primary.get("cause")
     if source in cited:
-        return {"status": "corroborated",
-                "detail": f"First-out alarm '{source}' is cited by RCA cause '{cause}'."}
-    return {"status": "diverging",
-            "detail": f"First-out alarm '{source}' is not among RCA cause '{cause}' evidence."}
+        return {
+            "status": "corroborated",
+            "detail": f"First-out alarm '{source}' is cited by RCA cause '{cause}'.",
+        }
+    return {
+        "status": "diverging",
+        "detail": f"First-out alarm '{source}' is not among RCA cause '{cause}' evidence.",
+    }
 
 
 def _evidence_strings(hypothesis: dict | None) -> set[str]:
     """Collect the ref/signal strings a hypothesis cites, for the cross-check."""
     cited: set[str] = set()
-    for ev in ((hypothesis or {}).get("evidence") or []):
+    for ev in (hypothesis or {}).get("evidence") or []:
         for key in ("ref", "signal", "source"):
             value = ev.get(key)
             if value:

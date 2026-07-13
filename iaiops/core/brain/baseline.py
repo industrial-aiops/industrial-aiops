@@ -32,13 +32,13 @@ from typing import Any
 from iaiops.core.brain._shared import num, s
 from iaiops.core.brain.diagnostics import _parse_ts
 
-DEFAULT_MIN_SAMPLES = 100      # below this many usable samples ⇒ refuse to learn
+DEFAULT_MIN_SAMPLES = 100  # below this many usable samples ⇒ refuse to learn
 DEFAULT_MIN_SPAN_S = 86_400.0  # below this history span (1 day) ⇒ refuse to learn
-DEFAULT_MARGIN_MAD = 3.0       # violation only beyond p1/p99 by > this × MAD
-DEFAULT_SUSTAIN_N = 3          # ...AND for at least this many consecutive samples
-MAX_SAMPLES = 100_000          # hard input bound (pure fn still bounds its work)
-MAX_VIOLATIONS = 10            # violations reported per check (bounded output)
-MAX_CITED_SAMPLES = 20         # offending samples cited per violation (bounded)
+DEFAULT_MARGIN_MAD = 3.0  # violation only beyond p1/p99 by > this × MAD
+DEFAULT_SUSTAIN_N = 3  # ...AND for at least this many consecutive samples
+MAX_SAMPLES = 100_000  # hard input bound (pure fn still bounds its work)
+MAX_VIOLATIONS = 10  # violations reported per check (bounded output)
+MAX_CITED_SAMPLES = 20  # offending samples cited per violation (bounded)
 
 # Statuses a tag can be in — the vocabulary `baseline_status` never guesses past.
 STATUS_NO_BASELINE = "no_baseline"
@@ -206,9 +206,7 @@ def _span_s(rows: list[dict]) -> float:
     return round((rows[-1]["_dt"] - rows[0]["_dt"]).total_seconds(), 3)
 
 
-def _whats_missing(
-    rows: list[dict], span: float, min_samples: int, min_span_s: float
-) -> list[str]:
+def _whats_missing(rows: list[dict], span: float, min_samples: int, min_span_s: float) -> list[str]:
     """Explicit, teaching list of what the history still lacks (refusal detail)."""
     missing: list[str] = []
     if len(rows) < min_samples:
@@ -321,9 +319,7 @@ def _validate_baseline(baseline: Any) -> tuple[dict, dict, str]:
     return citation["band"], citation, s(baseline.get("tag", ""), 128)
 
 
-def _sustained_runs(
-    rows: list[dict], low: float, high: float, sustain_n: int
-) -> list[list[dict]]:
+def _sustained_runs(rows: list[dict], low: float, high: float, sustain_n: int) -> list[list[dict]]:
     """Consecutive out-of-band runs of length >= sustain_n (same direction)."""
     runs: list[list[dict]] = []
     current: list[dict] = []
@@ -347,9 +343,7 @@ def _flush_run(runs: list[list[dict]], current: list[dict], sustain_n: int) -> N
         runs.append(list(current))
 
 
-def _cite_violation(
-    run: list[dict], band: dict, citation: dict, low: float, high: float
-) -> dict:
+def _cite_violation(run: list[dict], band: dict, citation: dict, low: float, high: float) -> dict:
     """One fully-cited violation: baseline window + band + offending samples."""
     above = run[0]["value"] > high
     return {

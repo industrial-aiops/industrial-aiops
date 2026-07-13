@@ -23,25 +23,36 @@ from iaiops.core.runtime.connection import OTConnectionError, _build_opcua_clien
 # remediation). First match wins, so order most-specific → most-generic.
 _RULES: list[tuple[Any, str, str, str]] = [
     (
-        lambda n, d, e: "certificateuntrusted" in d or "securitychecksfailed" in d
-        or "badcertificate" in n.lower() or "certificate" in d,
+        lambda n, d, e: (
+            "certificateuntrusted" in d
+            or "securitychecksfailed" in d
+            or "badcertificate" in n.lower()
+            or "certificate" in d
+        ),
         "certificate",
         "The server rejected this client's certificate (not in its trust list).",
         "Add this client's certificate to the server's trusted-clients store, or "
         "bootstrap with SecurityPolicy=None to connect first, then provision trust.",
     ),
     (
-        lambda n, d, e: "useraccessdenied" in d or "identitytoken" in d
-        or "baduseraccess" in n.lower(),
+        lambda n, d, e: (
+            "useraccessdenied" in d or "identitytoken" in d or "baduseraccess" in n.lower()
+        ),
         "auth",
         "Authentication was rejected (bad user/password or required identity).",
         "Check the username and the stored password (see 'iaiops doctor'); the "
         "server may require a user or a certificate identity rather than anonymous.",
     ),
     (
-        lambda n, d, e: "securitypolicy" in d or "securitymode" in d
-        or "moderejected" in d or "policyid" in d or "nomatchingendpoint" in d
-        or "no matching endpoint" in d or "connectionrejected" in d,
+        lambda n, d, e: (
+            "securitypolicy" in d
+            or "securitymode" in d
+            or "moderejected" in d
+            or "policyid" in d
+            or "nomatchingendpoint" in d
+            or "no matching endpoint" in d
+            or "connectionrejected" in d
+        ),
         "security_policy",
         "Security policy / message-security-mode mismatch with the server endpoint.",
         "Match the endpoint's SecurityPolicy and mode (e.g. the server requires "
@@ -55,16 +66,24 @@ _RULES: list[tuple[Any, str, str, str]] = [
         "check the endpoint_url path after the port.",
     ),
     (
-        lambda n, d, e: isinstance(e, socket.gaierror) or "getaddrinfo" in d
-        or "name or service not known" in d or "nodename nor servname" in d,
+        lambda n, d, e: (
+            isinstance(e, socket.gaierror)
+            or "getaddrinfo" in d
+            or "name or service not known" in d
+            or "nodename nor servname" in d
+        ),
         "dns",
         "The host name in endpoint_url did not resolve.",
         "Fix the hostname/IP in endpoint_url (opc.tcp://HOST:4840), or add a DNS / "
         "hosts entry the gateway can resolve.",
     ),
     (
-        lambda n, d, e: isinstance(e, TimeoutError) or "timed out" in d
-        or "timeout" in d or "timeout" in n.lower(),
+        lambda n, d, e: (
+            isinstance(e, TimeoutError)
+            or "timed out" in d
+            or "timeout" in d
+            or "timeout" in n.lower()
+        ),
         "firewall_timeout",
         "No response before timeout — a firewall is likely dropping the connection.",
         "Open the OPC-UA port through OT/DMZ firewalls and confirm the host is "

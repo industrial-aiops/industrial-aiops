@@ -27,8 +27,23 @@ _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # ── renewables (solar PV / wind) — FIRST: specific classes that would otherwise be shadowed
     # by greedy generic hints (e.g. "_sp" of setpoint matches "_speed"). Hints are specific enough
     # not to false-match non-renewables tags. Grid/substation telecontrol lives in iaiops-energy.
-    ("irradiance", ("irradiance", "irradiation", "_ghi", "ghi_", "_dni", "dni_",
-                    "_poa", "poa_", "辐照", "w/m2", "w/m²", "wm2")),
+    (
+        "irradiance",
+        (
+            "irradiance",
+            "irradiation",
+            "_ghi",
+            "ghi_",
+            "_dni",
+            "dni_",
+            "_poa",
+            "poa_",
+            "辐照",
+            "w/m2",
+            "w/m²",
+            "wm2",
+        ),
+    ),
     ("wind_speed", ("wind_speed", "windspeed", "风速", "_ws_")),
     ("rotor_speed", ("rotor_speed", "rotorspeed", "转子转速", "generator_speed", "rpm_rotor")),
     ("pitch_angle", ("pitch_angle", "blade_pitch", "桨距", "_pitch_", "pitch_deg")),
@@ -41,40 +56,51 @@ _CLASS_HINTS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # Guarded like pH: bare "do"/"tmp"/"orp" are ambiguous (cool_down, temperature
     # abbreviations, torpedo…), so hints require underscore context or the full
     # word — honest 'other' beats a confident-but-wrong class.
-    ("dissolved_oxygen",
-     ("dissolved_oxygen", "dissolvedoxygen", "溶解氧", "do_", "_do_")),
+    ("dissolved_oxygen", ("dissolved_oxygen", "dissolvedoxygen", "溶解氧", "do_", "_do_")),
     ("orp", ("_orp", "orp_", "oxidation_reduction", "redox", "氧化还原")),
-    ("chlorine", ("chlorine", "余氯", "总氯", "hypochlor", "_cl2", "cl2_",
-                  "free_cl", "total_cl")),
+    ("chlorine", ("chlorine", "余氯", "总氯", "hypochlor", "_cl2", "cl2_", "free_cl", "total_cl")),
     ("ammonia", ("ammonia", "氨氮", "nh3", "_nh4", "nh4_")),
-    ("suspended_solids", ("suspended_solids", "suspendedsolids", "悬浮物",
-                          "_tss", "tss_", "mlss", "_ss_")),
+    (
+        "suspended_solids",
+        ("suspended_solids", "suspendedsolids", "悬浮物", "_tss", "tss_", "mlss", "_ss_"),
+    ),
     # Transmembrane pressure (跨膜压差, membrane filtration). Bare "tmp" is a
     # common PLC abbreviation for temperature, so it is only matched alongside
     # membrane context — must precede the generic 'pressure' class.
-    ("membrane_pressure", ("跨膜压差", "transmembrane", "trans_membrane",
-                           "membrane_press", "membranepress", "tmp_membrane",
-                           "membrane_tmp")),
-    ("uv_intensity", ("uv_intensity", "uvintensity", "uv_dose", "_uvi", "uvi_",
-                      "紫外")),
+    (
+        "membrane_pressure",
+        (
+            "跨膜压差",
+            "transmembrane",
+            "trans_membrane",
+            "membrane_press",
+            "membranepress",
+            "tmp_membrane",
+            "membrane_tmp",
+        ),
+    ),
+    ("uv_intensity", ("uv_intensity", "uvintensity", "uv_dose", "_uvi", "uvi_", "紫外")),
     # water-plant equipment (dosing/加药 metering pumps, aeration blowers/曝气风机)
     ("dosing", ("dosing", "加药", "metering_pump")),
     ("aeration", ("aeration", "曝气", "blower", "风机")),
     # ── physical quantities (specific units help disambiguate) ──
-    ("temperature",
-     ("temp", "temperature", "_t_", "degc", "degf", "°c", "°f", "celsius", "fahrenheit")),
+    (
+        "temperature",
+        ("temp", "temperature", "_t_", "degc", "degf", "°c", "°f", "celsius", "fahrenheit"),
+    ),
     ("humidity", ("humidity", "humid", "_rh", "rh_", "rh%", "%rh", "dewpoint", "dew_point")),
     ("pressure", ("press", "pressure", "_p_", "bar", "psi", "kpa", "mbar", "mmhg", "torr")),
-    ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h", "m³/h", "m3/h", "scfm", "cfm", "nm3",
-              "流量")),
+    ("flow", ("flow", "_fl_", "lpm", "gpm", "m3h", "m³/h", "m3/h", "scfm", "cfm", "nm3", "流量")),
     ("level", ("level", "_lv_", "tanklvl", "ullage", "液位")),
     # no bare "conduct" — it false-matches Conductor*; "conductivity" already covers it.
     ("conductivity", ("conductivity", "_ec_", "_ec", "us/cm", "µs/cm", "ms/cm")),
     ("ph", ("_ph", "ph_", "phval", "ph_value", "potential_hydrogen")),
     # "_ntu" (not bare "ntu") so it doesn't match incidental words (e.g. Adventure).
     ("turbidity", ("turbidity", "turbid", "_ntu", "ntu_", "_fnu", "nephelo")),
-    ("density", ("density", "densit", "kg/m3", "g/cm3", "g/ml", "specificgravity",
-                 "specific_gravity")),
+    (
+        "density",
+        ("density", "densit", "kg/m3", "g/cm3", "g/ml", "specificgravity", "specific_gravity"),
+    ),
     # frequency (VFD/line Hz) is split OUT of speed so a drive's output frequency
     # and a motor's RPM are distinct quantities (frequency-vs-speed disambiguation).
     ("frequency", ("frequency", "freq", "hz", "hertz")),

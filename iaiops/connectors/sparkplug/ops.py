@@ -44,11 +44,28 @@ _SEQ_MOD = 256  # Sparkplug B seq is an unsigned 8-bit rolling counter
 
 # Sparkplug B DataType enum value → name (Eclipse Tahu sparkplug_b.proto).
 _DATATYPE_NAMES = {
-    0: "Unknown", 1: "Int8", 2: "Int16", 3: "Int32", 4: "Int64",
-    5: "UInt8", 6: "UInt16", 7: "UInt32", 8: "UInt64", 9: "Float",
-    10: "Double", 11: "Boolean", 12: "String", 13: "DateTime", 14: "Text",
-    15: "UUID", 16: "DataSet", 17: "Bytes", 18: "File", 19: "Template",
-    20: "PropertySet", 21: "PropertySetList",
+    0: "Unknown",
+    1: "Int8",
+    2: "Int16",
+    3: "Int32",
+    4: "Int64",
+    5: "UInt8",
+    6: "UInt16",
+    7: "UInt32",
+    8: "UInt64",
+    9: "Float",
+    10: "Double",
+    11: "Boolean",
+    12: "String",
+    13: "DateTime",
+    14: "Text",
+    15: "UUID",
+    16: "DataSet",
+    17: "Bytes",
+    18: "File",
+    19: "Template",
+    20: "PropertySet",
+    21: "PropertySetList",
 }
 
 # Signed DataType enum value → bit width. Per the Sparkplug B spec, signed
@@ -308,9 +325,15 @@ class _SparkplugModel:
                 "host_id": parsed["host_id"],
                 "state": s(_state_payload(payload), 32),
             }
-            return {"topic": s(topic, 128), "sparkplug": parsed, "payload": {
-                "encoding": "state", "host_id": parsed["host_id"],
-                "state": s(_state_payload(payload), 32)}}
+            return {
+                "topic": s(topic, 128),
+                "sparkplug": parsed,
+                "payload": {
+                    "encoding": "state",
+                    "host_id": parsed["host_id"],
+                    "state": s(_state_payload(payload), 32),
+                },
+            }
 
         node = self._node(parsed)
         decoded = decode_sparkplug_payload(payload, node["alias_map"])
@@ -412,8 +435,7 @@ def mqtt_read_topic(
         "topic": s(topic or getattr(target, "topic", "") or "#", 128),
         "message_count": len(msgs),
         "messages": [
-            {"topic": s(m["topic"], 128), "payload": _decode_payload(m["payload"])}
-            for m in msgs
+            {"topic": s(m["topic"], 128), "payload": _decode_payload(m["payload"])} for m in msgs
         ],
     }
 
@@ -430,8 +452,11 @@ def sparkplug_subscribe_sample(
     for m in msgs:
         sample = model.apply(m["topic"], m["payload"])
         if sample is None:
-            sample = {"topic": s(m["topic"], 128), "sparkplug": None,
-                      "payload": _decode_payload(m["payload"])}
+            sample = {
+                "topic": s(m["topic"], 128),
+                "sparkplug": None,
+                "payload": _decode_payload(m["payload"]),
+            }
         historical += sample["payload"].get("historical_count", 0) or 0
         samples.append(sample)
     seq_gaps = sum(n["seq_gap_count"] for n in model.node_summaries())
@@ -445,8 +470,9 @@ def sparkplug_subscribe_sample(
     }
 
 
-def sparkplug_decode_payload(payload: str, encoding: str = "base64",
-                             alias_map: dict | None = None) -> dict:
+def sparkplug_decode_payload(
+    payload: str, encoding: str = "base64", alias_map: dict | None = None
+) -> dict:
     """[READ] Decode a single raw Sparkplug B payload string to structured metrics.
 
     ``payload`` is the raw protobuf bytes encoded as ``base64`` (default) or

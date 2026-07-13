@@ -53,8 +53,7 @@ def fins_cpu_status(target: Any) -> dict:
     }
 
 
-def fins_read_words(target: Any, area: str = "DM", address: int = 0,
-                    count: int = 1) -> dict:
+def fins_read_words(target: Any, area: str = "DM", address: int = 0, count: int = 1) -> dict:
     """[READ] MEMORY AREA READ (0101): ``count`` 16-bit words from ``area``."""
     spec = resolve_area(area)
     count = _clamp(count, MAX_WORDS)
@@ -70,8 +69,9 @@ def fins_read_words(target: Any, area: str = "DM", address: int = 0,
     }
 
 
-def fins_read_bits(target: Any, area: str = "CIO", address: int = 0,
-                   bit: int = 0, count: int = 1) -> dict:
+def fins_read_bits(
+    target: Any, area: str = "CIO", address: int = 0, bit: int = 0, count: int = 1
+) -> dict:
     """[READ] MEMORY AREA READ (0101, bit codes): ``count`` bits from word.bit."""
     spec = resolve_area(area, bit_access=True)
     count = _clamp(count, MAX_BITS)
@@ -106,27 +106,32 @@ def fins_read_many(target: Any, items: list | None = None) -> dict:
                 "{'area': 'DM', 'address': 100, 'count': 2}."
             )
         spec = resolve_area(item.get("area", "DM"))
-        parsed.append((
-            spec.name,
-            int(item.get("address", 0)),
-            _clamp(int(item.get("count", 1)), MAX_WORDS),
-        ))
+        parsed.append(
+            (
+                spec.name,
+                int(item.get("address", 0)),
+                _clamp(int(item.get("count", 1)), MAX_WORDS),
+            )
+        )
     reads: list[dict] = []
     with fins_session(target) as client:
         for name, address, count in parsed:
             code = resolve_area(name).word_code
             words = client.read_words(code, address, count)
-            reads.append({
-                "area": name,
-                "address": address,
-                "count": count,
-                "words": [int(v) for v in words[:count]],
-            })
+            reads.append(
+                {
+                    "area": name,
+                    "address": address,
+                    "count": count,
+                    "words": [int(v) for v in words[:count]],
+                }
+            )
     return {"endpoint": s(target.name, 64), "reads": reads}
 
 
-def fins_write_words(target: Any, area: str, address: int, values: list[int], *,
-                     dry_run: bool = True) -> dict:
+def fins_write_words(
+    target: Any, area: str, address: int, values: list[int], *, dry_run: bool = True
+) -> dict:
     """[WRITE][HIGH RISK] MEMORY AREA WRITE (0102): words starting at address.
 
     OT-dangerous. Captures the BEFORE values (read-back of the same range) so
@@ -140,8 +145,7 @@ def fins_write_words(target: Any, area: str, address: int, values: list[int], *,
         return {"endpoint": s(target.name, 64), "error": "No values to write."}
     with fins_session(target) as client:
         try:
-            before = [int(v) for v in
-                      client.read_words(spec.word_code, address, len(vals))]
+            before = [int(v) for v in client.read_words(spec.word_code, address, len(vals))]
             read_error = ""
         except Exception as exc:  # noqa: BLE001 — record the read-back failure
             before = []

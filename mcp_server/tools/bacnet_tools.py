@@ -55,8 +55,11 @@ def bacnet_object_list(address: str, device_id: int, endpoint: Optional[str] = N
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def bacnet_read_property(
-    address: str, object_type: str, instance: int,
-    bacnet_property: str = "presentValue", endpoint: Optional[str] = None,
+    address: str,
+    object_type: str,
+    instance: int,
+    bacnet_property: str = "presentValue",
+    endpoint: Optional[str] = None,
 ) -> dict:
     """[READ][risk=low] Read one property of one BACnet object (default presentValue).
 
@@ -103,8 +106,12 @@ def bacnet_read_points(address: str, device_id: int, endpoint: Optional[str] = N
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def bacnet_cov_subscribe(
-    address: str, object_type: str, instance: int,
-    max_notifications: int = 20, timeout_s: int = 30, lifetime_s: int = 300,
+    address: str,
+    object_type: str,
+    instance: int,
+    max_notifications: int = 20,
+    timeout_s: int = 30,
+    lifetime_s: int = 300,
     endpoint: Optional[str] = None,
 ) -> dict:
     """[READ][risk=low] Bounded Change-of-Value capture for one BACnet object.
@@ -130,8 +137,13 @@ def bacnet_cov_subscribe(
         instance=1, max_notifications=5, timeout_s=20, endpoint="ahu-net").
     """
     return ops.bacnet_cov_subscribe(
-        _target(endpoint), address, object_type, instance,
-        max_notifications, timeout_s, lifetime_s,
+        _target(endpoint),
+        address,
+        object_type,
+        instance,
+        max_notifications,
+        timeout_s,
+        lifetime_s,
     )
 
 
@@ -139,7 +151,10 @@ def bacnet_cov_subscribe(
 @governed_tool(risk_level="low")
 @tool_errors("dict")
 def bacnet_read_trend_log(
-    address: str, instance: int, count: int = 100, newest_first: bool = True,
+    address: str,
+    instance: int,
+    count: int = 100,
+    newest_first: bool = True,
     endpoint: Optional[str] = None,
 ) -> dict:
     """[READ][risk=low] Read buffered records from a device's BACnet TrendLog object.
@@ -160,9 +175,7 @@ def bacnet_read_trend_log(
     Example: bacnet_read_trend_log(address="192.168.1.10", instance=1, count=50,
         endpoint="ahu-net").
     """
-    return ops.bacnet_read_trend_log(
-        _target(endpoint), address, instance, count, newest_first
-    )
+    return ops.bacnet_read_trend_log(_target(endpoint), address, instance, count, newest_first)
 
 
 def _bacnet_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
@@ -230,7 +243,13 @@ def bacnet_write_property(
         object_type="analogOutput", instance=1, value=21.0, priority=8).
     """
     return ops.bacnet_write_property(
-        _target(endpoint), address, object_type, instance, value,
-        priority=priority, bacnet_property=bacnet_property,
-        relinquish=relinquish, dry_run=dry_run,
+        _target(endpoint),
+        address,
+        object_type,
+        instance,
+        value,
+        priority=priority,
+        bacnet_property=bacnet_property,
+        relinquish=relinquish,
+        dry_run=dry_run,
     )

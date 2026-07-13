@@ -68,9 +68,7 @@ def uns_live_audit(
     recording what the live window actually saw.
     """
     capture = _capture_topics(target, topic or "#", max_msgs, duration_s)
-    audit = uns.uns_topic_audit(
-        capture["topics"], allowed_roots, min_segments, max_leaf_parents
-    )
+    audit = uns.uns_topic_audit(capture["topics"], allowed_roots, min_segments, max_leaf_parents)
     return {**audit, "capture": capture}
 
 

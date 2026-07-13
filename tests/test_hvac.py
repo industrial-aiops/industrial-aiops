@@ -22,7 +22,7 @@ def test_each_fault_classified():
     assert faults["AHU-2"] == "not_economizing"
     assert faults["AHU-3"] == "economizing_when_locked_out"
     assert faults["AHU-4"] == "simultaneous_heat_cool"
-    assert "AHU-1" not in faults                       # ok — not a fault
+    assert "AHU-1" not in faults  # ok — not a fault
 
 
 @pytest.mark.unit
@@ -42,7 +42,7 @@ def test_no_oat_is_no_data():
 def test_tool_is_building_edition_module_and_runs():
     assert "building_tools" not in BRAIN_MODULES
     assert "building_tools" in selected_tool_modules("building")
-    assert "building_tools" not in selected_tool_modules("bacnet")   # bare protocol
+    assert "building_tools" not in selected_tool_modules("bacnet")  # bare protocol
     assert getattr(economizer_check_tool, "_is_governed_tool", False) is True
     out = economizer_check_tool(units=_UNITS)
     assert "error" not in out and out["fault_count"] == 3
@@ -51,10 +51,10 @@ def test_tool_is_building_edition_module_and_runs():
 # ── zone_comfort ─────────────────────────────────────────────────────────────
 
 _ZONES = [
-    {"zone": "Z1", "temp_c": 22, "humidity_pct": 45, "co2_ppm": 800},    # comfortable
-    {"zone": "Z2", "temp_c": 28, "humidity_pct": 45, "co2_ppm": 800},    # temp high
-    {"zone": "Z3", "temp_c": 22, "humidity_pct": 45, "co2_ppm": 1400},   # CO2 high
-    {"zone": "Z4", "temp_c": 22, "humidity_pct": 20, "co2_ppm": 800},    # RH low
+    {"zone": "Z1", "temp_c": 22, "humidity_pct": 45, "co2_ppm": 800},  # comfortable
+    {"zone": "Z2", "temp_c": 28, "humidity_pct": 45, "co2_ppm": 800},  # temp high
+    {"zone": "Z3", "temp_c": 22, "humidity_pct": 45, "co2_ppm": 1400},  # CO2 high
+    {"zone": "Z4", "temp_c": 22, "humidity_pct": 20, "co2_ppm": 800},  # RH low
 ]
 
 

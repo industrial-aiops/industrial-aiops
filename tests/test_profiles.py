@@ -77,6 +77,7 @@ def test_selected_modules_include_brain_by_default():
 
 # ── B3: brain-only selection + brain opt-out ────────────────────────────────────
 
+
 def test_brain_selection_resolves_to_zero_protocols():
     assert resolve_selection("brain") == []
 
@@ -108,6 +109,7 @@ def test_brain_disabled_env_parsing():
 
 # ── menu ────────────────────────────────────────────────────────────────────────
 
+
 def test_menu_text_lists_profiles_protocols_counts_examples():
     text = menu_text()
     for name in ("all", "brain", "fab", "factory", "process", "building", "water"):
@@ -133,15 +135,18 @@ def test_selection_tool_counts_are_consistent():
 
 # ── fresh-process registration behavior ─────────────────────────────────────────
 
+
 def _run_server(env_overrides: dict[str, str], code: str) -> subprocess.CompletedProcess:
     """Run ``code`` in a fresh interpreter with a controlled IAIOPS_MCP* env."""
     import os
 
-    env = {k: v for k, v in os.environ.items()
-           if k not in ("IAIOPS_MCP", NO_BRAIN_ENV)}
+    env = {k: v for k, v in os.environ.items() if k not in ("IAIOPS_MCP", NO_BRAIN_ENV)}
     env.update(env_overrides)
     return subprocess.run(  # noqa: S603 — test fixture, fixed argv
-        [sys.executable, "-c", code], env=env, capture_output=True, text=True,
+        [sys.executable, "-c", code],
+        env=env,
+        capture_output=True,
+        text=True,
         timeout=120,
     )
 

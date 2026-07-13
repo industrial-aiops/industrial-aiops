@@ -54,7 +54,15 @@ _log = logging.getLogger("iaiops.core.runtime.config")
 # driver backed by the OPTIONAL ``pysoem`` extra (Linux + root/CAP_NET_RAW + a
 # dedicated NIC + real slaves; no software simulator) — see iaiops.connectors.ethercat.ops.
 SUPPORTED_PROTOCOLS = (
-    "opcua", "modbus", "s7", "mc", "mtconnect", "mqtt", "ethernetip", "eip", "ethercat",
+    "opcua",
+    "modbus",
+    "s7",
+    "mc",
+    "mtconnect",
+    "mqtt",
+    "ethernetip",
+    "eip",
+    "ethercat",
     "secsgem",  # host-side SECS/GEM (was registered everywhere else but missing here)
     "profinet",
     # Building edition (read-only): BACnet/IP (facility / HVAC / 厂务).
@@ -111,8 +119,7 @@ def _check_dir_permissions() -> None:
         mode = CONFIG_DIR.stat().st_mode
         if mode & (stat.S_IRWXG | stat.S_IRWXO):
             _log.warning(
-                "Security warning: %s has permissions %s (should be 700). "
-                "Run: chmod 700 %s",
+                "Security warning: %s has permissions %s (should be 700). Run: chmod 700 %s",
                 CONFIG_DIR,
                 oct(stat.S_IMODE(mode)),
                 CONFIG_DIR,
@@ -271,10 +278,10 @@ class TargetConfig:
     use_tls: bool = False
     # Mutual-TLS / certificate auth (paths only — never key material inline):
     # OPC-UA cert security mode + MQTT client certs. Empty = anonymous/no-cert.
-    ca_cert: str = ""       # CA bundle to verify the peer (MQTT ca_certs)
-    client_cert: str = ""   # our client certificate (OPC-UA + MQTT)
-    client_key: str = ""    # our client private key
-    server_cert: str = ""   # expected server certificate (OPC-UA, optional)
+    ca_cert: str = ""  # CA bundle to verify the peer (MQTT ca_certs)
+    client_cert: str = ""  # our client certificate (OPC-UA + MQTT)
+    client_key: str = ""  # our client private key
+    server_cert: str = ""  # expected server certificate (OPC-UA, optional)
     # HART-IP: the field device's 5-byte unique long address as 10 hex digits
     # (spaces/colons/dashes between bytes allowed, e.g. "26 06 12 34 56").
     # Empty = discover it via a short-frame Command 0 poll; validated by the

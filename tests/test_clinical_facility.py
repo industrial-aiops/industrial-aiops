@@ -14,12 +14,12 @@ def home(tmp_path, monkeypatch):
 
 
 _ROOMS = [
-    {"room": "AII-1", "mode": "negative", "differential_pa": -8.0},   # compliant
-    {"room": "AII-2", "mode": "negative", "differential_pa": -1.0},   # breach (< 2.5)
-    {"room": "AII-3", "mode": "negative", "differential_pa": 3.0},    # reversed (positive!)
-    {"room": "PE-1", "mode": "positive", "differential_pa": 4.0},     # low_margin (2.5..5)
-    {"room": "PE-2", "mode": "positive", "differential_pa": 10.0},    # compliant
-    {"room": "Lobby", "mode": "neutral", "differential_pa": 0.0},     # info
+    {"room": "AII-1", "mode": "negative", "differential_pa": -8.0},  # compliant
+    {"room": "AII-2", "mode": "negative", "differential_pa": -1.0},  # breach (< 2.5)
+    {"room": "AII-3", "mode": "negative", "differential_pa": 3.0},  # reversed (positive!)
+    {"room": "PE-1", "mode": "positive", "differential_pa": 4.0},  # low_margin (2.5..5)
+    {"room": "PE-2", "mode": "positive", "differential_pa": 10.0},  # compliant
+    {"room": "Lobby", "mode": "neutral", "differential_pa": 0.0},  # info
 ]
 
 
@@ -37,7 +37,7 @@ def test_reversed_is_worst_and_first():
     out = isolation_room_check(_ROOMS)
     assert out["worst"]["room"] == "AII-3" and out["worst"]["status"] == "reversed"
     order = [b["status"] for b in out["breaches"]]
-    assert order == ["reversed", "breach", "low_margin"]   # worst-first
+    assert order == ["reversed", "breach", "low_margin"]  # worst-first
     assert out["breach_count"] == 3
 
 

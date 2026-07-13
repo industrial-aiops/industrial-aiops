@@ -76,8 +76,9 @@ def monitor_changes(
         try:
             value, src_ts = _read_point(target, ref)
         except Exception as exc:  # noqa: BLE001 — record per-sample read error
-            changes.append({"error": s(str(exc), 200),
-                            "wall_clock": datetime.now(tz=UTC).isoformat()})
+            changes.append(
+                {"error": s(str(exc), 200), "wall_clock": datetime.now(tz=UTC).isoformat()}
+            )
             break
         if not have_prev or _changed(prev, value, deadband):
             changes.append(

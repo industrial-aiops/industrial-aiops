@@ -38,8 +38,11 @@ class _FakeNet:
     def __init__(self):
         self.disconnected = False
         self._objects = [
-            ("analogInput", 1), ("analogValue", 2), ("binaryInput", 3),
-            ("device", 1001), ("notificationClass", 9),  # filtered out of points
+            ("analogInput", 1),
+            ("analogValue", 2),
+            ("binaryInput", 3),
+            ("device", 1001),
+            ("notificationClass", 9),  # filtered out of points
         ]
         self._values = {
             "192.168.1.10 analogInput 1 presentValue": 21.5,
@@ -82,8 +85,7 @@ class _FakeNet:
         self._next_cov_id += 1
         self._cov_tasks[task_id] = {"address": address, "objectID": objectID}
         self.cov_calls.append(
-            {"address": address, "objectID": objectID, "lifetime": lifetime,
-             "confirmed": confirmed}
+            {"address": address, "objectID": objectID, "lifetime": lifetime, "confirmed": confirmed}
         )
         if callback is not None:
             for prop, value in self.cov_fire:
@@ -197,7 +199,12 @@ def test_cov_subscribe_collects_up_to_max(bac):
     target, net = bac
     net.cov_fire = [("presentValue", 21.5), ("presentValue", 22.0), ("presentValue", 22.5)]
     out = ops.bacnet_cov_subscribe(
-        target, "192.168.1.10", "analogInput", 1, max_notifications=2, timeout_s=5,
+        target,
+        "192.168.1.10",
+        "analogInput",
+        1,
+        max_notifications=2,
+        timeout_s=5,
     )
     assert out["notification_count"] == 2  # capped at max, not all 3
     assert out["terminated_reason"] == "max_notifications"
@@ -209,7 +216,12 @@ def test_cov_subscribe_terminates_on_timeout(bac):
     target, net = bac
     net.cov_fire = []  # no notifications ever arrive
     out = ops.bacnet_cov_subscribe(
-        target, "192.168.1.10", "analogInput", 1, max_notifications=10, timeout_s=1,
+        target,
+        "192.168.1.10",
+        "analogInput",
+        1,
+        max_notifications=10,
+        timeout_s=1,
     )
     # The capture MUST terminate even when nothing arrives (bounded by timeout).
     assert out["notification_count"] == 0
@@ -221,7 +233,12 @@ def test_cov_subscribe_always_unsubscribes(bac):
     target, net = bac
     net.cov_fire = [("presentValue", 1.0)]
     ops.bacnet_cov_subscribe(
-        target, "192.168.1.10", "analogInput", 1, max_notifications=1, timeout_s=5,
+        target,
+        "192.168.1.10",
+        "analogInput",
+        1,
+        max_notifications=1,
+        timeout_s=5,
     )
     # Every subscription created during the capture must be cancelled (no leak).
     assert net.cancelled == [100]
@@ -233,7 +250,12 @@ def test_cov_subscribe_passes_objectid_tuple(bac):
     target, net = bac
     net.cov_fire = [("presentValue", 1.0)]
     ops.bacnet_cov_subscribe(
-        target, "192.168.1.10", "analogValue", 7, max_notifications=1, timeout_s=5,
+        target,
+        "192.168.1.10",
+        "analogValue",
+        7,
+        max_notifications=1,
+        timeout_s=5,
     )
     assert net.cov_calls[0]["objectID"] == ("analogValue", 7)
 
@@ -309,9 +331,7 @@ def test_ops_write_dry_run_default_is_true():
 @pytest.mark.unit
 def test_write_dry_run_returns_plan_without_writing(bac):
     target, net = bac
-    out = ops.bacnet_write_property(
-        target, "192.168.1.10", "analogInput", 1, 25.0, dry_run=True
-    )
+    out = ops.bacnet_write_property(target, "192.168.1.10", "analogInput", 1, 25.0, dry_run=True)
     assert out["dry_run"] is True
     assert out["before"] == 21.5  # captured BEFORE value
     assert out["would_write"] == 25.0
@@ -321,9 +341,7 @@ def test_write_dry_run_returns_plan_without_writing(bac):
 @pytest.mark.unit
 def test_write_applied_captures_before_and_writes(bac):
     target, net = bac
-    out = ops.bacnet_write_property(
-        target, "192.168.1.10", "analogInput", 1, 25.0, dry_run=False
-    )
+    out = ops.bacnet_write_property(target, "192.168.1.10", "analogInput", 1, 25.0, dry_run=False)
     assert out["applied"] is True
     assert out["before"] == 21.5  # BEFORE value for undo
     assert out["written"] == 25.0
@@ -343,8 +361,14 @@ def test_write_priority_appended_to_request(bac):
 def test_write_relinquish_writes_null(bac):
     target, net = bac
     out = ops.bacnet_write_property(
-        target, "192.168.1.10", "analogInput", 1, 25.0,
-        priority=8, relinquish=True, dry_run=False,
+        target,
+        "192.168.1.10",
+        "analogInput",
+        1,
+        25.0,
+        priority=8,
+        relinquish=True,
+        dry_run=False,
     )
     assert out["written"] == "null"
     assert net.writes == ["192.168.1.10 analogInput 1 presentValue null - 8"]
@@ -361,8 +385,11 @@ def test_bacnet_undo_descriptor_restores_before():
     from mcp_server.tools.bacnet_tools import _bacnet_undo
 
     params = {
-        "endpoint": "ahu-net", "address": "192.168.1.10",
-        "object_type": "analogInput", "instance": 1, "priority": 8,
+        "endpoint": "ahu-net",
+        "address": "192.168.1.10",
+        "object_type": "analogInput",
+        "instance": 1,
+        "priority": 8,
     }
     result = {"applied": True, "before": 21.5}
     undo = _bacnet_undo(params, result)

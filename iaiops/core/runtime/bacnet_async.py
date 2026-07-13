@@ -41,9 +41,7 @@ class BacnetLoopThread:
     def __init__(self) -> None:
         self._loop = asyncio.new_event_loop()
         self._ready = threading.Event()
-        self._thread = threading.Thread(
-            target=self._run, name="bacnet-loop", daemon=True
-        )
+        self._thread = threading.Thread(target=self._run, name="bacnet-loop", daemon=True)
         self._thread.start()
         self._ready.wait()
 

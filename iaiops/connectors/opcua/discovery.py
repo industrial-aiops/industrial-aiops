@@ -98,8 +98,15 @@ def _is_standard(node: Any) -> bool:
         return False
 
 
-def _walk_tags(node: Any, path: tuple[str, ...], depth: int, max_depth: int,
-               out: list[dict], include_standard: bool, visited: set[str]) -> None:
+def _walk_tags(
+    node: Any,
+    path: tuple[str, ...],
+    depth: int,
+    max_depth: int,
+    out: list[dict],
+    include_standard: bool,
+    visited: set[str],
+) -> None:
     """Depth-first walk collecting Variable nodes (bounded by tag/depth caps).
 
     ``visited`` tracks node ids already emitted/descended so reference cycles and
@@ -129,12 +136,12 @@ def _walk_tags(node: Any, path: tuple[str, ...], depth: int, max_depth: int,
         if ncls == "Variable":
             out.append(_tag_descriptor(child, path, name))
         elif ncls == "Object":
-            _walk_tags(child, (*path, name), depth + 1, max_depth, out,
-                       include_standard, visited)
+            _walk_tags(child, (*path, name), depth + 1, max_depth, out, include_standard, visited)
 
 
-def discover_tags(target: Any, root: str = OBJECTS_NODE, max_depth: int = 6,
-                  include_standard: bool = False) -> list[dict]:
+def discover_tags(
+    target: Any, root: str = OBJECTS_NODE, max_depth: int = 6, include_standard: bool = False
+) -> list[dict]:
     """[READ] Walk the OPC-UA address space and return enriched tag descriptors.
 
     Collects every Variable node under ``root`` (Object folders are recursed,
@@ -147,8 +154,15 @@ def discover_tags(target: Any, root: str = OBJECTS_NODE, max_depth: int = 6,
     out: list[dict] = []
     with opcua_session(target) as client:
         root_node = client.get_node(root)
-        _walk_tags(root_node, path=(), depth=1, max_depth=depth, out=out,
-                   include_standard=include_standard, visited=set())
+        _walk_tags(
+            root_node,
+            path=(),
+            depth=1,
+            max_depth=depth,
+            out=out,
+            include_standard=include_standard,
+            visited=set(),
+        )
     return out
 
 
@@ -171,7 +185,8 @@ def build_tag_model(tags: list[dict]) -> dict:
         )
     alias_collisions = sorted(a for a, n in alias_counts.items() if a and n > 1)
     cryptic = sorted(
-        t.get("browse_path", "") for t in tags
+        t.get("browse_path", "")
+        for t in tags
         if t.get("class") == "other" and len(str(t.get("browse_name", ""))) <= 3
     )
 
@@ -206,11 +221,11 @@ def _class_breakdown(items: list[dict]) -> dict:
     return dict(sorted(counts.items()))
 
 
-def tag_discovery(target: Any, root: str = OBJECTS_NODE, max_depth: int = 6,
-                  include_standard: bool = False) -> dict:
+def tag_discovery(
+    target: Any, root: str = OBJECTS_NODE, max_depth: int = 6, include_standard: bool = False
+) -> dict:
     """[READ] Discover OPC-UA tags and return the full asset/semantic model."""
-    tags = discover_tags(target, root=root, max_depth=max_depth,
-                         include_standard=include_standard)
+    tags = discover_tags(target, root=root, max_depth=max_depth, include_standard=include_standard)
     model = build_tag_model(tags)
     model["endpoint"] = s(getattr(target, "name", ""), 64)
     model["root"] = s(root, 64)

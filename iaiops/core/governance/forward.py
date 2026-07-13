@@ -106,7 +106,8 @@ class HttpSink:
             _log.warning(
                 "SIEM forward endpoint %s is PLAINTEXT http — audit rows (tool "
                 "params, endpoints%s) cross the network unencrypted. Use https.",
-                url, " and the bearer token" if self._token else "",
+                url,
+                " and the bearer token" if self._token else "",
             )
 
     def send(self, line: str) -> None:
@@ -194,7 +195,9 @@ def _http_url(host: str, port: int, path: str) -> str:
         raise ValueError(f"http sink could not parse a host from {host!r}")
     resolved_port = int(port) or parsed.port or (443 if scheme == "https" else 80)
     request_path = path or parsed.path or "/"
-    return urllib.parse.urlunparse((scheme, f"{hostname}:{resolved_port}", request_path, "", "", ""))
+    return urllib.parse.urlunparse(
+        (scheme, f"{hostname}:{resolved_port}", request_path, "", "", "")
+    )
 
 
 def build_sink(kind: str, *, host: str, port: int = 0, path: str = "/") -> ForwardSink:
