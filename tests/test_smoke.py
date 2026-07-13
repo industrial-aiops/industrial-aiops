@@ -12,6 +12,11 @@ import importlib
 import pytest
 from typer.testing import CliRunner
 
+# NOTE: this is a FLOOR (a subset assertion), not the full tool surface — it
+# pins the long-standing core names so a rename/removal fails loudly. It omits
+# the edition-scoped tools (bas/ignition/clinical/...); full-surface coverage
+# (count + governance + annotations) is asserted dynamically via the
+# ``full_tool_registry`` fixture in tests/conftest.py.
 EXPECTED_TOOLS = {
     # OPC-UA (read / digitalization, incl. Historical Access)
     "opcua_server_info", "opcua_browse", "opcua_read_node", "opcua_read_many",
@@ -75,12 +80,35 @@ EXPECTED_TOOLS = {
     "protocols_supported",
 }
 
-# Tools that perform an OT-dangerous write/command — must be governed high-risk.
+# Known OT-dangerous writes/commands — a FLOOR for the dynamically derived
+# high-risk set below, so downgrading one of these to low/medium risk fails
+# loudly. The actual dry-run/undo contract iterates every registered tool with
+# ``_risk_level == "high"`` (previously this hardcoded list silently missed
+# ``bas_command``, leaving its dry_run default unchecked).
 WRITE_TOOLS = {
     "s7_write_db", "mc_write_words", "fins_write_words", "mqtt_publish", "eip_write_tag",
     "ethercat_write_sdo", "ethercat_set_state",
-    "profinet_dcp_set", "bacnet_write_property",
+    "profinet_dcp_set", "bacnet_write_property", "bas_command",
 }
+
+# ``mqtt_publish`` is the ONE deliberate no-undo write: a published MQTT message
+# cannot be unsent (there is no safe inverse), so @governed_tool declares no
+# undo for it. Every other high-risk write must declare an undo descriptor.
+WRITE_TOOLS_WITHOUT_UNDO = {"mqtt_publish"}
+
+
+def _declared_undo(fn) -> object | None:
+    """Return the ``undo=`` callable a @governed_tool wrapper was declared with.
+
+    The decorator keeps ``undo`` in the wrapper's closure (it is not attached as
+    a ``_undo`` attribute like ``_risk_level`` is), so introspect the closure
+    cells by free-variable name.
+    """
+    if not fn.__closure__:
+        return None
+    cells = dict(zip(fn.__code__.co_freevars, fn.__closure__, strict=True))
+    cell = cells.get("undo")
+    return cell.cell_contents if cell is not None else None
 
 
 @pytest.mark.unit
@@ -254,28 +282,45 @@ def test_cli_leaf_help_triggers_lazy_imports():
 
 
 @pytest.mark.unit
-def test_mcp_list_tools_exposes_expected_tools():
-    from mcp_server.server import mcp, register_profile
+def test_mcp_list_tools_exposes_expected_tools(full_tool_registry):
+    """The MCP list_tools surface contains at least the pinned core tool names.
 
-    # Tools register as a side effect of importing their modules; ensure the full
-    # surface is registered so this test is order-independent (register_profile is
-    # idempotent + additive — it can't narrow an already-registered surface).
-    register_profile("all")
+    The fixture registers the FULL surface (brain + all protocols + all
+    editions) so this test is order-independent (registration is idempotent +
+    additive — it can't narrow an already-registered surface).
+    """
+    from mcp_server.server import mcp
+
     tools = asyncio.run(mcp.list_tools())
     names = {t.name for t in tools}
     assert EXPECTED_TOOLS <= names, f"missing: {EXPECTED_TOOLS - names}"
 
 
 @pytest.mark.unit
-def test_every_mcp_tool_is_governed_by_harness():
-    """Every registered tool callable must carry the @governed_tool marker."""
-    from mcp_server import _shared
-    from mcp_server.server import register_profile
+def test_full_tool_surface_matches_static_count(full_tool_registry):
+    """The registered full surface equals the static ``@mcp.tool()`` census.
 
-    register_profile("all")  # order-independent: ensure the full surface is registered
-    tool_objs = _shared.mcp._tool_manager._tools
-    assert EXPECTED_TOOLS <= set(tool_objs), "tool registry incomplete"
-    for name, tool in tool_objs.items():
+    ``_tool_counts_per_module`` counts decorators in every ``mcp_server/tools``
+    file without importing; equality proves every tool module both registers
+    cleanly and is reachable through a profile/edition (166 tools at 0.13.0).
+    """
+    from mcp_server.profiles import _tool_counts_per_module
+
+    static_total = sum(_tool_counts_per_module().values())
+    assert len(full_tool_registry) == static_total
+    assert len(full_tool_registry) >= 166  # 0.13.0 floor — may grow, must not shrink
+
+
+@pytest.mark.unit
+def test_every_mcp_tool_is_governed_by_harness(full_tool_registry):
+    """Every registered tool callable must carry the @governed_tool marker.
+
+    Iterates the FULL surface incl. edition tools — ``register_profile("all")``
+    alone excludes the 25 EDITION_MODULES tools (bas/ignition/...), which were
+    previously only checked by import luck.
+    """
+    assert EXPECTED_TOOLS <= set(full_tool_registry), "tool registry incomplete"
+    for name, tool in full_tool_registry.items():
         fn = getattr(tool, "fn", None)
         assert fn is not None, f"{name} has no fn"
         assert getattr(fn, "_is_governed_tool", False), (
@@ -315,19 +360,38 @@ def test_eip_alias_normalized_to_ethernetip(tmp_path):
 
 
 @pytest.mark.unit
-def test_write_tools_are_high_risk_and_default_dry_run():
-    """Every OT-dangerous write tool is governed high-risk with dry_run default True."""
+def test_write_tools_are_high_risk_and_default_dry_run(full_tool_registry):
+    """Every high-risk write tool defaults dry_run=True and declares an undo.
+
+    The set under test is DERIVED from the live registry (``_risk_level ==
+    "high"``), so a newly added write tool is covered automatically — no
+    hardcoded list to forget. ``WRITE_TOOLS`` remains a floor: a known write
+    silently downgraded below high-risk also fails here.
+    """
     import inspect
 
-    from mcp_server import _shared
+    high_risk = {
+        name for name, tool in full_tool_registry.items()
+        if getattr(tool.fn, "_risk_level", "") == "high"
+    }
+    missing = WRITE_TOOLS - high_risk
+    assert not missing, f"known write tools no longer high-risk/registered: {missing}"
 
-    tools = _shared.mcp._tool_manager._tools
-    for name in WRITE_TOOLS:
-        assert name in tools, f"{name} not registered"
-        fn = tools[name].fn
-        assert getattr(fn, "_risk_level", "") == "high", f"{name} must be risk_level='high'"
+    for name in sorted(high_risk):
+        fn = full_tool_registry[name].fn
         sig = inspect.signature(fn)
+        assert "dry_run" in sig.parameters, f"{name} must expose a dry_run parameter"
         assert sig.parameters["dry_run"].default is True, f"{name} must default dry_run=True"
+        if name in WRITE_TOOLS_WITHOUT_UNDO:
+            assert _declared_undo(fn) is None, (
+                f"{name} is documented as no-undo; it now declares one — update "
+                f"WRITE_TOOLS_WITHOUT_UNDO"
+            )
+        else:
+            assert _declared_undo(fn) is not None, (
+                f"{name} is a high-risk write but declares no undo descriptor "
+                f"(@governed_tool(undo=...)) — rollback selling point unenforced"
+            )
 
 
 @pytest.mark.unit

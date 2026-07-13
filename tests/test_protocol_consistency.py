@@ -20,7 +20,12 @@ from pathlib import Path
 
 from iaiops.core.brain.overview import PROTOCOLS as OVERVIEW_PROTOCOLS
 from iaiops.core.runtime.config import SUPPORTED_PROTOCOLS
-from mcp_server.profiles import NAMED_PROFILES, PROTOCOL_MODULES
+from mcp_server.profiles import (
+    BRAIN_MODULES,
+    EDITION_MODULES,
+    NAMED_PROFILES,
+    PROTOCOL_MODULES,
+)
 
 # Canonical protocol key (connector-dir / PROTOCOL_MODULES key) → the alias name
 # used in SUPPORTED_PROTOCOLS / overview, where it differs from the key.
@@ -72,3 +77,44 @@ def test_supported_protocols_are_all_wired() -> None:
     key_names = CANONICAL | {ALIASES[k] for k in ALIASES}
     orphans = [p for p in SUPPORTED_PROTOCOLS if p not in key_names]
     assert not orphans, f"SUPPORTED_PROTOCOLS has entries with no connector: {orphans}"
+
+
+def test_every_connector_dir_is_wired() -> None:
+    """Reverse of the connector-existence check: no orphan connector directories.
+
+    Every ``iaiops/connectors/<key>/ops.py`` must be reachable — either as a
+    protocol key in PROTOCOL_MODULES, or imported by an edition tool module
+    (``bas`` / ``ignition`` ride EDITION_MODULES rather than a protocol key).
+    A connector reachable by neither is dead code no MCP server can expose.
+    """
+    edition_sources = "\n".join(
+        (_REPO / "mcp_server" / "tools" / f"{module}.py").read_text("utf-8")
+        for modules in EDITION_MODULES.values()
+        for module in modules
+    )
+    orphans = [
+        ops.parent.name
+        for ops in sorted((_REPO / "iaiops" / "connectors").glob("*/ops.py"))
+        if ops.parent.name not in PROTOCOL_MODULES
+        and f"iaiops.connectors.{ops.parent.name}" not in edition_sources
+    ]
+    assert not orphans, f"connector dirs wired to no protocol key or edition module: {orphans}"
+
+
+def test_every_tool_module_is_reachable_from_a_profile() -> None:
+    """Every ``mcp_server/tools/*.py`` module is exposed by SOME selection.
+
+    A tool module in the directory but absent from BRAIN_MODULES,
+    PROTOCOL_MODULES, and every EDITION_MODULES entry can never register —
+    its tools silently vanish from every server profile.
+    """
+    wired = set(BRAIN_MODULES) | set(PROTOCOL_MODULES.values())
+    for modules in EDITION_MODULES.values():
+        wired |= set(modules)
+    files = {
+        path.stem
+        for path in (_REPO / "mcp_server" / "tools").glob("*.py")
+        if path.stem != "__init__"
+    }
+    orphans = files - wired
+    assert not orphans, f"tool modules unreachable from any profile/edition: {sorted(orphans)}"
