@@ -498,7 +498,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.10.1"
+version = "0.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -528,6 +528,9 @@ all = [
 ]
 bacnet = [
     { name = "bac0" },
+]
+bas = [
+    { name = "requests" },
 ]
 building = [
     { name = "asyncua" },
@@ -567,6 +570,9 @@ factory = [
 ]
 hart = [
     { name = "hart-protocol" },
+]
+ignition = [
+    { name = "requests" },
 ]
 influxdb = [
     { name = "requests" },
@@ -659,11 +665,13 @@ requires-dist = [
     { name = "cryptography", specifier = ">=42.0" },
     { name = "hart-protocol", marker = "extra == 'hart'", specifier = ">=2023.6,<2025" },
     { name = "iaiops", extras = ["bacnet"], marker = "extra == 'building'" },
+    { name = "iaiops", extras = ["bas"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["eip"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["ethercat"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["fins"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'water'" },
+    { name = "iaiops", extras = ["ignition"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["iolink"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["iolink"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["iotdb"], marker = "extra == 'xinchuang'" },
@@ -675,7 +683,9 @@ requires-dist = [
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'renewables'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'water'" },
+    { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'bas'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'ignition'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'iolink'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'fab'" },
@@ -725,7 +735,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [

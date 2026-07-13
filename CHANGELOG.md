@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.13.0 — 2026-07-13
+
+> **Two new read-only OT integration layers, above the field protocols.** A **BAS
+> controller layer** (building edition) reads Metasys/Niagara supervisory REST above BACnet,
+> and an **Ignition Gateway MES/SCADA read layer** (factory edition) reads the production
+> surface OPC-UA doesn't cover — both edition-scoped, brand-isolated, reusing the shared HTTP
+> stack with no new dependency. Line-wide governed tools **156 → 166** (156 read + 10 writes;
+> the one new write, `bas_command`, ships default-off with a life-safety denylist).
+
 ### Added — Gateway MES/SCADA read layer (factory edition, READ-ONLY)
 - **New `ignition` connector** (`iaiops/connectors/ignition/`) — a config-driven HTTP reader for the
   vendor SCADA/MES platform's **Gateway HTTP/web API**: the MES-ish production surface (module
