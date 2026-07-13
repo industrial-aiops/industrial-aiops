@@ -11,8 +11,10 @@ from __future__ import annotations
 import pytest
 
 from iaiops.core.runtime.url_guard import (
+    ALLOW_INSECURE_TLS_ENV,
     TOKEN_EGRESS_HOSTS_ENV,
     UrlEgressError,
+    resolve_verify_tls,
     validate_base_url,
 )
 
@@ -154,3 +156,39 @@ def test_env_allowlist_never_unlocks_userinfo_or_scheme(monkeypatch):
         _check("https://tok@evil.example/api")
     with pytest.raises(UrlEgressError, match="http"):
         _check("ftp://evil.example/api")
+
+
+# ─────────────────────────────────────────────── TLS-verification opt-in guard
+@pytest.mark.unit
+def test_verify_tls_true_is_the_default(monkeypatch):
+    monkeypatch.delenv(ALLOW_INSECURE_TLS_ENV, raising=False)
+    assert resolve_verify_tls(True, connector="Test connector") is True
+
+
+@pytest.mark.unit
+def test_verify_tls_false_refused_without_env_optin(monkeypatch):
+    monkeypatch.delenv(ALLOW_INSECURE_TLS_ENV, raising=False)
+    with pytest.raises(UrlEgressError, match=ALLOW_INSECURE_TLS_ENV):
+        resolve_verify_tls(False, connector="Test connector")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("truthy", ["1", "true", "TRUE", "yes", "on"])
+def test_verify_tls_false_allowed_with_env_optin(truthy, monkeypatch):
+    monkeypatch.setenv(ALLOW_INSECURE_TLS_ENV, truthy)
+    assert resolve_verify_tls(False, connector="Test connector") is False
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("falsy", ["0", "false", "no", "off", ""])
+def test_verify_tls_false_still_refused_when_env_is_not_truthy(falsy, monkeypatch):
+    monkeypatch.setenv(ALLOW_INSECURE_TLS_ENV, falsy)
+    with pytest.raises(UrlEgressError, match=ALLOW_INSECURE_TLS_ENV):
+        resolve_verify_tls(False, connector="Test connector")
+
+
+@pytest.mark.unit
+def test_verify_tls_true_unaffected_by_env(monkeypatch):
+    """The opt-in only relaxes an explicit False; it never weakens a True."""
+    monkeypatch.setenv(ALLOW_INSECURE_TLS_ENV, "1")
+    assert resolve_verify_tls(True, connector="Test connector") is True

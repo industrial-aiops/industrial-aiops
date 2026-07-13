@@ -272,6 +272,44 @@ def test_env_allowlisted_host_receives_token(monkeypatch):
     assert any(h.get("Authorization") == "Bearer tok-123" for h in _CAPTURED_HEADERS)
 
 
+# ──────────────────────────────────────────────── insecure-TLS opt-in guard
+@pytest.mark.unit
+def test_default_verifies_tls(monkeypatch):
+    """verify_tls defaults True and reaches the HTTP layer as verify=True."""
+    captured: list[bool] = []
+
+    def fake_get(url, headers, timeout, verify):
+        captured.append(verify)
+        return json.dumps(_METASYS[f"GET {url[len(BASE) :]}"])
+
+    monkeypatch.setattr(client_mod, "_http_get", fake_get)
+    ops.point_list(BASE, "metasys")
+    assert captured and all(v is True for v in captured)
+
+
+@pytest.mark.unit
+def test_verify_tls_false_refused_before_io_without_optin(monkeypatch):
+    monkeypatch.delenv("IAIOPS_ALLOW_INSECURE_TLS", raising=False)
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="IAIOPS_ALLOW_INSECURE_TLS"):
+        ops.point_list(BASE, "metasys", verify_tls=False)
+
+
+@pytest.mark.unit
+def test_verify_tls_false_allowed_with_env_optin(routes, monkeypatch):
+    monkeypatch.setenv("IAIOPS_ALLOW_INSECURE_TLS", "1")
+    captured: list[bool] = []
+    routes(_METASYS)
+
+    def fake_get(url, headers, timeout, verify):
+        captured.append(verify)
+        return json.dumps(_METASYS[f"GET {url[len(BASE) :]}"])
+
+    monkeypatch.setattr(client_mod, "_http_get", fake_get)
+    ops.point_list(BASE, "metasys", verify_tls=False)
+    assert captured and all(v is False for v in captured)
+
+
 # ───────────────────────────────────────────────────────────── error teaching
 @pytest.mark.unit
 def test_response_size_cap_enforced():

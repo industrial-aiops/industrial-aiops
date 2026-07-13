@@ -42,7 +42,8 @@ def ignition_gateway_status(
         base_url: Gateway HTTP base URL, e.g. 'https://gw-host:8043'.
         flavor: Gateway API deployment dialect — 'webdev' or 'gateway'.
         secret_name: Secret-store key holding the API token (omit if none).
-        verify_tls: Verify the Gateway's TLS certificate (default True).
+        verify_tls: Verify the Gateway's TLS certificate (default True). Passing False
+            is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {flavor, base_url, reachable, gateway:{name, version, state},
         module_count, modules:[{name, state, version}]}.
@@ -71,7 +72,8 @@ def ignition_tag_browse(
         path: Folder path under the provider to browse (blank = root).
         flavor: Gateway API deployment dialect — 'webdev' or 'gateway'.
         secret_name: Secret-store key holding the API token (omit if none).
-        verify_tls: Verify the Gateway's TLS certificate (default True).
+        verify_tls: Verify the Gateway's TLS certificate (default True). Passing False
+            is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {flavor, base_url, provider, path, node_count,
         nodes:[{name, path, type, has_children}]}.
@@ -103,7 +105,8 @@ def ignition_tag_read(
         tag_paths: Tag paths to read (from ignition_tag_browse).
         flavor: Gateway API deployment dialect — 'webdev' or 'gateway'.
         secret_name: Secret-store key holding the API token (omit if none).
-        verify_tls: Verify the Gateway's TLS certificate (default True).
+        verify_tls: Verify the Gateway's TLS certificate (default True). Passing False
+            is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {flavor, base_url, provider, tag_count,
         tags:[{path, value, quality, timestamp}]}.
@@ -131,7 +134,8 @@ def ignition_alarm_status(
         base_url: Gateway HTTP base URL.
         flavor: Gateway API deployment dialect — 'webdev' or 'gateway'.
         secret_name: Secret-store key holding the API token (omit if none).
-        verify_tls: Verify the Gateway's TLS certificate (default True).
+        verify_tls: Verify the Gateway's TLS certificate (default True). Passing False
+            is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {flavor, base_url, alarm_count,
         alarms:[{name, source, priority, state, label, timestamp}]}.
@@ -166,7 +170,8 @@ def ignition_tag_history(
         count: Max samples to return (1..5000, capped server-side).
         flavor: Gateway API deployment dialect — 'webdev' or 'gateway'.
         secret_name: Secret-store key holding the API token (omit if none).
-        verify_tls: Verify the Gateway's TLS certificate (default True).
+        verify_tls: Verify the Gateway's TLS certificate (default True). Passing False
+            is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {flavor, base_url, provider, tag_path, start, end,
         sample_count, samples:[{timestamp, value, quality}]}.

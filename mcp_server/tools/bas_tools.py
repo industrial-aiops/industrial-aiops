@@ -40,7 +40,8 @@ def bas_point_list(
         base_url: Controller REST base URL, e.g. 'https://bms-host/api'.
         vendor: Controller dialect — 'metasys' or 'niagara'.
         secret_name: Secret-store key holding the bearer token (omit if none).
-        verify_tls: Verify the controller's TLS certificate (default True).
+        verify_tls: Verify the controller's TLS certificate (default True). Passing
+            False is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {vendor, base_url, point_count, points:[{id, name, value,
         unit, status}]}.
@@ -67,7 +68,8 @@ def bas_point_read(
         vendor: Controller dialect — 'metasys' or 'niagara'.
         point_ids: Point ids/hrefs to read (from bas_point_list).
         secret_name: Secret-store key holding the bearer token (omit if none).
-        verify_tls: Verify the controller's TLS certificate (default True).
+        verify_tls: Verify the controller's TLS certificate (default True). Passing
+            False is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {vendor, base_url, point_count, points:[{id, name, value,
         unit, status}]}.
@@ -95,7 +97,8 @@ def bas_alarm_list(
         base_url: Controller REST base URL.
         vendor: Controller dialect — 'metasys' or 'niagara'.
         secret_name: Secret-store key holding the bearer token (omit if none).
-        verify_tls: Verify the controller's TLS certificate (default True).
+        verify_tls: Verify the controller's TLS certificate (default True). Passing
+            False is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {vendor, base_url, alarm_count, alarms:[{id, name, priority,
         state, message, timestamp}]}.
@@ -124,7 +127,8 @@ def bas_trend_read(
         point_id: Point id/href whose trend history to read.
         count: Max samples to return (1..5000, capped server-side).
         secret_name: Secret-store key holding the bearer token (omit if none).
-        verify_tls: Verify the controller's TLS certificate (default True).
+        verify_tls: Verify the controller's TLS certificate (default True). Passing
+            False is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
 
     Returns dict: {vendor, base_url, point_id, sample_count,
         samples:[{timestamp, value}]}.
@@ -188,7 +192,8 @@ def bas_command(
         point_name: Optional point name — also checked against the life-safety
             denylist (belt-and-suspenders with point_id).
         secret_name: Secret-store key holding the bearer token (omit if none).
-        verify_tls: Verify the controller's TLS certificate (default True).
+        verify_tls: Verify the controller's TLS certificate (default True). Passing
+            False is refused unless the operator set IAIOPS_ALLOW_INSECURE_TLS=1.
         dry_run: When True (default) returns a preview without writing.
 
     Returns dict: dry-run → {vendor, point_id, dry_run:true, before, would_write,

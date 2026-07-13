@@ -21,7 +21,11 @@ from iaiops.connectors.bas.client import BasClient
 from iaiops.connectors.bas.dialects import UnknownVendorError, get_dialect
 from iaiops.core.runtime.config import DEFAULT_TIMEOUT_S
 from iaiops.core.runtime.session_factory import OTConnectionError, make_session
-from iaiops.core.runtime.url_guard import UrlEgressError, validate_base_url
+from iaiops.core.runtime.url_guard import (
+    UrlEgressError,
+    resolve_verify_tls,
+    validate_base_url,
+)
 
 # The connector-local protocol tag the local session guards on. It is NOT a
 # public wire protocol (never added to SUPPORTED_PROTOCOLS) — only this session
@@ -64,6 +68,9 @@ def _build_bas_client(target: BasTarget) -> BasClient:
         # or one the operator allowlisted (IAIOPS_TOKEN_EGRESS_HOSTS) — this
         # blocks stored-token exfiltration via a caller-supplied base_url.
         validate_base_url(base, connector="BAS controller", token_attached=bool(target.token))
+        # TLS verification stays ON unless the OPERATOR opted into insecure TLS
+        # (IAIOPS_ALLOW_INSECURE_TLS) — a tool arg alone cannot disable it.
+        verify_tls = resolve_verify_tls(target.verify_tls, connector="BAS controller")
     except UrlEgressError as exc:
         raise OTConnectionError(str(exc), endpoint=target.name, protocol=_BAS_PROTOCOL) from exc
     try:
@@ -75,7 +82,7 @@ def _build_bas_client(target: BasTarget) -> BasClient:
         dialect=dialect,
         token=target.token,
         timeout_s=target.timeout_s,
-        verify_tls=target.verify_tls,
+        verify_tls=verify_tls,
     )
 
 

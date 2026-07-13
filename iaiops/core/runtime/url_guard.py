@@ -18,6 +18,15 @@ a single tool call. This guard closes that hole, BEFORE any network I/O:
 - Requests without a stored token skip the host policy (nothing to exfiltrate)
   but still get the scheme/userinfo checks.
 
+These same connectors also expose a ``verify_tls`` tool argument. Left as a
+plain model-settable parameter, an LLM/agent (or a prompt injection) could pass
+``verify_tls=False`` per call and silently disable certificate validation —
+turning the base-URL egress into a trivial MITM even without a valid cert.
+:func:`resolve_verify_tls` makes turning verification OFF an *operator* decision
+(the ``IAIOPS_ALLOW_INSECURE_TLS`` env opt-in), not a model one: the secure
+default (verify on) always stands, and an explicit ``verify_tls=False`` is
+refused with a teaching error unless the operator opted in.
+
 Pure functions, no sockets, no DNS: the policy judges the URL as written, so it
 cannot be bypassed by resolution tricks and is trivially unit-testable.
 """
@@ -29,6 +38,7 @@ import os
 from urllib.parse import SplitResult, urlsplit
 
 TOKEN_EGRESS_HOSTS_ENV = "IAIOPS_TOKEN_EGRESS_HOSTS"  # nosec B105 — env var name, not a secret
+ALLOW_INSECURE_TLS_ENV = "IAIOPS_ALLOW_INSECURE_TLS"
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 # Hostname suffixes that never resolve on the public internet (mDNS, RFC 8375
@@ -44,6 +54,35 @@ def load_token_egress_hosts() -> tuple[str, ...]:
     """Operator allowlist from ``IAIOPS_TOKEN_EGRESS_HOSTS`` (lowercased, trimmed)."""
     raw = os.environ.get(TOKEN_EGRESS_HOSTS_ENV, "")
     return tuple(entry.strip().lower() for entry in raw.split(",") if entry.strip())
+
+
+def _env_truthy(name: str) -> bool:
+    """True when env var ``name`` is set to a truthy scalar (1/true/yes/on)."""
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def resolve_verify_tls(verify_tls: bool, *, connector: str) -> bool:
+    """Resolve the effective TLS-verification flag, gating any opt-out on env.
+
+    Verification-on is the secure default and always passes through. Turning it
+    OFF (``verify_tls=False``) is an operator decision, not a model one: it is
+    refused with a teaching :class:`UrlEgressError` unless
+    ``IAIOPS_ALLOW_INSECURE_TLS`` is set to a truthy value. This keeps a plain
+    tool argument (settable by an LLM or a prompt injection) from silently
+    disabling certificate validation.
+    """
+    if verify_tls:
+        return True
+    if _env_truthy(ALLOW_INSECURE_TLS_ENV):
+        return False
+    raise UrlEgressError(
+        f"{connector}: refusing verify_tls=False — TLS certificate verification "
+        f"cannot be disabled by a tool argument alone. If you truly need to talk "
+        f"to a controller with a self-signed/untrusted cert, the OPERATOR must "
+        f"opt in by setting {ALLOW_INSECURE_TLS_ENV}=1 in the server environment "
+        f"(never trust an unverified TLS peer with a stored secret otherwise). "
+        f"Verification stays ON; no request was sent."
+    )
 
 
 def _entry_host_port(entry: str) -> tuple[str, int | None]:
@@ -145,8 +184,10 @@ def validate_base_url(base_url: str, *, connector: str, token_attached: bool) ->
 
 
 __all__ = [
+    "ALLOW_INSECURE_TLS_ENV",
     "TOKEN_EGRESS_HOSTS_ENV",
     "UrlEgressError",
     "load_token_egress_hosts",
+    "resolve_verify_tls",
     "validate_base_url",
 ]
