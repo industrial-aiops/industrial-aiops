@@ -224,6 +224,11 @@ class TargetConfig:
       * ``bacnet``    — ``host`` (THIS machine's local BACnet/IP interface, optionally
                         ``ip/mask`` e.g. ``10.0.0.5/24``) / ``port`` (47808). Read-only
                         facility/HVAC monitoring via the ``bacnet`` (BAC0) extra.
+      * ``hart``      — ``host`` / ``port`` (5094) / ``transport`` (``udp`` default |
+                        ``tcp``) / optional ``long_address``: the transmitter's 5-byte
+                        unique address as 10 hex digits (spaces/colons/dashes between
+                        bytes allowed, e.g. ``"26 06 12 34 56"``). Empty = auto-discover
+                        via a short-frame Command 0 identity poll.
 
     The password / MQTT password is resolved from the encrypted store, never
     stored here.
@@ -270,6 +275,11 @@ class TargetConfig:
     client_cert: str = ""   # our client certificate (OPC-UA + MQTT)
     client_key: str = ""    # our client private key
     server_cert: str = ""   # expected server certificate (OPC-UA, optional)
+    # HART-IP: the field device's 5-byte unique long address as 10 hex digits
+    # (spaces/colons/dashes between bytes allowed, e.g. "26 06 12 34 56").
+    # Empty = discover it via a short-frame Command 0 poll; validated by the
+    # HART connector codec at use time with a teaching error.
+    long_address: str = ""
     # EtherCAT (pysoem/SOEM fieldbus master) — and PROFINET-DCP, which binds the
     # local interface by its IP via ``host`` (the NIC the DCP broadcast goes out on).
     nic: str = ""
@@ -597,6 +607,8 @@ def _parse_target(d: dict) -> TargetConfig:
         client_cert=str(d.get("client_cert", "") or d.get("certfile", "")),
         client_key=str(d.get("client_key", "") or d.get("keyfile", "")),
         server_cert=str(d.get("server_cert", "")),
+        # HART-IP unique long address (optional; empty = Command 0 discovery).
+        long_address=str(d.get("long_address", "") or ""),
         # EtherCAT: NIC interface name (accept 'interface' as an alias).
         nic=str(d.get("nic", "") or d.get("interface", "")),
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
