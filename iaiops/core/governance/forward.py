@@ -76,11 +76,7 @@ class SyslogUDPSink:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send(self, line: str) -> None:
-        payload = f"<{_SYSLOG_PRI}>iaiops-audit: {line}".encode("utf-8", "replace")
-        if len(payload) > _SYSLOG_MAX_BYTES:
-            # Truncate on a UTF-8 boundary (never split a multibyte char).
-            payload = payload[:_SYSLOG_MAX_BYTES].decode("utf-8", "ignore").encode("utf-8")
-        self._sock.sendto(payload, self._addr)
+        self._sock.sendto(_syslog_payload(line), self._addr)
 
     def close(self) -> None:
         try:
@@ -130,6 +126,52 @@ class HttpSink:
 
     def close(self) -> None:
         pass
+
+
+_SYSLOG_PREFIX = f"<{_SYSLOG_PRI}>iaiops-audit: "
+
+
+def _syslog_payload(line: str) -> bytes:
+    """Frame a JSON line as a syslog datagram that fits one UDP packet.
+
+    Oversized records are shrunk field-by-field (params first — it carries the
+    bulk) and marked ``"_truncated": true`` so the emitted line stays valid
+    JSON at the collector. A raw byte cut would silently corrupt the record.
+    """
+    payload = f"{_SYSLOG_PREFIX}{line}".encode("utf-8", "replace")
+    if len(payload) <= _SYSLOG_MAX_BYTES:
+        return payload
+    budget = _SYSLOG_MAX_BYTES - len(_SYSLOG_PREFIX.encode("utf-8"))
+    return f"{_SYSLOG_PREFIX}{_shrink_line(line, budget)}".encode("utf-8", "replace")
+
+
+def _shrink_line(line: str, budget: int) -> str:
+    """Shrink an oversized JSON line to ``budget`` bytes, keeping it valid JSON."""
+    try:
+        record = json.loads(line)
+    except ValueError:
+        record = None
+    if not isinstance(record, dict):
+        # Not a JSON object — nothing structural to preserve; cut on a UTF-8
+        # boundary (never split a multibyte char).
+        return line.encode("utf-8")[:budget].decode("utf-8", "ignore")
+    for field in ("params", "result", "rationale"):
+        if field not in record:
+            continue
+        record = {**record, field: "[dropped: oversized]", "_truncated": True}
+        candidate = json.dumps(record, ensure_ascii=False, default=str)
+        if len(candidate.encode("utf-8")) <= budget:
+            return candidate
+    # Still oversized after dropping the bulk fields — emit a minimal, valid
+    # envelope so the collector can at least correlate by id / tool / status.
+    minimal = {
+        "id": record.get("id"),
+        "ts": record.get("ts"),
+        "tool": record.get("tool"),
+        "status": record.get("status"),
+        "_truncated": True,
+    }
+    return json.dumps(minimal, ensure_ascii=False, default=str)
 
 
 def _http_url(host: str, port: int, path: str) -> str:
