@@ -225,6 +225,27 @@ def test_set_state_master_scope(ec_target):
 
 
 @pytest.mark.unit
+def test_set_state_check_failure_reports_unknown_reached(ec_target):
+    """If the post-write state check fails, ``reached`` must be unknown (None).
+
+    Regression: the old state (``before``) was reported as ``reached`` — the
+    output could read "requested OP, reached PREOP, applied" while the actual
+    bus state was unknown, fabricating a state that was never observed.
+    """
+    target, master = ec_target
+
+    def _boom(code, timeout):
+        raise RuntimeError("working counter mismatch")
+
+    master.slaves[0].state_check = _boom
+    out = ops.ethercat_set_state(target, "SAFEOP", slave=0, dry_run=False)
+    assert out["reached"] is None  # actual bus state unknown — never fabricated
+    assert out["applied"] is True  # the write itself was sent
+    assert out["before"] == "OP"
+    assert "working counter mismatch" in out["check_error"]
+
+
+@pytest.mark.unit
 def test_set_state_rejects_unknown_state(ec_target):
     target, _ = ec_target
     with pytest.raises(ValueError, match="Unknown EtherCAT state"):

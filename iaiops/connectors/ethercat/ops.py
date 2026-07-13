@@ -391,10 +391,11 @@ def ethercat_set_state(
         obj = master if is_master else _slave_at(master, int(slave))
         obj.state = target_code
         obj.write_state()
+        reached: str | None
         try:
             reached = _state_name(obj.state_check(target_code, 50000))
         except Exception as exc:  # noqa: BLE001 — report, do not crash
-            reached = before
+            reached = None  # actual bus state is unknown — never report a guess
             check_error = s(str(exc), 160)
         else:
             check_error = ""
