@@ -2,26 +2,96 @@
 
 ## Unreleased
 
+## 0.14.0 — 2026-07-13
+
+> **Audit-hardening release.** A six-dimension internal audit (security · protocol
+> correctness · governance consistency · tests · docs honesty · code quality) drove a
+> batch of real fixes: the endpoint-scoped approval path is restored, several connectors
+> stopped returning wrong or fabricated values, the HTTP-layer connectors got a
+> token-egress guard, the test suite now isolates its home + covers the full 166-tool
+> surface and the previously-untested governance safety modules, and per-protocol dispatch
+> was collapsed into one drift-guarded capability registry. No breaking API removals; some
+> connectors now raise a teaching error where they previously returned a wrong value.
+
 ### Security
-- **Token-egress guard for the HTTP-layer connectors (BAS controller + Gateway read layer).**
-  Their tools accept a caller-supplied `base_url` AND a `secret_name` resolved from the encrypted
-  secret store — previously a prompt-injected/malicious caller could point `base_url` at ANY
-  outbound host and exfiltrate the stored bearer/API token in one call. A new shared guard
-  (`iaiops/core/runtime/url_guard.py`), enforced in both transports BEFORE any network I/O, now:
-  requires an `http(s)` scheme; refuses URLs that embed credentials (`user:pass@host`); and only
-  sends a stored token to clearly-internal destinations (private/loopback/link-local literal IPs,
-  `localhost`, single-label hostnames, `.local`/`.lan`/`.internal`/`.home.arpa` names) unless the
-  operator opts the host in via `IAIOPS_TOKEN_EGRESS_HOSTS` (comma-separated `host` / `host:port`
-  / `*.suffix` entries, additive to the internal defaults). Unauthenticated requests keep working
-  unchanged (nothing to exfiltrate); public FQDN + stored secret now needs the one-line env opt-in.
-- **`verify_tls` can no longer be silently disabled by a tool argument (BAS controller + Gateway
-  read layer).** Every `bas_*` / `ignition_*` tool exposed `verify_tls: bool = True`, so an
-  LLM/agent (or prompt injection) could pass `verify_tls=False` per call and turn off certificate
-  validation — a trivial MITM path that undercuts the base_url egress guard above. Disabling TLS
-  verification is now an OPERATOR decision, not a model one: an explicit `verify_tls=False` is
-  refused (teaching error, before any network I/O) unless the operator set
-  `IAIOPS_ALLOW_INSECURE_TLS=1` in the server environment. The secure default (verify ON) is
-  unchanged and needs no env var. Enforced in the shared guard's `resolve_verify_tls`.
+- **Endpoint-scoped approval was silently dead.** The governance layer resolved the
+  approval/policy selector from `target`/`env`, but every MCP tool names it `endpoint`, so the
+  scope was always empty — per-endpoint approval tokens could never be consumed (forcing operators
+  onto unscoped tokens that authorized writes to *every* endpoint) and environment-scoped policy
+  rules misbehaved. The selector now resolves `endpoint` too; a token scoped to one endpoint no
+  longer authorizes another. (#63)
+- **Token-egress guard for the HTTP-layer connectors (BAS controller + Gateway read layer).** A
+  caller-supplied `base_url` + a stored `secret_name` could exfiltrate the bearer/API token to any
+  outbound host. A new shared guard (`iaiops/core/runtime/url_guard.py`), enforced before any
+  network I/O, requires `http(s)`, refuses credential-in-URL, and only sends a stored token to
+  clearly-internal destinations unless the operator opts a host in via `IAIOPS_TOKEN_EGRESS_HOSTS`.
+  (#69)
+- **`verify_tls` can no longer be silently disabled by a tool argument.** `verify_tls=False` is now
+  refused (before any I/O) unless the operator sets `IAIOPS_ALLOW_INSECURE_TLS=1`; secure default
+  unchanged. (#69)
+- **Audit hygiene.** Tool-parameter values are control-char sanitized before they enter the audit
+  chain; syslog-forwarded audit records stay valid JSON when large (drop fields with a `_truncated`
+  marker instead of a lossy byte-truncation); `change_limits` in `rules.yaml` is now enforced
+  instead of warn-and-allow. (#65)
+
+### Fixed — protocol read correctness (wrong/fabricated values → correct or a clear error)
+- **Sparkplug B** signed integers (Int8/16/32/64) are two's-complement reinterpreted from the
+  unsigned protobuf fields — a −5 metric no longer reads as a huge positive number; a node rebirth
+  (NBIRTH, seq→0) no longer raises a false sequence-gap. (#66)
+- **HART** no longer sends every command to a fabricated long address (healthy transmitters could
+  never answer): a real identity→address discovery chain (or a configured `long_address`) is used,
+  HART-IP responses are validated (type/id/sequence/status) instead of trusting the first datagram,
+  and `iaiops doctor` grew a HART probe so a healthy HART endpoint no longer reports as failed. (#68)
+- **Siemens S7** non-DB reads map every data type to its exact pyS7 token — 1-byte types
+  (CHAR/USINT/SINT) no longer read overlapping 16-bit words, REAL/INT/DINT keep their sign, LREAL
+  reads its full 8 bytes; an unknown memory area or data type now raises a teaching error instead of
+  silently retargeting Merker memory. (#64)
+- **FINS/TCP** closes its socket when the node-address handshake fails (was leaking a file
+  descriptor per failed call in the long-lived server). (#64)
+- **Modbus** honours the configured `timeout_s` (TCP + serial); a 32-bit decode over an odd register
+  count reports a decode note instead of silently dropping data; `modbus_health_summary` gained an
+  opt-in `int16` decode so bipolar tags aren't false-alarmed. (#66)
+- **`diagnose_dataflow`** distinguishes a transport failure from a protocol exception response — a
+  reachable Modbus PLC that simply doesn't map register 0 is reported as *alive*, not "network down".
+  (#66)
+- **EtherCAT** `ethercat_set_state` reports `reached=None` when the post-write state check fails,
+  instead of echoing the never-observed prior state. (#64)
+- **MTConnect** HTTP fetch streams with a 4 MiB response cap (was reading unbounded bodies into
+  memory). (#68)
+- **Connection routing** raises a teaching error for sessionless protocols instead of falling back
+  to an OPC-UA session. (#64)
+
+### Added
+- **`warehouse` and `clinical` pip extras** so the documented `pip install iaiops[warehouse]` /
+  `[clinical]` actually resolve (they map to the same protocol sets as the profiles); `hart` folded
+  into the `all` extra. (#67)
+
+### Changed
+- Two lazy singletons (`_shared._manager`, `secretstore.open_store`) now use double-checked locking,
+  closing a race under the SSE/streamable-HTTP transport (the KDF unlock could run twice). (#71)
+- Tool-flood warning threshold raised 100 → 135 so the largest legitimate named edition (`factory`,
+  129 tools) no longer warns on every launch, while the catch-all `all` (141) still does. (#71)
+
+### Refactored
+- Per-protocol dispatch (doctor probe/where, dataflow connect/read, monitor, CLI init, session
+  routing) collapsed from ~7 parallel if/elif ladders into one authoritative capability registry
+  (`iaiops/core/runtime/capabilities.py`) with an explicit "unsupported" sentinel and a drift-guard
+  test, so a future protocol that forgets to register a capability fails CI loudly. Behavior
+  preserved. (#73)
+
+### Tests & CI
+- New `tests/conftest.py` isolates `IAIOPS_HOME` per test (tests no longer write the developer's real
+  audit chain) and resets the governance singletons; the write-tool contract set is derived
+  dynamically (catches a missing `bas_command`); the governance contracts now cover the full 166-tool
+  surface incl. edition tools; and the previously-untested `undo` / `budget` / `patterns` safety
+  modules gained end-to-end tests. (#72)
+- CI gate now runs `ruff format --check` (was `ruff check` only); the repo was reformatted to match.
+  (#74)
+
+### Docs
+- Honesty pass: corrected overclaims (nonexistent extras, Micro800 / Modbus-write coverage that isn't
+  implemented, a retracted IEC-104 loopback claim, the `server.json` default), fixed stale counts /
+  dead links, and synced the en/zh READMEs. (#67)
 
 ## 0.13.0 — 2026-07-13
 
