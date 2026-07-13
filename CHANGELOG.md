@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Security
+- **Token-egress guard for the HTTP-layer connectors (BAS controller + Gateway read layer).**
+  Their tools accept a caller-supplied `base_url` AND a `secret_name` resolved from the encrypted
+  secret store — previously a prompt-injected/malicious caller could point `base_url` at ANY
+  outbound host and exfiltrate the stored bearer/API token in one call. A new shared guard
+  (`iaiops/core/runtime/url_guard.py`), enforced in both transports BEFORE any network I/O, now:
+  requires an `http(s)` scheme; refuses URLs that embed credentials (`user:pass@host`); and only
+  sends a stored token to clearly-internal destinations (private/loopback/link-local literal IPs,
+  `localhost`, single-label hostnames, `.local`/`.lan`/`.internal`/`.home.arpa` names) unless the
+  operator opts the host in via `IAIOPS_TOKEN_EGRESS_HOSTS` (comma-separated `host` / `host:port`
+  / `*.suffix` entries, additive to the internal defaults). Unauthenticated requests keep working
+  unchanged (nothing to exfiltrate); public FQDN + stored secret now needs the one-line env opt-in.
+- **`verify_tls` can no longer be silently disabled by a tool argument (BAS controller + Gateway
+  read layer).** Every `bas_*` / `ignition_*` tool exposed `verify_tls: bool = True`, so an
+  LLM/agent (or prompt injection) could pass `verify_tls=False` per call and turn off certificate
+  validation — a trivial MITM path that undercuts the base_url egress guard above. Disabling TLS
+  verification is now an OPERATOR decision, not a model one: an explicit `verify_tls=False` is
+  refused (teaching error, before any network I/O) unless the operator set
+  `IAIOPS_ALLOW_INSECURE_TLS=1` in the server environment. The secure default (verify ON) is
+  unchanged and needs no env var. Enforced in the shared guard's `resolve_verify_tls`.
+
 ## 0.13.0 — 2026-07-13
 
 > **Two new read-only OT integration layers, above the field protocols.** A **BAS

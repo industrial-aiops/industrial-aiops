@@ -35,7 +35,12 @@ _WEBDEV = {
     },
     "GET /system/webdev/iaiops/tags/browse?provider=default&path=": {
         "tags": [
-            {"name": "OvenTemp", "fullPath": "OvenTemp", "tagType": "AtomicTag", "hasChildren": False},  # noqa: E501
+            {
+                "name": "OvenTemp",
+                "fullPath": "OvenTemp",
+                "tagType": "AtomicTag",
+                "hasChildren": False,
+            },  # noqa: E501
             {"name": "Line1", "fullPath": "Line1", "tagType": "Folder", "hasChildren": True},
         ]
     },
@@ -114,7 +119,7 @@ def routes(monkeypatch):
 
     def fake_get(url, headers, timeout, verify):
         _CAPTURED_HEADERS.append(dict(headers))
-        key = f"GET {url[len(BASE):]}"
+        key = f"GET {url[len(BASE) :]}"
         payload = state["table"][key]  # KeyError → surfaces as a translated failure
         return json.dumps(payload)
 
@@ -194,17 +199,19 @@ def test_tag_history_is_bounded_and_normalized(routes):
 def test_tag_history_count_cap_applied(routes):
     routes(_WEBDEV)
     # count=1 must clip the two-sample response server-side to one row.
-    routes({
-        (
-            "GET /system/webdev/iaiops/tags/history?provider=default"
-            "&path=OvenTemp&start=t0&end=t1&count=1"
-        ): {
-            "rows": [
-                {"timestamp": "t0", "value": 72.4, "quality": "Good"},
-                {"timestamp": "t1", "value": 72.6, "quality": "Good"},
-            ]
+    routes(
+        {
+            (
+                "GET /system/webdev/iaiops/tags/history?provider=default"
+                "&path=OvenTemp&start=t0&end=t1&count=1"
+            ): {
+                "rows": [
+                    {"timestamp": "t0", "value": 72.4, "quality": "Good"},
+                    {"timestamp": "t1", "value": 72.6, "quality": "Good"},
+                ]
+            }
         }
-    })
+    )
     out = ops.tag_history(BASE, "default", "OvenTemp", "t0", "t1", count=1)
     assert out["sample_count"] == 1
 
@@ -234,6 +241,95 @@ def test_missing_named_secret_raises(monkeypatch):
     )
     with pytest.raises(ValueError, match="not found in the encrypted store"):
         ops.gateway_status(BASE, "webdev", secret_name="absent")
+
+
+# ─────────────────────────────────────────────────── token-egress guard (SSRF)
+def _no_io(monkeypatch):
+    """Patch the HTTP primitive to fail loudly if any network I/O is attempted."""
+
+    def boom(*a, **k):
+        raise AssertionError("network I/O attempted — the egress guard must fire first")
+
+    monkeypatch.setattr(client_mod, "_http_get", boom)
+
+
+@pytest.mark.unit
+def test_stored_token_egress_to_public_host_refused_before_io(monkeypatch):
+    """A caller-supplied public base_url must NOT receive the stored API token."""
+    monkeypatch.delenv("IAIOPS_TOKEN_EGRESS_HOSTS", raising=False)
+    monkeypatch.setattr(ops, "get_secret", lambda name: "tok-xyz")
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="IAIOPS_TOKEN_EGRESS_HOSTS"):
+        ops.gateway_status("https://attacker.example.com", "webdev", secret_name="gw-token")
+
+
+@pytest.mark.unit
+def test_base_url_embedding_credentials_refused(monkeypatch):
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="embeds credentials"):
+        ops.gateway_status("https://tok@gw:8043", "webdev")
+
+
+@pytest.mark.unit
+def test_non_http_base_url_refused(monkeypatch):
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="http"):
+        ops.gateway_status("ftp://gw:8043", "webdev")
+
+
+@pytest.mark.unit
+def test_env_allowlisted_host_receives_token(monkeypatch):
+    """The operator can opt a specific FQDN in via IAIOPS_TOKEN_EGRESS_HOSTS."""
+    allowed_base = "https://gw.acme.example:8043"
+    monkeypatch.setenv("IAIOPS_TOKEN_EGRESS_HOSTS", "*.acme.example")
+    monkeypatch.setattr(ops, "get_secret", lambda name: "tok-xyz")
+    _CAPTURED_HEADERS.clear()
+
+    def fake_get(url, headers, timeout, verify):
+        _CAPTURED_HEADERS.append(dict(headers))
+        return json.dumps(_WEBDEV[f"GET {url[len(allowed_base) :]}"])
+
+    monkeypatch.setattr(client_mod, "_http_get", fake_get)
+    out = ops.gateway_status(allowed_base, "webdev", secret_name="gw-token")
+    assert out["reachable"] is True
+    assert any(h.get("Authorization") == "Bearer tok-xyz" for h in _CAPTURED_HEADERS)
+
+
+# ──────────────────────────────────────────────── insecure-TLS opt-in guard
+@pytest.mark.unit
+def test_default_verifies_tls(monkeypatch):
+    """verify_tls defaults True and reaches the HTTP layer as verify=True."""
+    captured: list[bool] = []
+
+    def fake_get(url, headers, timeout, verify):
+        captured.append(verify)
+        return json.dumps(_WEBDEV[f"GET {url[len(BASE) :]}"])
+
+    monkeypatch.setattr(client_mod, "_http_get", fake_get)
+    ops.gateway_status(BASE, "webdev")
+    assert captured and all(v is True for v in captured)
+
+
+@pytest.mark.unit
+def test_verify_tls_false_refused_before_io_without_optin(monkeypatch):
+    monkeypatch.delenv("IAIOPS_ALLOW_INSECURE_TLS", raising=False)
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="IAIOPS_ALLOW_INSECURE_TLS"):
+        ops.gateway_status(BASE, "webdev", verify_tls=False)
+
+
+@pytest.mark.unit
+def test_verify_tls_false_allowed_with_env_optin(monkeypatch):
+    monkeypatch.setenv("IAIOPS_ALLOW_INSECURE_TLS", "1")
+    captured: list[bool] = []
+
+    def fake_get(url, headers, timeout, verify):
+        captured.append(verify)
+        return json.dumps(_WEBDEV[f"GET {url[len(BASE) :]}"])
+
+    monkeypatch.setattr(client_mod, "_http_get", fake_get)
+    ops.gateway_status(BASE, "webdev", verify_tls=False)
+    assert captured and all(v is False for v in captured)
 
 
 # ───────────────────────────────────────────────────────────── error teaching
