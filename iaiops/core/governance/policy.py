@@ -6,6 +6,7 @@ Rules are loaded from ``~/.iaiops/rules.yaml`` with hot-reload on file change.
 from __future__ import annotations
 
 import logging
+import math
 import os
 import threading
 from dataclasses import dataclass
@@ -132,7 +133,13 @@ class PolicyEngine:
                 loaded = yaml.safe_load(fh)
             if loaded is not None and not isinstance(loaded, dict):
                 raise ValueError(f"rules.yaml must be a mapping, got {type(loaded).__name__}")
-            self._rules = loaded or {}
+            candidate = loaded or {}
+            # Fail CLOSED on unenforceable change_limits: a bad shape raises
+            # here so the standard load-failure path applies (last-known-good
+            # rules retained + audited) instead of a runtime "not enforced"
+            # warning that silently drops the limit.
+            _validate_change_limits(candidate.get("change_limits"))
+            self._rules = candidate
             self._deletion_warned = False
             _log.debug("Loaded %d policy rules from %s", len(self._rules), self._path)
         except Exception as exc:
@@ -271,14 +278,11 @@ class PolicyEngine:
                     reason=f"High-risk operations only allowed during {window.get('start', '?')}-{window.get('end', '?')}",
                 )
 
-        # ── Evaluate change limits (reserved, not implemented) ────────
-        # change_limits is NOT an enforced feature: _check_limits only warns
-        # that configured limits are ignored (it can't compute deltas without
-        # before-state). Kept so misconfiguration is surfaced, not silent.
-        limits = self._rules.get("change_limits", {})
-        if params and limits:
-            result = self._check_limits(limits, params, operation)
-            if result and not result.allowed:
+        # ── Evaluate change limits ────────────────────────────────────
+        limits = self._rules.get("change_limits")
+        if limits:
+            result = self._check_limits(limits, params or {}, operation)
+            if result is not None:
                 return result
 
         return PolicyResult(allowed=True, rule="default_allow")
@@ -423,23 +427,158 @@ class PolicyEngine:
         # Wraps midnight (e.g. 22:00 - 06:00)
         return current_minutes >= start_minutes or current_minutes <= end_minutes
 
-    @staticmethod
     def _check_limits(
-        limits: dict[str, Any], params: dict[str, Any], operation: str
+        self, limits: Any, params: dict[str, Any], operation: str
     ) -> PolicyResult | None:
-        """Check parameter-based limits (e.g. max CPU change %).
+        """Enforce numeric ``change_limits`` rules (schema in
+        :func:`_validate_change_limits`).
 
-        NOTE: Not yet implemented — requires before-state to compute deltas.
-        Logs a warning when limits are configured so operators know they are
-        not being enforced.
+        Returns a denial when a matching rule's bounded param is out of range
+        — or cannot be verified as numeric (fail closed) — and ``None`` when
+        no rule constrains this call. Malformed rules (reachable only if load
+        validation was bypassed) also deny: never warn-and-allow.
         """
-        if limits:
-            _log.warning(
-                "change_limits configured for '%s' but limit enforcement is not yet "
-                "implemented — limits are NOT being enforced. Params: %s",
-                operation, list(params.keys()),
+        if not isinstance(limits, list):
+            return PolicyResult(
+                allowed=False,
+                rule="change_limits_malformed",
+                reason=(
+                    f"change_limits in {self._path} is malformed (expected a list "
+                    "of limit rules) — denying until the config is fixed."
+                ),
             )
+        for rule in limits:
+            error = _change_limit_rule_error(rule)
+            if error:
+                return PolicyResult(
+                    allowed=False,
+                    rule="change_limits_malformed",
+                    reason=(
+                        f"change_limits rule {rule!r} in {self._path} cannot be "
+                        f"enforced ({error}) — denying until the config is fixed."
+                    ),
+                )
+            denial = self._apply_change_limit(rule, params, operation)
+            if denial is not None:
+                return denial
         return None
+
+    def _apply_change_limit(
+        self, rule: dict[str, Any], params: dict[str, Any], operation: str
+    ) -> PolicyResult | None:
+        """Evaluate one change_limits rule: a denial, or None (not constrained)."""
+        ops = rule.get("operations")
+        if ops is not None and not any(self._pattern_match(str(op), operation) for op in ops):
+            return None
+        param = str(rule.get("param"))
+        if param not in params:
+            return None  # rule matches the op but this call doesn't carry the param
+        name = str(rule.get("name", "change_limit"))
+        value = _as_number(params[param])
+        if value is None:
+            return PolicyResult(
+                allowed=False,
+                rule=name,
+                reason=(
+                    f"Change limit '{name}' on '{operation}' requires param "
+                    f"'{param}' to be numeric to verify it, got "
+                    f"{params[param]!r} — denied (fail closed)."
+                ),
+            )
+        minimum, maximum = rule.get("min"), rule.get("max")
+        if (minimum is not None and value < float(minimum)) or (
+            maximum is not None and value > float(maximum)
+        ):
+            return _limit_denial(rule, name, operation, param, value)
+        return None
+
+
+def _validate_change_limits(limits: Any) -> None:
+    """Validate the ``change_limits`` section at load time (fail closed).
+
+    Schema — a list of numeric limit rules::
+
+        change_limits:
+          - name: setpoint_cap          # optional label (used in denials)
+            operations: ["write_*"]     # optional glob list; absent → all ops
+            param: value                # required: param holding the number
+            min: 0                      # at least one numeric bound required
+            max: 100
+            reason: "..."               # optional operator-facing note
+
+    Raises ValueError on any unenforceable rule so the standard load-failure
+    path applies (last-known-good rules retained + audited) instead of a
+    runtime warning that silently skips enforcement.
+    """
+    if limits is None:
+        return
+    if not isinstance(limits, list):
+        raise ValueError(
+            "change_limits must be a list of limit rules, got "
+            f"{type(limits).__name__} — each rule needs 'param' plus a numeric "
+            "'min' and/or 'max'"
+        )
+    for index, rule in enumerate(limits):
+        error = _change_limit_rule_error(rule)
+        if error:
+            raise ValueError(f"change_limits[{index}] cannot be enforced: {error}")
+
+
+def _change_limit_rule_error(rule: Any) -> str:
+    """Return why a change_limits rule is unenforceable, or '' when valid."""
+    if not isinstance(rule, dict):
+        return f"expected a mapping, got {type(rule).__name__}"
+    param = rule.get("param")
+    if not isinstance(param, str) or not param.strip():
+        return "'param' (the parameter holding the numeric value) is required"
+    bounds = [rule[key] for key in ("min", "max") if rule.get(key) is not None]
+    if not bounds:
+        return "at least one numeric bound ('min' or 'max') is required"
+    for bound in bounds:
+        if isinstance(bound, bool) or not isinstance(bound, (int, float)):
+            return f"bounds must be numeric, got {bound!r}"
+    ops = rule.get("operations")
+    if ops is not None and not isinstance(ops, list):
+        return "'operations' must be a list of glob patterns"
+    return ""
+
+
+def _as_number(value: Any) -> float | None:
+    """Coerce a param value to float for limit checks; None when not numeric.
+
+    Booleans are rejected (True/False are not setpoint magnitudes) and so is
+    NaN (it compares false against every bound and would bypass them); numeric
+    strings like "42.5" are accepted since transports often deliver text.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+    elif isinstance(value, str):
+        try:
+            number = float(value.strip())
+        except ValueError:
+            return None
+    else:
+        return None
+    return None if math.isnan(number) else number
+
+
+def _limit_denial(
+    rule: dict[str, Any], name: str, operation: str, param: str, value: float
+) -> PolicyResult:
+    """Build the operator-facing denial for an out-of-range change limit."""
+    bounds = ", ".join(
+        f"{key}={rule[key]}" for key in ("min", "max") if rule.get(key) is not None
+    )
+    reason = (
+        f"Denied by change limit '{name}': {operation} {param}={value!r} is "
+        f"outside the allowed range ({bounds})."
+    )
+    note = str(rule.get("reason", "")).strip()
+    if note:
+        reason += f" {note}"
+    return PolicyResult(allowed=False, rule=name, reason=reason)
 
 
 def _extract_tags(params: dict[str, Any] | None) -> set[str]:
