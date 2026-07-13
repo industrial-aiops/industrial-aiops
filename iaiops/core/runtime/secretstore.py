@@ -33,6 +33,7 @@ import logging
 import os
 import stat
 import sys
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -244,17 +245,27 @@ class SecretStore:
 # ─── module-level convenience API (the rest of the app uses these) ───────────
 
 _cached: SecretStore | None = None
+_cached_lock = threading.Lock()
 
 
 def open_store(password: str | None = None, *, use_cache: bool = True) -> SecretStore:
-    """Return an unlocked store, caching it for the process when possible."""
+    """Return an unlocked store, caching it for the process when possible.
+
+    Double-checked locking on the cached path: sync tools run concurrently in
+    FastMCP's threadpool under the SSE / streamable-http transports, so an
+    unlocked check-then-set would let two callers each run the memory-hard KDF
+    (seconds of wasted CPU) and cache divergent store objects. Mirrors the
+    governance singletons (see ``iaiops.core.governance.budget.get_budget``).
+    An explicit ``password`` or ``use_cache=False`` bypasses the cache entirely.
+    """
     global _cached  # noqa: PLW0603
-    if use_cache and _cached is not None and password is None:
-        return _cached
-    store = SecretStore.unlock(password)
     if use_cache and password is None:
-        _cached = store
-    return store
+        if _cached is None:
+            with _cached_lock:
+                if _cached is None:
+                    _cached = SecretStore.unlock(None)
+        return _cached
+    return SecretStore.unlock(password)
 
 
 def get_secret(name: str) -> str:
