@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Security
+- **Token-egress guard for the HTTP-layer connectors (BAS controller + Gateway read layer).**
+  Their tools accept a caller-supplied `base_url` AND a `secret_name` resolved from the encrypted
+  secret store — previously a prompt-injected/malicious caller could point `base_url` at ANY
+  outbound host and exfiltrate the stored bearer/API token in one call. A new shared guard
+  (`iaiops/core/runtime/url_guard.py`), enforced in both transports BEFORE any network I/O, now:
+  requires an `http(s)` scheme; refuses URLs that embed credentials (`user:pass@host`); and only
+  sends a stored token to clearly-internal destinations (private/loopback/link-local literal IPs,
+  `localhost`, single-label hostnames, `.local`/`.lan`/`.internal`/`.home.arpa` names) unless the
+  operator opts the host in via `IAIOPS_TOKEN_EGRESS_HOSTS` (comma-separated `host` / `host:port`
+  / `*.suffix` entries, additive to the internal defaults). Unauthenticated requests keep working
+  unchanged (nothing to exfiltrate); public FQDN + stored secret now needs the one-line env opt-in.
+
 ## 0.13.0 — 2026-07-13
 
 > **Two new read-only OT integration layers, above the field protocols.** A **BAS

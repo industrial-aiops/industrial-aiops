@@ -31,7 +31,10 @@ def bas_point_list(
 
     Talks to the vendor supervisory controller's REST API (above BACnet). The
     bearer token is resolved from the encrypted secret store by key name, never
-    passed inline.
+    passed inline. Token-egress guard: with a secret set, base_url must point at
+    an internal host (private IP / single-label / .local-style name) or a host
+    the operator allowlisted via IAIOPS_TOKEN_EGRESS_HOSTS — public hosts are
+    refused before any request (prevents stored-token exfiltration).
 
     Args:
         base_url: Controller REST base URL, e.g. 'https://bms-host/api'.

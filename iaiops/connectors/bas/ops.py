@@ -11,6 +11,10 @@ Connection details come from the tool arguments (base URL + vendor dialect), not
 the YAML endpoint config — this layer is edition-scoped, not a core protocol.
 The bearer token is resolved from the encrypted secret store by key name, never
 passed in plaintext through a tool argument (so it never lands in the audit log).
+Because the caller supplies BOTH the destination and the secret key, the
+transport runs :mod:`iaiops.core.runtime.url_guard` before any network I/O: a
+stored token only rides to an internal host or one the operator allowlisted via
+``IAIOPS_TOKEN_EGRESS_HOSTS`` (stored-token exfiltration defense).
 """
 
 from __future__ import annotations

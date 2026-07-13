@@ -21,6 +21,7 @@ from iaiops.connectors.ignition.client import IgnitionClient
 from iaiops.connectors.ignition.dialects import UnknownFlavorError, get_dialect
 from iaiops.core.runtime.config import DEFAULT_TIMEOUT_S
 from iaiops.core.runtime.session_factory import OTConnectionError, make_session
+from iaiops.core.runtime.url_guard import UrlEgressError, validate_base_url
 
 # The connector-local protocol tag the local session guards on. It is NOT a
 # public wire protocol (never added to SUPPORTED_PROTOCOLS) — only this session
@@ -57,6 +58,16 @@ def _build_ignition_client(target: IgnitionTarget) -> IgnitionClient:
             endpoint=target.name,
             protocol=_IGNITION_PROTOCOL,
         )
+    try:
+        # Egress guard BEFORE any network I/O: http(s)-only, no URL-embedded
+        # credentials, and a stored API token only rides to an internal host
+        # or one the operator allowlisted (IAIOPS_TOKEN_EGRESS_HOSTS) — this
+        # blocks stored-token exfiltration via a caller-supplied base_url.
+        validate_base_url(base, connector="Gateway", token_attached=bool(target.token))
+    except UrlEgressError as exc:
+        raise OTConnectionError(
+            str(exc), endpoint=target.name, protocol=_IGNITION_PROTOCOL
+        ) from exc
     try:
         dialect = get_dialect(target.flavor)
     except UnknownFlavorError as exc:

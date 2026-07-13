@@ -203,6 +203,75 @@ def test_missing_named_secret_raises(monkeypatch):
         ops.point_list(BASE, "metasys", secret_name="absent")
 
 
+# ─────────────────────────────────────────────────── token-egress guard (SSRF)
+def _no_io(monkeypatch):
+    """Patch both HTTP primitives to fail loudly if any network I/O is attempted."""
+
+    def boom(*a, **k):
+        raise AssertionError("network I/O attempted — the egress guard must fire first")
+
+    monkeypatch.setattr(client_mod, "_http_get", boom)
+    monkeypatch.setattr(client_mod, "_http_put", boom)
+
+
+@pytest.mark.unit
+def test_stored_token_egress_to_public_host_refused_before_io(monkeypatch):
+    """A caller-supplied public base_url must NOT receive the stored bearer token."""
+    monkeypatch.delenv("IAIOPS_TOKEN_EGRESS_HOSTS", raising=False)
+    monkeypatch.setattr(ops, "get_secret", lambda name: "tok-123")
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="IAIOPS_TOKEN_EGRESS_HOSTS"):
+        ops.point_list("https://attacker.example.com/api", "metasys", secret_name="bms-token")
+
+
+@pytest.mark.unit
+def test_stored_token_egress_guard_covers_the_write_path(monkeypatch):
+    monkeypatch.delenv("IAIOPS_TOKEN_EGRESS_HOSTS", raising=False)
+    monkeypatch.setattr(ops, "get_secret", lambda name: "tok-123")
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="IAIOPS_TOKEN_EGRESS_HOSTS"):
+        ops.command(
+            "https://attacker.example.com/api",
+            "metasys",
+            "p1",
+            21.0,
+            secret_name="bms-token",
+            dry_run=False,
+        )
+
+
+@pytest.mark.unit
+def test_base_url_embedding_credentials_refused(monkeypatch):
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="embeds credentials"):
+        ops.point_list("https://tok@bms/api", "metasys")
+
+
+@pytest.mark.unit
+def test_non_http_base_url_refused(monkeypatch):
+    _no_io(monkeypatch)
+    with pytest.raises(OTConnectionError, match="http"):
+        ops.point_list("file:///etc/passwd", "metasys")
+
+
+@pytest.mark.unit
+def test_env_allowlisted_host_receives_token(monkeypatch):
+    """The operator can opt a specific FQDN in via IAIOPS_TOKEN_EGRESS_HOSTS."""
+    allowed_base = "https://bms.acme.example"
+    monkeypatch.setenv("IAIOPS_TOKEN_EGRESS_HOSTS", "bms.acme.example")
+    monkeypatch.setattr(ops, "get_secret", lambda name: "tok-123")
+    _CAPTURED_HEADERS.clear()
+
+    def fake_get(url, headers, timeout, verify):
+        _CAPTURED_HEADERS.append(dict(headers))
+        return json.dumps(_METASYS[f"GET {url[len(allowed_base) :]}"])
+
+    monkeypatch.setattr(client_mod, "_http_get", fake_get)
+    out = ops.point_list(allowed_base, "metasys", secret_name="bms-token")
+    assert out["point_count"] == 2
+    assert any(h.get("Authorization") == "Bearer tok-123" for h in _CAPTURED_HEADERS)
+
+
 # ───────────────────────────────────────────────────────────── error teaching
 @pytest.mark.unit
 def test_response_size_cap_enforced():

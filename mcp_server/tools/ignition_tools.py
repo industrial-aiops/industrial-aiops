@@ -32,7 +32,11 @@ def ignition_gateway_status(
 
     Talks to the vendor SCADA/MES platform's Gateway HTTP web API (not OPC-UA —
     that stays on the opcua connector). The API token is resolved from the
-    encrypted secret store by key name, never passed inline.
+    encrypted secret store by key name, never passed inline. Token-egress guard:
+    with a secret set, base_url must point at an internal host (private IP /
+    single-label / .local-style name) or a host the operator allowlisted via
+    IAIOPS_TOKEN_EGRESS_HOSTS — public hosts are refused before any request
+    (prevents stored-token exfiltration).
 
     Args:
         base_url: Gateway HTTP base URL, e.g. 'https://gw-host:8043'.
