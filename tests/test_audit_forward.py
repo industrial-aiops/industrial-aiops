@@ -164,3 +164,74 @@ def test_build_sink_syslog_default_port():
     assert isinstance(sink, SyslogUDPSink)
     assert sink._addr == ("10.0.0.9", 514)
     sink.close()
+
+
+# ── syslog datagram truncation must keep the record valid JSON ────────────────
+
+
+class _FakeSocket:
+    """Capture sendto payloads without touching the network."""
+
+    def __init__(self) -> None:
+        self.datagrams: list[bytes] = []
+
+    def sendto(self, payload: bytes, addr) -> None:
+        self.datagrams.append(payload)
+
+    def close(self) -> None:
+        pass
+
+
+def _capturing_syslog_sink() -> tuple[SyslogUDPSink, _FakeSocket]:
+    sink = SyslogUDPSink("127.0.0.1", 514)
+    sink._sock.close()
+    fake = _FakeSocket()
+    sink._sock = fake
+    return sink, fake
+
+
+def _record_from(payload: bytes) -> dict:
+    body = payload.decode("utf-8").split("iaiops-audit: ", 1)[1]
+    return json.loads(body)  # raises if truncation corrupted the JSON
+
+
+@pytest.mark.unit
+def test_syslog_small_line_sent_verbatim():
+    sink, fake = _capturing_syslog_sink()
+    line = json.dumps({"id": 1, "tool": "read", "params": {"i": 0}})
+    sink.send(line)
+    record = _record_from(fake.datagrams[0])
+    assert record == {"id": 1, "tool": "read", "params": {"i": 0}}
+    assert "_truncated" not in record
+
+
+@pytest.mark.unit
+def test_syslog_oversized_line_shrinks_to_valid_json():
+    sink, fake = _capturing_syslog_sink()
+    line = json.dumps(
+        {
+            "id": 7,
+            "tool": "write_tag",
+            "status": "ok",
+            "params": {"blob": "A" * 70000},
+            "result": {"ok": True},
+        }
+    )
+    sink.send(line)
+    payload = fake.datagrams[0]
+    assert len(payload) <= 65000
+    record = _record_from(payload)  # must still parse as JSON
+    assert record["_truncated"] is True
+    assert record["id"] == 7 and record["tool"] == "write_tag"
+    assert "A" * 100 not in json.dumps(record)  # bulk params dropped
+
+
+@pytest.mark.unit
+def test_syslog_oversized_result_also_shrinks():
+    sink, fake = _capturing_syslog_sink()
+    line = json.dumps({"id": 8, "tool": "read", "params": {}, "result": "B" * 70000})
+    sink.send(line)
+    payload = fake.datagrams[0]
+    assert len(payload) <= 65000
+    record = _record_from(payload)
+    assert record["_truncated"] is True and record["id"] == 8
