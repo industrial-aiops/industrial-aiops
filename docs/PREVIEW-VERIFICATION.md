@@ -63,7 +63,8 @@ Per `CLAUDE.md`: 支持版本是一等公民 — update every surface in the sam
    drop `待核实`, note "live <device> verified <date>".
 2. `README.md` (+ `README.zh-CN.md`) — move it from the `待核实` list to the verified
    sentence in the validation banner.
-3. `docs/HLD.md` §8.2 — flip the row's 自测 column (`⚠️ → ✅ live <device>`).
+3. The internal HLD §8.2 (design doc, lives outside this repo — skip if unavailable):
+   flip the row's 自测 column (`⚠️ → ✅ live <device>`).
 4. `docs/ROADMAP.md` — tick the protocol's follow-up.
 5. Add/lift a test: promote its contract test to an `@pytest.mark.integration` live
    test guarded by an env var (so CI skips, the bench runs it) — mirror

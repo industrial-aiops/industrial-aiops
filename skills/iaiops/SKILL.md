@@ -36,7 +36,10 @@ description: >-
 | 流程工业（化工/制药/食品饮料）· HART/HART-IP · 变送器/阀门定位器 · 过程仪表 · DCS 旁路读取 | **iaiops-process** | `IAIOPS_MCP=process` / `iaiops-mcp-process`（有 UNS 时 `IAIOPS_MCP=process,sparkplug`） |
 | BACnet/BACnet-IP · HVAC/暖通 · BMS/楼宇自控 · 厂务/facility · Who-Is · TrendLog | **iaiops-building** | `IAIOPS_MCP=building` / `iaiops-mcp-building` |
 | 水处理/水厂 · pH · 浊度/turbidity · 电导率/conductivity · 加药/dosing · 泵站/pump station · 曝气 | **iaiops-water** | `IAIOPS_MCP=water` / `iaiops-mcp-water` |
-| Phoenix Contact PLCnext / vPLC（虚拟化 PLC，走内建 OPC-UA + Modbus-TCP） | **iaiops-factory** | `IAIOPS_MCP=plcnext` / `iaiops-mcp-plcnext` |
+| 仓储/物流中心 · 输送线/conveyor · 分拣/sorter · AGV/AMR · WMS/WCS · 托盘/穿梭车 · 物料搬运 | **iaiops-warehouse** | `IAIOPS_MCP=warehouse` / `iaiops-mcp-warehouse` |
+| 医院设施/clinical facility · 负压/正压隔离病房 · 医用气体 · 手术室环境 · 医疗 BMS | **iaiops-clinical** | `IAIOPS_MCP=clinical` / `iaiops-mcp-clinical` |
+| 光伏/PV · 逆变器/inverter · 组串/string · 风电/风机 · 场站 SCADA · 新能源电站 | **iaiops-renewables** | `IAIOPS_MCP=renewables` / `iaiops-mcp-renewables` |
+| Phoenix Contact PLCnext / vPLC（虚拟化 PLC，走内建 OPC-UA + Modbus-TCP） | **iaiops-plcnext** | `IAIOPS_MCP=plcnext` / `iaiops-mcp-plcnext` |
 | IO-Link · IO-Link master · IODD · 智能传感器/executor 参数 · pdin · ISDU（主站 JSON/REST 接口，只读） | **iaiops-factory**（楼宇传感器场景 **iaiops-building**） | `IAIOPS_MCP=factory` / 单协议 `IAIOPS_MCP=iolink` / `iaiops-mcp-iolink` |
 
 - 单协议深用（只有一种设备）：直接 `IAIOPS_MCP=opcua`（或 modbus/s7/mc/fins/eip/mtconnect/
@@ -52,7 +55,7 @@ description: >-
 - **裸启动 `iaiops-mcp`（不设 `IAIOPS_MCP`）不再暴露全部工具**：打印选择菜单到
   stderr 并 exit 2。必须设 `IAIOPS_MCP=<selection>` 或用预置入口 `iaiops-mcp-<name>`。
   `IAIOPS_MCP=menu` 显式打印同一菜单（带各 selection 工具数）后退出。
-- `IAIOPS_MCP=all` 仍可**显式**使用（power user；>60 工具时启动日志给洪泛警告）。
+- `IAIOPS_MCP=all` 仍可**显式**使用（power user；>100 工具时启动日志给洪泛警告）。
 - **多进程站点（1 脑 + N 协议）**：跑一个 `iaiops-mcp-brain`（只脑），协议 server 各自
   加 `IAIOPS_MCP_NO_BRAIN=1`（如 `IAIOPS_MCP_NO_BRAIN=1 iaiops-mcp-opcua`）去掉脑，
   避免跨 server 工具重名；`protocols_supported`（发现工具）在 NO_BRAIN 下仍然保留。
