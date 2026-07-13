@@ -30,10 +30,15 @@ from iaiops.connectors.s7 import transport as _s7_tx
 from iaiops.connectors.secsgem import transport as _secsgem_tx
 from iaiops.connectors.sparkplug import transport as _mqtt_tx
 from iaiops.core.runtime.config import AppConfig, TargetConfig, load_config
-from iaiops.core.runtime.session_factory import OTConnectionError, make_session
+from iaiops.core.runtime.session_factory import (
+    OTConnectionError,
+    OTProtocolError,
+    make_session,
+)
 
 __all__ = [
-    "ConnectionManager", "OTConnectionError", "bacnet_session", "eip_session",
+    "ConnectionManager", "OTConnectionError", "OTProtocolError", "bacnet_session",
+    "eip_session",
     "ethercat_master", "fins_session", "make_session", "mc_session", "modbus_session",
     "mqtt_session", "opcua_session", "profinet_dcp", "s7_session",
     "secsgem_session",

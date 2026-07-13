@@ -52,7 +52,7 @@ def _build_modbus_client(target: TargetConfig) -> Any:
             endpoint=target.name,
             protocol="modbus",
         )
-    return ModbusTcpClient(target.host, port=target.port or 502)
+    return ModbusTcpClient(target.host, port=target.port or 502, timeout=target.timeout_s)
 
 
 def _build_modbus_serial_client(target: TargetConfig) -> Any:
@@ -86,6 +86,7 @@ def _build_modbus_serial_client(target: TargetConfig) -> Any:
         parity=(target.parity or "N")[:1],
         stopbits=target.stopbits or 1,
         bytesize=target.bytesize or 8,
+        timeout=target.timeout_s,
     )
 
 

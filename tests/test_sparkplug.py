@@ -72,6 +72,52 @@ def test_decode_sparkplug_payload_full():
     assert names["MotorRunning"]["value"] is True
 
 
+def _int_metric_payload(datatype: int, field: str, wire_value: int, seq: int = 1) -> bytes:
+    """One-metric payload with a raw wire value set on the given oneof field."""
+    pb = _pb()
+    p = pb.Payload()
+    p.timestamp = 2000
+    p.seq = seq
+    m = p.metrics.add()
+    m.name = "T"
+    m.datatype = datatype
+    setattr(m, field, wire_value)
+    return p.SerializeToString()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("datatype", "field", "wire", "expected"),
+    [
+        # Signed types arrive two's-complement in the unsigned protobuf fields
+        # (int_value is uint32, long_value is uint64) and must sign-reinterpret.
+        (2, "int_value", 4294967291, -5),  # Int16 −5, 32-bit-masked wire
+        (2, "int_value", 65531, -5),  # Int16 −5, 16-bit-masked wire
+        (1, "int_value", 255, -1),  # Int8 −1, 8-bit-masked wire
+        (1, "int_value", 4294967295, -1),  # Int8 −1, 32-bit-masked wire
+        (3, "int_value", (1 << 32) - 100000, -100000),  # Int32 −100000
+        (4, "long_value", (1 << 64) - 7, -7),  # Int64 −7
+        # Positive signed values and unsigned types must pass through unchanged.
+        (2, "int_value", 5, 5),  # Int16 +5
+        (4, "long_value", 7, 7),  # Int64 +7
+        (6, "int_value", 65526, 65526),  # UInt16 stays unsigned
+        (7, "int_value", 4294967291, 4294967291),  # UInt32 stays unsigned
+        (8, "long_value", (1 << 64) - 1, (1 << 64) - 1),  # UInt64 stays unsigned
+    ],
+)
+def test_signed_int_metrics_decode_twos_complement(datatype, field, wire, expected):
+    out = ops.decode_sparkplug_payload(_int_metric_payload(datatype, field, wire))
+    assert out["metrics"][0]["value"] == expected
+
+
+@pytest.mark.unit
+def test_float_double_boolean_untouched_by_sign_reinterpretation():
+    out = ops.decode_sparkplug_payload(_birth_payload())
+    names = {m["name"]: m for m in out["metrics"]}
+    assert names["Temperature"]["value"] == 21.5  # Double
+    assert names["MotorRunning"]["value"] is True  # Boolean
+
+
 @pytest.mark.unit
 def test_decode_resolves_alias_from_birth_map():
     out = ops.decode_sparkplug_payload(_data_payload(value=23.4), alias_map={1: "Temperature"})
@@ -111,6 +157,41 @@ def test_subscribe_sample_birth_data_model(monkeypatch):
     # The alias-only NDATA resolved its name from the BIRTH model.
     data_sample = out["samples"][1]["payload"]
     assert data_sample["metrics"][0]["name"] == "Temperature"
+
+
+@pytest.mark.unit
+def test_rebirth_resets_seq_tracking_without_false_gap(monkeypatch):
+    """An NBIRTH restarts the node's seq at 0 (Sparkplug spec) — no gap flagged."""
+    msgs = [
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        {"topic": "spBv1.0/Plant1/NDATA/Edge1", "payload": _data_payload(seq=1, value=22.0)},
+        # Rebirth: seq restarts at 0 — this is NOT a gap.
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        {"topic": "spBv1.0/Plant1/NDATA/Edge1", "payload": _data_payload(seq=1, value=23.0)},
+    ]
+    monkeypatch.setattr(ops, "_collect", lambda t, topic, count, timeout_s: msgs)
+    out = ops.sparkplug_node_list(TARGET)
+    node = next(n for n in out["nodes"] if n["edge_node_id"] == "Edge1")
+    assert node["seq_gap_count"] == 0
+    assert node["seq_issues"] == []
+
+
+@pytest.mark.unit
+def test_genuine_gap_after_rebirth_still_flagged(monkeypatch):
+    """Resetting on NBIRTH must not hide a real mid-stream seq gap."""
+    msgs = [
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        {"topic": "spBv1.0/Plant1/NDATA/Edge1", "payload": _data_payload(seq=1, value=22.0)},
+        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1", "payload": _birth_payload(seq=0)},
+        # Genuine gap after the rebirth: 0 → 5.
+        {"topic": "spBv1.0/Plant1/NDATA/Edge1", "payload": _data_payload(seq=5, value=23.0)},
+    ]
+    monkeypatch.setattr(ops, "_collect", lambda t, topic, count, timeout_s: msgs)
+    out = ops.sparkplug_node_list(TARGET)
+    node = next(n for n in out["nodes"] if n["edge_node_id"] == "Edge1")
+    assert node["seq_gap_count"] == 1
+    assert node["seq_issues"][0]["expected"] == 1
+    assert node["seq_issues"][0]["got"] == 5
 
 
 @pytest.mark.unit

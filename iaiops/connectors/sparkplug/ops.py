@@ -51,6 +51,29 @@ _DATATYPE_NAMES = {
     20: "PropertySet", 21: "PropertySetList",
 }
 
+# Signed DataType enum value → bit width. Per the Sparkplug B spec, signed
+# integers travel two's-complement in the UNSIGNED protobuf fields (Int8/16/32
+# in ``int_value`` which is uint32; Int64 in ``long_value`` which is uint64), so
+# the raw field value must be sign-reinterpreted at the declared width.
+_SIGNED_INT_BITS = {1: 8, 2: 16, 3: 32, 4: 64}  # Int8 / Int16 / Int32 / Int64
+
+
+def _reinterpret_signed(raw: int, datatype: int) -> int:
+    """Sign-reinterpret a raw unsigned wire integer per the metric's datatype.
+
+    Encoders differ in how much they mask (Tahu Python masks negatives to the
+    full 32-bit field; others mask to the type width), so mask down to the
+    declared width first, then flip values at/above the sign bit. Unsigned and
+    unknown datatypes pass through unchanged.
+    """
+    bits = _SIGNED_INT_BITS.get(int(datatype))
+    if bits is None:
+        return raw
+    raw = int(raw) & ((1 << bits) - 1)
+    if raw >= 1 << (bits - 1):
+        raw -= 1 << bits
+    return raw
+
 
 def _clamp_count(count: int) -> int:
     return max(1, min(int(count), MAX_MESSAGES))
@@ -104,7 +127,9 @@ def _metric_value(metric: Any) -> Any:
     if which is None:
         return None
     raw = getattr(metric, which)
-    if which in ("int_value", "long_value", "float_value", "double_value", "boolean_value"):
+    if which in ("int_value", "long_value"):
+        return _reinterpret_signed(raw, metric.datatype)
+    if which in ("float_value", "double_value", "boolean_value"):
         return raw
     if which == "string_value":
         return s(raw, 512)
@@ -295,6 +320,9 @@ class _SparkplugModel:
             node["born"] = True
             if mtype == "NBIRTH":
                 node["alias_map"] = {}
+                # Per the Sparkplug spec an NBIRTH restarts the node's seq at 0;
+                # reset tracking so the rebirth is not flagged as a false gap.
+                node["last_seq"] = None
             self._learn_aliases(node, payload)
             decoded = decode_sparkplug_payload(payload, node["alias_map"])
             if parsed["device_id"]:
