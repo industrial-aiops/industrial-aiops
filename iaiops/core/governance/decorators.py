@@ -206,7 +206,10 @@ class _CallState:
         # log and participate in env scoping (previously only kwargs did).
         params = _bind_params(signature, args, kwargs)
         self.safe_params = _redact(params, sensitive)
-        env = params.get("target", params.get("env", ""))
+        # Endpoint/environment selector: MCP tools name it ``endpoint``;
+        # ``target``/``env`` kept first for existing callers. A None value
+        # (e.g. ``endpoint=None`` default) resolves to "".
+        env = params.get("target", params.get("env", params.get("endpoint", "")))
         self.env = str(env) if env else ""
 
         # Accountability trail (SOC2 / 等保: who authorized this, and why).
