@@ -42,6 +42,9 @@ eip = ["pycomm3>=1.2,<2"]
 mtconnect = ["requests>=2.31,<3"]
 # IO-Link master JSON integration — pure HTTP, same lib as MTConnect (no new pins).
 iolink = ["iaiops[mtconnect]"]
+# BAS controller layer (vendor supervisory REST above BACnet — Metasys OpenBlue /
+# Niagara oBIX) — pure HTTP, same lib as MTConnect (no new HTTP dep).
+bas = ["iaiops[mtconnect]"]
 sparkplug = ["paho-mqtt>=2.0,<3", "protobuf>=4.25,<8"]
 # SECS/GEM (semiconductor / display fab equipment ↔ host over HSMS).
 secsgem = ["secsgem>=0.3,<1"]
@@ -112,8 +115,9 @@ factory = [
 ]
 process = ["iaiops[opcua]", "iaiops[modbus]", "iaiops[hart]"]
 # Energy edition (substation / utility) now ships separately: `pip install iaiops-energy`.
-# Building edition: facility / HVAC / 厂务 (matches IAIOPS_MCP=building).
-building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]", "iaiops[iolink]"]
+# Building edition: facility / HVAC / 厂务 (matches IAIOPS_MCP=building). Includes
+# the BAS controller layer (vendor supervisory REST above BACnet).
+building = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]", "iaiops[iolink]", "iaiops[bas]"]
 # Phoenix Contact PLCnext vPLC (虚拟化 PLC) — rides the existing OPC-UA + Modbus
 # connectors (its built-in OPC-UA server + Modbus-TCP); no dedicated driver.
 plcnext = ["iaiops[opcua]", "iaiops[modbus]"]

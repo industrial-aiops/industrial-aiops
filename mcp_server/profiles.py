@@ -130,7 +130,9 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # Facility patient-safety checks (isolation-room pressurization + medical-gas)
     # ride the building & clinical editions — a raw ``bacnet`` selection (a dev
     # poking one device) does not need them. building also gets AHU economizer FDD.
-    "building": ("clinical_tools", "building_tools"),
+    # BAS controller-layer tools (vendor supervisory REST above BACnet — Metasys
+    # OpenBlue / Niagara oBIX) ride the building edition only.
+    "building": ("clinical_tools", "building_tools", "bas_tools"),
     "clinical": ("clinical_tools",),
     # Line throughput / bottleneck (Theory-of-Constraints) + sortation performance
     # are material-handling concerns — they ride the warehouse edition.
