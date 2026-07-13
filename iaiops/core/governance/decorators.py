@@ -205,7 +205,10 @@ class _CallState:
         # Map positional args to parameter names so they appear in the audit
         # log and participate in env scoping (previously only kwargs did).
         params = _bind_params(signature, args, kwargs)
-        self.safe_params = _redact(params, sensitive)
+        # Control-char scrub of param values (recursively) before they land in
+        # the audit row / SIEM forward — device-sourced strings can carry
+        # terminal escapes.
+        self.safe_params = _sanitize_params(_redact(params, sensitive))
         # Endpoint/environment selector: MCP tools name it ``endpoint``;
         # ``target``/``env`` kept first for existing callers. A None value
         # (e.g. ``endpoint=None`` default) resolves to "".
@@ -536,6 +539,33 @@ def _redact_value(value: Any, sensitive: set[str]) -> Any:
         return _redact(value, sensitive)
     if isinstance(value, (list, tuple)):
         return type(value)(_redact_value(item, sensitive) for item in value)
+    return value
+
+
+# Generous cap for param text: long node lists are legitimate, but an audit
+# row should never carry unbounded attacker-controlled text either.
+_PARAM_TEXT_MAX = 4096
+
+
+def _sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of params with control characters stripped from strings.
+
+    Param values can carry device/network-sourced text (node ids, payloads,
+    error strings); terminal escapes and C0/C1 controls in them would land
+    verbatim in the audit row and flow on to SIEM forwards. Recurses into
+    dicts/lists/tuples and always builds new objects (inputs not mutated).
+    """
+    return {k: _sanitize_value(v) for k, v in params.items()}
+
+
+def _sanitize_value(value: Any) -> Any:
+    """Recursively scrub control chars from string values inside collections."""
+    if isinstance(value, str):
+        return sanitize(value, _PARAM_TEXT_MAX)
+    if isinstance(value, dict):
+        return _sanitize_params(value)
+    if isinstance(value, (list, tuple)):
+        return type(value)(_sanitize_value(item) for item in value)
     return value
 
 
