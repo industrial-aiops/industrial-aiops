@@ -218,22 +218,17 @@ class ConnectionManager:
         raises a teaching error instead of falling back to the OPC UA session
         (whose guard would produce a misleading "not opcua" message).
         """
+        from iaiops.core.runtime.capabilities import (
+            UNSUPPORTED,
+            get_capabilities,
+            session_supported_protocols,
+        )
+
         target = self.target(target_name)
-        builders = {
-            "opcua": opcua_session,
-            "modbus": modbus_session,
-            "s7": s7_session,
-            "mc": mc_session,
-            "fins": fins_session,
-            "mqtt": mqtt_session,
-            "ethernetip": eip_session,
-            "eip": eip_session,
-            "secsgem": secsgem_session,
-            "iolink": iolink_session,
-        }
-        builder = builders.get(target.protocol)
-        if builder is None:
-            supported = ", ".join(sorted(builders))
+        cap = get_capabilities(target.protocol)
+        builder = cap.session_builder if cap else UNSUPPORTED
+        if builder is UNSUPPORTED:
+            supported = ", ".join(session_supported_protocols())
             raise OTConnectionError(
                 f"Endpoint '{target.name}' is protocol '{target.protocol}', which "
                 f"does not use a stateful session here — its connector is "

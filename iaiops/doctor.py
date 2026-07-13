@@ -8,9 +8,14 @@ from __future__ import annotations
 
 from rich.console import Console
 
+from iaiops.core.runtime.capabilities import (
+    PROBE_INFORMATIONAL,
+    PROBE_OPCUA,
+    UNSUPPORTED,
+    get_capabilities,
+)
 from iaiops.core.runtime.config import (
     CONFIG_FILE,
-    DEFAULT_SECSGEM_PORT,
     ENV_FILE,
     load_config,
     password_env_var,
@@ -88,63 +93,70 @@ def run_doctor(skip_probe: bool = False) -> int:
     )
 
     for target in config.targets:
-        # EtherCAT can only be probed on Linux + root + NIC + real slaves (no
-        # simulator). Treat an environmental miss as an informational status, not
-        # a counted probe failure, so doctor stays useful off the bus.
-        if target.protocol == "ethercat":
-            ok, detail = _probe_ethercat(target)
-            if ok:
-                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
-            else:
-                _console.print(f"[yellow]! EtherCAT '{target.name}' — {detail}[/]")
-            continue
-        # PROFINET-DCP is layer-2 (raw socket) like EtherCAT — an environmental miss
-        # (no pnio-dcp / no raw-socket permission) is informational, not a hard fail.
-        if target.protocol == "profinet":
-            ok, detail = _probe_profinet(target)
-            if ok:
-                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
-            else:
-                _console.print(f"[yellow]! PROFINET '{target.name}' — {detail}[/]")
-            continue
-        # BACnet/IP needs the optional BAC0 lib + a live segment; informational miss.
-        if target.protocol == "bacnet":
-            ok, detail = _probe_bacnet(target)
-            if ok:
-                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
-            else:
-                _console.print(f"[yellow]! BACnet '{target.name}' — {detail}[/]")
-            continue
-        # OPC-UA: on failure, classify *why* (certificate / security policy / auth /
-        # firewall / …) and print the conclusion + the fix, not a raw error string.
-        if target.protocol == "opcua":
-            ok, detail = _probe(target)
-            if ok:
-                _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
-            else:
-                v = _diagnose_opcua(target)
-                if v["class"] == "ok":
-                    # probe failed but the diagnosis re-connect succeeded — a
-                    # transient blip, not a real fault; don't print a red ✗ ok.
-                    _console.print(
-                        f"[green]✓ Reachable '{target.name}' — recovered on retry "
-                        f"({v['diagnosis']})[/]"
-                    )
-                else:
-                    _console.print(
-                        f"[red]✗ OPC-UA '{target.name}' — {v['class']}: {v['diagnosis']}[/]"
-                    )
-                    _console.print(f"  [yellow]→ {v['remediation']}[/]")
-                    problems += 1
-            continue
-        ok, detail = _probe(target)
-        if ok:
-            _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
-        else:
-            _console.print(f"[red]✗ Probe '{target.name}' failed: {detail}[/]")
-            problems += 1
+        problems += _report_target_probe(target)
 
     return 1 if problems else 0
+
+
+def _report_target_probe(target) -> int:
+    """Probe one endpoint, print its status, and return 1 iff it's a counted problem.
+
+    The per-protocol reporting *style* (hard fail vs informational vs OPC-UA
+    classify) comes from the capability registry — the same table every other
+    dispatch site reads — so a new protocol can never silently mis-default.
+    """
+    cap = get_capabilities(target.protocol)
+    style = cap.probe_style if cap else ""
+    if style == PROBE_INFORMATIONAL:
+        return _report_informational_probe(target)
+    if style == PROBE_OPCUA:
+        return _report_opcua_probe(target)
+    return _report_hard_probe(target)
+
+
+def _report_informational_probe(target) -> int:
+    """EtherCAT/PROFINET/BACnet: an environmental miss is a yellow status, never counted.
+
+    These need Linux/root/NIC/optional-lib/live-segment and have no software
+    simulator, so a miss off the bus is informational — not a probe failure.
+    """
+    label, probe = _INFORMATIONAL_PROBES[target.protocol]
+    ok, detail = probe(target)
+    if ok:
+        _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+    else:
+        _console.print(f"[yellow]! {label} '{target.name}' — {detail}[/]")
+    return 0
+
+
+def _report_opcua_probe(target) -> int:
+    """OPC-UA: on failure, classify *why* and print the conclusion + fix, not a raw error."""
+    ok, detail = _probe(target)
+    if ok:
+        _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+        return 0
+    v = _diagnose_opcua(target)
+    if v["class"] == "ok":
+        # probe failed but the diagnosis re-connect succeeded — a transient blip,
+        # not a real fault; don't print a red ✗ ok.
+        _console.print(
+            f"[green]✓ Reachable '{target.name}' — recovered on retry "
+            f"({v['diagnosis']})[/]"
+        )
+        return 0
+    _console.print(f"[red]✗ OPC-UA '{target.name}' — {v['class']}: {v['diagnosis']}[/]")
+    _console.print(f"  [yellow]→ {v['remediation']}[/]")
+    return 1
+
+
+def _report_hard_probe(target) -> int:
+    """Every other protocol: a failed probe is a counted, red ✗ problem."""
+    ok, detail = _probe(target)
+    if ok:
+        _console.print(f"[green]✓ Reachable '{target.name}' — {detail}[/]")
+        return 0
+    _console.print(f"[red]✗ Probe '{target.name}' failed: {detail}[/]")
+    return 1
 
 
 def _opcua_insecure_auth_warning(target) -> str | None:
@@ -234,99 +246,38 @@ def _probe_profinet(target) -> tuple[bool, str]:
         return False, str(exc)[:200]
 
 
+# EtherCAT/PROFINET/BACnet get bespoke, informational run-loop reporting (see
+# _report_informational_probe). The registry marks them PROBE_INFORMATIONAL; this
+# map pins each to its label + dedicated environmental-miss probe. The drift guard
+# asserts these keys match the registry's informational protocols.
+_INFORMATIONAL_PROBES = {
+    "ethercat": ("EtherCAT", _probe_ethercat),
+    "profinet": ("PROFINET", _probe_profinet),
+    "bacnet": ("BACnet", _probe_bacnet),
+}
+
+
 def _where(target) -> str:
-    """Human-readable 'where' for an endpoint, per protocol."""
-    if target.protocol == "opcua":
-        return target.endpoint_url or "?"
-    if target.protocol == "mtconnect":
-        return target.agent_url or f"{target.host}:{target.port}"
-    if target.protocol == "iolink":
-        return target.agent_url or f"{target.host}:{target.port}"
-    if target.protocol == "s7":
-        return f"{target.host}:{target.port} rack={target.rack} slot={target.slot}"
-    if target.protocol == "mc":
-        return f"{target.host}:{target.port} ({target.plctype})"
-    if target.protocol == "fins":
-        return f"{target.host}:{target.port} ({target.transport or 'udp'})"
-    if target.protocol == "mqtt":
-        topic = target.topic or "#"
-        return f"{target.host}:{target.port} topic={topic} tls={target.use_tls}"
-    if target.protocol in ("ethernetip", "eip"):
-        return f"{target.host} slot={target.slot}"
-    if target.protocol == "ethercat":
-        return f"nic={target.nic or target.host or '?'}"
-    if target.protocol == "profinet":
-        # Layer-2 DCP: there is no TCP port — show the local interface IP.
-        return f"local-ip={target.host or target.nic or '?'}"
-    if target.protocol == "secsgem":
-        return f"{target.host}:{target.port or DEFAULT_SECSGEM_PORT} device={target.unit_id}"
-    return f"{target.host}:{target.port}"
+    """Human-readable 'where' for an endpoint, per protocol (registry-driven)."""
+    cap = get_capabilities(target.protocol)
+    if cap is None:
+        return f"{target.host}:{target.port}"
+    return cap.where_hint(target)
 
 
 def _probe(target) -> tuple[bool, str]:
-    """Probe one endpoint read-only; return (ok, detail) — never raises."""
+    """Probe one endpoint read-only; return (ok, detail) — never raises.
+
+    Dispatches through the capability registry: a protocol with no generic
+    ``doctor_probe`` (e.g. the informational ethercat/profinet/bacnet, handled
+    separately in the run loop) yields the same "No probe implemented" status
+    as before instead of a wrong default.
+    """
+    cap = get_capabilities(target.protocol)
+    probe = cap.doctor_probe if cap else UNSUPPORTED
+    if probe is UNSUPPORTED:
+        return False, f"No probe implemented for protocol '{target.protocol}'."
     try:
-        if target.protocol == "opcua":
-            from iaiops.connectors.opcua.ops import server_info
-
-            info = server_info(target)
-            return True, f"OPC-UA state={info.get('state')} ({info.get('product_name', '?')})"
-        if target.protocol == "modbus":
-            from iaiops.connectors.modbus.ops import modbus_read_holding
-
-            result = modbus_read_holding(target, address=0, count=1)
-            return True, f"Modbus holding[0]={result.get('decoded')}"
-        if target.protocol == "s7":
-            from iaiops.connectors.s7.ops import s7_cpu_info
-
-            info = s7_cpu_info(target)
-            return True, f"S7 cpu_status={info.get('cpu_status')}"
-        if target.protocol == "mc":
-            from iaiops.connectors.mc.ops import mc_cpu_status
-
-            info = mc_cpu_status(target)
-            return True, f"MC cpu={info.get('cpu_type')}"
-        if target.protocol == "fins":
-            from iaiops.connectors.fins.ops import fins_cpu_info
-
-            info = fins_cpu_info(target)
-            return True, f"FINS cpu={info.get('model')}"
-        if target.protocol == "hart":
-            from iaiops.connectors.hart.ops import hart_device_identity
-
-            info = hart_device_identity(target)
-            if "error" in info:
-                return False, str(info["error"])
-            return True, (
-                f"HART identity mfr={info.get('manufacturer_id')} "
-                f"device_id={info.get('device_id')}"
-            )
-        if target.protocol == "mtconnect":
-            from iaiops.connectors.mtconnect.ops import mtconnect_current
-
-            cur = mtconnect_current(target)
-            return True, f"MTConnect observations={cur.get('observation_count')}"
-        if target.protocol == "iolink":
-            from iaiops.connectors.iolink.ops import master_info
-
-            info = master_info(target)
-            return True, f"IO-Link master={info.get('master', {}).get('productcode', '?')}"
-        if target.protocol == "mqtt":
-            from iaiops.connectors.sparkplug.ops import mqtt_read_topic
-
-            out = mqtt_read_topic(target, count=1, timeout_s=3)
-            return True, f"MQTT connected, messages={out.get('message_count')}"
-        if target.protocol in ("ethernetip", "eip"):
-            from iaiops.connectors.eip.ops import eip_controller_info
-
-            info = eip_controller_info(target)
-            ctrl = info.get("controller", {})
-            return True, f"EtherNet/IP controller={ctrl.get('product_name', '?')}"
-        if target.protocol == "secsgem":
-            from iaiops.connectors.secsgem.ops import equipment_status
-
-            info = equipment_status(target)
-            return True, f"SECS/GEM comm={info.get('communication_state')}"
+        return probe(target)
     except Exception as exc:  # noqa: BLE001 — connectivity is a status, not a crash
         return False, str(exc)[:200]
-    return False, f"No probe implemented for protocol '{target.protocol}'."

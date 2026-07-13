@@ -21,34 +21,20 @@ MIN_INTERVAL_MS = 50
 
 
 def _read_point(target: Any, ref: str) -> tuple[Any, str]:
-    """Read one point across protocols → (value, source_timestamp). Best-effort."""
+    """Read one point across protocols → (value, source_timestamp). Best-effort.
+
+    Dispatches through the capability registry; a protocol without a
+    ``monitor_read`` capability raises the same teaching ``ValueError`` as before
+    rather than silently returning a wrong value.
+    """
+    from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
+
     protocol = getattr(target, "protocol", "")
-    if protocol == "opcua":
-        from iaiops.connectors.opcua.ops import read_node
-
-        desc = read_node(target, ref)
-        return desc.get("value"), desc.get("source_timestamp", "")
-    if protocol == "modbus":
-        from iaiops.connectors.modbus.ops import modbus_read_holding
-
-        r = modbus_read_holding(target, address=int(ref), count=1)
-        return (r.get("decoded") or [None])[0], ""
-    if protocol == "s7":
-        from iaiops.connectors.s7.ops import s7_read_many
-
-        items = s7_read_many(target, [ref]).get("items") or []
-        return (items[0]["value"] if items else None), ""
-    if protocol == "mc":
-        from iaiops.connectors.mc.ops import mc_read_words
-
-        words = mc_read_words(target, ref, count=1).get("words") or []
-        return (words[0] if words else None), ""
-    if protocol in ("ethernetip", "eip"):
-        from iaiops.connectors.eip.ops import eip_read_tag
-
-        desc = eip_read_tag(target, ref)
-        return desc.get("value"), ""
-    raise ValueError(f"No CoV read path for protocol '{protocol}'.")
+    cap = get_capabilities(protocol)
+    reader = cap.monitor_read if cap else UNSUPPORTED
+    if reader is UNSUPPORTED:
+        raise ValueError(f"No CoV read path for protocol '{protocol}'.")
+    return reader(target, ref)
 
 
 def _changed(prev: Any, curr: Any, deadband: float) -> bool:
