@@ -4,9 +4,9 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
-## Status — 2026-07-13 (current: `iaiops 0.13.0` · `iaiops-energy 0.1.5`)
+## Status — 2026-07-13 (current: `iaiops 0.14.0` · `iaiops-energy 0.1.5`)
 
-Latest published: base **`iaiops 0.13.0`**, energy **`iaiops-energy 0.1.5`** (PyPI +
+Latest published: base **`iaiops 0.14.0`**, energy **`iaiops-energy 0.1.5`** (PyPI +
 GitHub Release + MCP registry). Since the 2026-07-02 block below was written, five
 more base releases shipped (0.9.0–0.13.0: FINS / IO-Link / BAS / Ignition read
 layers, warehouse / clinical / renewables / plcnext editions, adapter belt, fleet
@@ -245,4 +245,4 @@ Everything below is the detailed backlog with per-item status.
   Releases (v0.8.0 / v0.1.2), and the MCP registry (`io.github.industrial-aiops/iaiops`
   + `…/iaiops-energy`) under the industrial-aiops org (2026-07-02). Base 0.7.0 was also
   on ClawHub / skills.sh (2026-06-30). *(Historical entry — latest published is
-  **iaiops 0.13.0** + **iaiops-energy 0.1.5**, 2026-07-13; see the status block at the top.)*
+  **iaiops 0.14.0** + **iaiops-energy 0.1.5**, 2026-07-13; see the status block at the top.)*
