@@ -45,6 +45,9 @@ iolink = ["iaiops[mtconnect]"]
 # BAS controller layer (vendor supervisory REST above BACnet — Metasys OpenBlue /
 # Niagara oBIX) — pure HTTP, same lib as MTConnect (no new HTTP dep).
 bas = ["iaiops[mtconnect]"]
+# Gateway MES/SCADA read layer (vendor SCADA/MES platform HTTP web API above its
+# OPC-UA server — READ-ONLY) — pure HTTP, same lib as MTConnect (no new HTTP dep).
+ignition = ["iaiops[mtconnect]"]
 sparkplug = ["paho-mqtt>=2.0,<3", "protobuf>=4.25,<8"]
 # SECS/GEM (semiconductor / display fab equipment ↔ host over HSMS).
 secsgem = ["secsgem>=0.3,<1"]
@@ -112,6 +115,7 @@ factory = [
     "iaiops[ethercat]",
     "iaiops[profinet]",
     "iaiops[iolink]",
+    "iaiops[ignition]",
 ]
 process = ["iaiops[opcua]", "iaiops[modbus]", "iaiops[hart]"]
 # Energy edition (substation / utility) now ships separately: `pip install iaiops-energy`.
