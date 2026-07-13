@@ -16,11 +16,12 @@ from typing import Any
 
 from iaiops.connectors.modbus import byteorder, templates
 from iaiops.core.brain._shared import s
-from iaiops.core.runtime.connection import OTConnectionError, modbus_session
+from iaiops.core.runtime.connection import OTProtocolError, modbus_session
 
 MAX_COUNT = 125  # Modbus protocol max registers per read
 
 _REGISTER_DECODES = ("raw", "uint16", "int16", "uint32", "int32", "float32")
+_PAIR_DECODES = ("uint32", "int32", "float32")  # each value consumes 2 registers
 
 
 def _clamp_count(count: int) -> int:
@@ -28,9 +29,15 @@ def _clamp_count(count: int) -> int:
 
 
 def _check(response: Any, address: int, kind: str) -> Any:
-    """Raise a teaching OTConnectionError if a Modbus response is an exception."""
+    """Raise a teaching OTProtocolError if a Modbus response is an exception.
+
+    An exception response means the device ANSWERED at the protocol level (it is
+    alive and reachable) but rejected the request — hence
+    :class:`OTProtocolError`, a distinguishable subclass of
+    :class:`OTConnectionError`, so diagnostics never misreport it as offline.
+    """
     if response is None or (hasattr(response, "isError") and response.isError()):
-        raise OTConnectionError(
+        raise OTProtocolError(
             f"Modbus {kind} read at address {address} failed: {s(str(response), 120)}. "
             f"Check the address range, the unit/device id, and the function code "
             f"support on this PLC.",
@@ -60,6 +67,26 @@ def _decode_registers(registers: list[int], decode: str) -> list:
     return out
 
 
+def _decode_note(registers: list[int], decode: str) -> str | None:
+    """Explain when a pair (2-register) decode cannot consume every register.
+
+    Never fabricates a value: a lone trailing register is half a 32-bit value.
+    Returns None when the decode consumed everything (or is a 16-bit decode).
+    """
+    if decode not in _PAIR_DECODES or len(registers) % 2 == 0:
+        return None
+    if len(registers) == 1:
+        return (
+            f"'{decode}' needs 2 registers per value but only 1 was read — "
+            f"nothing decoded. Re-read with count=2 (or a multiple of 2)."
+        )
+    return (
+        f"'{decode}' decodes register pairs; the trailing odd register "
+        f"({len(registers) - 1} pairs decoded of {len(registers)} registers) was "
+        f"not decoded. Read an even count to decode all values."
+    )
+
+
 def _read_registers(target: Any, address: int, count: int, decode: str, fn_name: str) -> dict:
     """Shared body for holding / input register reads."""
     count = _clamp_count(count)
@@ -67,14 +94,19 @@ def _read_registers(target: Any, address: int, count: int, decode: str, fn_name:
         fn = getattr(client, fn_name)
         resp = _check(fn(address, count=count, device_id=target.unit_id), address, fn_name)
         registers = list(resp.registers)
-    return {
+    decode = decode if decode in _REGISTER_DECODES else "uint16"
+    note = _decode_note(registers, decode)
+    result = {
         "address": address,
         "count": count,
         "unit_id": target.unit_id,
-        "decode": decode if decode in _REGISTER_DECODES else "uint16",
+        "decode": decode,
         "raw_registers": registers,
         "decoded": _decode_registers(registers, decode),
     }
+    if note:
+        result["decode_note"] = note
+    return result
 
 
 def modbus_read_holding(target: Any, address: int, count: int = 1, decode: str = "uint16") -> dict:
@@ -167,12 +199,17 @@ def modbus_health_summary(
     addresses: list[int] | None = None,
     thresholds: dict | None = None,
     register_type: str = "holding",
+    decode: str = "uint16",
 ) -> dict:
     """[READ] Classify holding/input registers against warn/alarm thresholds.
 
     ``addresses`` defaults to the endpoint's configured tag refs (parsed as
     register addresses). ``thresholds`` overrides per-address bounds keyed by
-    the address string. Mirrors the OPC-UA ``health_summary`` classifier.
+    the address string. ``decode`` (uint16 default, or int16 — mirroring the
+    read tools' decode vocabulary) controls how each single register is
+    interpreted before threshold comparison, so bipolar int16 tags (e.g. −10 on
+    the wire as 65526) don't false-alarm against high bounds. Mirrors the
+    OPC-UA ``health_summary`` classifier.
     """
     addrs = _resolve_addresses(target, addresses)
     if not addrs:
@@ -180,6 +217,7 @@ def modbus_health_summary(
             "error": "No addresses to evaluate. Pass addresses or add numeric "
             "'tags' to the endpoint's config entry.",
         }
+    decode = decode if decode in ("uint16", "int16") else "uint16"
     fn_name = "read_input_registers" if register_type == "input" else "read_holding_registers"
     counts = {"ok": 0, "warn": 0, "alarm": 0, "unknown": 0}
     results: list[dict] = []
@@ -192,7 +230,7 @@ def modbus_health_summary(
                 if resp is None or (hasattr(resp, "isError") and resp.isError()):
                     value = None
                 else:
-                    value = float(resp.registers[0])
+                    value = float(_decode_registers(list(resp.registers[:1]), decode)[0])
             except Exception:  # noqa: BLE001 — per-address read error
                 value = None
             status = "unknown" if value is None else tag.classify(value)
@@ -205,6 +243,7 @@ def modbus_health_summary(
     return {
         "endpoint": s(target.name, 64),
         "register_type": register_type,
+        "decode": decode,
         "overall": overall,
         "counts": counts,
         "evaluated": len(results),

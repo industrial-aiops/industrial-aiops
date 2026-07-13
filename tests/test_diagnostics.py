@@ -158,3 +158,61 @@ def test_diagnose_bad_quality(monkeypatch):
     target = TargetConfig(name="x", protocol="opcua", endpoint_url="opc.tcp://h:4840")
     out = diag.diagnose_dataflow(target, ref="ns=2;i=5")
     assert out["verdict"] == "comms_ok_bad_quality"
+
+
+# ─── diagnose_dataflow: Modbus probe through a fake transport ────────────────
+
+
+class _ModbusExceptionResp:
+    """A Modbus exception response (e.g. IllegalDataAddress) — the device DID answer."""
+
+    def isError(self):  # noqa: N802 — mirrors pymodbus's response API
+        return True
+
+    def __str__(self):
+        return "ExceptionResponse(dev_id=1, function_code=131, exception_code=2)"
+
+
+class _ExceptionRespondingClient:
+    """TCP connects fine; every register read returns a Modbus exception response."""
+
+    def connect(self):
+        return True
+
+    def close(self):
+        return None
+
+    def read_holding_registers(self, address, *, count=1, device_id=1, no_response_expected=False):
+        return _ModbusExceptionResp()
+
+
+@pytest.mark.unit
+def test_diagnose_modbus_exception_response_is_not_offline(monkeypatch):
+    """A protocol-level exception response PROVES the PLC is alive — never
+    cannot_connect / 'PLC offline' (many devices simply don't map register 0)."""
+    import iaiops.core.runtime.connection as conn
+
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: _ExceptionRespondingClient())
+    target = TargetConfig(name="plc1", protocol="modbus", host="10.0.0.9")
+    out = diag.diagnose_dataflow(target)
+    assert out["verdict"] != "cannot_connect"
+    connect_hop = out["hops"][0]
+    assert connect_hop["hop"] == "connect"
+    assert connect_hop["ok"] is True
+    assert "alive" in connect_hop["detail"]
+
+
+@pytest.mark.unit
+def test_diagnose_modbus_tcp_down_still_cannot_connect(monkeypatch):
+    """A genuine TCP connect failure must still localize to cannot_connect."""
+    import iaiops.core.runtime.connection as conn
+
+    class _Down(_ExceptionRespondingClient):
+        def connect(self):
+            return False
+
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: _Down())
+    target = TargetConfig(name="plc1", protocol="modbus", host="10.0.0.9")
+    out = diag.diagnose_dataflow(target)
+    assert out["verdict"] == "cannot_connect"
+    assert out["hops"][0]["ok"] is False

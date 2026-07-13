@@ -35,6 +35,17 @@ class OTConnectionError(Exception):
         super().__init__(message)
 
 
+class OTProtocolError(OTConnectionError):
+    """The device RESPONDED with a protocol-level exception (e.g. a Modbus
+    exception response for an unmapped register).
+
+    Subclasses :class:`OTConnectionError` so every existing ``except
+    OTConnectionError`` keeps working, while diagnostics can distinguish
+    "the device answered but rejected the request" (endpoint is alive) from
+    a genuine transport/connect failure (endpoint unreachable).
+    """
+
+
 # Sentinel distinguishing "build never ran" from "build returned a falsy client":
 # teardown must be skipped for the former but still attempted for the latter.
 _UNBUILT: Any = object()
@@ -128,4 +139,4 @@ def make_session(
     return session
 
 
-__all__ = ["OTConnectionError", "SessionFn", "make_session"]
+__all__ = ["OTConnectionError", "OTProtocolError", "SessionFn", "make_session"]
