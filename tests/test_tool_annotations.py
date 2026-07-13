@@ -22,12 +22,11 @@ RISK_TAG_RE = re.compile(
 BARE_GENERIC_RE = re.compile(r"(?<![\w.\[])(list|dict)(?!\[)")
 
 
-def _registered_tools() -> dict:
-    from mcp_server import _shared
-    from mcp_server.server import register_profile
-
-    register_profile("all")  # order-independent: register the full surface
-    return dict(_shared.mcp._tool_manager._tools)
+# Tool collection: the ``full_tool_registry`` fixture (tests/conftest.py)
+# registers the FULL surface incl. EDITION_MODULES tools —
+# ``register_profile("all")`` alone covers only the protocol groups + brain and
+# would skip the ~25 edition tools (bas/ignition/clinical/...), including the
+# write tool ``bas_command``.
 
 
 def _annotation_text(annotation: object) -> str:
@@ -39,9 +38,9 @@ def _annotation_text(annotation: object) -> str:
 
 
 @pytest.mark.unit
-def test_no_bare_list_or_dict_parameter_annotations():
+def test_no_bare_list_or_dict_parameter_annotations(full_tool_registry):
     offenders: list[str] = []
-    for name, tool in sorted(_registered_tools().items()):
+    for name, tool in sorted(full_tool_registry.items()):
         sig = inspect.signature(tool.fn)
         for pname, param in sig.parameters.items():
             if param.annotation is inspect.Parameter.empty:
@@ -53,9 +52,9 @@ def test_no_bare_list_or_dict_parameter_annotations():
 
 
 @pytest.mark.unit
-def test_docstring_first_line_carries_risk_tag():
+def test_docstring_first_line_carries_risk_tag(full_tool_registry):
     offenders: list[str] = []
-    for name, tool in sorted(_registered_tools().items()):
+    for name, tool in sorted(full_tool_registry.items()):
         doc = inspect.getdoc(tool.fn) or ""
         first_line = doc.splitlines()[0] if doc else ""
         if not RISK_TAG_RE.match(first_line):
