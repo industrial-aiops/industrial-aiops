@@ -143,7 +143,9 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # SPC control-chart rules are a fab / quality concern — they ride the fab edition.
     "fab": ("fab_tools",),
     # Changeover / SMED analysis is a discrete-manufacturing concern — factory edition.
-    "factory": ("factory_tools",),
+    # The vendor Gateway MES/SCADA read layer (HTTP web API above the platform's
+    # OPC-UA server — READ-ONLY) also rides the factory edition only.
+    "factory": ("factory_tools", "ignition_tools"),
     # Disinfection CT + finished-water quality are water-treatment concerns — water edition.
     "water": ("water_tools",),
     # PV string performance is a solar/renewables concern — renewables edition.
