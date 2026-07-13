@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+### Added — Gateway MES/SCADA read layer (factory edition, READ-ONLY)
+- **New `ignition` connector** (`iaiops/connectors/ignition/`) — a config-driven HTTP reader for the
+  vendor SCADA/MES platform's **Gateway HTTP/web API**: the MES-ish production surface (module
+  health, tag-tree browse, current tag values, active alarms, tag-history) that the base `opcua`
+  connector does NOT cover. The platform also exposes an OPC-UA server, but that stays on the
+  existing `opcua` connector — this layer deliberately does **not** reimplement OPC-UA. A small
+  per-deployment **dialect** (`webdev` / `gateway`: resource paths + field aliases) folds each
+  response shape into one neutral schema; reuses the shared `requests` stack (no new HTTP dep) and
+  the `make_session` lifecycle, with the API token/key resolved from the encrypted secret store by
+  key name. The vendor/product name stays inside the connector (brand-isolation).
+- **New `ignition_tools`** (factory EDITION module) — `ignition_gateway_status`,
+  `ignition_tag_browse`, `ignition_tag_read`, `ignition_alarm_status`, `ignition_tag_history` — **ALL
+  READ, risk=low, NO writes** (the governed/read-only complement to the platform's own official MCP
+  module, differentiated by the audit/budget/undo harness, not by writing).
+- **`ignition` extra** (`pip install iaiops[ignition]`, reuses the MTConnect `requests` pin) folded
+  into the `factory` bundle; support-version matrix rows added to the factory SKILL (live gateway +
+  exact API version/paths marked 待核实; self-test = in-repo mock Gateway, both flavors).
+
 ### Added — BAS controller-layer integration (building edition, read-first)
 - **New `bas` connector** (`iaiops/connectors/bas/`) — a config-driven HTTP reader for the vendor
   supervisory-controller REST layer that sits ABOVE the `bacnet` field-protocol connector: Johnson

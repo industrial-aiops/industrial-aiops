@@ -91,6 +91,19 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
   只汇总、不拆解)。从好件完成流按产品切换测每次换型,排最长、算均值/总换型时间,worst-first,
   每时长引用两端时间戳。纯分析,喂 MES/PLC 好件计数。
 
+### Gateway MES/SCADA 读层（edition 工具；厂商 SCADA/MES 平台 HTTP web API — **只读**）
+厂商 SCADA/MES 平台的 **Gateway HTTP/web API** 暴露 MES 侧生产面（模块健康、tag 树、当前值、
+活动告警、tag 历史）——这是基座 `opcua` connector 覆盖不到的部分。该平台**同时**跑一个 OPC-UA
+server，但那已由 `opcua` connector 处理，本读层**不碰 OPC-UA**。全部**只读**（`risk=low`），
+**无任何写工具**——是厂商官方 MCP 模块的受治理/只读补集（差异化在审计/预算/回滚 harness，不在写）。
+- `ignition_gateway_status` — 网关/模块健康 + 可达性（Gateway doctor 步；`{gateway, modules[]}`）
+- `ignition_tag_browse` — 按 provider/path 浏览 tag 树（`{name, path, type, has_children}`）
+- `ignition_tag_read` — 单/多 tag 当前值/质量/时间戳（`{path, value, quality, timestamp}`）
+- `ignition_alarm_status` — 活动/已确认告警列表（归一化）
+- `ignition_tag_history` — 单 tag 时间窗历史（有界聚合样本 ≤5000）
+- API token/key 从加密 secret store 按 key 名取，绝不内联；`flavor`（webdev/gateway：资源路径 +
+  字段别名）仅存在于连接器内；确切 API 版本/路径 + live gateway 待核实。
+
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
   `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
@@ -136,3 +149,5 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 | IO-Link | `requests>=2.31,<3`（复用 MTConnect pin） | IO-Link Master JSON Integration（IOLINK-JSON）；ifm IoT-Core / plain-REST 双 flavor | 带 JSON/REST 接口的主站（ifm/Balluff/Turck 类） | HTTP REST/JSON | ✅ mock 主站（双 flavor）；live master 待核实 |
 | MQTT/Sparkplug B | `paho-mqtt>=2.0,<3` + `protobuf>=4.25,<8` | MQTT 3.1.1/5；SpB(Tahu)；亦支持裸 MQTT | SpB 边缘/Broker；UNS | TCP/1883/8883 | ✅ |
 | PLCnext vPLC | 复用 OPC-UA/Modbus pin | 菲尼克斯 PLCnext 内建 OPC-UA(4840)+Modbus-TCP | Phoenix Contact vPLC | opc.tcp+TCP/502 | ✅ 路由验证（`tests/test_plcnext_route.py`）；活体 待核实 |
+| Gateway MES/SCADA 读层: WebDev | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Gateway HTTP web API（WebDev 模块 JSON 端点：`/system/webdev/...` — status·tags/browse·tags/read·alarms·tags/history）；**只读**，不碰平台 OPC-UA server（由 opcua connector 覆盖）；确切 API 版本/路径 待核实 | 平台 Gateway 聚合的 provider tag / 告警 / 历史 | HTTPS + token/API-key | ✅ mock 网关（in-repo，双 flavor）；live gateway + 确切 API 版本/路径 待核实 |
+| Gateway MES/SCADA 读层: Gateway | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Gateway HTTP web API（内建状态/系统函数 REST：`/data/status`·`/data/tags`·`/data/alarms` 布局）；**只读**，JSON 建模，确切路径树 待核实 | 平台 Gateway 状态/模块/tag/告警/历史 | HTTPS + token/API-key | ✅ mock 网关（in-repo，双 flavor）；live gateway + 确切 API 版本/路径 待核实 |
