@@ -206,9 +206,16 @@ class ConnectionManager:
         return self._config.default_target
 
     def session(self, target_name: str | None = None):
-        """Return the protocol session for an endpoint (MTConnect: none, stateless HTTP)."""
+        """Return the protocol session for an endpoint with a stateful session.
+
+        Protocols whose connectors are stateless/per-call (bacnet, ethercat,
+        profinet, hart, mtconnect, ...) have no session here — asking for one
+        raises a teaching error instead of falling back to the OPC UA session
+        (whose guard would produce a misleading "not opcua" message).
+        """
         target = self.target(target_name)
         builders = {
+            "opcua": opcua_session,
             "modbus": modbus_session,
             "s7": s7_session,
             "mc": mc_session,
@@ -219,7 +226,17 @@ class ConnectionManager:
             "secsgem": secsgem_session,
             "iolink": iolink_session,
         }
-        builder = builders.get(target.protocol, opcua_session)
+        builder = builders.get(target.protocol)
+        if builder is None:
+            supported = ", ".join(sorted(builders))
+            raise OTConnectionError(
+                f"Endpoint '{target.name}' is protocol '{target.protocol}', which "
+                f"does not use a stateful session here — its connector is "
+                f"stateless (opens and closes per call), so call its tools "
+                f"directly. Protocols with sessions: {supported}.",
+                endpoint=target.name,
+                protocol=target.protocol,
+            )
         return builder(target)
 
     def list_targets(self) -> list[str]:
