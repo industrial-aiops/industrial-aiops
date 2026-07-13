@@ -6,19 +6,13 @@ import json
 from pathlib import Path
 
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
 from iaiops.connectors.sparkplug import live, ops
 from iaiops.core.brain import uns_governance as uns
 
 mqtt_app = typer.Typer(help="MQTT / Sparkplug B / UNS consume-first telemetry.",
                        no_args_is_help=True)
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @mqtt_app.command("read")

@@ -2,23 +2,15 @@
 
 from __future__ import annotations
 
-import json
-
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.iolink import ops
 
 iolink_app = typer.Typer(
     help="IO-Link read-only sensor visibility via the master's JSON interface.",
     no_args_is_help=True,
 )
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @iolink_app.command("master")

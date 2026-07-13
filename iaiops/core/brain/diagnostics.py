@@ -200,41 +200,21 @@ def _probe_connect(target: Any) -> tuple[bool, str]:
     A protocol-level exception response (``OTProtocolError``, e.g. a Modbus
     device that does not map the probed register) PROVES the endpoint is alive
     and reachable — it answered — so it counts as connected, not offline.
+
+    Dispatches through the capability registry; a protocol without a
+    ``diagnose_connect`` capability yields the same "No connectivity probe"
+    status as before rather than a wrong default.
     """
+    from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
     from iaiops.core.runtime.connection import OTProtocolError
 
     protocol = getattr(target, "protocol", "")
+    cap = get_capabilities(protocol)
+    probe = cap.diagnose_connect if cap else UNSUPPORTED
+    if probe is UNSUPPORTED:
+        return False, f"No connectivity probe for protocol '{protocol}'."
     try:
-        if protocol == "opcua":
-            from iaiops.connectors.opcua.ops import server_info
-
-            info = server_info(target)
-            return True, f"OPC-UA state={info.get('state')}"
-        if protocol == "modbus":
-            from iaiops.connectors.modbus.ops import modbus_read_holding
-
-            modbus_read_holding(target, address=0, count=1)
-            return True, "Modbus read OK"
-        if protocol == "s7":
-            from iaiops.connectors.s7.ops import s7_cpu_info
-
-            info = s7_cpu_info(target)
-            return True, f"S7 status={info.get('cpu_status')}"
-        if protocol == "mc":
-            from iaiops.connectors.mc.ops import mc_cpu_status
-
-            info = mc_cpu_status(target)
-            return True, f"MC cpu={info.get('cpu_type')}"
-        if protocol == "mtconnect":
-            from iaiops.connectors.mtconnect.ops import mtconnect_current
-
-            cur = mtconnect_current(target)
-            return True, f"MTConnect obs={cur.get('observation_count')}"
-        if protocol == "mqtt":
-            from iaiops.connectors.sparkplug.ops import mqtt_read_topic
-
-            out = mqtt_read_topic(target, count=1, timeout_s=3)
-            return True, f"MQTT msgs={out.get('message_count')}"
+        return probe(target)
     except OTProtocolError as exc:
         return True, (
             f"Endpoint reachable and alive — it responded with a protocol-level "
@@ -242,37 +222,25 @@ def _probe_connect(target: Any) -> tuple[bool, str]:
         )
     except Exception as exc:  # noqa: BLE001 — connectivity is a status, not a crash
         return False, str(exc)[:200]
-    return False, f"No connectivity probe for protocol '{protocol}'."
 
 
 def _read_ref(target: Any, ref: str) -> dict:
-    """Read one ref across protocols → a uniform {value, good, source_timestamp}."""
+    """Read one ref across protocols → a uniform {value, good, source_timestamp}.
+
+    Dispatches through the capability registry; a protocol without a ``read_ref``
+    capability yields the same "No per-ref read" error as before.
+    """
+    from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
+
     protocol = getattr(target, "protocol", "")
+    cap = get_capabilities(protocol)
+    reader = cap.read_ref if cap else UNSUPPORTED
+    if reader is UNSUPPORTED:
+        return {"error": f"No per-ref read for protocol '{protocol}'."}
     try:
-        if protocol == "opcua":
-            from iaiops.connectors.opcua.ops import read_node
-
-            return read_node(target, ref)
-        if protocol == "modbus":
-            from iaiops.connectors.modbus.ops import modbus_read_holding
-
-            r = modbus_read_holding(target, address=int(ref), count=1)
-            return {"value": (r.get("decoded") or [None])[0], "good": True}
-        if protocol == "s7":
-            from iaiops.connectors.s7.ops import s7_read_many
-
-            r = s7_read_many(target, [ref])
-            items = r.get("items") or []
-            return {"value": items[0]["value"] if items else None, "good": bool(items)}
-        if protocol == "mc":
-            from iaiops.connectors.mc.ops import mc_read_words
-
-            r = mc_read_words(target, ref, count=1)
-            words = r.get("words") or []
-            return {"value": words[0] if words else None, "good": bool(words)}
+        return reader(target, ref)
     except Exception as exc:  # noqa: BLE001 — a read failure is a per-ref status
         return {"error": s(str(exc), 200)}
-    return {"error": f"No per-ref read for protocol '{protocol}'."}
 
 
 def _check_freshness(timestamp: Any, threshold_s: int) -> dict:

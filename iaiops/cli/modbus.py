@@ -2,21 +2,13 @@
 
 from __future__ import annotations
 
-import json
-
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.modbus import ops
 
 modbus_app = typer.Typer(help="Modbus-TCP read-only telemetry (incl. 国产 PLCs).",
                          no_args_is_help=True)
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @modbus_app.command("holding")

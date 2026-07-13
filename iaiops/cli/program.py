@@ -8,14 +8,12 @@ real locations. Advisory: regex/line/xml extraction, not a full grammar.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import cli_errors
+from iaiops.cli._common import _emit, cli_errors
 from iaiops.core.brain import plc_program as ops
 
 program_app = typer.Typer(
@@ -23,14 +21,9 @@ program_app = typer.Typer(
     "Read-only over files — never uploads from a live PLC.",
     no_args_is_help=True,
 )
-console = Console()
 
 PathArg = Annotated[Path, typer.Argument(help="Exported program file "
                                          "(.st/.scl/.awl/.l5x/.txt, ≤5 MB)")]
-
-
-def _emit(data: dict) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @program_app.command("outline")

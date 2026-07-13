@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any
@@ -11,6 +12,15 @@ import typer
 from rich.console import Console
 
 console = Console()
+
+
+def _emit(data: object) -> None:
+    """Print a value as pretty JSON, str-coercing anything not natively serializable.
+
+    The single shared implementation for every CLI sub-command (previously copy
+    -pasted verbatim into ~19 modules, each re-instantiating its own Console).
+    """
+    console.print_json(json.dumps(data, default=str))
 
 EndpointOption = Annotated[
     str | None, typer.Option("--endpoint", "-e", help="Endpoint name from config")

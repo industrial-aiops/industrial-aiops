@@ -2,20 +2,12 @@
 
 from __future__ import annotations
 
-import json
-
 import typer
-from rich.console import Console
 
-from iaiops.cli._common import EndpointOption, cli_errors, resolve_target
+from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.mtconnect import ops
 
 mtconnect_app = typer.Typer(help="MTConnect read-only CNC telemetry.", no_args_is_help=True)
-console = Console()
-
-
-def _emit(data) -> None:
-    console.print_json(json.dumps(data, default=str))
 
 
 @mtconnect_app.command("probe")
