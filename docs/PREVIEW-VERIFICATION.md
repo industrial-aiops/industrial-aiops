@@ -106,7 +106,9 @@ Who-Is discover + present-value read round-trip — passed 2026-07-02. Live BACn
 **write / COV / trend-log** on real HVAC gear stays pending (not exercised live).
 
 **The energy edition (`iaiops-energy` repo) is now verified for its whole read path.**
-Same container approach: **IEC-104** (real `c104` loopback, earlier), **DNP3** monitor
+Same container approach: **IEC-104** (real `c104` loopback — genuinely verified **2026-07-13**,
+see the dated recipe below; the earlier "loopback verified" claim was an overclaim — no c104 test
+existed until then), **DNP3** monitor
 path (real `opendnp3` outstation — `pydnp3` built in-container with a pybind11 swap;
 `tests/test_dnp3_live.py`), and **IEC-61850 MMS** monitor path (real in-process
 `libiec61850` server via the `pyiec61850` wheel's server API; `tests/test_iec61850_live.py`).
@@ -120,3 +122,53 @@ scope; live RTU/IED reads remain the only pending step there.
 live HART-IP gateway, live RTU/IED). This runbook is the standing procedure; nothing is
 marked verified without a real round-trip. PLCnext is **route-verified** (in-process
 asyncua + faked Modbus, `tests/test_plcnext_route.py`); its *live* row stays here.
+
+## Current status (2026-07-13) — IEC-104 verified + reusable Docker recipe
+
+**IEC-104 (`iaiops-energy`) is now genuinely `verified (monitor path)`** (0.1.5). The real
+`c104` client↔server round-trip (`tests/test_iec104_live.py` + `tests/iec104_server_harness.py`)
+passes in a Linux container: `iec104_connection_info` discovers the seeded station,
+`iec104_interrogate` (C_IC) returns the seeded `M_ME_NC_1` + `M_SP_NA_1`, `iec104_read_point`
+reads the measurand, a bad IOA → `found=False` with no fabricated value, and server-side ASDU
+capture proves no control ASDU (C_SC/C_DC/C_SE) is issued. Physical RTU still `待核实`. It ran
+green in a `python:3.11-slim` container and now runs on every push in the energy CI gate.
+
+Getting there found (and fixed) a **real shipped bug**: the client-side `on_new_station` /
+`on_new_point` discovery callbacks would fail against *any* real `c104` RTU — see the gotcha below.
+
+### Recipe: verify a native-Python-binding preview protocol in Docker (no bench hardware)
+
+When a preview protocol's binding ships **no wheel for the dev host** (macOS) but builds/installs
+on Linux, a Linux container is a valid ladder-level-2 verifier (real wire, in-process peer) — the
+same standard used for Modbus-RTU and BACnet above. Steps (IEC-104 / `c104` is the worked example):
+
+1. **Container + toolchain.** `docker run --rm -v "$PWD":/work -w /work python:3.11-slim bash -c '…'`;
+   the binding may be **sdist-only** (e.g. `c104` 2.x — no macOS wheel, and its sdist fails under
+   Apple Clang but compiles fine with Linux gcc), so `apt-get install -y build-essential cmake git`
+   first. (Some bindings have manylinux wheels — then no toolchain is needed.)
+2. **Install EDITABLE:** `pip install -e ".[<extra>,dev]"`. **Editable is required**, not cosmetic:
+   the live tests spawn a child process (native peer + client can't share one interpreter safely),
+   and the child does `from tests.<harness> import …`; only an editable install puts the repo root
+   on `sys.path` (via its `.pth`) so that import resolves. A non-editable `pip install .` makes the
+   child fail with `ModuleNotFoundError: No module named 'tests'`.
+3. **Run the integration test** (energy CI does **not** deselect `integration`, so a plain
+   `pytest -q` runs it; or target it: `pytest -q -m integration tests/test_<proto>_live.py`).
+4. **Gotcha — strict callback signatures.** Bindings like `c104` validate registered callbacks by
+   their **real annotations**. Two traps: (a) modules using `from __future__ import annotations`
+   **stringize** annotations → the binding sees `'Any'` not the real type and rejects it; (b) `Any`
+   placeholders are wrong types. Fix: after `def cb(...)`, set the exact expected signature as real
+   objects — `cb.__annotations__ = {"server": c104.Server, "data": bytes, "return": None}`. To learn
+   the **exact** expected signature, register a deliberately-wrong callback and read the `ValueError`
+   (it prints e.g. `expected: (client:c104.Client,connection:c104.Connection,common_address:int)->None`).
+5. **Pass criteria** (as above): real values with quality/timestamp; a bad address → teaching error,
+   no fabricated value; monitor-only paths issue no control frames (assert via server-side capture).
+6. **Make CI run it durably:** install the extra **non-best-effort** in the CI gate (unlike
+   `pydnp3`/`pyiec61850`, which have no CI-buildable binding and stay best-effort + skip). If the
+   binding builds on the runner, the `@pytest.mark.integration` live test then runs every push.
+7. **Flip status in one PR** (per the sync list above): README (+zh) matrix + validation banner,
+   the edition SKILL support matrix, CHANGELOG, and any deck/PPT — and **only** after a real pass.
+   Never relabel from a compile-success alone.
+
+> **Honesty note:** a "loopback test exists" is **not** "verified" — it must actually **run and
+> pass**. This runbook (and the skill matrix) previously listed IEC-104 as loopback-verified before
+> any such test existed; that overclaim was corrected, then earned back with a real 2026-07-13 pass.
