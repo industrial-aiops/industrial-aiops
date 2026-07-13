@@ -1,10 +1,20 @@
 # Industrial-AIOps — Roadmap (pending features)
 
 > Backlog of features to add over time. Grouped by priority. Add to this list as
-> ideas land; pull items into a release when picked up. See `docs/HLD.md` for the
-> architecture these slot into.
+> ideas land; pull items into a release when picked up. (The HLD these slot into is
+> an internal design doc, not shipped in this repo.)
 
-## Status — 2026-07-02 (what's actually left)
+## Status — 2026-07-13 (current: `iaiops 0.13.0` · `iaiops-energy 0.1.5`)
+
+Latest published: base **`iaiops 0.13.0`**, energy **`iaiops-energy 0.1.5`** (PyPI +
+GitHub Release + MCP registry). Since the 2026-07-02 block below was written, five
+more base releases shipped (0.9.0–0.13.0: FINS / IO-Link / BAS / Ignition read
+layers, warehouse / clinical / renewables / plcnext editions, adapter belt, fleet
+rollup, PdM + downtime triage, menu-mandatory MCP selection), and IEC-104 gained a
+genuine c104 loopback round-trip in `iaiops-energy` (2026-07-13,
+`tests/test_iec104_live.py`). The hardware-gated 待核实 list below is unchanged.
+
+## Status — 2026-07-02 (historical; what was actually left then)
 
 Feature development is essentially **complete and published** (base `iaiops 0.8.0`,
 energy `iaiops-energy 0.1.2` — PyPI + GitHub Release + MCP registry). Read paths for
@@ -30,14 +40,17 @@ Everything below is the detailed backlog with per-item status.
 - ✅ **energy edition** — shipped in v0.6.0 (read-only monitoring): IEC 60870-5-104
   (`c104`), DNP3 (`pydnp3`), IEC 61850 MMS (`pyiec61850`), with the `energy` MCP
   profile + `iaiops[energy]` bundle. **Binding verification pass (2026-06-30):**
-  IEC-104 verified against a real c104 loopback link (`tests/test_binding_contracts.py`
-  exercises the actual `iec104_session`); IEC-61850 **pin corrected** — the extra
+  IEC-104 c104 **symbol/surface pass 2026-06-30** (`tests/test_binding_contracts.py`
+  exercises the actual `iec104_session`); a **genuine loopback round-trip first
+  passed 2026-07-13** in `iaiops-energy` (`tests/test_iec104_live.py`) — the earlier
+  "real c104 loopback" wording here was an overclaim (see
+  `docs/PREVIEW-VERIFICATION.md`); IEC-61850 **pin corrected** — the extra
   pointed at the unrelated PyPI `iec61850` (async OOP client, 0 driver symbols); it
   now pins `pyiec61850` (libiec61850 SWIG) and all 14 driver symbols are verified
   present. **Still 待核实:** DNP3 (`pydnp3` ships no wheel + needs a live outstation;
   not yet CI-verifiable) and live-RTU/IED reads. Follow-ups: DNP3 `is_online` live
   link-state via OnStateChange; live-device pass; IEC-61850 GOOSE/SV (out of scope).
-  - ✅ **独立仓 spin-out DONE** (HLD §3 D4 / §10 P6): moved to the standalone
+  - ✅ **独立仓 spin-out DONE** (internal HLD §3 D4 / §10 P6): moved to the standalone
     [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) repo
     (published **0.1.2** — PyPI + MCP registry), depending on `iaiops` core. DNP3 +
     IEC-61850 monitor paths were then **live-verified** in that repo. See
@@ -231,4 +244,5 @@ Everything below is the detailed backlog with per-item status.
 - ✅ Published all channels: **iaiops 0.8.0** + **iaiops-energy 0.1.2** on PyPI, GitHub
   Releases (v0.8.0 / v0.1.2), and the MCP registry (`io.github.industrial-aiops/iaiops`
   + `…/iaiops-energy`) under the industrial-aiops org (2026-07-02). Base 0.7.0 was also
-  on ClawHub / skills.sh (2026-06-30).
+  on ClawHub / skills.sh (2026-06-30). *(Historical entry — latest published is
+  **iaiops 0.13.0** + **iaiops-energy 0.1.5**, 2026-07-13; see the status block at the top.)*

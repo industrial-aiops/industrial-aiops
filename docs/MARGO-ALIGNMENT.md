@@ -23,7 +23,7 @@ layer — so the two stack cleanly instead of competing:
 │    (any Margo-compliant orchestrator)                              │
 ├──────────────────────────────────────────────────────────────────┤
 │  Edge APPLICATION          — iaiops: governed OT read tap +         │  ← where iaiops sits
-│    12-protocol normalization + cross-protocol RCA, as MCP tools     │     (our lane)
+│    14-protocol normalization + cross-protocol RCA, as MCP tools     │     (our lane)
 │    → optional on-box LLM (air-gapped brain), data never leaves plant │
 └──────────────────────────────────────────────────────────────────┘
 ```

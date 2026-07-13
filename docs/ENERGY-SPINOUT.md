@@ -4,7 +4,8 @@
 > tools, and tests moved to **[industrial-aiops-energy](https://github.com/industrial-aiops/industrial-aiops-energy)**
 > (`pip install iaiops-energy`), which depends on `iaiops` for the shared core. They
 > were removed from this base repo (this PR); both repos stay green. This doc records
-> the plan that was followed (per HLD §3 D4 / §10 P6).
+> the plan that was followed (per the internal HLD §3 D4 / §10 P6 — a design doc not
+> shipped in this repo).
 
 ## Why split
 
@@ -69,11 +70,13 @@ is the one real code change the split requires; everything else is a file move.
    via `git mv` (preserve history if possible); wire them through the new
    entry-points; depend on `iaiops`.
 4. **Base repo:** delete the moved connectors + energy extra/profile; leave a note
-   in ROADMAP/HLD pointing at the new repo. `test_energy_isolation.py` moves with
-   the connectors.
+   in ROADMAP (and the internal HLD) pointing at the new repo.
+   `test_energy_isolation.py` moves with the connectors.
 5. **Verify** both repos: `iaiops[energy]` from the new repo reproduces today's
    `IAIOPS_MCP=energy` tool set; energy tests pass against the same fixtures
-   (real c104 loopback for IEC-104; contract tests for DNP3/61850).
+   (IEC-104: c104 symbol/surface pass 2026-06-30 — a genuine loopback round-trip
+   first passed 2026-07-13 in `iaiops-energy`, `tests/test_iec104_live.py`;
+   contract tests for DNP3/61850).
 6. **Publish** the energy package (PyPI + MCP registry) under its own name with an
    **independent PyPI token** (never reuse another line's token).
 
