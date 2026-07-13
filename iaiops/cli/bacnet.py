@@ -11,8 +11,9 @@ import typer
 from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.bacnet import ops
 
-bacnet_app = typer.Typer(help="BACnet/IP read-only facility/HVAC monitoring (BAC0).",
-                         no_args_is_help=True)
+bacnet_app = typer.Typer(
+    help="BACnet/IP read-only facility/HVAC monitoring (BAC0).", no_args_is_help=True
+)
 
 
 @bacnet_app.command("discover")
@@ -61,10 +62,17 @@ def cov_cmd(
     endpoint: EndpointOption = None,
 ) -> None:
     """Bounded COV capture: collect up to --max changes or --timeout, then unsubscribe."""
-    _emit(ops.bacnet_cov_subscribe(
-        resolve_target(endpoint), address, object_type, instance,
-        max_notifications, timeout_s, lifetime_s,
-    ))
+    _emit(
+        ops.bacnet_cov_subscribe(
+            resolve_target(endpoint),
+            address,
+            object_type,
+            instance,
+            max_notifications,
+            timeout_s,
+            lifetime_s,
+        )
+    )
 
 
 @bacnet_app.command("trend")
@@ -77,6 +85,12 @@ def trend_cmd(
     endpoint: EndpointOption = None,
 ) -> None:
     """Read buffered records from a device's BACnet TrendLog object (historical trend)."""
-    _emit(ops.bacnet_read_trend_log(
-        resolve_target(endpoint), address, instance, count, newest_first,
-    ))
+    _emit(
+        ops.bacnet_read_trend_log(
+            resolve_target(endpoint),
+            address,
+            instance,
+            count,
+            newest_first,
+        )
+    )

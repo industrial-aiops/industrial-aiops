@@ -10,8 +10,9 @@ from iaiops.connectors.opcua import ops
 from iaiops.core.brain import analysis
 from iaiops.core.brain import monitor as mon
 
-opcua_app = typer.Typer(help="OPC-UA read-only telemetry & problem surfacing.",
-                        no_args_is_help=True)
+opcua_app = typer.Typer(
+    help="OPC-UA read-only telemetry & problem surfacing.", no_args_is_help=True
+)
 
 
 @opcua_app.command("info")
@@ -107,8 +108,11 @@ def monitor_cmd(
     max_changes: int = typer.Option(100, "--max-changes"),
 ) -> None:
     """Bounded change-of-value capture (only changes, never an open loop)."""
-    _emit(mon.monitor_changes(
-        resolve_target(endpoint), node_id, duration_s, interval_ms, deadband, max_changes))
+    _emit(
+        mon.monitor_changes(
+            resolve_target(endpoint), node_id, duration_s, interval_ms, deadband, max_changes
+        )
+    )
 
 
 @opcua_app.command("discover")
@@ -118,7 +122,8 @@ def discover_cmd(
     root: str = typer.Option("i=85", "--root", help="Root node id to discover from"),
     depth: int = typer.Option(6, "--depth", help="Bounded recursion depth"),
     include_standard: bool = typer.Option(
-        False, "--include-standard", help="Include OPC-UA ns=0 infrastructure"),
+        False, "--include-standard", help="Include OPC-UA ns=0 infrastructure"
+    ),
 ) -> None:
     """Auto-discover tags → semantic asset model (classes, units, suggested aliases)."""
     _emit(disc.tag_discovery(resolve_target(endpoint), root, depth, include_standard))

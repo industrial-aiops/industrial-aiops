@@ -44,9 +44,7 @@ def export_samples(
     """
     kind = (fmt or "").strip().lower()
     if kind not in EXPORT_FORMATS:
-        raise ValueError(
-            f"Unknown export format '{fmt}'. Supported: {', '.join(EXPORT_FORMATS)}."
-        )
+        raise ValueError(f"Unknown export format '{fmt}'. Supported: {', '.join(EXPORT_FORMATS)}.")
     out = Path(out_path).expanduser()
     if out.exists() and out.is_dir():
         raise ValueError(f"Output path {out} is a directory — pass a file path.")

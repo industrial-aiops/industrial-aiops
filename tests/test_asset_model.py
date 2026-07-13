@@ -18,6 +18,7 @@ from iaiops.core.brain import semantics
 
 # ── shared-semantics (no drift) ───────────────────────────────────────────────
 
+
 @pytest.mark.unit
 def test_shared_classifier_and_alias_are_the_same_object():
     """The connector and the unified layer must use the SAME functions."""
@@ -29,10 +30,17 @@ def test_shared_classifier_and_alias_are_the_same_object():
 
 # ── normalization ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 def test_normalize_opcua_tag_preserves_class_and_alias():
-    raw = {"browse_name": "Temperature", "asset": "Line1", "class": "temperature",
-           "unit": "degC", "node_id": "ns=2;i=5", "value": 85.0}
+    raw = {
+        "browse_name": "Temperature",
+        "asset": "Line1",
+        "class": "temperature",
+        "unit": "degC",
+        "node_id": "ns=2;i=5",
+        "value": 85.0,
+    }
     t = am.normalize_tag(raw, protocol="opcua", source="line1")
     assert t["protocol"] == "opcua"
     assert t["source"] == "line1"
@@ -65,21 +73,46 @@ def test_normalize_uses_name_when_class_other():
 
 # ── grouping + cross-protocol model ───────────────────────────────────────────
 
+
 def _model():
     feeds = [
-        {"protocol": "opcua", "source": "line1", "tags": [
-            {"browse_name": "Temperature", "asset": "Line1", "class": "temperature",
-             "unit": "degC", "node_id": "ns=2;i=1"},
-            {"browse_name": "Pressure", "asset": "Line1", "class": "pressure",
-             "unit": "bar", "node_id": "ns=2;i=2"},
-        ]},
-        {"protocol": "modbus", "source": "meter1", "asset": "Line1", "tags": [
-            {"tag": "voltage_l1", "address": 0, "unit": "V"},
-            {"tag": "temperature", "address": 6, "unit": "degC"},  # same qty as opcua
-        ]},
-        {"protocol": "modbus", "source": "meter2", "asset": "Line2", "tags": [
-            {"tag": "fl", "address": 2},  # cryptic: short + class other
-        ]},
+        {
+            "protocol": "opcua",
+            "source": "line1",
+            "tags": [
+                {
+                    "browse_name": "Temperature",
+                    "asset": "Line1",
+                    "class": "temperature",
+                    "unit": "degC",
+                    "node_id": "ns=2;i=1",
+                },
+                {
+                    "browse_name": "Pressure",
+                    "asset": "Line1",
+                    "class": "pressure",
+                    "unit": "bar",
+                    "node_id": "ns=2;i=2",
+                },
+            ],
+        },
+        {
+            "protocol": "modbus",
+            "source": "meter1",
+            "asset": "Line1",
+            "tags": [
+                {"tag": "voltage_l1", "address": 0, "unit": "V"},
+                {"tag": "temperature", "address": 6, "unit": "degC"},  # same qty as opcua
+            ],
+        },
+        {
+            "protocol": "modbus",
+            "source": "meter2",
+            "asset": "Line2",
+            "tags": [
+                {"tag": "fl", "address": 2},  # cryptic: short + class other
+            ],
+        },
     ]
     return am.cross_protocol_asset_model(feeds, site="plant")
 
@@ -125,10 +158,17 @@ def test_same_class_different_name_siblings_get_unique_aliases():
     Same-class siblings are normal in OT (zone A / zone B); the canonical alias
     must stay unique-per-tag (a usable rename map) and not spam the collision channel.
     """
-    feeds = [{"protocol": "opcua", "source": "l", "asset": "Line1", "tags": [
-        {"browse_name": "TempZoneA", "class": "temperature"},
-        {"browse_name": "TempZoneB", "class": "temperature"},
-    ]}]
+    feeds = [
+        {
+            "protocol": "opcua",
+            "source": "l",
+            "asset": "Line1",
+            "tags": [
+                {"browse_name": "TempZoneA", "class": "temperature"},
+                {"browse_name": "TempZoneB", "class": "temperature"},
+            ],
+        }
+    ]
     model = am.cross_protocol_asset_model(feeds, site="plant")
     aliases = sorted(t["canonical_alias"] for a in model["assets"] for t in a["tags"])
     assert aliases == ["plant.line1.temperature_tempzonea", "plant.line1.temperature_tempzoneb"]
@@ -140,10 +180,18 @@ def test_same_class_different_name_siblings_get_unique_aliases():
 def test_case_insensitive_asset_fusion():
     """'Line1' (OPC-UA) and 'LINE1' (Modbus) are the same asset — they must fuse."""
     feeds = [
-        {"protocol": "opcua", "source": "a", "asset": "Line1", "tags": [
-            {"browse_name": "Temperature", "class": "temperature"}]},
-        {"protocol": "modbus", "source": "b", "asset": "LINE1", "tags": [
-            {"tag": "voltage_l1", "address": 0}]},
+        {
+            "protocol": "opcua",
+            "source": "a",
+            "asset": "Line1",
+            "tags": [{"browse_name": "Temperature", "class": "temperature"}],
+        },
+        {
+            "protocol": "modbus",
+            "source": "b",
+            "asset": "LINE1",
+            "tags": [{"tag": "voltage_l1", "address": 0}],
+        },
     ]
     model = am.cross_protocol_asset_model(feeds, site="p")
     assert model["asset_count"] == 1
@@ -153,19 +201,29 @@ def test_case_insensitive_asset_fusion():
 @pytest.mark.unit
 def test_cryptic_names_flagged():
     model = _model()
-    assert "Line2/fl" in model["naming_quality"]["cryptic_names"] or \
-        "fl" in str(model["naming_quality"]["cryptic_names"])
+    assert "Line2/fl" in model["naming_quality"]["cryptic_names"] or "fl" in str(
+        model["naming_quality"]["cryptic_names"]
+    )
 
 
 @pytest.mark.unit
 def test_clean_model_has_clean_verdict():
     feeds = [
-        {"protocol": "opcua", "source": "l1", "tags": [
-            {"browse_name": "Temperature", "asset": "L1", "class": "temperature"},
-        ]},
-        {"protocol": "modbus", "source": "m1", "asset": "L1", "tags": [
-            {"tag": "voltage_l1", "address": 0},
-        ]},
+        {
+            "protocol": "opcua",
+            "source": "l1",
+            "tags": [
+                {"browse_name": "Temperature", "asset": "L1", "class": "temperature"},
+            ],
+        },
+        {
+            "protocol": "modbus",
+            "source": "m1",
+            "asset": "L1",
+            "tags": [
+                {"tag": "voltage_l1", "address": 0},
+            ],
+        },
     ]
     model = am.cross_protocol_asset_model(feeds, site="s")
     assert model["naming_quality"]["verdict"] == "clean"

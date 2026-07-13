@@ -43,12 +43,17 @@ def points_to_messages(
         if not metric:
             continue
         subject = f"{prefix}.tag.{_sanitize_subject_token(metric)}"
-        out.append((subject, {
-            "metric": s(metric, 128),
-            "value": p.get("value"),
-            "timestamp": s(p.get("timestamp", ""), 40),
-            "tags": p.get("tags") or {},
-        }))
+        out.append(
+            (
+                subject,
+                {
+                    "metric": s(metric, 128),
+                    "value": p.get("value"),
+                    "timestamp": s(p.get("timestamp", ""), 40),
+                    "tags": p.get("tags") or {},
+                },
+            )
+        )
     return out
 
 

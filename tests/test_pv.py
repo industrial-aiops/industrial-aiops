@@ -27,17 +27,20 @@ def test_underperformer_by_irradiance_expected():
 
 @pytest.mark.unit
 def test_offline_string():
-    out = pv_performance([
-        {"string": "S1", "power_w": 0, "capacity_w": 6000, "irradiance_w_m2": 800},
-    ])
+    out = pv_performance(
+        [
+            {"string": "S1", "power_w": 0, "capacity_w": 6000, "irradiance_w_m2": 800},
+        ]
+    )
     assert out["underperformers"][0]["status"] == "offline"
 
 
 @pytest.mark.unit
 def test_fleet_median_fallback_when_no_expected():
     # No capacity/irradiance/expected → compare each to the fleet median power.
-    strings = [{"string": f"S{i}", "power_w": 5000} for i in range(4)] + \
-              [{"string": "LAG", "power_w": 3000}]
+    strings = [{"string": f"S{i}", "power_w": 5000} for i in range(4)] + [
+        {"string": "LAG", "power_w": 3000}
+    ]
     out = pv_performance(strings)
     lag = next(u for u in out["underperformers"] if u["string"] == "LAG")
     assert lag["method"] == "fleet_median" and lag["status"] == "underperforming"
@@ -52,7 +55,7 @@ def test_empty():
 def test_pv_tool_is_renewables_edition_module_and_runs():
     assert "renewables_tools" not in BRAIN_MODULES
     assert "renewables_tools" in selected_tool_modules("renewables")
-    assert "renewables_tools" not in selected_tool_modules("modbus")   # bare protocol
+    assert "renewables_tools" not in selected_tool_modules("modbus")  # bare protocol
     assert getattr(pv_performance_tool, "_is_governed_tool", False) is True
     out = pv_performance_tool(
         strings=[{"string": "S", "power_w": 4200, "capacity_w": 6000, "irradiance_w_m2": 850}]
@@ -72,6 +75,18 @@ def test_plcnext_is_a_packaging_edition_no_edition_module():
     assert resolve_selection("plcnext") == ["opcua", "modbus"]
     assert hasattr(entrypoints, "main_plcnext")
     modules = selected_tool_modules("plcnext")
-    assert not any(m.endswith("_tools") and m in ("renewables_tools", "water_tools",
-                   "clinical_tools", "warehouse_tools", "process_tools", "fab_tools",
-                   "factory_tools", "building_tools") for m in modules)
+    assert not any(
+        m.endswith("_tools")
+        and m
+        in (
+            "renewables_tools",
+            "water_tools",
+            "clinical_tools",
+            "warehouse_tools",
+            "process_tools",
+            "fab_tools",
+            "factory_tools",
+            "building_tools",
+        )
+        for m in modules
+    )

@@ -59,9 +59,18 @@ def eip_controller_info(target: Any) -> dict:
         else:
             info_error = ""
     keep = (
-        "vendor", "product_type", "product_code", "version", "revision",
-        "serial", "product_name", "keyswitch", "name", "programs",
-        "tasks", "modules",
+        "vendor",
+        "product_type",
+        "product_code",
+        "version",
+        "revision",
+        "serial",
+        "product_name",
+        "keyswitch",
+        "name",
+        "programs",
+        "tasks",
+        "modules",
     )
     fields = {k: _coerce(info[k]) for k in keep if k in info}
     return {
@@ -88,9 +97,7 @@ def eip_list_tags(target: Any) -> dict:
         data_type = t.get("data_type")
         # data_type is a str for atomics, a dict (template) for structures.
         is_struct = isinstance(data_type, dict)
-        type_name = (
-            s(data_type.get("name", "STRUCT"), 64) if is_struct else s(str(data_type), 64)
-        )
+        type_name = s(data_type.get("name", "STRUCT"), 64) if is_struct else s(str(data_type), 64)
         tags.append(
             {
                 "name": s(t.get("tag_name", ""), 96),

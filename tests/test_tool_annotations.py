@@ -15,9 +15,7 @@ import re
 
 import pytest
 
-RISK_TAG_RE = re.compile(
-    r"^(\[DEPRECATED → [\w.]+\])?\[(READ|WRITE)\]\[risk=(low|medium|HIGH)\]"
-)
+RISK_TAG_RE = re.compile(r"^(\[DEPRECATED → [\w.]+\])?\[(READ|WRITE)\]\[risk=(low|medium|HIGH)\]")
 # A bare (unparameterized) list/dict token — `list[` / `dict[` do not match.
 BARE_GENERIC_RE = re.compile(r"(?<![\w.\[])(list|dict)(?!\[)")
 

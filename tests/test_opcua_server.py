@@ -104,8 +104,11 @@ def test_read_many_real(opcua_server):
 @pytest.mark.integration
 def test_subscribe_sample_is_bounded_real(opcua_server):
     out = ops.subscribe_sample(
-        _target(opcua_server["url"]), opcua_server["temp"],
-        samples=3, interval_ms=50, timeout_s=5,
+        _target(opcua_server["url"]),
+        opcua_server["temp"],
+        samples=3,
+        interval_ms=50,
+        timeout_s=5,
     )
     assert out["requested_samples"] == 3
     assert out["collected"] == 3
@@ -116,8 +119,11 @@ def test_subscribe_sample_is_bounded_real(opcua_server):
 def test_subscribe_sample_caps_excessive_request(opcua_server):
     """An over-large request is capped server-side, never unbounded."""
     out = ops.subscribe_sample(
-        _target(opcua_server["url"]), opcua_server["temp"],
-        samples=10_000, interval_ms=10, timeout_s=2,
+        _target(opcua_server["url"]),
+        opcua_server["temp"],
+        samples=10_000,
+        interval_ms=10,
+        timeout_s=2,
     )
     assert out["requested_samples"] <= ops.MAX_SAMPLES
 
@@ -148,8 +154,11 @@ def test_read_history_real(opcua_server):
     end = datetime.now() + timedelta(minutes=1)  # noqa: DTZ005 — server-local window
     start = end - timedelta(hours=1)
     out = ops.read_history(
-        _target(opcua_server["url"]), opcua_server["temp"],
-        start=start.isoformat(), end=end.isoformat(), max_points=50,
+        _target(opcua_server["url"]),
+        opcua_server["temp"],
+        start=start.isoformat(),
+        end=end.isoformat(),
+        max_points=50,
     )
     assert out["node_id"] == opcua_server["temp"]
     if opcua_server["history_ok"]:
@@ -167,8 +176,11 @@ def test_monitor_changes_bounded_real(opcua_server):
     from iaiops.core.brain import monitor
 
     out = monitor.monitor_changes(
-        _target(opcua_server["url"]), opcua_server["press"],
-        duration_s=2, interval_ms=100, max_changes=10,
+        _target(opcua_server["url"]),
+        opcua_server["press"],
+        duration_s=2,
+        interval_ms=100,
+        max_changes=10,
     )
     assert out["ref"] == opcua_server["press"]
     # First read is always a change; a static value yields exactly one.
@@ -180,8 +192,10 @@ def test_monitor_changes_bounded_real(opcua_server):
 @pytest.mark.integration
 def test_anomaly_scan_stats_real(opcua_server):
     out = analysis.anomaly_scan(
-        _target(opcua_server["url"]), opcua_server["temp"],
-        samples=5, interval_ms=20,
+        _target(opcua_server["url"]),
+        opcua_server["temp"],
+        samples=5,
+        interval_ms=20,
     )
     assert out["samples"] >= 2
     assert out["mean"] == 85.0

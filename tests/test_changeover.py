@@ -9,9 +9,9 @@ from mcp_server.tools.factory_tools import changeover_analysis as changeover_ana
 _PARTS = [
     {"timestamp": "2026-07-12T08:00:00Z", "product": "A"},
     {"timestamp": "2026-07-12T08:10:00Z", "product": "A"},
-    {"timestamp": "2026-07-12T08:45:00Z", "product": "B"},   # changeover A→B = 35 min = 2100 s
+    {"timestamp": "2026-07-12T08:45:00Z", "product": "B"},  # changeover A→B = 35 min = 2100 s
     {"timestamp": "2026-07-12T08:50:00Z", "product": "B"},
-    {"timestamp": "2026-07-12T09:30:00Z", "product": "C"},   # changeover B→C = 40 min = 2400 s
+    {"timestamp": "2026-07-12T09:30:00Z", "product": "C"},  # changeover B→C = 40 min = 2400 s
 ]
 
 
@@ -27,15 +27,17 @@ def test_changeovers_measured_between_products():
 @pytest.mark.unit
 def test_worst_first_ordering():
     order = [(c["from"], c["to"]) for c in changeover_analysis(_PARTS)["changeovers"]]
-    assert order == [("B", "C"), ("A", "B")]      # longest first
+    assert order == [("B", "C"), ("A", "B")]  # longest first
 
 
 @pytest.mark.unit
 def test_single_product_has_no_changeover():
-    out = changeover_analysis([
-        {"timestamp": "2026-07-12T08:00:00Z", "product": "A"},
-        {"timestamp": "2026-07-12T08:10:00Z", "product": "A"},
-    ])
+    out = changeover_analysis(
+        [
+            {"timestamp": "2026-07-12T08:00:00Z", "product": "A"},
+            {"timestamp": "2026-07-12T08:10:00Z", "product": "A"},
+        ]
+    )
     assert out["changeover_count"] == 0 and out["longest"] is None
 
 
@@ -49,7 +51,7 @@ def test_ignores_bad_records():
 def test_tool_is_factory_edition_module_and_runs():
     assert "factory_tools" not in BRAIN_MODULES
     assert "factory_tools" in selected_tool_modules("factory")
-    assert "factory_tools" not in selected_tool_modules("modbus")   # bare protocol
+    assert "factory_tools" not in selected_tool_modules("modbus")  # bare protocol
     assert getattr(changeover_analysis_tool, "_is_governed_tool", False) is True
     out = changeover_analysis_tool(good_parts=_PARTS)
     assert "error" not in out and out["changeover_count"] == 2

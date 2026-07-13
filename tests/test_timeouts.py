@@ -42,9 +42,7 @@ def test_timeout_alias_key_accepted():
 def test_invalid_timeout_falls_back_to_default(monkeypatch):
     monkeypatch.delenv(TIMEOUT_ENV_VAR, raising=False)
     for bad in ("abc", -1, 0):
-        target = _parse_target(
-            {"name": "x", "protocol": "modbus", "host": "h", "timeout_s": bad}
-        )
+        target = _parse_target({"name": "x", "protocol": "modbus", "host": "h", "timeout_s": bad})
         assert target.timeout_s == DEFAULT_TIMEOUT_S
 
 
@@ -151,9 +149,7 @@ def test_eip_builder_sets_socket_timeout(monkeypatch):
     import pycomm3
 
     monkeypatch.setattr(pycomm3, "LogixDriver", _FakeLogixDriver)
-    target = TargetConfig(
-        name="t", protocol="ethernetip", host="10.0.0.9", slot=0, timeout_s=4.5
-    )
+    target = TargetConfig(name="t", protocol="ethernetip", host="10.0.0.9", slot=0, timeout_s=4.5)
     client = connection._build_eip_client(target)
     assert client.socket_timeout == 4.5
 
@@ -180,8 +176,16 @@ def test_modbus_tcp_builder_passes_timeout(monkeypatch):
 class _FakeModbusSerialClient:
     """Records the constructor timeout for the RTU (serial) transport."""
 
-    def __init__(self, port: str, *, baudrate: int, parity: str, stopbits: int,
-                 bytesize: int, timeout: float = 3) -> None:
+    def __init__(
+        self,
+        port: str,
+        *,
+        baudrate: int,
+        parity: str,
+        stopbits: int,
+        bytesize: int,
+        timeout: float = 3,
+    ) -> None:
         self.port = port
         self.timeout = timeout
 

@@ -132,8 +132,12 @@ def test_uns_live_audit_captures_then_audits(monkeypatch):
     monkeypatch.setattr(ops, "_collect", lambda t, topic, count, timeout_s: list(msgs))
 
     out = live.uns_live_audit(
-        TARGET, topic="#", duration_s=5, max_msgs=100,
-        allowed_roots=["Enterprise"], min_segments=2,
+        TARGET,
+        topic="#",
+        duration_s=5,
+        max_msgs=100,
+        allowed_roots=["Enterprise"],
+        min_segments=2,
     )
     assert out["capture"]["observed_messages"] == 4
     assert out["capture"]["unique_topics"] == 4
@@ -156,10 +160,11 @@ def test_uns_live_audit_handles_empty_capture(monkeypatch):
 @pytest.mark.unit
 def test_sparkplug_live_schema_builds_drift_ready_dict(monkeypatch):
     msgs = [
-        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1",
-         "payload": _nbirth([("Temperature", 1, 10), ("MotorRunning", 2, 11)])},
-        {"topic": "spBv1.0/Plant1/DBIRTH/Edge1/DevA",
-         "payload": _nbirth([("Pressure", 3, 9)])},
+        {
+            "topic": "spBv1.0/Plant1/NBIRTH/Edge1",
+            "payload": _nbirth([("Temperature", 1, 10), ("MotorRunning", 2, 11)]),
+        },
+        {"topic": "spBv1.0/Plant1/DBIRTH/Edge1/DevA", "payload": _nbirth([("Pressure", 3, 9)])},
         {"topic": "spBv1.0/Plant1/DDATA/Edge1/DevA", "payload": b"ignored-non-birth"},
     ]
     monkeypatch.setattr(ops, "_collect", lambda t, topic, count, timeout_s: list(msgs))
@@ -182,8 +187,10 @@ def test_sparkplug_live_schema_builds_drift_ready_dict(monkeypatch):
 @pytest.mark.unit
 def test_uns_live_drift_detects_breaking_change(monkeypatch):
     msgs = [
-        {"topic": "spBv1.0/Plant1/NBIRTH/Edge1",
-         "payload": _nbirth([("Temperature", 1, 4)])},  # Int64 now
+        {
+            "topic": "spBv1.0/Plant1/NBIRTH/Edge1",
+            "payload": _nbirth([("Temperature", 1, 4)]),
+        },  # Int64 now
     ]
     monkeypatch.setattr(ops, "_collect", lambda t, topic, count, timeout_s: list(msgs))
 

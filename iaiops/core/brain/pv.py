@@ -32,8 +32,14 @@ def pv_performance(strings: list[dict], underperf_pct: float = DEFAULT_UNDERPERF
     """
     rows = [r for r in (_row(s) for s in (strings or []) if isinstance(s, dict)) if r]
     if not rows:
-        return {"strings_evaluated": 0, "summary": {}, "underperformer_count": 0,
-                "underperformers": [], "worst": None, "note": _NOTE}
+        return {
+            "strings_evaluated": 0,
+            "summary": {},
+            "underperformer_count": 0,
+            "underperformers": [],
+            "worst": None,
+            "note": _NOTE,
+        }
 
     fleet_median = median([r["power_w"] for r in rows]) or 0.0
     graded = [_grade(r, fleet_median, underperf_pct) for r in rows]
@@ -99,11 +105,19 @@ def _grade(row: dict, fleet_median: float, underperf_pct: float) -> dict:
         status = "underperforming"
     else:
         status = "ok"
-    detail = (f"{round(row['power_w'], 1)} W vs {round(expected, 1) if expected else '?'} W "
-              f"expected ({method}) — ratio {ratio}%")
-    return {"string": row["string"], "power_w": round(row["power_w"], 1),
-            "expectedW": round(expected, 1) if expected else None, "method": method,
-            "ratioPct": ratio, "status": status, "detail": detail}
+    detail = (
+        f"{round(row['power_w'], 1)} W vs {round(expected, 1) if expected else '?'} W "
+        f"expected ({method}) — ratio {ratio}%"
+    )
+    return {
+        "string": row["string"],
+        "power_w": round(row["power_w"], 1),
+        "expectedW": round(expected, 1) if expected else None,
+        "method": method,
+        "ratioPct": ratio,
+        "status": status,
+        "detail": detail,
+    }
 
 
 __all__ = ["pv_performance", "MAX_ROWS", "DEFAULT_UNDERPERF_PCT"]

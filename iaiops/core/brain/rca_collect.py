@@ -92,9 +92,14 @@ def downtime_rca_live(
     behaviour is byte-identical to before.
     """
     bundle = collect_evidence(
-        target, refs, sample_count, interval_ms, include_alarms,
+        target,
+        refs,
+        sample_count,
+        interval_ms,
+        include_alarms,
         freshness_threshold_s=int(window.get("freshness_threshold_s", 60))
-        if isinstance(window, dict) else 60,
+        if isinstance(window, dict)
+        else 60,
     )
     historian = gather_pre_incident(window if isinstance(window, dict) else {}, refs)
     verdict = downtime_rca(
@@ -156,14 +161,16 @@ def _collect_alarms(target: Any) -> list[dict]:
     events: list[dict] = []
     for a in (result.get("active_alarms") or [])[:200]:
         name = s(str(a.get("browse_name", a.get("node_id", "alarm"))), 96)
-        events.append({
-            "source": name,
-            "message": name,  # the browse-name carries the fault hint (…Fault/…Alarm)
-            "state": "ACTIVE",
-            # Address-space scan yields no event time — left untimed; the copilot
-            # scores untimed evidence as real-but-not-time-localized.
-            "timestamp": None,
-        })
+        events.append(
+            {
+                "source": name,
+                "message": name,  # the browse-name carries the fault hint (…Fault/…Alarm)
+                "state": "ACTIVE",
+                # Address-space scan yields no event time — left untimed; the copilot
+                # scores untimed evidence as real-but-not-time-localized.
+                "timestamp": None,
+            }
+        )
     return events
 
 

@@ -98,17 +98,13 @@ _TEMPLATES: dict[str, RegisterTemplate] = {
         name="generic_float32_be",
         register_type="holding",
         description="Generic block of big-endian (ABCD) float32 values, one per register pair.",
-        tags=_float_block(
-            [(f"f{i}", i * 2, "", f"float #{i}") for i in range(8)], order="ABCD"
-        ),
+        tags=_float_block([(f"f{i}", i * 2, "", f"float #{i}") for i in range(8)], order="ABCD"),
     ),
     "generic_float32_word_swap": RegisterTemplate(
         name="generic_float32_word_swap",
         register_type="holding",
         description="Generic block of word-swapped (CDAB) float32 values — common on many PLCs.",
-        tags=_float_block(
-            [(f"f{i}", i * 2, "", f"float #{i}") for i in range(8)], order="CDAB"
-        ),
+        tags=_float_block([(f"f{i}", i * 2, "", f"float #{i}") for i in range(8)], order="CDAB"),
     ),
     # Eastron SDM630 — very widely deployed DIN-rail 3-phase energy meter. Input
     # registers (FC04), float32 big-endian (ABCD). Addresses below are the common
@@ -276,16 +272,46 @@ _TEMPLATES: dict[str, RegisterTemplate] = {
         "vendor-specific (ProMinent/Grundfos/etc.): confirm against the pump's "
         "Modbus manual before use.",
         tags=(
-            TemplateTag(tag="dosing_flow", offset=0x0000, value_type="float32",
-                        order="ABCD", unit="L/h", label="Actual dosing flow"),
-            TemplateTag(tag="dosing_setpoint", offset=0x0002, value_type="float32",
-                        order="ABCD", unit="L/h", label="Dosing flow setpoint"),
-            TemplateTag(tag="stroke_rate", offset=0x0004, value_type="float32",
-                        order="ABCD", unit="%", label="Stroke rate / capacity"),
-            TemplateTag(tag="pump_status", offset=0x0006, value_type="uint16",
-                        order="AB", unit="", label="Running/stopped status word"),
-            TemplateTag(tag="alarm_word", offset=0x0007, value_type="uint16",
-                        order="AB", unit="", label="Alarm bit field"),
+            TemplateTag(
+                tag="dosing_flow",
+                offset=0x0000,
+                value_type="float32",
+                order="ABCD",
+                unit="L/h",
+                label="Actual dosing flow",
+            ),
+            TemplateTag(
+                tag="dosing_setpoint",
+                offset=0x0002,
+                value_type="float32",
+                order="ABCD",
+                unit="L/h",
+                label="Dosing flow setpoint",
+            ),
+            TemplateTag(
+                tag="stroke_rate",
+                offset=0x0004,
+                value_type="float32",
+                order="ABCD",
+                unit="%",
+                label="Stroke rate / capacity",
+            ),
+            TemplateTag(
+                tag="pump_status",
+                offset=0x0006,
+                value_type="uint16",
+                order="AB",
+                unit="",
+                label="Running/stopped status word",
+            ),
+            TemplateTag(
+                tag="alarm_word",
+                offset=0x0007,
+                value_type="uint16",
+                order="AB",
+                unit="",
+                label="Alarm bit field",
+            ),
         ),
     ),
     # Growatt string inverter — another very common PV inverter (信创 friendly).
@@ -400,9 +426,7 @@ def get_template(name: str) -> RegisterTemplate:
         raise KeyError(f"Unknown template {name!r}. Available: {known}.") from None
 
 
-def apply_template(
-    name: str, registers: list[int], *, start_address: int = 0
-) -> dict[str, Any]:
+def apply_template(name: str, registers: list[int], *, start_address: int = 0) -> dict[str, Any]:
     """Decode a raw register block into named tags using template ``name``.
 
     ``start_address`` is the absolute register address of ``registers[0]`` so a

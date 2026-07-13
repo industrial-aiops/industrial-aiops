@@ -51,10 +51,14 @@ def test_bundle_contains_all_evidence(tmp_path):
 
     with zipfile.ZipFile(out["path"]) as bundle:
         names = set(bundle.namelist())
-        assert names == {AUDIT_ROWS_NAME, CHAIN_VERIFICATION_NAME, RULES_NAME,
-                         DOCTOR_SUMMARY_NAME, MANIFEST_NAME}
-        rows = [json.loads(line) for line in
-                bundle.read(AUDIT_ROWS_NAME).decode().splitlines()]
+        assert names == {
+            AUDIT_ROWS_NAME,
+            CHAIN_VERIFICATION_NAME,
+            RULES_NAME,
+            DOCTOR_SUMMARY_NAME,
+            MANIFEST_NAME,
+        }
+        rows = [json.loads(line) for line in bundle.read(AUDIT_ROWS_NAME).decode().splitlines()]
         assert len(rows) == 4
         assert all(r["row_hash"] and "ts" in r for r in rows)
         chain = json.loads(bundle.read(CHAIN_VERIFICATION_NAME))
@@ -82,9 +86,7 @@ def test_bundle_since_until_window(tmp_path):
     engine = get_engine()
     all_rows = engine.rows_after(0)
     middle_ts = all_rows[1]["ts"]
-    out = export_evidence_bundle(
-        tmp_path / "windowed.zip", since=middle_ts, until=middle_ts
-    )
+    out = export_evidence_bundle(tmp_path / "windowed.zip", since=middle_ts, until=middle_ts)
     assert out["row_count"] == 1
     with zipfile.ZipFile(out["path"]) as bundle:
         rows = bundle.read(AUDIT_ROWS_NAME).decode().splitlines()
@@ -125,9 +127,7 @@ def test_bundle_rejects_bad_iso_bounds(tmp_path):
     with pytest.raises(ValueError, match="ISO-8601"):
         export_evidence_bundle(tmp_path / "b.zip", until="not-a-date")
     with pytest.raises(ValueError, match="after"):
-        export_evidence_bundle(
-            tmp_path / "b.zip", since="2026-07-02", until="2026-07-01"
-        )
+        export_evidence_bundle(tmp_path / "b.zip", since="2026-07-02", until="2026-07-01")
 
 
 @pytest.mark.unit

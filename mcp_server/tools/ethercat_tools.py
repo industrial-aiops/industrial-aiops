@@ -171,9 +171,7 @@ def ethercat_write_sdo(
 
     Example (preview): ethercat_write_sdo(slave=0, index=0x607A, value="e8030000").
     """
-    return ops.ethercat_write_sdo(
-        _target(endpoint), slave, index, value, subindex, dry_run=dry_run
-    )
+    return ops.ethercat_write_sdo(_target(endpoint), slave, index, value, subindex, dry_run=dry_run)
 
 
 def _state_undo(params: dict[str, Any], result: Any) -> Optional[dict]:

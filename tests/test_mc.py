@@ -47,8 +47,10 @@ class _FakeMCClient:
             self.written[f"D{base + i}"] = v
 
     def randomread(self, word_devices, dword_devices):
-        return ([self._words.get(d, 0) for d in word_devices],
-                [self._words.get(d, 0) for d in dword_devices])
+        return (
+            [self._words.get(d, 0) for d in word_devices],
+            [self._words.get(d, 0) for d in dword_devices],
+        )
 
 
 @pytest.fixture

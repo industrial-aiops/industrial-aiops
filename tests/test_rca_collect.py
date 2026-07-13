@@ -45,7 +45,10 @@ def patch_readers(monkeypatch):
 @pytest.mark.unit
 def test_collect_samples_each_ref_into_series(patch_readers):
     bundle = rca_collect.collect_evidence(
-        _modbus_target(), refs=["1", "2"], sample_count=5, interval_ms=50,
+        _modbus_target(),
+        refs=["1", "2"],
+        sample_count=5,
+        interval_ms=50,
         include_alarms=False,
     )
     assert len(bundle["tags"]) == 2
@@ -60,7 +63,10 @@ def test_collected_series_feeds_tag_health_flatline(patch_readers):
     # Constant reads → tag_health should later see a flatline; here we just
     # confirm the series is well-formed numeric input.
     bundle = rca_collect.collect_evidence(
-        _modbus_target(), refs=["1"], sample_count=4, interval_ms=50,
+        _modbus_target(),
+        refs=["1"],
+        sample_count=4,
+        interval_ms=50,
         include_alarms=False,
     )
     vals = [s["value"] for s in bundle["tags"][0]["samples"]]
@@ -73,10 +79,12 @@ def test_read_error_becomes_bad_quality_not_raise(monkeypatch):
         raise ConnectionError("plc dropped")
 
     monkeypatch.setattr(rca_collect, "_read_point", boom)
-    monkeypatch.setattr(rca_collect, "diagnose_dataflow",
-                        lambda *a, **k: {"verdict": "cannot_connect"})
-    bundle = rca_collect.collect_evidence(_modbus_target(), refs=["1"], sample_count=3,
-                                          interval_ms=50, include_alarms=False)
+    monkeypatch.setattr(
+        rca_collect, "diagnose_dataflow", lambda *a, **k: {"verdict": "cannot_connect"}
+    )
+    bundle = rca_collect.collect_evidence(
+        _modbus_target(), refs=["1"], sample_count=3, interval_ms=50, include_alarms=False
+    )
     samples = bundle["tags"][0]["samples"]
     assert all(s["good"] is False for s in samples)
     assert "error" in samples[0]
@@ -86,13 +94,14 @@ def test_read_error_becomes_bad_quality_not_raise(monkeypatch):
 def test_alarms_only_collected_for_opcua(patch_readers, monkeypatch):
     monkeypatch.setattr(
         "iaiops.connectors.opcua.ops.read_alarms",
-        lambda target, **k: {"active_alarms": [
-            {"browse_name": "Motor1_Fault", "node_id": "ns=2;i=9", "value": True}]},
+        lambda target, **k: {
+            "active_alarms": [{"browse_name": "Motor1_Fault", "node_id": "ns=2;i=9", "value": True}]
+        },
     )
-    opc = rca_collect.collect_evidence(_opcua_target(), refs=["ns=2;i=5"],
-                                       sample_count=2, interval_ms=50)
-    mod = rca_collect.collect_evidence(_modbus_target(), refs=["1"],
-                                       sample_count=2, interval_ms=50)
+    opc = rca_collect.collect_evidence(
+        _opcua_target(), refs=["ns=2;i=5"], sample_count=2, interval_ms=50
+    )
+    mod = rca_collect.collect_evidence(_modbus_target(), refs=["1"], sample_count=2, interval_ms=50)
     assert opc["alarms"] and opc["alarms"][0]["source"] == "Motor1_Fault"
     assert opc["alarms"][0]["state"] == "ACTIVE"
     assert mod["alarms"] == []  # modbus has no active-condition surfacing
@@ -104,8 +113,9 @@ def test_alarm_surfacing_failure_is_non_fatal(patch_readers, monkeypatch):
         raise RuntimeError("browse failed")
 
     monkeypatch.setattr("iaiops.connectors.opcua.ops.read_alarms", boom)
-    bundle = rca_collect.collect_evidence(_opcua_target(), refs=["ns=2;i=5"],
-                                          sample_count=2, interval_ms=50)
+    bundle = rca_collect.collect_evidence(
+        _opcua_target(), refs=["ns=2;i=5"], sample_count=2, interval_ms=50
+    )
     assert bundle["alarms"] == []  # degraded, not raised
 
 
@@ -116,13 +126,18 @@ def test_alarm_surfacing_failure_is_non_fatal(patch_readers, monkeypatch):
 def test_live_rca_runs_copilot_on_gathered_evidence(patch_readers, monkeypatch):
     monkeypatch.setattr(
         "iaiops.connectors.opcua.ops.read_alarms",
-        lambda target, **k: {"active_alarms": [
-            {"browse_name": "Drive_Fault_Trip", "node_id": "ns=2;i=9", "value": True}]},
+        lambda target, **k: {
+            "active_alarms": [
+                {"browse_name": "Drive_Fault_Trip", "node_id": "ns=2;i=9", "value": True}
+            ]
+        },
     )
     out = rca_collect.downtime_rca_live(
         _opcua_target(),
         window={"start": "2026-06-28T10:00:00Z", "asset": "line1"},
-        refs=["ns=2;i=5"], sample_count=3, interval_ms=50,
+        refs=["ns=2;i=5"],
+        sample_count=3,
+        interval_ms=50,
     )
     # The surfaced "Drive_Fault" condition drives a mechanical_fault hypothesis.
     assert any(h["cause"] == "mechanical_fault" for h in out["hypotheses"])
@@ -138,7 +153,10 @@ def test_live_rca_thin_evidence_is_insufficient(patch_readers):
     out = rca_collect.downtime_rca_live(
         _modbus_target(),
         window={"start": "2026-06-28T10:00:00Z"},
-        refs=["1"], sample_count=3, interval_ms=50, include_alarms=False,
+        refs=["1"],
+        sample_count=3,
+        interval_ms=50,
+        include_alarms=False,
     )
     # A flatline tag is a real sensor signal, so it is at least surfaced...
     assert out["verdict"] in ("insufficient_evidence", "multiple_candidates")

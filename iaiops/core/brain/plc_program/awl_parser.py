@@ -35,9 +35,7 @@ _END_BLOCK_RE = re.compile(
 _NETWORK_RE = re.compile(r"^\s*NETWORK\b", re.IGNORECASE)
 _TITLE_RE = re.compile(r"^\s*TITLE\s*=\s*(.*)", re.IGNORECASE)
 _COMMENT_RE = re.compile(r"//(.*)")
-_CALL_RE = re.compile(
-    r'^\s*(?:CALL|UC|CC)\s+("?[\w. ]+"?)\s*(?:,\s*("?[\w. ]+"?))?', re.IGNORECASE
-)
+_CALL_RE = re.compile(r'^\s*(?:CALL|UC|CC)\s+("?[\w. ]+"?)\s*(?:,\s*("?[\w. ]+"?))?', re.IGNORECASE)
 _OP_RE = re.compile(r"^\s*(L|T|A|AN|O|ON|X|XN|=|S|R|FP|FN|SET|CLR)\s+(.+?)\s*;?\s*$")
 _JMP_RE = re.compile(r"^\s*(JU|JC|JCN|JL|SPA|SPB|SPBN)\s+(\w+)", re.IGNORECASE)
 ADDRESS_RE = re.compile(
@@ -64,11 +62,17 @@ def parse_awl(text: str, source_file: str) -> ProgramOutline:
             return
         blocks.append(
             Block(
-                name=cur["name"], kind=cur["kind"], language="awl",
-                source_file=source_file, line=cur["line"], end_line=end_line,
-                calls=tuple(cur["calls"]), branches=tuple(cur["branches"]),
+                name=cur["name"],
+                kind=cur["kind"],
+                language="awl",
+                source_file=source_file,
+                line=cur["line"],
+                end_line=end_line,
+                calls=tuple(cur["calls"]),
+                branches=tuple(cur["branches"]),
                 timers_counters=tuple(cur["timers"]),
-                networks=tuple(cur["networks"]), comment=cur["comment"],
+                networks=tuple(cur["networks"]),
+                comment=cur["comment"],
             )
         )
         cur = None
@@ -88,8 +92,13 @@ def parse_awl(text: str, source_file: str) -> ProgramOutline:
                     close_block(idx - 1)
                 cur = {
                     "name": m.group(2).strip().strip('"'),
-                    "kind": m.group(1).upper(), "line": idx, "calls": [],
-                    "branches": [], "timers": [], "networks": [], "comment": "",
+                    "kind": m.group(1).upper(),
+                    "line": idx,
+                    "calls": [],
+                    "branches": [],
+                    "timers": [],
+                    "networks": [],
+                    "comment": "",
                 }
                 continue
             if _END_BLOCK_RE.match(line):
@@ -115,39 +124,49 @@ def parse_awl(text: str, source_file: str) -> ProgramOutline:
             cm = _CALL_RE.match(line)
             if cm:
                 cur["calls"].append(
-                    CallEdge(caller=cur["name"],
-                             callee=cm.group(1).strip().strip('"'),
-                             source_file=source_file, line=idx)
+                    CallEdge(
+                        caller=cur["name"],
+                        callee=cm.group(1).strip().strip('"'),
+                        source_file=source_file,
+                        line=idx,
+                    )
                 )
                 continue
             jm = _JMP_RE.match(line)
             if jm:
                 cur["branches"].append(
-                    Branch(kind="JMP", condition=f"{jm.group(1)} {jm.group(2)}",
-                           source_file=source_file, line=idx)
+                    Branch(
+                        kind="JMP",
+                        condition=f"{jm.group(1)} {jm.group(2)}",
+                        source_file=source_file,
+                        line=idx,
+                    )
                 )
                 continue
             tim = _TIMER_OP_RE.match(line)
             if tim:
                 addr = tim.group(2).replace(" ", "")
                 cur["timers"].append(
-                    TimerCounter(name=addr, kind=tim.group(1).upper(),
-                                 source_file=source_file, line=idx)
+                    TimerCounter(
+                        name=addr, kind=tim.group(1).upper(), source_file=source_file, line=idx
+                    )
                 )
         except Exception as exc:
             parse_errors.append(f"line {idx}: skipped ({exc})")
 
     if cur is not None:
-        parse_errors.append(
-            f"block '{cur['name']}' has no END_{cur['kind']} (truncated file?)"
-        )
+        parse_errors.append(f"block '{cur['name']}' has no END_{cur['kind']} (truncated file?)")
         close_block(len(lines))
 
     call_edges = tuple(edge for blk in blocks for edge in blk.calls)
     return ProgramOutline(
-        source_file=source_file, fmt="awl", blocks=tuple(blocks),
-        call_edges=call_edges, comment_count=comment_count,
-        line_count=len(lines), parse_errors=tuple(parse_errors),
+        source_file=source_file,
+        fmt="awl",
+        blocks=tuple(blocks),
+        call_edges=call_edges,
+        comment_count=comment_count,
+        line_count=len(lines),
+        parse_errors=tuple(parse_errors),
     )
 
 

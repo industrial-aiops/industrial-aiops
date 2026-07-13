@@ -25,17 +25,33 @@ MAX_READ_ITEMS = 100
 
 # S7 data types pyS7 understands, with their byte stride (0 = bit-addressed).
 _DTYPE_SIZE = {
-    "BIT": 0, "BYTE": 1, "CHAR": 1, "USINT": 1, "SINT": 1,
-    "WORD": 2, "INT": 2, "DWORD": 4, "DINT": 4, "REAL": 4, "LREAL": 8,
+    "BIT": 0,
+    "BYTE": 1,
+    "CHAR": 1,
+    "USINT": 1,
+    "SINT": 1,
+    "WORD": 2,
+    "INT": 2,
+    "DWORD": 4,
+    "DINT": 4,
+    "REAL": 4,
+    "LREAL": 8,
 }
 _AREA_LETTER = {"M": "M", "I": "I", "E": "I", "Q": "Q", "A": "Q"}
 # Exact pyS7 non-DB tokens per data type (e.g. MB16=byte, MC9=char, MI14=signed
 # 16-bit, MR84=32-bit float, MLR84=64-bit float). Each token must decode to the
 # declared type — a wrong token silently returns wrong-width/wrong-sign values.
 _NONDB_SUFFIX = {
-    "BYTE": "B", "CHAR": "C", "USINT": "USINT", "SINT": "SINT",
-    "WORD": "W", "INT": "I", "DWORD": "D", "DINT": "DI",
-    "REAL": "R", "LREAL": "LR",
+    "BYTE": "B",
+    "CHAR": "C",
+    "USINT": "USINT",
+    "SINT": "SINT",
+    "WORD": "W",
+    "INT": "I",
+    "DWORD": "D",
+    "DINT": "DI",
+    "REAL": "R",
+    "LREAL": "LR",
 }
 
 
@@ -149,8 +165,7 @@ def s7_read_many(target: Any, addresses: list[str]) -> dict:
         "endpoint": s(target.name, 64),
         "count": len(addrs),
         "items": [
-            {"address": s(a, 48), "value": _coerce(v)}
-            for a, v in zip(addrs, values, strict=False)
+            {"address": s(a, 48), "value": _coerce(v)} for a, v in zip(addrs, values, strict=False)
         ],
     }
 

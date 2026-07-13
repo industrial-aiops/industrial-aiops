@@ -231,7 +231,13 @@ def downtime_root_cause(
     refs = [t.get("ref") for t in (tags or []) if isinstance(t, dict) and t.get("ref")]
     historian = rca_history.gather_pre_incident(window, refs or None)
     return rca_brain.downtime_rca(
-        window, alarms, tags, dataflow, state_series, lead_window_s, cause_weights,
+        window,
+        alarms,
+        tags,
+        dataflow,
+        state_series,
+        lead_window_s,
+        cause_weights,
         historian=historian,
     )
 
@@ -275,11 +281,18 @@ def downtime_root_cause_live(
         refs=["ns=2;i=5","ns=2;i=6"]).
     """
     if not isinstance(window, dict) or not window.get("start"):
-        return {"error": "window={start: ISO-8601, ...} is required.",
-                "hint": "Pass the incident onset time as window.start."}
+        return {
+            "error": "window={start: ISO-8601, ...} is required.",
+            "hint": "Pass the incident onset time as window.start.",
+        }
     return rca_collect.downtime_rca_live(
-        _target(endpoint), window, refs, sample_count, interval_ms,
-        include_alarms, lead_window_s,
+        _target(endpoint),
+        window,
+        refs,
+        sample_count,
+        interval_ms,
+        include_alarms,
+        lead_window_s,
     )
 
 

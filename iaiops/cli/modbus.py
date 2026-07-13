@@ -7,8 +7,9 @@ import typer
 from iaiops.cli._common import EndpointOption, _emit, cli_errors, resolve_target
 from iaiops.connectors.modbus import ops
 
-modbus_app = typer.Typer(help="Modbus-TCP read-only telemetry (incl. 国产 PLCs).",
-                         no_args_is_help=True)
+modbus_app = typer.Typer(
+    help="Modbus-TCP read-only telemetry (incl. 国产 PLCs).", no_args_is_help=True
+)
 
 
 @modbus_app.command("holding")

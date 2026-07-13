@@ -164,8 +164,18 @@ def test_approve_cli_writes_token(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
         app,
-        ["approve", "write_setpoint", "--endpoint", "plant1", "--by", "carol",
-         "--ttl", "120", "--rationale", "MOC-9"],
+        [
+            "approve",
+            "write_setpoint",
+            "--endpoint",
+            "plant1",
+            "--by",
+            "carol",
+            "--ttl",
+            "120",
+            "--rationale",
+            "MOC-9",
+        ],
     )
     assert result.exit_code == 0, result.output
     approval = consume_approval("write_setpoint", "plant1")

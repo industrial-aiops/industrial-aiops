@@ -114,8 +114,14 @@ def governed_tool(
             @wraps(func)
             async def wrapper(*args: Any, **kwargs: Any) -> Any:
                 state = _CallState(
-                    func, args, kwargs, signature, _sensitive, risk_level,
-                    timeout_seconds, undo,
+                    func,
+                    args,
+                    kwargs,
+                    signature,
+                    _sensitive,
+                    risk_level,
+                    timeout_seconds,
+                    undo,
                 )
                 try:
                     _pre_check(state)
@@ -128,11 +134,18 @@ def governed_tool(
                 finally:
                     _finalize(state)
         else:
+
             @wraps(func)
             def wrapper(*args: Any, **kwargs: Any) -> Any:
                 state = _CallState(
-                    func, args, kwargs, signature, _sensitive, risk_level,
-                    timeout_seconds, undo,
+                    func,
+                    args,
+                    kwargs,
+                    signature,
+                    _sensitive,
+                    risk_level,
+                    timeout_seconds,
+                    undo,
                 )
                 try:
                     _pre_check(state)
@@ -171,10 +184,25 @@ class _CallState:
     """
 
     __slots__ = (
-        "skill", "tool_name", "agent", "start", "status", "result",
-        "policy_result", "pattern_match", "audit", "policy",
-        "safe_params", "env", "risk_level", "timeout_seconds",
-        "rationale", "approved_by", "approver_source", "risk_tier", "undo",
+        "skill",
+        "tool_name",
+        "agent",
+        "start",
+        "status",
+        "result",
+        "policy_result",
+        "pattern_match",
+        "audit",
+        "policy",
+        "safe_params",
+        "env",
+        "risk_level",
+        "timeout_seconds",
+        "rationale",
+        "approved_by",
+        "approver_source",
+        "risk_tier",
+        "undo",
     )
 
     def __init__(
@@ -386,11 +414,7 @@ def _annotate_result(state: _CallState, result: Any) -> Any:
     actually happened.
     """
     state.result = result
-    if (
-        state.pattern_match
-        and state.pattern_match.armed
-        and isinstance(result, dict)
-    ):
+    if state.pattern_match and state.pattern_match.armed and isinstance(result, dict):
         result.setdefault("_pattern_id", state.pattern_match.pattern.pattern_id)
         result.setdefault("_pattern_armed", True)
     _record_undo(state, result)
@@ -408,8 +432,7 @@ def _record_undo(state: _CallState, result: Any) -> None:
     try:
         descriptor = state.undo(state.safe_params, result)
     except Exception:  # noqa: BLE001 — undo computation must not fail the call
-        _log.warning("undo callable for %s.%s raised", state.skill, state.tool_name,
-                     exc_info=True)
+        _log.warning("undo callable for %s.%s raised", state.skill, state.tool_name, exc_info=True)
         return
     if not descriptor:
         return
@@ -425,8 +448,7 @@ def _record_undo(state: _CallState, result: Any) -> None:
         if undo_id and isinstance(result, dict):
             result.setdefault("_undo_id", undo_id)
     except Exception:  # noqa: BLE001 — recording is best-effort
-        _log.warning("failed to record undo for %s.%s", state.skill, state.tool_name,
-                     exc_info=True)
+        _log.warning("failed to record undo for %s.%s", state.skill, state.tool_name, exc_info=True)
 
 
 def _capture_error(state: _CallState, exc: Exception) -> None:
@@ -436,9 +458,7 @@ def _capture_error(state: _CallState, exc: Exception) -> None:
     state.status = "error"
     state.result = {
         "error": sanitize(_redact_secrets_text(str(exc)), 500),
-        "traceback": sanitize(
-            _redact_secrets_text(traceback.format_exc()[-500:]), 500
-        ),
+        "traceback": sanitize(_redact_secrets_text(traceback.format_exc()[-500:]), 500),
     }
 
 
@@ -457,7 +477,10 @@ def _finalize(state: _CallState) -> None:
     if state.timeout_seconds and duration > state.timeout_seconds * 1000:
         _log.warning(
             "%s.%s took %dms — exceeded timeout_seconds=%d (advisory, not cancelled)",
-            state.skill, state.tool_name, duration, state.timeout_seconds,
+            state.skill,
+            state.tool_name,
+            duration,
+            state.timeout_seconds,
         )
 
     bypassed = state.policy_result and state.policy_result.rule == "policy_disabled"
@@ -500,7 +523,10 @@ def _finalize(state: _CallState) -> None:
             "AUDIT WRITE FAILED for %s-risk call %s.%s (status=%s) — the "
             "operation executed but left NO audit row. Investigate the audit "
             "DB immediately.",
-            state.risk_level, state.skill, state.tool_name, final_status,
+            state.risk_level,
+            state.skill,
+            state.tool_name,
+            final_status,
         )
 
 

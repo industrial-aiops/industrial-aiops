@@ -161,8 +161,7 @@ def test_scl_call_graph_resolves_fb_instances(tmp_path):
     assert ("FB_Conveyor", "FB_Drive", 22) in edges  # Drive → declared type
     assert ("FB_Conveyor", "TON", 21) in edges  # RunTimer → TON
     timers = outline.blocks[0].timers_counters
-    assert any(t.name == "RunTimer" and t.kind == "TON" and t.line == 12
-               for t in timers)
+    assert any(t.name == "RunTimer" and t.kind == "TON" and t.line == 12 for t in timers)
 
 
 @pytest.mark.unit
@@ -243,11 +242,9 @@ def test_l5x_outline_tags_routines_rungs(tmp_path):
     prog = by_name["MainProgram"]
     assert [v.name for v in prog.variables] == ["RunTmr"]
     main = by_name["MainProgram.MainRoutine"]
-    assert (main.kind, main.language, main.line, main.end_line) == (
-        "ROUTINE", "rll", 0, 1)
+    assert (main.kind, main.language, main.line, main.end_line) == ("ROUTINE", "rll", 0, 1)
     assert [(e.callee, e.line) for e in main.calls] == [("SpeedCalc", 1)]
-    assert [(t.name, t.kind, t.line) for t in main.timers_counters] == [
-        ("RunTmr", "TON", 1)]
+    assert [(t.name, t.kind, t.line) for t in main.timers_counters] == [("RunTmr", "TON", 1)]
     assert by_name["MainProgram.SpeedCalc"].language == "st"
 
 
@@ -322,18 +319,18 @@ def test_tools_are_governed_low_risk_and_registered():
 
 @pytest.mark.unit
 def test_outline_tool_bounded_with_truncation_flags(home, tmp_path):
-    many = "\n".join(
-        f"FUNCTION_BLOCK FB_{i}\nEND_FUNCTION_BLOCK" for i in range(MAX_BLOCKS + 10)
-    )
+    many = "\n".join(f"FUNCTION_BLOCK FB_{i}\nEND_FUNCTION_BLOCK" for i in range(MAX_BLOCKS + 10))
     result = plc_program_outline(path=_write(tmp_path, "many.scl", many))
     assert "error" not in result
     assert len(result["blocks"]) == MAX_BLOCKS
     assert result["blocks_truncated"] is True
     assert result["stats"]["blocks"] == MAX_BLOCKS + 10
 
-    fat = ("FUNCTION_BLOCK FB_Fat\nVAR_INPUT\n"
-           + "\n".join(f"    v{i} : BOOL;" for i in range(MAX_VARS_PER_BLOCK + 5))
-           + "\nEND_VAR\nEND_FUNCTION_BLOCK")
+    fat = (
+        "FUNCTION_BLOCK FB_Fat\nVAR_INPUT\n"
+        + "\n".join(f"    v{i} : BOOL;" for i in range(MAX_VARS_PER_BLOCK + 5))
+        + "\nEND_VAR\nEND_FUNCTION_BLOCK"
+    )
     result = plc_program_outline(path=_write(tmp_path, "fat.scl", fat))
     blk = result["blocks"][0]
     assert len(blk["variables"]) == MAX_VARS_PER_BLOCK

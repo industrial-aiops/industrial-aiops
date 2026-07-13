@@ -32,8 +32,7 @@ def _resolve_reader(reader: Optional[str]) -> tuple[str, HistorianReader]:
     if name not in SUPPORTED_READERS:
         # ValueError so @tool_errors passes the teaching message through.
         raise ValueError(
-            f"Unknown historian reader '{name}'. Supported: "
-            f"{', '.join(SUPPORTED_READERS)}."
+            f"Unknown historian reader '{name}'. Supported: {', '.join(SUPPORTED_READERS)}."
         )
     opts = hist.reader_opts() if (hist and hist.reader == name) else {}
     return name, get_reader(name, **opts)
@@ -88,10 +87,15 @@ def historian_query(
     name, adapter = _resolve_reader(reader)
     try:
         # Pull one extra row so truncation is an honest flag, not a guess.
-        rows = adapter.query(SampleFilter(
-            since=since, until=until, endpoint=endpoint, tag=tag.strip(),
-            limit=int(limit) + 1,
-        ))
+        rows = adapter.query(
+            SampleFilter(
+                since=since,
+                until=until,
+                endpoint=endpoint,
+                tag=tag.strip(),
+                limit=int(limit) + 1,
+            )
+        )
     finally:
         _close(adapter)
     truncated = len(rows) > int(limit)

@@ -347,9 +347,7 @@ def _encode_regs(value, value_type: str, order: str) -> list[int]:
         ("growatt_inverter", "grid_frequency", 5000, "uint16", "AB", 50.0),
     ],
 )
-def test_new_vendor_templates_decode_round_trip(
-    template, tag, raw, value_type, order, expected
-):
+def test_new_vendor_templates_decode_round_trip(template, tag, raw, value_type, order, expected):
     """Each new vendor template decodes its tags back to scaled engineering values."""
     from iaiops.connectors.modbus import templates
 
@@ -416,21 +414,36 @@ def test_rtu_builds_serial_client(monkeypatch):
     class _FakeSerial:
         def __init__(self, port, *, baudrate, parity, stopbits, bytesize, timeout):
             captured.update(
-                port=port, baudrate=baudrate, parity=parity, stopbits=stopbits,
-                bytesize=bytesize, timeout=timeout,
+                port=port,
+                baudrate=baudrate,
+                parity=parity,
+                stopbits=stopbits,
+                bytesize=bytesize,
+                timeout=timeout,
             )
 
     import pymodbus.client as pc
 
     monkeypatch.setattr(pc, "ModbusSerialClient", _FakeSerial)
     target = TargetConfig(
-        name="rtu1", protocol="modbus", transport="rtu", serial_port="/dev/ttyUSB0",
-        baudrate=9600, parity="E", stopbits=2, bytesize=7, timeout_s=4.0,
+        name="rtu1",
+        protocol="modbus",
+        transport="rtu",
+        serial_port="/dev/ttyUSB0",
+        baudrate=9600,
+        parity="E",
+        stopbits=2,
+        bytesize=7,
+        timeout_s=4.0,
     )
     client = conn._build_modbus_client(target)
     assert isinstance(client, _FakeSerial)
     assert captured == {
-        "port": "/dev/ttyUSB0", "baudrate": 9600, "parity": "E", "stopbits": 2, "bytesize": 7,
+        "port": "/dev/ttyUSB0",
+        "baudrate": 9600,
+        "parity": "E",
+        "stopbits": 2,
+        "bytesize": 7,
         "timeout": 4.0,
     }
 
@@ -465,9 +478,14 @@ def test_config_parses_rtu_serial_params():
 
     t = _parse_target(
         {
-            "name": "m", "protocol": "modbus", "transport": "rtu",
-            "serial_port": "/dev/ttyUSB1", "baudrate": 38400, "parity": "o",
-            "stopbits": 2, "bytesize": 7,
+            "name": "m",
+            "protocol": "modbus",
+            "transport": "rtu",
+            "serial_port": "/dev/ttyUSB1",
+            "baudrate": 38400,
+            "parity": "o",
+            "stopbits": 2,
+            "bytesize": 7,
         }
     )
     assert t.transport == "rtu"

@@ -25,7 +25,8 @@ console = Console()
 def serve_cmd(
     port: int = typer.Option(DEFAULT_PORT, "--port", help="TCP port to listen on"),
     host: str = typer.Option(
-        DEFAULT_HOST, "--host",
+        DEFAULT_HOST,
+        "--host",
         help="Bind address (default 127.0.0.1; use 0.0.0.0 to expose — be sure)",
     ),
 ) -> None:
@@ -42,8 +43,7 @@ def serve_cmd(
         )
     server = MetricsServer(host=host, port=port)
     console.print(
-        f"Serving Prometheus metrics on http://{host}:{server.port}/metrics "
-        f"(Ctrl-C to stop)."
+        f"Serving Prometheus metrics on http://{host}:{server.port}/metrics (Ctrl-C to stop)."
     )
     try:
         server.serve_forever()

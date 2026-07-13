@@ -101,9 +101,7 @@ def test_legacy_rows_migrate_and_chain_starts_after_them(tmp_path):
             user TEXT NOT NULL DEFAULT 'unknown', risk_level TEXT NOT NULL DEFAULT 'low'
         )"""
     )
-    conn.execute(
-        "INSERT INTO audit_log (ts, skill, tool) VALUES ('2025-01-01', 'iaiops', 'old')"
-    )
+    conn.execute("INSERT INTO audit_log (ts, skill, tool) VALUES ('2025-01-01', 'iaiops', 'old')")
     conn.commit()
     conn.close()
 

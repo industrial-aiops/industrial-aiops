@@ -47,7 +47,8 @@ def _resolve_address(target: Any, session: Any) -> bytes:
             f"Check the device is on this HART-IP gateway/loop and at that polling "
             f"address, or set long_address: '26 06 12 34 56' (10 hex digits) on "
             f"the endpoint to address it directly.",
-            endpoint=getattr(target, "name", "?"), protocol="hart",
+            endpoint=getattr(target, "name", "?"),
+            protocol="hart",
         )
     return codec.unique_address_from_identity(msg)
 
@@ -104,11 +105,13 @@ def _dynamic_payload(msg: Any) -> dict:
         val = getattr(msg, f"{label}_variable", None)
         if val is None:
             continue
-        variables.append({
-            "name": label,
-            "value": num(val) if num(val) is not None else s(val, 48),
-            "unit_code": getattr(msg, f"{label}_variable_units", None),
-        })
+        variables.append(
+            {
+                "name": label,
+                "value": num(val) if num(val) is not None else s(val, 48),
+                "unit_code": getattr(msg, f"{label}_variable_units", None),
+            }
+        )
     # The hart-protocol cmd-3 parser emits the loop current as 'analog_signal'
     # (verified 2026-06-30); it decodes primary + secondary dynamic variables.
     loop = getattr(msg, "analog_signal", None)

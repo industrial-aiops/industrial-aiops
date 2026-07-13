@@ -30,7 +30,7 @@ def test_solar_wind_semantics(name, expected):
 def test_wind_speed_beats_generic_speed():
     # "wind_speed" contains "speed" but must classify as the specific renewables class.
     assert classify_tag("wind_speed") == "wind_speed"
-    assert classify_tag("motor_rpm") == "speed"   # generic speed still works
+    assert classify_tag("motor_rpm") == "speed"  # generic speed still works
 
 
 @pytest.mark.unit

@@ -26,7 +26,7 @@ LONG_ADDRESS_BYTES = 5
 MAX_POLL_ADDRESS = 63
 _SHORT_FRAME_DELIMITER = 0x02  # STX, master → device, short (1-byte-address) frame
 _PRIMARY_MASTER_BIT = 0x80
-_PREAMBLE = b"\xFF" * 5
+_PREAMBLE = b"\xff" * 5
 
 
 def parse_long_address(text: str) -> bytes:

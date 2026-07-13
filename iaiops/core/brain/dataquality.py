@@ -122,8 +122,11 @@ def heartbeat_health(series: list[Any], max_interval_s: float | None = None) -> 
     raw = list(series or [])
     values = _numeric_series(raw)
     if len(values) < 2:
-        return {"alive": False, "samples": len(values),
-                "reason": "need >= 2 numeric samples to judge a heartbeat"}
+        return {
+            "alive": False,
+            "samples": len(values),
+            "reason": "need >= 2 numeric samples to judge a heartbeat",
+        }
     spread = max(values) - min(values)
     changes = sum(1 for a, b in zip(values, values[1:]) if a != b)
     stall = _longest_stall(raw)
@@ -137,7 +140,8 @@ def heartbeat_health(series: list[Any], max_interval_s: float | None = None) -> 
         "spread": round(spread, 6),
         "longest_stall_s": stall,
         "max_interval_s": max_interval_s,
-        "reason": "flatline — heartbeat not advancing" if spread == 0
+        "reason": "flatline — heartbeat not advancing"
+        if spread == 0
         else ("stalled beyond max_interval_s" if not alive else "advancing normally"),
     }
 
@@ -186,7 +190,9 @@ def _thresholds(tag: dict, feed_staleness_s: float) -> tuple[float, float]:
     # Use is-not-None precedence (NOT `or`): a deliberately-pinned 0 means "demand
     # real-time freshness" and must NOT fall through to a looser default.
     staleness = _first_num(
-        tag.get("staleness_s"), tag.get("expected_update_s"), feed_staleness_s,
+        tag.get("staleness_s"),
+        tag.get("expected_update_s"),
+        feed_staleness_s,
     )
     if staleness is None:
         staleness = feed_staleness_s
@@ -205,8 +211,13 @@ def _first_num(*values: Any) -> float | None:
 
 
 def _tag_flags(
-    tag: dict, raw: list[Any], values: list[float],
-    age: float | None, stall: float | None, staleness_s: float, gap_s: float,
+    tag: dict,
+    raw: list[Any],
+    values: list[float],
+    age: float | None,
+    stall: float | None,
+    staleness_s: float,
+    gap_s: float,
 ) -> list[str]:
     """Collect the data-trust flags for one tag (flatline/quality/staleness/gap)."""
     flags: list[str] = []
@@ -259,7 +270,8 @@ def _rollup_endpoint(endpoint: str, tags: list[dict]) -> dict:
         "bad_quality_tags": issue_counts.get("bad_quality", 0)
         + issue_counts.get("some_bad_quality", 0),
         "worst_tag": {"ref": worst["ref"], "score": worst["score"], "flags": worst["flags"]}
-        if worst else None,
+        if worst
+        else None,
     }
 
 
@@ -281,8 +293,11 @@ def _liveness_rollup(all_tags: list[dict]) -> dict:
 
 def _liveness_entry(t: dict) -> dict:
     return {
-        "endpoint": t["endpoint"], "ref": t["ref"], "heartbeat": t["heartbeat"],
-        "longest_stall_s": t.get("longest_stall_s"), "score": t["score"],
+        "endpoint": t["endpoint"],
+        "ref": t["ref"],
+        "heartbeat": t["heartbeat"],
+        "longest_stall_s": t.get("longest_stall_s"),
+        "score": t["score"],
     }
 
 
@@ -335,7 +350,8 @@ def _fleet_bad_quality(endpoints: list[dict], top_n: int) -> dict:
             "fully_bad": e["issue_counts"].get("bad_quality", 0),
             "partial_bad": e["issue_counts"].get("some_bad_quality", 0),
         }
-        for e in endpoints if e["bad_quality_tags"]
+        for e in endpoints
+        if e["bad_quality_tags"]
     ]
     return {
         "total_bad_quality_tags": sum(e["bad_quality_tags"] for e in endpoints),
@@ -404,8 +420,7 @@ def _longest_stall(raw: list[Any]) -> float | None:
     first seen up to the current timestamp.
     """
     stamped = [
-        (_parse_ts(it.get("timestamp")), num(it.get("value")))
-        for it in raw if isinstance(it, dict)
+        (_parse_ts(it.get("timestamp")), num(it.get("value"))) for it in raw if isinstance(it, dict)
     ]
     stamped = [(ts, v) for ts, v in stamped if ts is not None]
     if len(stamped) < 2:

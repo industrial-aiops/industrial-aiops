@@ -87,8 +87,11 @@ def oee_compute(
         "oee": oee,
         "oee_pct": round(oee * 100.0, 2),
         "inputs": {
-            "planned_time_s": planned, "run_time_s": run,
-            "ideal_cycle_time_s": ideal, "total_count": total, "good_count": good,
+            "planned_time_s": planned,
+            "run_time_s": run,
+            "ideal_cycle_time_s": ideal,
+            "total_count": total,
+            "good_count": good,
         },
         "losses": losses,
         "note": "Factors reported raw + clamped to [0,1]; OEE uses clamped factors. "
@@ -162,8 +165,10 @@ def downtime_events(
         rows.append({"ts": ts, "state": state})
     rows.sort(key=lambda r: r["ts"])
     if len(rows) < 2:
-        return {"error": "Need >=2 timestamped samples to detect transitions.",
-                "samples": len(rows)}
+        return {
+            "error": "Need >=2 timestamped samples to detect transitions.",
+            "samples": len(rows),
+        }
 
     events: list[dict] = []
     open_event: dict | None = None
@@ -231,8 +236,14 @@ def oee_multidim(
         key = tuple(s(str(r.get(d, "")), 48) for d in dims)
         agg = groups.setdefault(
             key,
-            {"planned_time_s": 0.0, "run_time_s": 0.0, "ideal_cycle_time_s": 0.0,
-             "total_count": 0.0, "good_count": 0.0, "_ideal_n": 0},
+            {
+                "planned_time_s": 0.0,
+                "run_time_s": 0.0,
+                "ideal_cycle_time_s": 0.0,
+                "total_count": 0.0,
+                "good_count": 0.0,
+                "_ideal_n": 0,
+            },
         )
         agg["planned_time_s"] += num(r.get("planned_time_s")) or 0.0
         agg["run_time_s"] += num(r.get("run_time_s")) or 0.0
@@ -247,8 +258,11 @@ def oee_multidim(
     for key, agg in groups.items():
         ideal_avg = agg["ideal_cycle_time_s"] / agg["_ideal_n"] if agg["_ideal_n"] else 0.0
         oee = oee_compute(
-            agg["planned_time_s"], agg["run_time_s"], ideal_avg,
-            agg["total_count"], agg["good_count"],
+            agg["planned_time_s"],
+            agg["run_time_s"],
+            ideal_avg,
+            agg["total_count"],
+            agg["good_count"],
         )
         matrix.append(
             {

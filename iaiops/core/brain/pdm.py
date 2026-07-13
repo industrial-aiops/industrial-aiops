@@ -20,8 +20,8 @@ from typing import Any
 from iaiops.core.brain._shared import num, s
 
 MAX_POINTS = 5_000
-MIN_SAMPLES = 30          # below this, refuse (insufficient_data) rather than extrapolate noise
-_FLAT_EPS = 1e-9          # |slope| below this is treated as flat
+MIN_SAMPLES = 30  # below this, refuse (insufficient_data) rather than extrapolate noise
+_FLAT_EPS = 1e-9  # |slope| below this is treated as flat
 
 
 def _parse_ts(ts: Any) -> float | None:
@@ -121,12 +121,25 @@ def pdm_forecast(
     if abs(slope) < _FLAT_EPS:
         return _result("stable", n, slope, current, unit, None, None, None)
 
-    limits = {"warn_high": warn_high, "alarm_high": alarm_high,
-              "warn_low": warn_low, "alarm_low": alarm_low}
+    limits = {
+        "warn_high": warn_high,
+        "alarm_high": alarm_high,
+        "warn_low": warn_low,
+        "alarm_low": alarm_low,
+    }
     target = _nearest_limit(current, slope, limits)
     if target is None:
-        return _result("stable", n, slope, current, unit, None, None, None,
-                       note="Trending but no limit configured in the direction of travel.")
+        return _result(
+            "stable",
+            n,
+            slope,
+            current,
+            unit,
+            None,
+            None,
+            None,
+            note="Trending but no limit configured in the direction of travel.",
+        )
     limit_name, limit_val = target
     eta = (limit_val - current) / slope  # slope sign matches direction → eta > 0
     status = "imminent" if (have_time and 0 <= eta <= float(imminent_within_s)) else "degrading"
@@ -137,8 +150,9 @@ def _result(status, n, slope, current, unit, limit_name, limit_val, eta, note=No
     out = {
         "status": status,
         "samples": n,
-        "direction": ("rising" if slope > _FLAT_EPS
-                      else "falling" if slope < -_FLAT_EPS else "flat"),
+        "direction": (
+            "rising" if slope > _FLAT_EPS else "falling" if slope < -_FLAT_EPS else "flat"
+        ),
         "slope_per_unit": round(slope, 9),
         "unit": unit,
         "current": round(current, 6),

@@ -133,8 +133,10 @@ def test_assets(cnc_target):
 
 @pytest.mark.unit
 def test_xml_with_dtd_is_rejected(monkeypatch):
-    evil = ('<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "boom">]>'
-            '<MTConnectStreams><Streams/></MTConnectStreams>')
+    evil = (
+        '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "boom">]>'
+        "<MTConnectStreams><Streams/></MTConnectStreams>"
+    )
     monkeypatch.setattr(ops, "_http_get", lambda url, timeout=10: evil)
     target = TargetConfig(name="vmc1", protocol="mtconnect", agent_url="http://h:5000")
     with pytest.raises(ValueError, match="DTD/entity"):
@@ -142,6 +144,7 @@ def test_xml_with_dtd_is_rejected(monkeypatch):
 
 
 # ── response size cap (streamed fetch; memory-DoS defense) ────────────────────
+
 
 class _FakeStreamResponse:
     """Stands in for requests' streamed Response: chunked body, no network."""
@@ -186,7 +189,7 @@ def test_http_get_refuses_oversized_response(monkeypatch):
 @pytest.mark.unit
 def test_http_get_normal_response_streams_through(monkeypatch):
     body = CURRENT_XML.encode()
-    chunks = [body[i:i + 1000] for i in range(0, len(body), 1000)]
+    chunks = [body[i : i + 1000] for i in range(0, len(body), 1000)]
     _patch_requests_get(monkeypatch, _FakeStreamResponse(chunks))
     target = TargetConfig(name="vmc1", protocol="mtconnect", agent_url="http://h:5000")
     out = ops.mtconnect_current(target)  # full real path through the capped fetch

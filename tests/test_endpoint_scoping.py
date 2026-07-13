@@ -40,9 +40,7 @@ def _isolate(tmp_path, monkeypatch):
 
 def _state_for(func: Any, *args: Any, **kwargs: Any) -> decorators_mod._CallState:
     signature = inspect.signature(func)
-    return decorators_mod._CallState(
-        func, args, kwargs, signature, set(), "low", 300
-    )
+    return decorators_mod._CallState(func, args, kwargs, signature, set(), "low", 300)
 
 
 def _endpoint_tool(node: str, endpoint: str | None = None) -> dict:

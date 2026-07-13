@@ -35,8 +35,15 @@ def sortation_health(
     rows = [s for s in (sorts or []) if isinstance(s, dict)]
     total = len(rows)
     if not total:
-        return {"items": 0, "verdict": "insufficient", "readRatePct": None,
-                "noReadRatePct": None, "missortRatePct": None, "worstChutes": [], "note": _NOTE}
+        return {
+            "items": 0,
+            "verdict": "insufficient",
+            "readRatePct": None,
+            "noReadRatePct": None,
+            "missortRatePct": None,
+            "worstChutes": [],
+            "note": _NOTE,
+        }
 
     reads = [s for s in rows if bool(s.get("read", True))]
     no_reads = total - len(reads)

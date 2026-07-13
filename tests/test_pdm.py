@@ -50,7 +50,7 @@ def test_imminent_with_timestamps():
 @pytest.mark.unit
 def test_degrading_when_eta_beyond_horizon():
     out = pdm_forecast(_rising_with_time(), warn_high=75, imminent_within_s=100)
-    assert out["status"] == "degrading"          # ETA ~660 s > 100 s horizon
+    assert out["status"] == "degrading"  # ETA ~660 s > 100 s horizon
     assert out["eta_to_limit"] > 100
 
 
@@ -58,7 +58,7 @@ def test_degrading_when_eta_beyond_horizon():
 def test_samples_unit_without_timestamps():
     out = pdm_forecast([{"value": 50.0 + 0.5 * i} for i in range(40)], warn_high=75)
     assert out["unit"] == "samples" and out["status"] == "degrading"
-    assert out["eta_to_limit"] == pytest.approx(11.0, abs=0.5)   # (75-69.5)/0.5
+    assert out["eta_to_limit"] == pytest.approx(11.0, abs=0.5)  # (75-69.5)/0.5
 
 
 @pytest.mark.unit
@@ -71,9 +71,9 @@ def test_no_limit_in_direction_is_stable():
 @pytest.mark.unit
 def test_robust_to_a_single_spike():
     series = _rising_with_time()
-    series[20]["value"] = 9999.0   # one wild outlier — Theil-Sen should ignore it
+    series[20]["value"] = 9999.0  # one wild outlier — Theil-Sen should ignore it
     out = pdm_forecast(series, warn_high=75)
-    assert out["direction"] == "rising"   # not derailed by the spike
+    assert out["direction"] == "rising"  # not derailed by the spike
 
 
 @pytest.mark.unit

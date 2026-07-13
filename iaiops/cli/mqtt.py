@@ -11,8 +11,9 @@ from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resol
 from iaiops.connectors.sparkplug import live, ops
 from iaiops.core.brain import uns_governance as uns
 
-mqtt_app = typer.Typer(help="MQTT / Sparkplug B / UNS consume-first telemetry.",
-                       no_args_is_help=True)
+mqtt_app = typer.Typer(
+    help="MQTT / Sparkplug B / UNS consume-first telemetry.", no_args_is_help=True
+)
 
 
 @mqtt_app.command("read")
@@ -111,10 +112,17 @@ def uns_live_audit_cmd(
     max_leaf_parents: int = typer.Option(5, "--max-leaf-parents"),
 ) -> None:
     """Capture the LIVE UNS topic tree (bounded) then audit naming + sprawl."""
-    _emit(live.uns_live_audit(
-        resolve_target(endpoint), topic, duration_s, max_msgs,
-        list(root) if root else None, min_segments, max_leaf_parents,
-    ))
+    _emit(
+        live.uns_live_audit(
+            resolve_target(endpoint),
+            topic,
+            duration_s,
+            max_msgs,
+            list(root) if root else None,
+            min_segments,
+            max_leaf_parents,
+        )
+    )
 
 
 @mqtt_app.command("live-schema")

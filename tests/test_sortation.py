@@ -16,7 +16,7 @@ def _sorts(n_ok=90, n_missort=6, n_no_read=4):
 
 @pytest.mark.unit
 def test_rates_from_counts():
-    out = sortation_health(_sorts(90, 6, 4))    # 100 items, 96 reads, 6 missorts, 4 no-reads
+    out = sortation_health(_sorts(90, 6, 4))  # 100 items, 96 reads, 6 missorts, 4 no-reads
     assert out["items"] == 100 and out["reads"] == 96
     assert out["noReadRatePct"] == 4.0
     assert out["missortRatePct"] == pytest.approx(6 / 96 * 100, abs=0.01)
@@ -25,7 +25,7 @@ def test_rates_from_counts():
 @pytest.mark.unit
 def test_verdict_high_missort_and_no_read():
     out = sortation_health(_sorts(90, 6, 4))
-    assert out["verdict"] == "degraded"          # 4% no-read > 1%, 6.25% missort > 0.5%
+    assert out["verdict"] == "degraded"  # 4% no-read > 1%, 6.25% missort > 0.5%
     assert out["worstChutes"][0] == {"chute": "C9", "missorts": 6}
 
 

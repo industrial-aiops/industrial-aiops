@@ -22,8 +22,9 @@ program_app = typer.Typer(
     no_args_is_help=True,
 )
 
-PathArg = Annotated[Path, typer.Argument(help="Exported program file "
-                                         "(.st/.scl/.awl/.l5x/.txt, ≤5 MB)")]
+PathArg = Annotated[
+    Path, typer.Argument(help="Exported program file (.st/.scl/.awl/.l5x/.txt, ≤5 MB)")
+]
 
 
 @program_app.command("outline")
@@ -35,36 +36,45 @@ def outline_cmd(
 ) -> None:
     """Structural outline: blocks, VAR sections, branches, timers, call graph."""
     outline = ops.outline_program(str(path))
-    _emit(ops.outline_to_bounded_dict(outline, max_blocks=max_blocks,
-                                      max_vars_per_block=max_vars))
+    _emit(ops.outline_to_bounded_dict(outline, max_blocks=max_blocks, max_vars_per_block=max_vars))
 
 
 @program_app.command("xref")
 @cli_errors
 def xref_cmd(
     path: PathArg,
-    symbol: Annotated[str, typer.Argument(help="Symbol / tag / absolute address "
-                                          "(e.g. Motor_Run, DB10.DBX0.1, M0.0)")],
+    symbol: Annotated[
+        str,
+        typer.Argument(help="Symbol / tag / absolute address (e.g. Motor_Run, DB10.DBX0.1, M0.0)"),
+    ],
 ) -> None:
     """Every read/write/call/declare site of a symbol, with lines quoted."""
     hits = ops.find_symbol(str(path), symbol)
-    _emit({
-        "symbol": symbol,
-        "hit_count": len(hits),
-        "hits": [
-            {"access": h.access, "block": h.block, "source_file": h.source_file,
-             "line": h.line, "source_line": h.source_line}
-            for h in hits
-        ],
-    })
+    _emit(
+        {
+            "symbol": symbol,
+            "hit_count": len(hits),
+            "hits": [
+                {
+                    "access": h.access,
+                    "block": h.block,
+                    "source_file": h.source_file,
+                    "line": h.line,
+                    "source_line": h.source_line,
+                }
+                for h in hits
+            ],
+        }
+    )
 
 
 @program_app.command("section")
 @cli_errors
 def section_cmd(
     path: PathArg,
-    block: Annotated[str, typer.Argument(help="Block/routine name (FB_x, OB1, "
-                                         "MainProgram.MainRoutine)")],
+    block: Annotated[
+        str, typer.Argument(help="Block/routine name (FB_x, OB1, MainProgram.MainRoutine)")
+    ],
     max_lines: Annotated[int, typer.Option(help="Cap on source lines returned")] = 200,
 ) -> None:
     """Source text of one named block (capped), for targeted explanation."""

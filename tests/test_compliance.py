@@ -137,13 +137,15 @@ def test_dengbao_levels_tool_governed_low():
 
 @pytest.mark.unit
 def test_normalize_varied_point_shapes():
-    pts = normalize_points([
-        {"ref": "line1.temp", "value": 21.5, "timestamp": "2026-06-29T10:00:00"},
-        {"object_type": "analogInput", "instance": 3, "present_value": 7.0},
-        {"io_address": 1001, "value": 50},
-        {"type": "analog_input", "index": 2, "value": "n/a"},  # non-numeric
-        "not-a-dict",
-    ])
+    pts = normalize_points(
+        [
+            {"ref": "line1.temp", "value": 21.5, "timestamp": "2026-06-29T10:00:00"},
+            {"object_type": "analogInput", "instance": 3, "present_value": 7.0},
+            {"io_address": 1001, "value": 50},
+            {"type": "analog_input", "index": 2, "value": "n/a"},  # non-numeric
+            "not-a-dict",
+        ]
+    )
     metrics = [p["metric"] for p in pts]
     assert "line1.temp" in metrics
     assert "analogInput.3" in metrics
@@ -174,7 +176,9 @@ def test_push_writes_numeric_only(monkeypatch):
     monkeypatch.setattr(sink_push, "get_sink", lambda kind, **o: fake)
     out = sink_push.historian_push(
         [{"ref": "a", "value": 1.0}, {"ref": "b", "value": "bad"}],
-        sink="tdengine", host="10.0.0.20", database="iaiops",
+        sink="tdengine",
+        host="10.0.0.20",
+        database="iaiops",
     )
     assert out["written"] == 1
     assert out["skipped_non_numeric"] == 1

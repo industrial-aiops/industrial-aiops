@@ -24,17 +24,13 @@ def approve_cmd(
         "", "--endpoint", help="Target endpoint/env the approval is scoped to"
     ),
     by: str = typer.Option(..., "--by", help="Name of the authorizing human"),
-    ttl: int = typer.Option(
-        DEFAULT_TTL_SECONDS, "--ttl", help="Token lifetime in seconds"
-    ),
+    ttl: int = typer.Option(DEFAULT_TTL_SECONDS, "--ttl", help="Token lifetime in seconds"),
     rationale: str = typer.Option(
         "", "--rationale", help="Why this operation is authorized (audit trail)"
     ),
 ) -> None:
     """Record a one-shot approval token (consumed by the next matching call)."""
-    approval = record_approval(
-        tool, endpoint, approved_by=by, ttl_seconds=ttl, rationale=rationale
-    )
+    approval = record_approval(tool, endpoint, approved_by=by, ttl_seconds=ttl, rationale=rationale)
     console.print_json(
         json.dumps(
             {
@@ -42,9 +38,7 @@ def approve_cmd(
                 "tool": approval.tool,
                 "endpoint": approval.endpoint or None,
                 "approved_by": approval.approved_by,
-                "expires_at": datetime.fromtimestamp(
-                    approval.expires_at, tz=UTC
-                ).isoformat(),
+                "expires_at": datetime.fromtimestamp(approval.expires_at, tz=UTC).isoformat(),
                 "one_shot": True,
             }
         )

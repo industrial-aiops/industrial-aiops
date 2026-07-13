@@ -49,9 +49,7 @@ def get_provider(kind: str, **opts: Any) -> Any:
         from iaiops.core.llm.ollama import OllamaProvider
 
         return OllamaProvider(**opts)
-    raise LLMError(
-        f"Unknown LLM provider '{kind}'. Supported: {', '.join(SUPPORTED_PROVIDERS)}."
-    )
+    raise LLMError(f"Unknown LLM provider '{kind}'. Supported: {', '.join(SUPPORTED_PROVIDERS)}.")
 
 
 __all__ = [

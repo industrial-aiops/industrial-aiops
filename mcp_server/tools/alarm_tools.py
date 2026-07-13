@@ -114,8 +114,12 @@ def alarm_flood_analysis(
             "events_collected": len(events),
         }
     report = flood.alarm_flood_report(
-        events, window_s, threshold,
-        stale_after_s=stale_after_s, max_episodes=max_episodes, max_rows=max_rows,
+        events,
+        window_s,
+        threshold,
+        stale_after_s=stale_after_s,
+        max_episodes=max_episodes,
+        max_rows=max_rows,
     )
     if collected is not None:
         report["collected"] = collected
@@ -216,8 +220,10 @@ def alarm_rationalization_worksheet(
             writer.writerows(dicts)
         result.update({"csv_path": str(path), "truncated": False})
         return result
-    result.update({
-        "rows": dicts[:MAX_INLINE_ROWS],
-        "truncated": len(dicts) > MAX_INLINE_ROWS,
-    })
+    result.update(
+        {
+            "rows": dicts[:MAX_INLINE_ROWS],
+            "truncated": len(dicts) > MAX_INLINE_ROWS,
+        }
+    )
     return result

@@ -170,8 +170,7 @@ def _probe_hart(t: Any) -> tuple[bool, str]:
     if "error" in info:
         return False, str(info["error"])
     return True, (
-        f"HART identity mfr={info.get('manufacturer_id')} "
-        f"device_id={info.get('device_id')}"
+        f"HART identity mfr={info.get('manufacturer_id')} device_id={info.get('device_id')}"
     )
 
 

@@ -20,9 +20,15 @@ from iaiops.core.sink.base import SinkError
 class TDengineSink:
     """Uniform sink over a TDengine connection (待核实)."""
 
-    def __init__(self, host: str = "localhost", port: int = 6030,
-                 user: str = "root", password: str = "taosdata",
-                 database: str = "iaiops", stable: str = "ot_metric") -> None:
+    def __init__(
+        self,
+        host: str = "localhost",
+        port: int = 6030,
+        user: str = "root",
+        password: str = "taosdata",
+        database: str = "iaiops",
+        stable: str = "ot_metric",
+    ) -> None:
         self._host = host
         self._port = int(port or 6030)
         self._user = user
@@ -42,7 +48,9 @@ class TDengineSink:
                 "'pip install iaiops[tdengine]'."
             ) from exc
         self._conn = taos.connect(
-            host=self._host, port=self._port, user=self._user,
+            host=self._host,
+            port=self._port,
+            user=self._user,
             password=self._password,
         )
         cur = self._conn.cursor()

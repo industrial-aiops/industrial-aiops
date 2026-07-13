@@ -38,7 +38,7 @@ def test_casing_collision_flagged():
     out = uns.uns_topic_audit(topics)
     collisions = " ".join(out["findings"]["casing_collisions"])
     assert "sitea" in collisions  # SiteA vs siteA
-    assert "temp" in collisions   # Temp vs temp
+    assert "temp" in collisions  # Temp vs temp
     assert out["verdict"] in ("minor", "sprawling")
 
 
@@ -117,8 +117,15 @@ def test_breaking_drift_on_type_change():
 @pytest.mark.unit
 def test_schema_drift_accepts_list_shape():
     base = [{"node": "N1", "metrics": [{"name": "temp", "datatype": "Float"}]}]
-    curr = [{"node": "N1", "metrics": [{"name": "temp", "datatype": "Float"},
-                                       {"name": "rpm", "datatype": "Int32"}]}]
+    curr = [
+        {
+            "node": "N1",
+            "metrics": [
+                {"name": "temp", "datatype": "Float"},
+                {"name": "rpm", "datatype": "Int32"},
+            ],
+        }
+    ]
     out = uns.uns_schema_drift(base, curr)
     assert out["verdict"] == "additive"
     assert out["node_changes"][0]["added"] == ["rpm"]

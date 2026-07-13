@@ -39,8 +39,15 @@ def line_bottleneck(stations: list[dict], near_pct: float = DEFAULT_NEAR_PCT) ->
     analyzed = len(rows)
     ignored = len([s for s in (stations or []) if isinstance(s, dict)]) - analyzed
     if not rows:
-        return {"stations_analyzed": 0, "ignored": ignored, "bottleneck": None,
-                "lineRatePerHr": None, "ranked": [], "nearBottleneck": [], "note": _NOTE}
+        return {
+            "stations_analyzed": 0,
+            "ignored": ignored,
+            "bottleneck": None,
+            "lineRatePerHr": None,
+            "ranked": [],
+            "nearBottleneck": [],
+            "note": _NOTE,
+        }
 
     rows.sort(key=lambda r: r["throughputPerHr"])
     bottleneck = rows[0]
@@ -112,9 +119,9 @@ def _rank_row(row: dict, line_rate: float, near_cutoff: float, bottleneck_name: 
     elif tph <= near_cutoff:
         flag = "co_constraint"
     elif _over(row["starvedPct"]):
-        flag = "starved"        # waiting for upstream — points toward the constraint upstream
+        flag = "starved"  # waiting for upstream — points toward the constraint upstream
     elif _over(row["blockedPct"]):
-        flag = "blocked"        # output backed up — the constraint is downstream
+        flag = "blocked"  # output backed up — the constraint is downstream
     else:
         flag = "ok"
     return {**row, "vsBottleneckPct": vs, "flag": flag}

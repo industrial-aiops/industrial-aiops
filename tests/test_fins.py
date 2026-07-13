@@ -42,7 +42,9 @@ class _FinsPlcModel:
 
     def __init__(self) -> None:
         self.words: dict[tuple[int, int], int] = {  # (area_code, address) -> value
-            (0x82, 100): 10, (0x82, 101): 20, (0x82, 102): 30,  # DM100..102
+            (0x82, 100): 10,
+            (0x82, 101): 20,
+            (0x82, 102): 30,  # DM100..102
             (0xB0, 0): 0x0005,  # CIO 0 → bits 0 and 2 set
         }
         self.force_end_code: bytes | None = None
@@ -72,8 +74,7 @@ class _FinsPlcModel:
                     )
                 else:
                     payload = b"".join(
-                        struct.pack(">H", self.words.get((area, addr + i), 0))
-                        for i in range(count)
+                        struct.pack(">H", self.words.get((area, addr + i), 0)) for i in range(count)
                     )
             elif (mrc, src) == (0x01, 0x02):  # memory area write
                 area, addr, _bit, count = struct.unpack(">BHBH", body[:6])
@@ -168,9 +169,7 @@ class MockFinsTcpServer:
                     elif command == 2:
                         response = self.plc.handle(body)
                         if response is not None:
-                            reply = FINS_TCP_HEADER.pack(
-                                FINS_TCP_MAGIC, 8 + len(response), 2, 0
-                            )
+                            reply = FINS_TCP_HEADER.pack(FINS_TCP_MAGIC, 8 + len(response), 2, 0)
                             conn_sock.sendall(reply + response)
             except (OSError, FinsFramingError):
                 return
@@ -202,8 +201,11 @@ def udp_server():
 @pytest.fixture
 def fins_target(udp_server):
     return TargetConfig(
-        name="omron1", protocol="fins", host="127.0.0.1",
-        port=udp_server.port, timeout_s=2.0,
+        name="omron1",
+        protocol="fins",
+        host="127.0.0.1",
+        port=udp_server.port,
+        timeout_s=2.0,
     ), udp_server
 
 
@@ -219,8 +221,9 @@ def test_frame_layout_and_roundtrip():
     assert frame[10:12] == b"\x01\x01"
     # A matching response parses back to its payload.
     response = bytes((0xC0, 0, 2, 0, 1, 0, 0, 10, 0, 7)) + b"\x01\x01\x00\x00" + b"\x12\x34"
-    assert parse_fins_response(response, expect_sid=7, expect_mrc=0x01,
-                               expect_src=0x01) == b"\x12\x34"
+    assert (
+        parse_fins_response(response, expect_sid=7, expect_mrc=0x01, expect_src=0x01) == b"\x12\x34"
+    )
 
 
 @pytest.mark.unit
@@ -308,10 +311,13 @@ def test_fins_read_bits_roundtrip(fins_target):
 @pytest.mark.integration
 def test_fins_read_many_roundtrip(fins_target):
     target, _ = fins_target
-    out = ops.fins_read_many(target, [
-        {"area": "DM", "address": 100, "count": 2},
-        {"area": "CIO", "address": 0, "count": 1},
-    ])
+    out = ops.fins_read_many(
+        target,
+        [
+            {"area": "DM", "address": 100, "count": 2},
+            {"area": "CIO", "address": 0, "count": 1},
+        ],
+    )
     assert out["reads"][0]["words"] == [10, 20]
     assert out["reads"][1]["words"] == [5]
 
@@ -370,8 +376,12 @@ def test_fins_tcp_handshake_and_read():
     server = MockFinsTcpServer()
     try:
         target = TargetConfig(
-            name="omron-tcp", protocol="fins", host="127.0.0.1",
-            port=server.port, transport="tcp", timeout_s=2.0,
+            name="omron-tcp",
+            protocol="fins",
+            host="127.0.0.1",
+            port=server.port,
+            transport="tcp",
+            timeout_s=2.0,
         )
         out = ops.fins_read_words(target, "DM", 100, count=3)
         assert out["words"] == [10, 20, 30]
@@ -442,11 +452,11 @@ def test_build_requires_host():
 
 @pytest.mark.unit
 def test_build_selects_transport():
-    udp = conn._build_fins_client(
-        TargetConfig(name="u", protocol="fins", host="10.0.0.9"))
+    udp = conn._build_fins_client(TargetConfig(name="u", protocol="fins", host="10.0.0.9"))
     assert isinstance(udp, fins_client.FinsUdpClient)
     tcp = conn._build_fins_client(
-        TargetConfig(name="t", protocol="fins", host="10.0.0.9", transport="tcp"))
+        TargetConfig(name="t", protocol="fins", host="10.0.0.9", transport="tcp")
+    )
     assert isinstance(tcp, fins_client.FinsTcpClient)
 
 
@@ -499,8 +509,14 @@ def test_session_monkeypatch_point(monkeypatch, udp_server):
 def test_fins_tools_are_governed():
     from mcp_server.tools import fins_tools
 
-    for name in ("fins_cpu_info", "fins_cpu_status", "fins_read_words",
-                 "fins_read_bits", "fins_read_many", "fins_write_words"):
+    for name in (
+        "fins_cpu_info",
+        "fins_cpu_status",
+        "fins_read_words",
+        "fins_read_bits",
+        "fins_read_many",
+        "fins_write_words",
+    ):
         fn = getattr(fins_tools, name)
         assert getattr(fn, "_is_governed_tool", False), f"{name} is not governed"
 

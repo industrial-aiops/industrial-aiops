@@ -48,8 +48,12 @@ def control_loop_health(
     """
     pv, sp, op = _extract(samples)
     if len(pv) < MIN_SAMPLES or len(pv) != len(sp):
-        return {"samples": len(pv), "verdict": "insufficient_data",
-                "needed": MIN_SAMPLES, "note": _NOTE}
+        return {
+            "samples": len(pv),
+            "verdict": "insufficient_data",
+            "needed": MIN_SAMPLES,
+            "note": _NOTE,
+        }
 
     errors = [p - s for p, s in zip(pv, sp)]
     mean_offset = sum(errors) / len(errors)
@@ -131,8 +135,13 @@ def _saturation(op: list[float], op_min: float, op_max: float) -> tuple[float, f
 
 
 def _verdict(
-    mean_offset: float, band: float, osc_index: float, osc_max: float,
-    sat_low: float, sat_high: float, sat_pct: float,
+    mean_offset: float,
+    band: float,
+    osc_index: float,
+    osc_max: float,
+    sat_low: float,
+    sat_high: float,
+    sat_pct: float,
 ) -> tuple[str, str]:
     if sat_high >= sat_pct:
         return "saturated", f"OP pinned high {sat_high}% of the time — loop out of range"

@@ -23,8 +23,11 @@ def home(tmp_path, monkeypatch):
 
 def _seed(home: Path, n: int) -> None:
     points = [
-        {"ref": f"tag{i % 7}", "value": float(i),
-         "timestamp": f"2026-07-01T{i % 24:02d}:{i % 60:02d}:00Z"}
+        {
+            "ref": f"tag{i % 7}",
+            "value": float(i),
+            "timestamp": f"2026-07-01T{i % 24:02d}:{i % 60:02d}:00Z",
+        }
         for i in range(n)
     ]
     assert "error" not in historian_push(points, "sqlite", db_path=home / "data.db")

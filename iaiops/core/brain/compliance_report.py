@@ -41,8 +41,8 @@ _GOVERNANCE_FACTS: tuple[tuple[str, str], ...] = (
         "审批令牌 (approval tokens / MOC)",
         "高危操作需要记录在案的审批人：`iaiops approve <tool> --endpoint <ep> "
         "--by <name>` 签发一次性、带 TTL 的审批令牌，由下一次匹配的受治理调用消费"
-        "（审计行 `approver_source=\"token\"`）；静态环境变量审批为已弃用的回退"
-        "（`approver_source=\"env\"`）。",
+        '（审计行 `approver_source="token"`）；静态环境变量审批为已弃用的回退'
+        '（`approver_source="env"`）。',
     ),
     (
         "dry-run / undo",
@@ -66,8 +66,7 @@ def _cell(text: str) -> str:
 
 def _table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
     """Render a Markdown table as a list of lines."""
-    lines = ["| " + " | ".join(_cell(h) for h in headers) + " |",
-             "|" + "---|" * len(headers)]
+    lines = ["| " + " | ".join(_cell(h) for h in headers) + " |", "|" + "---|" * len(headers)]
     lines.extend("| " + " | ".join(_cell(c) for c in row) + " |" for row in rows)
     return lines
 
@@ -110,15 +109,27 @@ def render_markdown_report(
         "",
     ]
     summary = mapping["status_summary"]
-    lines.extend(_table(
-        ("控制项总数", "addressed", "partial", "待核实"),
-        [(str(mapping["control_count"]), str(summary["addressed"]),
-          str(summary["partial"]), str(summary["待核实"]))],
-    ))
+    lines.extend(
+        _table(
+            ("控制项总数", "addressed", "partial", "待核实"),
+            [
+                (
+                    str(mapping["control_count"]),
+                    str(summary["addressed"]),
+                    str(summary["partial"]),
+                    str(summary["待核实"]),
+                )
+            ],
+        )
+    )
 
-    lines.extend([
-        "", f"## 2. 等保 2.0 (GB/T 22239-2019) — {_LEVEL_TITLES[selected]} 逐支柱状态", "",
-    ])
+    lines.extend(
+        [
+            "",
+            f"## 2. 等保 2.0 (GB/T 22239-2019) — {_LEVEL_TITLES[selected]} 逐支柱状态",
+            "",
+        ]
+    )
     headers: tuple[str, ...] = ("支柱 (pillar)",)
     if selected in (None, "l2"):
         headers += ("二级基线 (L2)",)
@@ -137,45 +148,54 @@ def render_markdown_report(
     lines.extend(_table(headers, rows))
 
     lines.extend(["", "## 3. IEC 62443 FR1–FR6 跨框架对照 (crosswalk)", ""])
-    lines.extend(_table(
-        ("支柱 (pillar)", "等保 2.0 条款", "IEC 62443 FR", "状态"),
-        [(r["pillar"], r["dengbao"], r["iec62443"], r["iaiops_status"])
-         for r in frameworks["crosswalk"]],
-    ))
+    lines.extend(
+        _table(
+            ("支柱 (pillar)", "等保 2.0 条款", "IEC 62443 FR", "状态"),
+            [
+                (r["pillar"], r["dengbao"], r["iec62443"], r["iaiops_status"])
+                for r in frameworks["crosswalk"]
+            ],
+        )
+    )
 
     lines.extend(["", "## 4. 差距清单 (honest gap list)", ""])
     gaps = [c for c in mapping["controls"] if c.get("gap")]
     if gaps:
         lines.extend(
-            f"- **{c['pillar']}** [{c['status']}] — {' '.join(str(c['gap']).split())}"
-            for c in gaps
+            f"- **{c['pillar']}** [{c['status']}] — {' '.join(str(c['gap']).split())}" for c in gaps
         )
     else:
         lines.append("- （无已知差距 — 见各支柱状态）")
 
-    lines.extend([
-        "",
-        "## 附录 A. 治理机制 (governance controls)",
-        "",
-        "以下为 iaiops 治理骨架的事实性描述（来源：代码/配置，非营销口径）：",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 附录 A. 治理机制 (governance controls)",
+            "",
+            "以下为 iaiops 治理骨架的事实性描述（来源：代码/配置，非营销口径）：",
+            "",
+        ]
+    )
     for name, fact in _GOVERNANCE_FACTS:
         lines.extend([f"### {name}", "", fact, ""])
 
-    lines.extend([
-        "## 附录 B. 各支柱实现细节 (per-pillar detail)",
-        "",
-    ])
+    lines.extend(
+        [
+            "## 附录 B. 各支柱实现细节 (per-pillar detail)",
+            "",
+        ]
+    )
     for control in mapping["controls"]:
-        lines.extend([
-            f"### {control['pillar']} — {control['status']}",
-            "",
-            f"- **要求**: {_cell(control['requirement'])}",
-            f"- **iaiops**: {_cell(control['iaiops'])}",
-            f"- **差距**: {_cell(control['gap']) or '无'}",
-            "",
-        ])
+        lines.extend(
+            [
+                f"### {control['pillar']} — {control['status']}",
+                "",
+                f"- **要求**: {_cell(control['requirement'])}",
+                f"- **iaiops**: {_cell(control['iaiops'])}",
+                f"- **差距**: {_cell(control['gap']) or '无'}",
+                "",
+            ]
+        )
 
     lines.extend(["---", "", f"> {DISCLAIMER}", ""])
     return "\n".join(lines)
@@ -209,9 +229,13 @@ def _flush_table(buffer: list[str], out: list[str]) -> None:
             continue  # the |---| separator row
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         tag = "th" if i == 0 else "td"
-        out.append("<tr>" + "".join(
-            f"<{tag}>{_inline_html(c.replace(chr(92) + '|', '|'))}</{tag}>"
-            for c in cells) + "</tr>")
+        out.append(
+            "<tr>"
+            + "".join(
+                f"<{tag}>{_inline_html(c.replace(chr(92) + '|', '|'))}</{tag}>" for c in cells
+            )
+            + "</tr>"
+        )
     out.append("</table>")
     buffer.clear()
 
@@ -265,9 +289,10 @@ def render_html_report(
         body.append("</ul>")
     title = _html.escape("iaiops 合规自评报告" + (f" — {site}" if site else ""))
     return (
-        "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n<meta charset=\"utf-8\">\n"
+        '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
         f"<title>{title}</title>\n<style>{_HTML_STYLE}</style>\n</head>\n<body>\n"
-        + "\n".join(body) + "\n</body>\n</html>\n"
+        + "\n".join(body)
+        + "\n</body>\n</html>\n"
     )
 
 

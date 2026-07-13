@@ -46,8 +46,10 @@ def economizer_check(
         "oa_damper_pct":10,"mech_cooling":true}]).
     """
     return hvac.economizer_check(
-        units, free_cool_delta_c=free_cool_delta_c,
-        min_damper_pct=min_damper_pct, high_limit_c=high_limit_c,
+        units,
+        free_cool_delta_c=free_cool_delta_c,
+        min_damper_pct=min_damper_pct,
+        high_limit_c=high_limit_c,
     )
 
 

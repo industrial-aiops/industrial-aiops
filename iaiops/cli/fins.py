@@ -7,8 +7,9 @@ import typer
 from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
 from iaiops.connectors.fins import ops
 
-fins_app = typer.Typer(help="Omron FINS read-first telemetry (CS/CJ/CP/NX-via-FINS).",
-                       no_args_is_help=True)
+fins_app = typer.Typer(
+    help="Omron FINS read-first telemetry (CS/CJ/CP/NX-via-FINS).", no_args_is_help=True
+)
 
 
 @fins_app.command("cpu")
