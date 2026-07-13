@@ -13,6 +13,7 @@ FastMCP's ``issubclass`` check.
 import functools
 import logging
 import os
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Optional
@@ -116,15 +117,24 @@ mcp = FastMCP(
 )
 
 _conn_mgr: Optional[ConnectionManager] = None
+_conn_mgr_lock = threading.Lock()
 
 
 def _manager() -> ConnectionManager:
-    """Return the connection manager, lazily initialising it from config."""
+    """Return the connection manager, lazily initialising it from config.
+
+    Double-checked locking: sync tools run concurrently in FastMCP's threadpool
+    under the SSE / streamable-http transports, so an unlocked check-then-set
+    could build two managers. Mirrors the governance singletons (see
+    ``iaiops.core.governance.budget.get_budget``).
+    """
     global _conn_mgr  # noqa: PLW0603
     if _conn_mgr is None:
-        config_path_str = os.environ.get("IAIOPS_CONFIG")
-        config_path = Path(config_path_str) if config_path_str else None
-        _conn_mgr = ConnectionManager(load_config(config_path))
+        with _conn_mgr_lock:
+            if _conn_mgr is None:
+                config_path_str = os.environ.get("IAIOPS_CONFIG")
+                config_path = Path(config_path_str) if config_path_str else None
+                _conn_mgr = ConnectionManager(load_config(config_path))
     return _conn_mgr
 
 

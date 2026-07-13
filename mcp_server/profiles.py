@@ -158,13 +158,17 @@ MENU_SELECTION = "menu"
 # Env toggle (B3): "1"/"true"/"yes" strips BRAIN_MODULES from protocol servers.
 NO_BRAIN_ENV = "IAIOPS_MCP_NO_BRAIN"
 
-# Above this the server logs a tool-flood warning. Raised from 60: the always-on
-# brain (~49) plus a full edition's protocols and per-edition EDITION_MODULES now
-# lands a legitimate edition in the ~60-85 range (e.g. building ≈ 83), so 60 fired
-# on normal editions. 100 sits above any single intended edition yet still flags a
-# genuine flood — notably IAIOPS_MCP=all (14 protocols + brain, ~140 tools) — which
-# is the "you probably don't want everything" case the warning is meant to catch.
-TOOL_FLOOD_WARN_THRESHOLD = 100
+# Above this the server logs a tool-flood warning. The always-on brain (~49) plus
+# a full edition's protocols and per-edition EDITION_MODULES lands a legitimate
+# edition in the ~68-129 range (e.g. building = 91, factory = 129 — the largest
+# intended named edition). The threshold sits above factory yet below the catch-all
+# IAIOPS_MCP=all (14 protocols + brain = 141 tools) — the "you probably don't want
+# everything" case the warning is meant to catch. Raised from 100, which fired on a
+# normal ``factory`` launch (129 > 100) — alarm fatigue that eroded the one real
+# signal. Keep this above the largest LEGITIMATE named edition; the flood-invariant
+# test (tests/test_flood_threshold.py) fails if a named edition (other than ``all``)
+# would cross it, or if ``all`` would not.
+TOOL_FLOOD_WARN_THRESHOLD = 135
 
 _TOOL_DECORATOR_RE = re.compile(r"^@mcp\.tool\(\)", re.MULTILINE)
 
