@@ -8,7 +8,9 @@ description: >-
   cross-protocol brain. Use when the task mentions BACnet, BACnet-IP, HVAC, AHU,
   chiller, VAV, BMS, building automation, facility management, 厂务, 楼宇自控,
   Who-Is, presentValue, or TrendLog; also IO-Link masters for smart building
-  sensors (JSON interface, read-only). Read-first, MOC-gated writes.
+  sensors (JSON interface, read-only), and the vendor supervisory-controller REST
+  layer above BACnet (Metasys/OpenBlue, Niagara/oBIX) for point/alarm/trend reads
+  and one MOC-gated command. Read-first, MOC-gated writes.
 ---
 
 # iaiops-building — 楼宇/厂务 edition（BACnet + Modbus + IO-Link + MQTT + 脑）
@@ -43,6 +45,18 @@ IoT 传感器走 MQTT 时叠加：`IAIOPS_MCP=building,sparkplug`。
 - `iolink_read_isdu` — ISDU 参数读（index/subindex 有界）
 - `iolink_scan` — 主站 + 全端口一次性快照
 - 配置 `flavor: iotcore`（ifm IoT-Core，默认）或 `rest`（plain-REST 主站）；v1 只读
+
+### BAS 控制器层（edition 工具；厂商监控控制器 REST，在 BACnet **之上**）
+厂商监控控制器（Johnson Controls Metasys/OpenBlue、Tridium Niagara oBIX/REST）把大量 BACnet
+现场点/告警/趋势聚合在一个带鉴权的企业 REST 接口后面——与 `bacnet`（现场总线）互补、非重复。
+Bearer/token 从加密 secret store 按 key 取（`secret_name`），不走明文参数。
+- `bas_point_list` — 列控制器 point/object（跨厂商归一化：id/name/value/unit/status）
+- `bas_point_read` — 单/多点 present-value
+- `bas_alarm_list` — 控制器活动告警/事件（归一化）
+- `bas_trend_read` — 单点历史趋势样本（有界 ≤5000）
+- `bas_command` — **[WRITE][HIGH][MOC]**（默认 off：`dry_run=True` + 审批双确认；捕获改前值供 undo）。
+  **生命安全点(fire/smoke/egress/加压)一律拒绝**——联网前即拒，绝不下发。
+- 厂商方言（metasys/niagara：资源路径 + 字段别名）仅存在于连接器内；oBIX 原生 XML / 精确写语义 待核实。
 
 ### MQTT（可选叠加 sparkplug 组；IoT 传感器/网关）
 - `mqtt_read_topic` — 裸 MQTT 有界收集；`uns_browse` — 主题树浏览
@@ -96,3 +110,5 @@ IoT 传感器走 MQTT 时叠加：`IAIOPS_MCP=building,sparkplug`。
 | Modbus-RTU | `pymodbus>=3.5,<4` + `pyserial>=3.5` | Modbus serial (RTU) | 串口表计 | RS-485/serial | ✅ socat PTY verified 2026-07-02；物理 RS-485 待核实 |
 | IO-Link | `requests>=2.31,<3`（复用 MTConnect pin） | IO-Link Master JSON Integration（IOLINK-JSON）；ifm IoT-Core / plain-REST 双 flavor | 带 JSON/REST 接口的主站（ifm/Balluff/Turck 类） | HTTP REST/JSON | ✅ mock 主站（双 flavor）；live master 待核实 |
 | MQTT | `paho-mqtt>=2.0,<3` | MQTT 3.1.1/5（裸 MQTT + SpB） | IoT 传感器/网关/Broker | TCP/1883/8883 | ✅ |
+| BAS: Metasys OpenBlue REST | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Metasys REST API v4（`/objects`·`/alarms`·`/trendedAttributes`）；JC OpenBlue 监控控制器 | NAE/SNE/SNC 类监控控制器聚合的 BACnet 现场点 | HTTPS + Bearer token | ✅ mock 控制器（in-repo）；live 设备写/trend/告警 待核实 |
+| BAS: Niagara 4 oBIX/REST | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Niagara 4 oBIX/REST（`/obix/config`·`/obix/alarms`·`/obix/histories`）；JSON 建模，原生 oBIX-XML 待核实 | Tridium JACE / Niagara Supervisor 下的点/告警/历史 | HTTPS + Bearer token | ✅ mock 控制器（in-repo）；live 设备 + oBIX-XML 编码 待核实 |

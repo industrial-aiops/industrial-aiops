@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Added — BAS controller-layer integration (building edition, read-first)
+- **New `bas` connector** (`iaiops/connectors/bas/`) — a config-driven HTTP reader for the vendor
+  supervisory-controller REST layer that sits ABOVE the `bacnet` field-protocol connector: Johnson
+  Controls **Metasys (OpenBlue) REST** and Tridium **Niagara oBIX/REST**. A small per-vendor
+  **dialect** (resource paths + field aliases) folds each controller's JSON into one neutral schema;
+  reuses the shared `requests` stack (no new HTTP dep) and the `make_session` lifecycle, with
+  bearer/token auth resolved from the encrypted secret store by key name. Vendor names stay inside
+  the connector (brand-isolation).
+- **New `bas_tools`** (building EDITION module) — `bas_point_list`, `bas_point_read`, `bas_alarm_list`,
+  `bas_trend_read` (all READ, low), plus `bas_command` (**WRITE, HIGH/MOC**, default-OFF, dry-run +
+  double-confirm, undo captures the prior value, and a **life-safety object denylist** —
+  fire/smoke/egress/pressurization points are refused outright before any network I/O).
+- **`bas` extra** (`pip install iaiops[bas]`, reuses the MTConnect `requests` pin) folded into the
+  `building` bundle; support-version matrix rows added to the building SKILL (live devices + native
+  oBIX-XML encoding marked 待核实; self-test = in-repo mock controller).
+
 ## 0.12.0 — 2026-07-12
 
 > **Edition build-out.** Two new industry editions (**warehouse**, **clinical**) and SKILLs for the
