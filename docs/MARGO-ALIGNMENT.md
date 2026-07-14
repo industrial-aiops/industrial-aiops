@@ -63,8 +63,13 @@ the rest of this repo runs on.
    headless MCP entrypoint, non-root, read-only rootfs friendly.
 2. **`⏳` Margo application description** — **done to the real `margo.org/v1-alpha1` schema**
    (`deploy/margo/margo.yaml`: compose `deploymentProfiles` / `components` / `requiredResources` /
-   `parameters` / `configuration`). Remaining: host+sign the package (`packageLocation`/`keyLocation`),
-   resolve the secret-parameter gap, and CI-lint against the pinned profile bundles.
+   `parameters` / `configuration`). **WG feedback folded in (2026-07-13, ABB / P. Presson):** the
+   descriptor now targets the **socket (streamable-http) transport** (WG-recommended; `transport` /
+   `mcpPort` / `allowlistIps` parameters + the compose port), and keeps the **single parameterised
+   application** (`profile`) rather than N packages. Remaining: host+sign the package
+   (`packageLocation`/`keyLocation`), the secret-parameter flag (pending
+   [`margo/specification#145`](https://github.com/margo/specification/issues/145)), and CI-lint
+   against the pinned profile bundles.
 3. **`⏳` On-box LLM brain option** — document/point the RCA copilot at an on-box local LLM for a
    fully air-gapped diagnostic path (no cloud egress).
 4. **`⏳` Conformance run** — execute the Margo compliance toolkit on a real device; publish the
@@ -157,3 +162,26 @@ advances Work item §4.2. Watch the Events page for **Plug Fests** (interop test
 >
 > Happy to open-source a reference container recipe + descriptor as a worked example for a
 > "governed, read-only OT tool app" once I know the intended shape.
+
+#### B.1 — Answers received (2026-07-13, ABB / Philip Presson · Discourse [t/43](https://discourse.margo.org/t/governed-mcp-based-ot-diagnostics-as-a-margo-edge-application-reference-feedback/43))
+
+1. **Runtime shape** — *"specifying how applications communicate with each other is not in Margo's
+   scope."* No position on stdio vs socket; **socket recommended** as simpler to deploy (just open a
+   container port). → **Done:** `deploy/margo/` now defaults the deployment to the **streamable-http
+   socket** transport (`IAIOPS_MCP_TRANSPORT` / `_HOST` / `_PORT`, one IP-allowlisted port), stdio
+   kept as the local-pipe fallback.
+2. **Profiles / variants** — *"Margo doesn't have an opinion on how applications are implemented."*
+   A `profile` parameter is valid; multiple packages are also valid. → **Done:** we keep **one
+   parameterised application** (`profile` param), the simpler supply/upgrade story for App Portal.
+3. **Secrets + least-privilege** — secret-typed parameters are **not yet in the spec**; tracked at
+   [`margo/specification#145`](https://github.com/margo/specification/issues/145) (assoc. #129).
+   → **Open, and our contribution lane.** #145 currently weighs two models — an app-encrypted opaque
+   blob passed through the WFM (nilanjan-samajdar), and a WFM-managed per-device key derived from the
+   device cert via HKDF-SHA256 + AES-256-GCM (vireshnavalli). **iaiops offers a distinct third
+   model worth putting on #145: a reference, not a value** — the descriptor/deployment spec carries
+   only the secret's logical *name*; the real value is provisioned out-of-band into the device's own
+   encrypted secret store and resolved on-device by name, so the secret never enters the Margo
+   control plane at all. Pair it with a least-privilege declaration (this secret is used only for
+   outbound connections to endpoints X/Y — overlaps #145's `Runtime Constraints/Interoperability`
+   label). Next action: post the iaiops reference-model use case on #145 and offer iaiops as a
+   real-world validation target.
