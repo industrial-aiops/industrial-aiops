@@ -1,6 +1,10 @@
 # Example run of the iaiops edge-application container (Podman/Docker compatible).
 # Demonstrates the least-privilege posture a Margo device/host would give an OT workload:
-# non-root, read-only rootfs, no inbound ports, only a config/secret volume.
+# non-root, read-only rootfs, a single IP-allowlisted MCP port (no OT inbound), one config volume.
+#
+# This example uses the SOCKET MCP transport (streamable-http) — the shape the Margo
+# app-package-definition-wg recommends (2026-07-13): one container port, no protocol glue. For the
+# stdio transport instead, drop the IAIOPS_MCP_TRANSPORT/HOST/PORT env + the ports/allowlist below.
 #
 #   docker compose -f deploy/margo/compose.yaml up      # (or: podman-compose ...)
 services:
@@ -19,9 +23,20 @@ services:
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
     user: "10001:10001"
-    # NO published ports — the tap only makes OUTBOUND connections to the OT endpoints you list in
-    # config.yaml. (If a socket/HTTP MCP transport is adopted later, expose it here — 待核实.)
+    # The ONLY inbound port is the MCP tool interface for the orchestrator/agent — NOT an OT port.
+    # The OT side stays strictly outbound to the endpoints in config.yaml. Bound to host loopback
+    # here; on a real host publish to the interface the orchestrator reaches and keep the allowlist.
+    ports:
+      - "127.0.0.1:8000:8000"
     environment:
+      # Socket transport (Margo-recommended). Bind all interfaces INSIDE the container; the port
+      # mapping + IP allowlist below control who can actually reach it.
+      IAIOPS_MCP_TRANSPORT: streamable-http
+      IAIOPS_MCP_HOST: "0.0.0.0"
+      IAIOPS_MCP_PORT: "8000"
+      # Defense-in-depth: only these client networks may call the MCP port (403 otherwise). Set to
+      # the orchestrator/gateway's address(es). Token/account auth is best terminated at a gateway.
+      IAIOPS_ALLOWLIST_IPS: "${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}"
       # Unlocks the encrypted secret store non-interactively. Inject via your host's secret manager
       # (Margo device secret facility) — do NOT hardcode. Left unset here on purpose.
       IAIOPS_MASTER_PASSWORD: "${IAIOPS_MASTER_PASSWORD:?set in the host secret store}"

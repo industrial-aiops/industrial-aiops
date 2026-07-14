@@ -1,10 +1,20 @@
 # Margo ApplicationDescription for iaiops — built to the REAL margo.org/v1-alpha1 schema
 # (docs.margo.org, PR1 pre-draft). This is no longer a blind guess: the structure, field names,
-# and validators below follow the published Application Description spec. The remaining `待核实`
-# are genuine gaps only — (1) the hosted, signed package location + signing key (needs a
-# host/registry), and (2) secret-parameter handling (the spec does NOT yet define a secret flag —
-# this is our open question for the app-package-definition-wg). iaiops has NOT been run through the
-# conformance toolkit, so it is still NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
+# and validators below follow the published Application Description spec.
+#
+# WG feedback resolved (app-package-definition-wg, 2026-07-13, ABB / P. Presson — Discourse t/43):
+#   • Runtime shape — OUT of Margo's scope; socket transport recommended. This descriptor now
+#     targets the socket (streamable-http) transport (one container port); see compose.yaml.
+#   • Profiles — either idiom is valid; we keep ONE parameterised application (the `profile` param),
+#     not N packages.
+#   • Secrets — the spec has NO secret-typed parameter YET; tracked at margo/specification#145.
+#     iaiops's model differs from both proposals there: the deploy config carries only a secret
+#     NAME/reference, never a value — resolved on-device from the encrypted secret store. See
+#     `masterPassword` below and ../../docs/MARGO-ALIGNMENT.md appendix B.
+#
+# Remaining genuine `待核实`: (1) the hosted, signed package location + signing key (needs a
+# host/registry), and (2) the secret-parameter flag pending #145. iaiops has NOT been run through
+# the conformance toolkit, so it is still NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
 apiVersion: margo.org/v1-alpha1
 kind: ApplicationDescription
 id: io-github-industrial-aiops-iaiops
@@ -14,7 +24,7 @@ metadata:
     Vendor-neutral, read-first OT data tap across ~14 field protocols with a cross-protocol
     root-cause brain, exposed as governed MCP tools (audit / budget / risk-tier / undo + MOC
     gating on the few writes). Air-gap friendly.
-  version: "0.10.1"
+  version: "0.14.0"
   catalog:
     application:
       tagline: Governed OT read tap + cross-protocol RCA, as MCP tools
@@ -31,9 +41,10 @@ deploymentProfiles:
   - type: compose
     id: iaiops-compose
     description: >-
-      Single hardened, non-root container (read-only rootfs, no inbound ports; outbound-only to the
-      operator-configured OT endpoints). The OCI image is referenced inside the signed compose
-      archive built from deploy/margo/compose.yaml.
+      Single hardened, non-root container (read-only rootfs; outbound-only to the operator-configured
+      OT endpoints, with ONE IP-allowlisted inbound port for the MCP tool interface — not an OT
+      listener). The OCI image is referenced inside the signed compose archive built from
+      deploy/margo/compose.yaml.
     components:
       - name: iaiops
         properties:
@@ -49,6 +60,10 @@ deploymentProfiles:
       storage: 1Gi
       interfaces:
         - type: ethernet
+      # NOTE: the socket transport exposes one inbound MCP port (default 8000, see compose.yaml and
+      # the `mcpPort` parameter). Whether v1-alpha1 has a first-class ingress/port field on
+      # requiredResources is `待核实` — if it does, declare 8000/tcp here; for now the port is
+      # expressed via the deployment (compose) and the mcpPort parameter.
 
 parameters:
   profile:
@@ -56,7 +71,27 @@ parameters:
     targets:
       - pointer: IAIOPS_MCP        # compose profile → environment variable
         components: [iaiops]
+  transport:
+    value: streamable-http         # socket transport (WG-recommended); or "stdio"
+    targets:
+      - pointer: IAIOPS_MCP_TRANSPORT
+        components: [iaiops]
+  mcpPort:
+    value: "8000"                  # inbound MCP tool-interface port (socket transport only)
+    targets:
+      - pointer: IAIOPS_MCP_PORT
+        components: [iaiops]
+  allowlistIps:
+    value: 127.0.0.1/32            # who may call the MCP port (CIDR list) — set to the orchestrator
+    targets:
+      - pointer: IAIOPS_ALLOWLIST_IPS
+        components: [iaiops]
   masterPassword:
+    # Secret parameter. The spec has no secret-typed flag yet (margo/specification#145), so this is
+    # modeled as a plain parameter carrying a REFERENCE, not a value: leave it empty here and inject
+    # the real value from the host/device secret facility at deploy time. iaiops itself resolves
+    # every OT/IT credential from its on-box encrypted store BY NAME — secret values never travel in
+    # this descriptor or the deployment spec. See ../../docs/MARGO-ALIGNMENT.md appendix B.
     value: ""
     targets:
       - pointer: IAIOPS_MASTER_PASSWORD
@@ -71,12 +106,31 @@ configuration:
           description: Which field-protocol connectors load.
           immutable: false
           schema: profileSchema
+        - parameter: transport
+          name: MCP transport
+          description: >-
+            How the orchestrator/agent reaches the tools. "streamable-http" is a socket on mcpPort
+            (WG-recommended, 2026-07-13); "stdio" pipes over the container's stdio.
+          immutable: false
+          schema: transportSchema
+        - parameter: mcpPort
+          name: MCP port
+          description: Inbound port for the socket transport (ignored under stdio).
+          immutable: false
+          schema: portSchema
+        - parameter: allowlistIps
+          name: MCP client IP allowlist
+          description: >-
+            CIDR list allowed to call the MCP port (403 otherwise) — defense-in-depth for the
+            socket transport. Set to the orchestrator/gateway address(es).
+          immutable: false
+          schema: allowlistSchema
         - parameter: masterPassword
           name: Secret-store master password
           description: >-
             Unlocks the encrypted on-box secret store. 待核实: the spec has no secret-typed
-            parameter yet — tracked as our app-package-definition-wg question (least-privilege /
-            secret declaration).
+            parameter yet — tracked at margo/specification#145. Carried as a reference (inject the
+            value from the device secret facility at deploy time), never stored in this descriptor.
           immutable: false
           schema: passwordSchema
   schema:
@@ -86,6 +140,22 @@ configuration:
       options: [fab, factory, process, building, water]
       multiselect: false
       allowEmpty: false
+    # SelectValidationSchema — the MCP transport.
+    - name: transportSchema
+      dataType: string
+      options: [streamable-http, sse, stdio]
+      multiselect: false
+      allowEmpty: false
+    # TextValidationSchema — TCP port.
+    - name: portSchema
+      dataType: string
+      minLength: 1
+      maxLength: 5
+      allowEmpty: false
+    # TextValidationSchema — CIDR allowlist.
+    - name: allowlistSchema
+      dataType: string
+      allowEmpty: true
     # TextValidationSchema.
     - name: passwordSchema
       dataType: string
