@@ -25,8 +25,9 @@ each found + fixed real connector bugs). What genuinely remains is NOT feature w
   (no software simulator — hardware-only), physical RS-485 (Modbus-RTU), live HVAC
   (BACnet write/COV/trend), live HART-IP gateway, live RTU/IED, live PLCnext.
 - **信创 hardware**: 国产 OS (麒麟/统信) · 芯 (鲲鹏/海光) · PLC (汇川/台达/信捷) on-target passes.
-- **Out of scope (won't do)**: CC-Link / PROFIBUS-DP / FL-net; IEC-61850 GOOSE/SV;
-  PROFINET RT cyclic.
+- **Out of scope (won't do)**: CC-Link *network participation* (but the master-PLC SLMP read
+  route is feasible with zero hardware — study: `docs/CCLINK.md`) / PROFIBUS-DP / FL-net;
+  IEC-61850 GOOSE/SV; PROFINET RT cyclic.
 - **Optional depth (nice-to-have, not core)**: DNP3 master link-layer status
   (channel-level done); HART true unsolicited burst subscription (periodic sampling done);
   SIEM forwarder auth header; OPC-UA FX/TSN (2026 cert watch).
@@ -109,8 +110,12 @@ Everything below is the detailed backlog with per-item status.
   `iaiops/core/brain/overview.py` (`protocols_supported`). **待核实:** reads against a
   live/physical PLCnext (no gear in CI). Follow-ups: 汇川/台达/信捷 domestic-PLC live pass
   (same reused-Modbus/Ethernet pattern); GDS security (sign/encrypt) once demanded.
-- ❌ Not doing: CC-Link (MC already covers Mitsubishi), PROFIBUS-DP (needs a master
-  card, not software-tappable), FL-net (niche, no library).
+- ❌ Not doing: CC-Link *network roles* (master/slave/device stacks — hardware/cert-gated,
+  write-side). ⏳ **Feasible instead** (study 2026-07-15, `docs/CCLINK.md`): CC-Link link-device
+  + SB/SW network-diagnostics reads *through the master PLC* via SLMP (= MC 3E frame; existing
+  `mc` connector + pymcprotocol already speak it) — plan = extend `mc` with link-device templates
+  + a network-diag `[READ]` tool; live pass `待核实`. Still not doing: PROFIBUS-DP (needs a
+  master card, not software-tappable), FL-net (niche, no library).
 
 ## Capabilities / intelligence
 - ✅ **AI downtime root-cause copilot (flagship)** — shipped in v0.5.0 as
