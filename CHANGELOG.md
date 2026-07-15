@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.15.0 — 2026-07-15
+
+> **Japan-gap + RCA-depth release.** CC-Link data becomes readable with zero new hardware
+> (through the master PLC via SLMP), the RCA copilot gains a real per-site learning loop
+> (CMMS work-order exports → labeled corpus → learned cause weights) and time-localizable
+> alarm evidence (OPC-UA A&C events with server timestamps), the whole stack gets an
+> air-gapped deployment story, and release artifacts are now cosign-signed. One real latent
+> bug found and fixed en route: failed OPC-UA connects leaked a thread each.
+
 ### Fixed
 - **Thread leak on every failed OPC-UA connect** (latent since the connector shipped) —
   asyncua's sync `Client` starts a non-daemon ThreadLoop in its *constructor*, and the
