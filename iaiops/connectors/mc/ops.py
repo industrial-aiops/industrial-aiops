@@ -128,11 +128,128 @@ def mc_write_words(
     }
 
 
+def mc_cclink_templates() -> dict:
+    """[READ] List the built-in CC-Link refresh-image templates (pure, no device)."""
+    from iaiops.connectors.mc import cclink
+
+    return {"templates": cclink.list_link_templates()}
+
+
+def mc_cclink_link_read(
+    target: Any, template: str, overrides: dict[str, str] | None = None
+) -> dict:
+    """[READ] Read a CC-Link refresh image (RX/RY/RWr/RWw) through the master PLC.
+
+    ``overrides`` remaps a template area's head device (and optionally count) as
+    ``{"rx": "X1200"}`` or ``{"rwr": "W200:8"}`` — the refresh assignment is per-project
+    configuration, so the template is a documented starting point (待核实 per site).
+    """
+    from iaiops.connectors.mc import cclink
+
+    tpl = cclink.get_link_template(template)
+    ovr = {str(k).strip().lower(): str(v) for k, v in (overrides or {}).items()}
+    unknown = set(ovr) - {a.name for a in tpl.areas}
+    if unknown:
+        raise ValueError(
+            f"Unknown override area(s) {sorted(unknown)}; template areas: "
+            f"{[a.name for a in tpl.areas]}."
+        )
+    areas_out: list[dict[str, Any]] = []
+    with mc_session(target) as client:
+        for area in tpl.areas:
+            resolved = cclink.resolve_area(area, ovr.get(area.name))
+            count = _clamp(resolved.count)
+            if resolved.kind == "bit":
+                values = client.batchread_bitunits(headdevice=resolved.device, readsize=count)
+                payload: Any = [bool(v) for v in list(values)[:count]]
+            else:
+                values = client.batchread_wordunits(headdevice=resolved.device, readsize=count)
+                payload = [int(v) for v in list(values)[:count]]
+            areas_out.append(
+                {
+                    "area": resolved.name,
+                    "device": s(resolved.device, 32),
+                    "kind": resolved.kind,
+                    "count": count,
+                    "label": s(resolved.label, 80),
+                    "values": payload,
+                }
+            )
+    return {
+        "endpoint": s(target.name, 64),
+        "template": s(tpl.name, 48),
+        "network": s(tpl.network, 24),
+        "areas": areas_out,
+        "caveat": s(tpl.caveat, 240),
+    }
+
+
+def mc_cclink_network_health(
+    target: Any, network: str = "cclink_ie_field", stations: int = 16
+) -> dict:
+    """[READ] Per-station CC-Link data-link health from the master's SB/SW registers.
+
+    Reads the network's link special registers (classic: SW0080–; IE Field: SB0049 +
+    SW00B0– + SW00A0– baton pass) and decodes one row per station — RCA evidence with
+    zero network membership.
+    """
+    from iaiops.connectors.mc import cclink
+
+    diag = cclink.get_network_diag(network)
+    stations = max(1, min(int(stations), diag.max_stations))
+    words_needed = (stations + 15) // 16
+    with mc_session(target) as client:
+        status_words = [
+            int(v)
+            for v in client.batchread_wordunits(
+                headdevice=diag.stations_status_base, readsize=words_needed
+            )
+        ]
+        own_error: bool | None = None
+        if diag.own_error_bit:
+            bits = client.batchread_bitunits(headdevice=diag.own_error_bit, readsize=1)
+            own_error = bool(list(bits)[0]) if list(bits) else None
+        baton_words: list[int] = []
+        if diag.baton_pass_base:
+            baton_words = [
+                int(v)
+                for v in client.batchread_wordunits(
+                    headdevice=diag.baton_pass_base, readsize=words_needed
+                )
+            ]
+    station_rows = cclink.decode_station_bitmap(status_words, stations)
+    in_error = [r["station"] for r in station_rows if not r["ok"]]
+    baton_lost = (
+        [r["station"] for r in cclink.decode_station_bitmap(baton_words, stations) if not r["ok"]]
+        if baton_words
+        else []
+    )
+    return {
+        "endpoint": s(target.name, 64),
+        "network": s(diag.network, 24),
+        "stations_checked": stations,
+        "own_station_error": own_error,
+        "stations": station_rows,
+        "stations_in_error": in_error,
+        "baton_pass_lost": baton_lost,
+        "healthy": not in_error and not baton_lost and not own_error,
+        "registers": {
+            "stations_status": s(diag.stations_status_base, 16),
+            "own_error": s(diag.own_error_bit, 16),
+            "baton_pass": s(diag.baton_pass_base, 16),
+        },
+        "source": s(diag.source, 240),
+    }
+
+
 __all__ = [
     "mc_cpu_status",
     "mc_read_words",
     "mc_read_bits",
     "mc_read_many",
     "mc_write_words",
+    "mc_cclink_templates",
+    "mc_cclink_link_read",
+    "mc_cclink_network_health",
     "OTConnectionError",
 ]
