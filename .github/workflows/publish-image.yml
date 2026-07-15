@@ -1,12 +1,23 @@
-# Build + push the iaiops OCI image(s) to GHCR — one per edition profile, multi-arch.
-# The image installs the PUBLISHED PyPI wheel (deploy/margo/Dockerfile), so publish to PyPI first,
-# then tag (or run manually). No local Docker needed — the build happens in CI.
+# Build + push the iaiops OCI image(s) to GHCR — one per edition profile, multi-arch — then
+# cosign-sign the images and attach the SIGNED Margo application package (descriptor +
+# deploy-ready compose) to the GitHub release.
+#
+# The image installs the PUBLISHED PyPI wheel (deploy/margo/Dockerfile). The release flow pushes
+# the tag BEFORE the wheel lands on PyPI, so the first job polls PyPI until the version exists
+# (this race broke v0.12.0–v0.14.0 image builds; see the wait-for-pypi job).
 #
 # Triggers:
 #   - push a tag  vX.Y.Z            → builds images for version X.Y.Z
-#   - manual (workflow_dispatch)    → builds images for the `version` input (default 0.10.1)
+#   - manual (workflow_dispatch)    → builds images for the `version` input
 #
-# Result: ghcr.io/industrial-aiops/iaiops:<version>-<profile> (+ factory also tagged <version> and latest).
+# Results:
+#   ghcr.io/industrial-aiops/iaiops:<version>-<profile>   (+ factory also <version> and latest)
+#   — each image cosign-signed with the repo key (public key: deploy/margo/cosign.pub)
+#   release asset iaiops-margo-package-<version>.tar.gz (+ .sig)
+#
+# Verify:
+#   cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:<version>-<profile>
+#   cosign verify-blob --key cosign.pub --signature <pkg>.sig <pkg>
 name: publish-image
 
 on:
@@ -17,17 +28,48 @@ on:
       version:
         description: "iaiops version to bake in (must already be on PyPI)"
         required: true
-        default: "0.10.1"
 
 permissions:
-  contents: read
+  contents: write # upload the signed Margo package to the release
   packages: write
 
 env:
   IMAGE: ghcr.io/industrial-aiops/iaiops
 
 jobs:
+  # The release flow tags first, publishes the wheel second — poll PyPI so the image build
+  # starts only once `iaiops==<version>` is actually installable (up to 30 min).
+  wait-for-pypi:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            v="${GITHUB_REF_NAME#v}"          # v0.14.0 -> 0.14.0
+          else
+            v="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Wait until iaiops==<version> is on PyPI
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          for i in $(seq 1 60); do
+            if curl -fsS "https://pypi.org/pypi/iaiops/${v}/json" >/dev/null 2>&1; then
+              echo "iaiops ${v} is on PyPI (attempt ${i})."
+              exit 0
+            fi
+            echo "iaiops ${v} not on PyPI yet (attempt ${i}/60) — sleeping 30s…"
+            sleep 30
+          done
+          echo "::error::iaiops ${v} never appeared on PyPI within 30 min — publish the wheel, then re-run (workflow_dispatch with version=${v})."
+          exit 1
+
   build:
+    needs: wait-for-pypi
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -36,20 +78,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Resolve version
-        id: ver
-        run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            v="${GITHUB_REF_NAME#v}"          # v0.11.0 -> 0.11.0
-          else
-            v="${{ github.event.inputs.version }}"
-          fi
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-
       - name: Compute tags
         id: tags
         run: |
-          v="${{ steps.ver.outputs.version }}"
+          v="${{ needs.wait-for-pypi.outputs.version }}"
           p="${{ matrix.profile }}"
           tags="${IMAGE}:${v}-${p}"
           # The factory profile is the default edition — also publish bare version + latest.
@@ -58,7 +90,7 @@ jobs:
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@v3        # arm64 emulation
+      - uses: docker/setup-qemu-action@v3 # arm64 emulation
       - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
@@ -69,6 +101,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build + push
+        id: push
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -76,7 +109,54 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             PROFILE=${{ matrix.profile }}
-            IAIOPS_VERSION=${{ steps.ver.outputs.version }}
+            IAIOPS_VERSION=${{ needs.wait-for-pypi.outputs.version }}
           tags: ${{ steps.tags.outputs.tags }}
           push: true
           provenance: false
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Cosign-sign the pushed image (by digest)
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY \
+            "${IMAGE}@${{ steps.push.outputs.digest }}"
+
+  # The Margo application package: descriptor + deploy-ready compose, tarred, cosign-signed,
+  # attached to the GitHub release. This is what margo.yaml's packageLocation points at; the
+  # public verify key is deploy/margo/cosign.pub (keyLocation).
+  margo-package:
+    needs: [wait-for-pypi, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Assemble + sign the application package
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          v="${{ needs.wait-for-pypi.outputs.version }}"
+          pkgdir="iaiops-margo-package-${v}"
+          mkdir "${pkgdir}"
+          cp deploy/margo/margo.yaml "${pkgdir}/margo.yaml"
+          # The deploy-ready compose ships as `compose.yaml` inside the package.
+          cp deploy/margo/package.compose.yaml "${pkgdir}/compose.yaml"
+          cp deploy/margo/cosign.pub "${pkgdir}/cosign.pub"
+          tar -czf "${pkgdir}.tar.gz" "${pkgdir}"
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY \
+            --output-signature "${pkgdir}.tar.gz.sig" "${pkgdir}.tar.gz"
+
+      - name: Attach package + signature to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${{ needs.wait-for-pypi.outputs.version }}"
+          gh release upload "v${v}" \
+            "iaiops-margo-package-${v}.tar.gz" \
+            "iaiops-margo-package-${v}.tar.gz.sig" \
+            --clobber --repo "${{ github.repository }}"

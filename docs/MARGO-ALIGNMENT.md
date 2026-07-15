@@ -59,17 +59,22 @@ the rest of this repo runs on.
 
 ## 4. Work items (roadmap `⏳` — tracked in `docs/ROADMAP.md`)
 
-1. **`⏳` Container image** — a reproducible OCI image per edition profile (base + selected extras),
-   headless MCP entrypoint, non-root, read-only rootfs friendly.
-2. **`⏳` Margo application description** — **done to the real `margo.org/v1-alpha1` schema**
-   (`deploy/margo/margo.yaml`: compose `deploymentProfiles` / `components` / `requiredResources` /
-   `parameters` / `configuration`). **WG feedback folded in (2026-07-13, ABB / P. Presson):** the
-   descriptor now targets the **socket (streamable-http) transport** (WG-recommended; `transport` /
-   `mcpPort` / `allowlistIps` parameters + the compose port), and keeps the **single parameterised
-   application** (`profile`) rather than N packages. Remaining: host+sign the package
-   (`packageLocation`/`keyLocation`), the secret-parameter flag (pending
-   [`margo/specification#145`](https://github.com/margo/specification/issues/145)), and CI-lint
-   against the pinned profile bundles.
+1. **`✅` Container image (2026-07-15)** — reproducible OCI image per edition profile (base +
+   selected extras), headless MCP entrypoint, non-root, read-only rootfs friendly
+   (`deploy/margo/Dockerfile`). CI builds multi-arch per-profile images on every release tag,
+   **cosign-signs them** (public key `deploy/margo/cosign.pub`), and pushes
+   `ghcr.io/industrial-aiops/iaiops:<version>-<profile>`.
+2. **`✅` Margo application description (2026-07-15)** — **done to the real `margo.org/v1-alpha1`
+   schema** (`deploy/margo/margo.yaml`: compose `deploymentProfiles` / `components` /
+   `requiredResources` / `parameters` / `configuration`). **WG feedback folded in (2026-07-13,
+   ABB / P. Presson):** the descriptor targets the **socket (streamable-http) transport**
+   (WG-recommended; `transport` / `mcpPort` / `allowlistIps` parameters + the compose port), and
+   keeps the **single parameterised application** (`profile`) rather than N packages. **Hosted +
+   signed + CI-linted:** CI attaches the cosign-signed `iaiops-margo-package-<version>.tar.gz`
+   (descriptor + deploy-ready compose) to each GitHub release (= `packageLocation` /
+   `keyLocation`), and `tests/test_margo_package.py` lints the descriptor against the pinned
+   profile bundles. Remaining: only the secret-parameter flag (pending
+   [`margo/specification#145`](https://github.com/margo/specification/issues/145)).
 3. **`⏳` On-box LLM brain option** — document/point the RCA copilot at an on-box local LLM for a
    fully air-gapped diagnostic path (no cloud egress).
 4. **`⏳` Conformance run** — execute the Margo compliance toolkit on a real device; publish the

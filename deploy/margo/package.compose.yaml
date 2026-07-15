@@ -1,0 +1,39 @@
+# Deploy-ready compose for the SIGNED Margo application package (shipped inside
+# iaiops-margo-package-<version>.tar.gz as `compose.yaml`). Unlike ./compose.yaml (the local
+# dev/build example), this file references the PUBLISHED, signed OCI image — an edge host deploys
+# it with no source tree present.
+#
+# One parameterised application (WG-confirmed idiom): the `profile` parameter (env IAIOPS_MCP)
+# selects BOTH the per-edition image variant and the tool surface baked into it
+# (fab | factory | process | building | water). Version is pinned for reproducibility and kept in
+# sync with pyproject.toml by tests/test_margo_package.py.
+services:
+  iaiops:
+    image: ghcr.io/industrial-aiops/iaiops:0.14.0-${IAIOPS_MCP:-factory}
+    # Least-privilege posture a Margo device/host would give an OT workload (same as compose.yaml):
+    # non-root, read-only rootfs, no capabilities, one IP-allowlisted MCP port, no OT inbound.
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    user: "10001:10001"
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Edition profile — set by the Margo `profile` parameter (also selects the image tag above).
+      IAIOPS_MCP: ${IAIOPS_MCP:-factory}
+      # Socket transport (Margo app-package WG recommendation, 2026-07-13): one container port.
+      IAIOPS_MCP_TRANSPORT: ${IAIOPS_MCP_TRANSPORT:-streamable-http}
+      IAIOPS_MCP_HOST: "0.0.0.0"
+      IAIOPS_MCP_PORT: ${IAIOPS_MCP_PORT:-8000}
+      # Defense-in-depth: CIDR list allowed to call the MCP port (403 otherwise).
+      IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}
+      # Secret REFERENCE model (margo/specification#145): the value never travels in the package —
+      # inject from the device secret facility at deploy time.
+      IAIOPS_MASTER_PASSWORD: ${IAIOPS_MASTER_PASSWORD:?set in the host secret store}
+    volumes:
+      - iaiops-state:/home/iaiops/.iaiops
+    restart: unless-stopped
+
+volumes:
+  iaiops-state:
