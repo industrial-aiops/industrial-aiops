@@ -62,6 +62,7 @@ The RCA scoring is math. An **LLM appears only at the outer layer**: the copilot
 governed **MCP tools**, and an LLM agent *drives* them — chaining the analyzers, following the
 `insufficient_evidence` "collect next" hints, and phrasing the **already-cited** verdict in natural
 language. An optional **on-box local model** (e.g. Ollama, see the LLM adapter) can play that outer
-role for a **fully air-gapped** deployment — but it never derives the causes. That separation —
+role for a **fully air-gapped** deployment (full guide: [`AIRGAP.md`](AIRGAP.md)) — but it never
+derives the causes. That separation —
 deterministic, cited reasoning underneath; optional local narration on top — is exactly why the RCA
 core is safe to put on a plant floor.
