@@ -35,7 +35,7 @@ rotor_speed / pitch / yaw / state_of_charge 等可再生类别(`opcua_discover_t
 
 ### OPC-UA（只读;全站 SCADA / PLC 网关）
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`
-- `opcua_subscribe_sample` `opcua_read_alarms` `opcua_read_history`(HDA)
+- `opcua_subscribe_sample` `opcua_read_alarms` `opcua_alarm_events`(A&C 带时间戳) `opcua_read_history`(HDA)
 - `opcua_diagnose_connection` `opcua_discover_tags` `opcua_health_summary` `opcua_anomaly_scan`
 
 ### MQTT-Sparkplug B（可选;电站遥测 / IoT 网关 UNS）

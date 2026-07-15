@@ -54,7 +54,7 @@ description: >-
 
 ### OPC-UA（只读;全院 SCADA / PLC 网关）
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`
-- `opcua_subscribe_sample` `opcua_read_alarms` `opcua_read_history`(HDA)
+- `opcua_subscribe_sample` `opcua_read_alarms` `opcua_alarm_events`(A&C 带时间戳) `opcua_read_history`(HDA)
 - `opcua_diagnose_connection` — 连接失败归因;`opcua_discover_tags` 语义资产建模;
   `opcua_health_summary` 阈值分类;`opcua_anomaly_scan` 有界统计异常扫描
 

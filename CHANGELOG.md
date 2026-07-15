@@ -2,7 +2,26 @@
 
 ## Unreleased
 
+### Fixed
+- **Thread leak on every failed OPC-UA connect** (latent since the connector shipped) —
+  asyncua's sync `Client` starts a non-daemon ThreadLoop in its *constructor*, and the
+  session factory deliberately skips teardown when connect fails, so each unreachable-server
+  attempt leaked one running thread: enough to keep a long-lived MCP server (or the test
+  runner) from ever exiting. The OPC-UA session now tears the client down again when the
+  connect raises (`_connect_opcua`); regression-tested.
+
 ### Added
+- **Timestamped OPC-UA Alarms & Conditions** — `opcua_alarm_events`: a *bounded* A&C event
+  subscription on the Server object (+ `ConditionRefresh`, so retained/active conditions are
+  replayed with their original event `Time`); each event carries the server's own timestamp,
+  severity and ACTIVE/RTN/EVENT state. The RCA evidence collector (`collect_evidence` /
+  `downtime_rca_live` and the ISA-18.2 alarm tools' shared acquisition path) now tries this
+  timed feed first and falls back to the untimed address-space scan — alarm evidence becomes
+  time-localizable for the temporal weighting. Verified end-to-end against a real in-process
+  asyncua server (third-party A&C servers `待核实`). Also fixed en route: asyncua's sync
+  `Subscription` doesn't expose `subscription_id` (it lives on the wrapped aio object), and a
+  server with no retained conditions answers `ConditionRefresh` with `BadNothingToDo` — both
+  now handled.
 - **Maintenance-log → RCA corpus bridge** — `rca_corpus_from_maintenance` MCP tool +
   `iaiops diag corpus` (CSV/JSON): normalizes a CMMS/work-order export into the labeled
   incident history `learn_cause_weights` consumes (explicit taxonomy cause → built-in

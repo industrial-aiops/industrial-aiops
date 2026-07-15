@@ -13,6 +13,25 @@ from iaiops.core.runtime.config import TargetConfig
 from iaiops.core.runtime.session_factory import OTConnectionError
 
 
+def _connect_opcua(client: Any, target: TargetConfig) -> None:
+    """Connect, tearing the client's ThreadLoop down again if the connect fails.
+
+    asyncua's sync ``Client`` STARTS a non-daemon ThreadLoop thread in its
+    constructor, and ``make_session`` deliberately skips teardown when connect
+    fails (the session never opened) — so without this cleanup every failed
+    OPC-UA connect leaks a running thread, enough to keep a long-lived process
+    (or the test runner) from ever exiting.
+    """
+    try:
+        client.connect()
+    except Exception:
+        try:
+            client.disconnect()  # stops the constructor-started ThreadLoop
+        except Exception:  # noqa: BLE001 — cleanup must never mask the real error
+            pass
+        raise
+
+
 def _build_opcua_client(target: TargetConfig) -> Any:
     """Construct (but do not connect) an asyncua sync Client for ``target``.
 

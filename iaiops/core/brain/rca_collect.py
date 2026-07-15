@@ -149,16 +149,40 @@ def _config_bounds(target: Any, ref: str) -> dict:
 
 
 def _collect_alarms(target: Any) -> list[dict]:
-    """Surface active conditions as RCA alarm events (OPC-UA only; else empty)."""
+    """Surface conditions as RCA alarm events (OPC-UA only; else empty).
+
+    Tries the TIMED path first — an A&C event subscription with ConditionRefresh
+    (``opcua.ops.alarm_events``), whose events carry the server's own timestamps
+    so the copilot can time-localize alarm evidence. Servers without A&C support
+    yield nothing there, so the untimed address-space scan stays as the fallback
+    (its events keep ``timestamp: None`` and are scored as real-but-untimed).
+    """
     if getattr(target, "protocol", "") != "opcua":
         return []
+    try:
+        from iaiops.connectors.opcua.ops import alarm_events
+
+        timed = alarm_events(target, duration_s=3.0, refresh=True)
+        events: list[dict] = [
+            {
+                "source": e.get("source") or "event",
+                "message": e.get("message") or e.get("source") or "event",
+                "state": e.get("state") or "EVENT",
+                "timestamp": e.get("timestamp"),
+            }
+            for e in (timed.get("events") or [])[:200]
+        ]
+        if events:
+            return events
+    except Exception:  # noqa: BLE001 — the timed path is best-effort, never fatal
+        pass
     try:
         from iaiops.connectors.opcua.ops import read_alarms
 
         result = read_alarms(target)
     except Exception:  # noqa: BLE001 — alarm surfacing is best-effort, never fatal
         return []
-    events: list[dict] = []
+    events = []
     for a in (result.get("active_alarms") or [])[:200]:
         name = s(str(a.get("browse_name", a.get("node_id", "alarm"))), 96)
         events.append(
@@ -175,7 +199,7 @@ def _collect_alarms(target: Any) -> list[dict]:
 
 
 # Public alias: the ISA-18.2 alarm tools reuse the SAME best-effort acquisition
-# path (OPC-UA active-condition scan) instead of inventing a second one.
+# path (timed A&C events first, untimed scan fallback) instead of inventing a second one.
 collect_active_alarms = _collect_alarms
 
 __all__ = ["collect_evidence", "downtime_rca_live", "collect_active_alarms"]

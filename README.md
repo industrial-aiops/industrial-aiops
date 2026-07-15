@@ -179,7 +179,8 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 ### OPC-UA
 - **Versions/variants**: binary `opc.tcp://` via `asyncua` (sync facade). Security: **anonymous + username/password**. Certificate message security (Sign / SignAndEncrypt) = **roadmap, not validated**.
 - **Connection params**: `endpoint_url`, `username` (password encrypted), `security_mode`, `security_policy`.
-- **Not supported / planned**: cert security; real Alarms & Conditions event subscriptions (alarms are surfaced best-effort by browsing alarm-like boolean nodes).
+- **Alarms & Conditions**: `opcua_alarm_events` — bounded event subscription + `ConditionRefresh`, events carry the server's own timestamps (verified against an in-process asyncua server; third-party A&C servers `待核实`). Untimed fallback: `opcua_read_alarms` browses alarm-like boolean nodes.
+- **Not supported / planned**: cert security.
 
 ### Modbus-TCP / Modbus-RTU
 - **Versions/variants**: Modbus-TCP and **Modbus-RTU (serial RS-485/232)** via `pymodbus` (+ `pyserial`). Read function codes **FC01 (coils), FC02 (discrete), FC03 (holding), FC04 (input)**. Write FCs (**FC05/06/15/16**) = **not implemented** (read-only).
@@ -739,7 +740,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 - EtherNet/IP **PLC-5 / SLC-500 (PCCC)** and **Micro800** support (Logix tags are done in 0.2.0).
 - **Passive** asset discovery (SPAN/tap, no connections) alongside today's active fingerprint.
 - EtherCAT **EoE / FoE / SoE** mailbox protocols and full PDO-mapping decode (CoE SDO/PDO read+write and AL-state landed in 0.3.0 via the optional `pysoem` extra).
-- OPC-UA certificate security + real Alarms & Conditions subscriptions.
+- OPC-UA certificate security (A&C event subscriptions landed via `opcua_alarm_events`).
 - MTConnect streaming long-poll; Sparkplug B DataSet/Template deep expansion.
 
 **Missing a protocol, device, or feature? 缺功能提 issue/PR 欢迎留言** — open a [GitHub issue or PR](https://github.com/industrial-aiops/industrial-aiops/issues).
