@@ -3,6 +3,14 @@
 ## Unreleased
 
 ### Added
+- **Maintenance-log → RCA corpus bridge** — `rca_corpus_from_maintenance` MCP tool +
+  `iaiops diag corpus` (CSV/JSON): normalizes a CMMS/work-order export into the labeled
+  incident history `learn_cause_weights` consumes (explicit taxonomy cause → built-in
+  EN/中文 synonym table, extendable per site → unambiguous keyword inference over free
+  text). Rows it cannot map are returned with the reason — never silently guessed; signals
+  come only from explicit columns or symptom text (no fabricated evidence). With
+  `learn=true` the learned per-site `cause_weights` are included, ready for
+  `downtime_root_cause`.
 - **CC-Link family reads through the master PLC (zero CC-Link hardware)** — Phase 1 of the
   `docs/CCLINK.md` feasibility study, closing the biggest Japan-market gap via the existing
   `mc` connector (SLMP's message format = MC 3E frame). Three governed `[READ]` tools:

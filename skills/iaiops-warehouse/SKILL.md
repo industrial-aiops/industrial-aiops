@@ -69,7 +69,7 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
-  `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
+  `learn_cause_weights` `rca_corpus_from_maintenance` `historian_health` `alarm_bad_actors` `tag_health`
   `subscription_health` `heartbeat_health` `alarm_flood_analysis` `alarm_cascade`
   `alarm_rationalization_worksheet`
 - 预测维护：`pdm_forecast` —— 输送带电机轴承/温升、分拣驱动、AGV 电池的趋势 + 到限时间
