@@ -45,7 +45,7 @@ rotor_speed / pitch / yaw / state_of_charge 等可再生类别(`opcua_discover_t
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
-  `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
+  `learn_cause_weights` `rca_corpus_from_maintenance` `historian_health` `alarm_bad_actors` `tag_health`
   `subscription_health` `heartbeat_health` `alarm_flood_analysis` `alarm_cascade`
   `alarm_rationalization_worksheet`
 - 预测维护：`pdm_forecast` —— 逆变器温升、风机轴承/齿轮箱趋势 + 到限时间

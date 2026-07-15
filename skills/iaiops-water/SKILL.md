@@ -48,7 +48,7 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
-  `learn_cause_weights` `historian_health` `alarm_bad_actors` `tag_health`
+  `learn_cause_weights` `rca_corpus_from_maintenance` `historian_health` `alarm_bad_actors` `tag_health`
   `subscription_health` `heartbeat_health` `alarm_flood_analysis` `alarm_cascade`
   `alarm_rationalization_worksheet`
 - 数据质量：`data_quality_scorecard` `data_quality_fleet_rollup`（水质仪表重点：

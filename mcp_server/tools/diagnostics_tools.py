@@ -8,8 +8,8 @@ from typing import Any, Optional
 
 from iaiops.core.brain import dataquality as dq
 from iaiops.core.brain import diagnostics as diag
+from iaiops.core.brain import maintenance_log, rca_collect, rca_history, rca_weights
 from iaiops.core.brain import rca as rca_brain
-from iaiops.core.brain import rca_collect, rca_history, rca_weights
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -331,6 +331,48 @@ def learn_cause_weights(
         "signals":["mechanical_fault"]}, {"cause":"comms_loss","signals":["comms_loss"]}]).
     """
     return rca_weights.learn_cause_weights(history, min_samples, smoothing)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def rca_corpus_from_maintenance(
+    rows: list[dict[str, Any]],
+    synonyms: Optional[dict[str, str]] = None,
+    learn: bool = True,
+    min_samples: int = 8,
+    smoothing: float = 1.0,
+) -> dict:
+    """[READ][risk=low] Turn a CMMS/work-order export into the RCA incident corpus.
+
+    Auto-builds the labeled history learn_cause_weights needs from closed maintenance
+    records: an explicit taxonomy cause column wins; else a built-in EN/中文 CMMS
+    synonym table (extendable via 'synonyms'); else UNAMBIGUOUS keyword inference
+    over the row's free text using the copilot's own cause keywords. Rows it cannot
+    map land in 'unmapped' with the reason — never silently guessed. 'signals' come
+    from an explicit column or the symptom/alarm text (may stay empty — no fabricated
+    evidence). Pure + advisory; with learn=true the learned weights are included.
+
+    Args:
+        rows: Work-order records, one dict each. Recognized cause columns:
+            cause / root_cause / failure_class / category / problem_code; free-text
+            columns: description / problem / notes / comment / text / 故障描述;
+            signal text: symptom(s) / alarm(s) / 现象.
+        synonyms: Extra site vocabulary, e.g. {"spindle crash": "mechanical_fault"};
+            values must be taxonomy causes.
+        learn: Also run learn_cause_weights on the mapped corpus (default true).
+        min_samples: Passed to learn_cause_weights (default 8).
+        smoothing: Passed to learn_cause_weights (default 1.0).
+
+    Returns dict: {corpus:[{cause, signals}], n_rows, n_mapped, unmapped:[{row,
+        reason, excerpt}], mapped_via, weights?, next_step}.
+
+    Example: rca_corpus_from_maintenance(rows=[{"category":"轴承损坏",
+        "symptom":"drive overload alarm"}], synonyms={"spindle crash":"mechanical_fault"}).
+    """
+    return maintenance_log.corpus_from_maintenance_log(
+        rows, synonyms, learn, min_samples, smoothing
+    )
 
 
 @mcp.tool()
