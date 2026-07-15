@@ -54,15 +54,21 @@ jobs:
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
-      - name: Wait until iaiops==<version> is on PyPI
+      - name: Wait until iaiops==<version> is installable from PyPI
         run: |
           v="${{ steps.ver.outputs.version }}"
+          # Poll the SIMPLE index (what pip actually resolves against), not the JSON
+          # API — the JSON API updates first, and the v0.15.0 release proved a stale
+          # simple-index CDN edge can still fail `pip install` after the JSON API is
+          # already serving the version.
           for i in $(seq 1 60); do
-            if curl -fsS "https://pypi.org/pypi/iaiops/${v}/json" >/dev/null 2>&1; then
-              echo "iaiops ${v} is on PyPI (attempt ${i})."
+            if curl -fsS "https://pypi.org/simple/iaiops/" 2>/dev/null | grep -q "iaiops-${v}"; then
+              echo "iaiops ${v} is on the PyPI simple index (attempt ${i})."
+              echo "Sleeping 60s for CDN propagation before building…"
+              sleep 60
               exit 0
             fi
-            echo "iaiops ${v} not on PyPI yet (attempt ${i}/60) — sleeping 30s…"
+            echo "iaiops ${v} not on the simple index yet (attempt ${i}/60) — sleeping 30s…"
             sleep 30
           done
           echo "::error::iaiops ${v} never appeared on PyPI within 30 min — publish the wheel, then re-run (workflow_dispatch with version=${v})."
