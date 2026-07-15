@@ -1,8 +1,9 @@
 # `deploy/margo/` — iaiops as a Margo edge-application (skeleton)
 
-> **Status: roadmap `⏳` — NOT Margo-compliant yet.** This is the container + application-description
-> **skeleton** for packaging iaiops as a [Margo](https://margo.org/) edge application. The exact
-> app-package schema and a passing conformance-toolkit result are still `待核实`. See
+> **Status: packaged + signed, but NOT Margo-compliant yet.** iaiops ships as a [Margo](https://margo.org/)-style
+> edge application: per-profile signed OCI images on GHCR + a cosign-signed application package on
+> each GitHub release, descriptor built to the `margo.org/v1-alpha1` schema. A passing
+> conformance-toolkit result is still `待核实` — see
 > [`../../docs/MARGO-ALIGNMENT.md`](../../docs/MARGO-ALIGNMENT.md) for the full plan and honesty note.
 > No material claims *Margo-compliant* until the conformance result exists.
 
@@ -11,9 +12,22 @@
 | File | Purpose |
 |------|---------|
 | `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. |
-| `compose.yaml` | Example hardened run (Podman/Docker): `read_only`, `cap_drop: ALL`, no-new-privileges, single **IP-allowlisted** MCP port (socket transport — no OT inbound), single config/secret volume. |
-| `margo.yaml` | Margo **ApplicationDescription**, built to the real **`margo.org/v1-alpha1`** schema (docs.margo.org, PR1 pre-draft): compose `deploymentProfiles` / `components` / `requiredResources` / `parameters` / `configuration`. Remaining `待核实` = only the hosted+signed package location/key and the secret-parameter flag pending [`margo/specification#145`](https://github.com/margo/specification/issues/145). |
+| `compose.yaml` | Example hardened run for **local dev** (builds from source): `read_only`, `cap_drop: ALL`, no-new-privileges, single **IP-allowlisted** MCP port (socket transport — no OT inbound), single config/secret volume. |
+| `package.compose.yaml` | **Deploy-ready** compose shipped inside the signed application package (as `compose.yaml`): references the published, version-pinned GHCR image (`profile` parameter selects the per-edition variant), same hardened posture, no build section. |
+| `margo.yaml` | Margo **ApplicationDescription**, built to the real **`margo.org/v1-alpha1`** schema (docs.margo.org, PR1 pre-draft): compose `deploymentProfiles` / `components` / `requiredResources` / `parameters` / `configuration`. `packageLocation`/`keyLocation` point at the signed release asset + `cosign.pub`. Remaining `待核实` = only the secret-parameter flag pending [`margo/specification#145`](https://github.com/margo/specification/issues/145). |
+| `cosign.pub` | Public verify key for the signed images and the application package (private key lives only in CI secrets — rotate by regenerating the pair + updating this file). |
 | `.dockerignore` | Keeps the build context tiny (image installs from PyPI). |
+
+## Published artifacts (per release, built by `.github/workflows/publish-image.yml`)
+
+- `ghcr.io/industrial-aiops/iaiops:<version>-<profile>` — multi-arch (amd64/arm64), cosign-signed.
+  Verify: `cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:<version>-<profile>`
+- `iaiops-margo-package-<version>.tar.gz` (+ `.sig`) on the GitHub release — the Margo application
+  package: `margo.yaml` + deploy-ready `compose.yaml` + `cosign.pub`.
+  Verify: `cosign verify-blob --key cosign.pub --signature <pkg>.tar.gz.sig <pkg>.tar.gz`
+- CI waits for the wheel to appear on PyPI before building (the tag→PyPI race silently broke the
+  v0.12–v0.14 image builds), and `tests/test_margo_package.py` lints descriptor ↔ profile menu ↔
+  pip extras ↔ build matrix ↔ version pins on every CI run.
 
 ## Quick start
 
@@ -69,4 +83,4 @@ The three open questions posted to the WG ([Discourse t/43](https://discourse.ma
    case on #145.
 
 Full detail + the contribution plan: appendix B of [`../../docs/MARGO-ALIGNMENT.md`](../../docs/MARGO-ALIGNMENT.md).
-The remaining `待核实` are only the hosted+signed package location/key and the conformance run.
+The remaining `待核实` are only the secret-parameter flag (#145) and the conformance run.

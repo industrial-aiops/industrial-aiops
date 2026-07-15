@@ -215,14 +215,19 @@ Everything below is the detailed backlog with per-item status.
 > (governed, neutral, air-gap friendly). **NOT Margo-compliant yet** — every row here is `⏳` and
 > stays `待核实` until the conformance toolkit passes on real gear. Contributor-first (free); paid
 > membership only on customer pull.
-- ⏳ **Container (OCI) image per edition profile** — reproducible, headless MCP entrypoint,
-  non-root, read-only-rootfs friendly. **Skeleton landed** (`deploy/margo/Dockerfile` +
-  `compose.yaml`, 2026-07); not yet built/pushed to a registry or CI-linted.
-- ⏳ **Margo application description** — **built to the real `margo.org/v1-alpha1` schema**
-  (`deploy/margo/margo.yaml`, docs.margo.org PR1 pre-draft): compose `deploymentProfiles` /
-  `components` / `requiredResources` / `parameters` / `configuration`. Remaining `待核实` = hosted+
-  signed package location/key, the missing secret-parameter flag (app-package-definition-wg
-  question), and CI-lint. Then run conformance.
+- ✅ **Container (OCI) image per edition profile** (2026-07-15) — reproducible, headless MCP
+  entrypoint, non-root, read-only-rootfs friendly (`deploy/margo/Dockerfile`). CI
+  (`publish-image.yml`) builds multi-arch images per profile on every release tag, **cosign-signs
+  them** (public key `deploy/margo/cosign.pub`), and pushes
+  `ghcr.io/industrial-aiops/iaiops:<version>-<profile>`. The tag→PyPI race that silently broke the
+  v0.12–v0.14 image builds is fixed (CI now waits for the wheel to land on PyPI).
+- ✅ **Margo application description — hosted + signed + CI-linted** (2026-07-15) — built to the
+  real `margo.org/v1-alpha1` schema (`deploy/margo/margo.yaml`, docs.margo.org PR1 pre-draft).
+  CI assembles descriptor + deploy-ready compose into `iaiops-margo-package-<version>.tar.gz`,
+  cosign-signs it, and attaches it to the GitHub release (= `packageLocation`; verify key =
+  `keyLocation`). `tests/test_margo_package.py` lints descriptor ↔ profile menu ↔ pip extras ↔
+  build matrix ↔ version pins. Remaining `待核实` = only the secret-parameter flag
+  (margo/specification#145). Then run conformance.
 - ⏳ **On-box LLM brain option** — point the RCA copilot at an on-box local LLM → fully air-gapped
   diagnostic path, no cloud egress.
 - ⏳ **Margo conformance run** — execute the compliance toolkit on a real device + publish the
