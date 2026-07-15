@@ -74,3 +74,35 @@ def test_no_auth_header_without_token(monkeypatch):
     sink = HttpSink("https://siem.example.com/ingest")
     sink.send('{"id": 1}')
     assert opener.requests[0].get_header("Authorization") is None
+
+
+@pytest.mark.unit
+def test_custom_auth_scheme_splunk_hec(monkeypatch):
+    monkeypatch.setenv("IAIOPS_FORWARD_TOKEN", "hec-token")
+    monkeypatch.setenv("IAIOPS_FORWARD_AUTH_SCHEME", "Splunk")
+    opener = _CapturingOpener()
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+    HttpSink("https://siem.example.com/ingest").send('{"id": 1}')
+    assert opener.requests[0].get_header("Authorization") == "Splunk hec-token"
+
+
+@pytest.mark.unit
+def test_custom_auth_header_raw_api_key(monkeypatch):
+    monkeypatch.setenv("IAIOPS_FORWARD_TOKEN", "raw-key")
+    monkeypatch.setenv("IAIOPS_FORWARD_AUTH_HEADER", "X-Api-Key")
+    monkeypatch.setenv("IAIOPS_FORWARD_AUTH_SCHEME", "")  # raw value, no scheme prefix
+    opener = _CapturingOpener()
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+    HttpSink("https://siem.example.com/ingest").send('{"id": 1}')
+    request = opener.requests[0]
+    assert request.get_header("X-api-key") == "raw-key"
+    assert request.get_header("Authorization") is None
+
+
+@pytest.mark.unit
+def test_constructor_args_override_env(monkeypatch):
+    monkeypatch.setenv("IAIOPS_FORWARD_AUTH_SCHEME", "Splunk")
+    opener = _CapturingOpener()
+    monkeypatch.setattr(urllib.request, "urlopen", opener)
+    HttpSink("https://x.example.com/", token="t", auth_scheme="ApiKey").send("{}")
+    assert opener.requests[0].get_header("Authorization") == "ApiKey t"

@@ -24,7 +24,7 @@ description: >-
 - `hart_device_identity` — 通用设备身份（command 0）
 - `hart_primary_variable` — 主变量 PV（command 1）：值 + 单位码
 - `hart_dynamic_variables` — 动态变量 PV/SV/TV/QV + 回路电流（command 3）
-- `hart_burst_sample` — 采样周期性发布（burst）的 HART 变量
+- `hart_burst_sample` — 主动采样 burst 发布的变量；`hart_burst_listen` — 被动监听非请求 burst publish（待核实 per 网关）
 
 ### OPC-UA（只读；DCS/网关旁路读取）
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`

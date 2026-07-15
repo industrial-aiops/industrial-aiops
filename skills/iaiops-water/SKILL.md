@@ -37,7 +37,7 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 - `hart_device_identity` — 通用设备身份（command 0）
 - `hart_primary_variable` — 主变量 PV（如 pH 值、NTU）
 - `hart_dynamic_variables` — PV/SV/TV/QV + 回路电流（command 3）
-- `hart_burst_sample` — 采样 burst 发布的变量
+- `hart_burst_sample` — 主动采样 burst 变量；`hart_burst_listen` — 被动监听 burst publish（待核实）
 
 ### 水处理专属（edition 工具;仅随 water edition 加载,不进全局脑）
 - `disinfection_ct` — SWTR **消毒 CT 合规**:CT = 余氯(mg/L)×有效接触时间 T10(min);逐个

@@ -79,3 +79,34 @@ def hart_burst_sample(endpoint: Optional[str] = None, samples: int = 3) -> dict:
         variables:[{name, value, unit_code}]}], note}.
     """
     return ops.hart_burst_sample(_target(endpoint), samples=samples)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def hart_burst_listen(
+    endpoint: Optional[str] = None, duration_s: float = 10.0, max_messages: int = 20
+) -> dict:
+    """[READ][risk=low] Passively LISTEN for unsolicited HART burst-publish messages.
+
+    Unlike hart_burst_sample (which actively re-polls), this receives whatever the
+    device/gateway PUBLISHES on its own burst schedule — no polling — for up to
+    duration_s seconds or max_messages, decoding each HART-IP publish (message
+    type 2) with the same command-3 parser. Needs a gateway that forwards
+    unsolicited publishes on the session socket (待核实 per gateway); a device not
+    in burst mode yields nothing — hart_burst_sample is the active fallback.
+
+    Args:
+        endpoint: Endpoint name from config (protocol 'hart'); omit for default.
+        duration_s: Listen window in seconds (0..60; default 10).
+        max_messages: Stop after this many publishes (1..20; default 20).
+
+    Returns dict: {endpoint, host, listen_seconds, received_messages,
+        messages:[{index, command, loop_current_mA, variable_count,
+        variables:[{name, value, unit_code}]}], note}.
+
+    Example: hart_burst_listen(endpoint="xmtr-1", duration_s=15).
+    """
+    return ops.hart_burst_listen(
+        _target(endpoint), duration_s=duration_s, max_messages=max_messages
+    )

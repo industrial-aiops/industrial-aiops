@@ -28,9 +28,12 @@ each found + fixed real connector bugs). What genuinely remains is NOT feature w
 - **Out of scope (won't do)**: CC-Link *network participation* (but the master-PLC SLMP read
   route is feasible with zero hardware — study: `docs/CCLINK.md`) / PROFIBUS-DP / FL-net;
   IEC-61850 GOOSE/SV; PROFINET RT cyclic.
-- **Optional depth (nice-to-have, not core)**: DNP3 master link-layer status
-  (channel-level done); HART true unsolicited burst subscription (periodic sampling done);
-  SIEM forwarder auth header; OPC-UA FX/TSN (2026 cert watch).
+- **Optional depth**: ~~DNP3 master link-layer status~~ ✅ (energy repo: IMasterApplication
+  keep-alive + IIN wired, surfaced by `dnp3_link_status.link_layer`; live 待核实); ~~HART true
+  unsolicited burst subscription~~ ✅ (`hart_burst_listen` passive publish listener beside the
+  active `hart_burst_sample`; live gateway 待核实); ~~SIEM forwarder auth header~~ ✅ (configurable
+  scheme/header env: `IAIOPS_FORWARD_AUTH_SCHEME`/`_HEADER` for Splunk HEC / Elastic ApiKey /
+  X-Api-Key). Remaining: OPC-UA FX/TSN (2026 cert watch).
 
 Everything below is the detailed backlog with per-item status.
 

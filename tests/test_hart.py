@@ -711,3 +711,81 @@ def test_hart_tcp_session_length_delimits_split_response(hart_tcp_server):
     messages = codec.parse_responses(raw)
     assert messages and messages[0].command == 1
     assert messages[0].primary_variable == pytest.approx(85.0)
+
+
+class _BurstSession:
+    """Fake gateway that answers the Command-0 discovery poll, then PUBLISHES
+    HART-IP burst messages (message_type 2) on receive_message()."""
+
+    def __init__(self, publishes):
+        self._publishes = list(publishes)
+        self.opened = False
+        self.closed = False
+
+    def open(self):
+        self.opened = True
+
+    def send_hart_pdu(self, pdu):
+        # only the Command-0 discovery poll is sent by the listener
+        return _short_ack_frame(0, IDENTITY_PAYLOAD)
+
+    def receive_message(self, timeout_s):
+        if self._publishes:
+            return self._publishes.pop(0)
+        return None  # timeout — nothing more to publish
+
+    def close(self):
+        self.closed = True
+
+
+def _cmd3_publish(pv=85.0):
+    """A HART-IP publish message (type 2) carrying a command-3 ACK payload."""
+    payload = (
+        bytes([0, 0])
+        + struct.pack(">f", 4.2)
+        + bytes([7])
+        + struct.pack(">f", pv)
+        + bytes([12])
+        + struct.pack(">f", 55.0)
+    )
+    return {"message_type": tx.MT_PUBLISH, "payload": _ack_frame(3, payload)}
+
+
+@pytest.mark.unit
+def test_burst_listen_collects_published_messages(monkeypatch):
+    from iaiops.connectors.hart import ops
+
+    session = _BurstSession([_cmd3_publish(85.0), _cmd3_publish(86.0)])
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
+    target = TargetConfig(name="xmtr-1", protocol="hart", host="10.0.0.7")
+
+    out = ops.hart_burst_listen(target, duration_s=5, max_messages=10)
+    assert out["received_messages"] == 2
+    pvs = [m["variables"][0]["value"] for m in out["messages"]]
+    assert pvs[0] == pytest.approx(85.0)
+    assert pvs[1] == pytest.approx(86.0)
+
+
+@pytest.mark.unit
+def test_burst_listen_ignores_non_publish_messages(monkeypatch):
+    from iaiops.connectors.hart import ops
+
+    keepalive = {"message_type": tx.MT_RESPONSE, "payload": b""}
+    session = _BurstSession([keepalive, _cmd3_publish(90.0)])
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
+    target = TargetConfig(name="xmtr-1", protocol="hart", host="10.0.0.7")
+
+    out = ops.hart_burst_listen(target, duration_s=5, max_messages=10)
+    assert out["received_messages"] == 1  # keep-alive skipped, only the publish counts
+
+
+@pytest.mark.unit
+def test_burst_listen_stops_at_max_messages(monkeypatch):
+    from iaiops.connectors.hart import ops
+
+    session = _BurstSession([_cmd3_publish() for _ in range(5)])
+    monkeypatch.setattr(tx, "_build_hart_ip_client", lambda target: session)
+    target = TargetConfig(name="xmtr-1", protocol="hart", host="10.0.0.7")
+
+    out = ops.hart_burst_listen(target, duration_s=30, max_messages=2)
+    assert out["received_messages"] == 2
