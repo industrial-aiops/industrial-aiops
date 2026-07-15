@@ -228,8 +228,12 @@ Everything below is the detailed backlog with per-item status.
   `keyLocation`). `tests/test_margo_package.py` lints descriptor ↔ profile menu ↔ pip extras ↔
   build matrix ↔ version pins. Remaining `待核实` = only the secret-parameter flag
   (margo/specification#145). Then run conformance.
-- ⏳ **On-box LLM brain option** — point the RCA copilot at an on-box local LLM → fully air-gapped
-  diagnostic path, no cloud egress.
+- ✅ **On-box LLM brain option — documented + deployable** (2026-07-15) — `docs/AIRGAP.md` (three
+  tiers: deterministic diagnosis needs no LLM at all; `rca_narrate` → on-box Ollama for narration;
+  fully local MCP copilot as a documented pattern) + `deploy/airgap/compose.yaml` (signed iaiops
+  image + pinned Ollama on an internal-only network, no published LLM ports) +
+  `tests/test_airgap_compose.py`. Still `待核实`: a live narration pass against a real Ollama on
+  real edge hardware, and any verified local-copilot client/model pairing.
 - ⏳ **Margo conformance run** — execute the compliance toolkit on a real device + publish the
   traceable result. **Only after this passes** may any material say *Margo-compliant*.
 - ⏳ **Immutable-host validation** — live deploy on a candidate immutable edge OS (IGEL OS or

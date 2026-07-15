@@ -75,8 +75,10 @@ the rest of this repo runs on.
    `keyLocation`), and `tests/test_margo_package.py` lints the descriptor against the pinned
    profile bundles. Remaining: only the secret-parameter flag (pending
    [`margo/specification#145`](https://github.com/margo/specification/issues/145)).
-3. **`⏳` On-box LLM brain option** — document/point the RCA copilot at an on-box local LLM for a
-   fully air-gapped diagnostic path (no cloud egress).
+3. **`✅` On-box LLM brain option (2026-07-15)** — documented + deployable: `docs/AIRGAP.md`
+   (tiered architecture, offline wheelhouse + offline model provisioning, zero-egress
+   verification) + `deploy/airgap/compose.yaml` (signed iaiops image + pinned Ollama on an
+   internal-only network). Live pass on real edge hardware stays `待核实`.
 4. **`⏳` Conformance run** — execute the Margo compliance toolkit on a real device; publish the
    traceable result. **Only after this passes** does any material say *Margo-compliant*.
 5. **`⏳` Immutable-host validation** — a live deploy on a candidate immutable edge OS (IGEL OS or
