@@ -43,6 +43,10 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 ### 三菱 MC（3E；Q/L/iQ）
 - `mc_cpu_status` `mc_read_words` `mc_read_bits` `mc_read_many`
 - `mc_write_words` — **[WRITE][HIGH][MOC]**（默认 off）
+- CC-Link 经主站读（零 CC-Link 硬件，见 docs/CCLINK.md）：`mc_cclink_templates`
+  `mc_cclink_link_read`（RX/RY/RWr/RWw 刷新映像，模板默认值 `待核实` per 项目）
+  `mc_cclink_network_health`（SB/SW 每站链路诊断：classic SW0080–；IE Field
+  SB0049 + SW00B0– + SW00A0– baton pass）
 
 ### Omron FINS（in-repo stdlib 客户端；CS/CJ/CP/NX-via-FINS）
 - `fins_cpu_info`(0501 CPU 型号/版本) `fins_cpu_status`(0601 运行状态/模式/故障字)

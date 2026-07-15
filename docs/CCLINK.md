@@ -84,14 +84,21 @@ previously public PDF URL now 404s; the spec is downloadable from
 
 ## 5. Proposed shape (when we build it)
 
-Phase 1 — **extend `mc`, no new connector** (small, ships value immediately):
-1. **CC-Link link-device read templates** — named templates mapping RX/RY/RWr/RWw ↔ B/W defaults
-   (documented default, `待核实` per project), following the existing Modbus/HART template pattern.
-2. **Network-diagnosis tool** — read SB/SW link special registers → per-station link status /
-   error summary as a governed `[READ]` tool feeding the RCA brain (evidence, citations).
-3. Docs: support-version rows per HLD §5 (library pin `pymcprotocol`, spec = SLMP/MC 3E, vendor
-   coverage = Mitsubishi masters, transport = TCP/UDP Ethernet, self-test = `待核实` until a live
-   pass).
+Phase 1 — **extend `mc`, no new connector** — ✅ **SHIPPED 2026-07-15**
+(`iaiops/connectors/mc/cclink.py` + three governed `[READ]` tools in the factory edition):
+1. **`mc_cclink_templates` / `mc_cclink_link_read`** — named refresh-layout templates
+   (`cclink_classic_default`: RX→X1000/RY→Y1000/RWr→W0/RWw→W100; `cclink_ie_field_default`:
+   RX→B0/RY→B1000/RWr→W0/RWw→W1000; both `待核实` per project) with per-project head-device
+   overrides (`{"rx": "X1200", "rwr": "W200:8"}`), following the Modbus template pattern.
+2. **`mc_cclink_network_health`** — reads the master's link special registers and decodes one
+   row per station: classic `SW0080–0083` (verified addresses, QJ61BT11N manual); IE Field
+   `SB0049` own-station error + `SW00B0–B7` per-station + `SW00A0–A7` baton pass (verified,
+   Mitsubishi IE Field manuals). Bit semantics 0=normal / 1=error. Mock-tested against a
+   faked pymcprotocol client (`tests/test_mc_cclink.py`); **live pass on a real master
+   `待核实`**.
+3. Support rows: library pin `pymcprotocol` (unchanged), spec = SLMP/MC 3E, vendor coverage =
+   Mitsubishi masters (iQ-R/iQ-F/L/Q), transport = TCP/UDP Ethernet, self-test = mock CI (live
+   `待核实`).
 
 Phase 2 — only on market pull: a named `cclink` menu profile / edition wiring, TSN NodeSearch
 discovery, IE-TSN-specific diagnostics — each row `待核实` until live-verified.

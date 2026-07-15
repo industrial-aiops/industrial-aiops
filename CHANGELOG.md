@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Added
+- **CC-Link family reads through the master PLC (zero CC-Link hardware)** — Phase 1 of the
+  `docs/CCLINK.md` feasibility study, closing the biggest Japan-market gap via the existing
+  `mc` connector (SLMP's message format = MC 3E frame). Three governed `[READ]` tools:
+  `mc_cclink_templates` (documented default RX/RY/RWr/RWw ↔ PLC-device refresh layouts for
+  classic CC-Link and CC-Link IE Field, `待核实` per project), `mc_cclink_link_read` (refresh
+  image with per-project head-device overrides), and `mc_cclink_network_health` (per-station
+  data-link status decoded from the master's link special registers — classic `SW0080–`, IE
+  Field `SB0049` + `SW00B0–` + `SW00A0–` baton pass; RCA evidence). Live pass on a real
+  master `待核实`.
+- **Air-gapped operation guide + deployable stack** — `docs/AIRGAP.md` (three tiers; offline
+  wheelhouse + offline model provisioning; zero-egress verification) and
+  `deploy/airgap/compose.yaml` (signed iaiops image + pinned on-box Ollama on an
+  internal-only network).
+- **Signed release artifacts** — per-profile OCI images are cosign-signed and the Margo
+  application package (`iaiops-margo-package-<version>.tar.gz` + `.sig`) is attached to
+  each GitHub release; CI now waits for PyPI before building images (fixes the silent
+  v0.12–v0.14 image-build failures).
+
 ## 0.14.0 — 2026-07-13
 
 > **Audit-hardening release.** A six-dimension internal audit (security · protocol

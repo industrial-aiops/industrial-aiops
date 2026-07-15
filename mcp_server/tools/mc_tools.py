@@ -86,6 +86,77 @@ def mc_read_many(
     return ops.mc_read_many(_target(endpoint), word_devices, dword_devices)
 
 
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def mc_cclink_templates() -> dict:
+    """[READ][risk=low] List CC-Link refresh-image templates (master-PLC route, no device I/O).
+
+    CC-Link/CC-Link IE data is read THROUGH the Mitsubishi master PLC (SLMP/MC) — see
+    docs/CCLINK.md. Each template is a documented default RX/RY/RWr/RWw ↔ PLC-device
+    layout; the real refresh assignment is per-project (待核实 per site).
+
+    Returns dict: {templates:[{name, network, description, areas, caveat}]}.
+
+    Example: mc_cclink_templates().
+    """
+    return ops.mc_cclink_templates()
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def mc_cclink_link_read(
+    template: str,
+    endpoint: Optional[str] = None,
+    overrides: Optional[dict[str, str]] = None,
+) -> dict:
+    """[READ][risk=low] Read a CC-Link refresh image (RX/RY/RWr/RWw) via the master PLC.
+
+    Zero network membership: reads the PLC-side refresh image of the CC-Link /
+    CC-Link IE link devices over the existing MC/SLMP connection (docs/CCLINK.md).
+
+    Args:
+        template: Template name (see mc_cclink_templates), e.g. "cclink_ie_field_default".
+        endpoint: Endpoint name from config (protocol must be 'mc'); the CC-Link MASTER PLC.
+        overrides: Remap area head devices per the project's refresh parameters,
+            e.g. {"rx": "X1200", "rwr": "W200:8"} ("HEAD" or "HEAD:COUNT").
+
+    Returns dict: {endpoint, template, network, areas:[{area, device, kind, count,
+        label, values}], caveat}.
+
+    Example: mc_cclink_link_read(template="cclink_classic_default", overrides={"rwr": "W0:8"}).
+    """
+    return ops.mc_cclink_link_read(_target(endpoint), template, overrides)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def mc_cclink_network_health(
+    endpoint: Optional[str] = None,
+    network: str = "cclink_ie_field",
+    stations: int = 16,
+) -> dict:
+    """[READ][risk=low] Per-station CC-Link data-link health from the master's SB/SW registers.
+
+    Decodes the master's link special registers (classic CC-Link: SW0080–; CC-Link IE
+    Field: SB0049 own-station error + SW00B0– per-station + SW00A0– baton pass) into one
+    row per station — network RCA evidence with zero CC-Link hardware (docs/CCLINK.md).
+
+    Args:
+        endpoint: Endpoint name from config (protocol must be 'mc'); the CC-Link MASTER PLC.
+        network: "cclink" (classic) or "cclink_ie_field".
+        stations: Station numbers to decode, 1..N (classic max 64, IE Field max 120).
+
+    Returns dict: {endpoint, network, stations_checked, own_station_error, stations:
+        [{station, ok}], stations_in_error, baton_pass_lost, healthy, registers, source}.
+
+    Example: mc_cclink_network_health(network="cclink", stations=32).
+    """
+    return ops.mc_cclink_network_health(_target(endpoint), network, stations)
+
+
 def _mc_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
     """Inverse of an applied mc_write_words: restore captured BEFORE words."""
     if not isinstance(result, dict) or not result.get("applied"):
