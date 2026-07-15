@@ -2,7 +2,7 @@
   "_comment": "IGEL OS 12 app-recipe metadata (igelpkg). Submission rules (App Creator Portal): 'version' MUST be a valid SemVer; 'public_version' MUST be empty or absent (kept ABSENT here). Field set grounded on the IGEL-Community recipes; the full authoritative schema stays 待核实 vs the IGEL SDK Reference Manual. See ../README.md for the recommended Managed-Container submission path.",
   "name": "iaiops",
   "displayName": "Industrial-AIOps (governed OT read tap)",
-  "version": "0.10.1",
+  "version": "0.15.0",
   "vendor": "Industrial-AIOps (independent)",
   "rw_partition": {
     "size": "待核实",

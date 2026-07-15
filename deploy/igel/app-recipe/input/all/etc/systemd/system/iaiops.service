@@ -1,21 +1,25 @@
-# systemd unit shipped by the IGEL app-recipe — runs the NEUTRAL iaiops OCI image via Podman on the
-# endpoint. 待核实: (1) MCP over stdio needs a client attached — run mode for a headless MCP workload
-# under systemd is unconfirmed (same open question as the Margo app-package transport); (2) registry
-# ref, secret injection, and volume provisioning are placeholders. Not validated on IGEL OS 12.
+# systemd unit shipped by the IGEL app-recipe — runs the published, cosign-SIGNED iaiops OCI image
+# via Podman on the endpoint. Transport is now settled: the container fronts MCP as a loopback SOCKET
+# (streamable-http) so a headless workload runs cleanly under systemd (no attached stdio client) —
+# the same shape the Margo app-package WG recommends (docs/MARGO-ALIGNMENT.md). 待核实: registry
+# reachability + secret injection surface on a real IGEL OS 12 endpoint.
 [Unit]
 Description=Industrial-AIOps governed OT read tap (containerized)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-# Hardened, matching deploy/margo/compose.yaml. Registry ref is a placeholder (待核实).
-ExecStartPre=-/usr/bin/podman pull 待核实-registry/iaiops:0.10.1-factory
+# Hardened, matching deploy/margo/compose.yaml. The image is cosign-signed — verify before first run:
+#   cosign verify --key <deploy/margo/cosign.pub> ghcr.io/industrial-aiops/iaiops:0.15.0-factory
+ExecStartPre=-/usr/bin/podman pull ghcr.io/industrial-aiops/iaiops:0.15.0-factory
 ExecStart=/usr/bin/podman run --rm --name iaiops \
-  --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  --read-only --tmpfs /tmp --cap-drop=ALL --security-opt=no-new-privileges --user 10001:10001 \
+  --publish 127.0.0.1:8000:8000 \
   --env IAIOPS_MCP=factory \
+  --env IAIOPS_MCP_TRANSPORT=streamable-http --env IAIOPS_MCP_HOST=0.0.0.0 --env IAIOPS_MCP_PORT=8000 \
   --env-file /etc/iaiops/env \
   --volume iaiops-state:/home/iaiops/.iaiops \
-  待核实-registry/iaiops:0.10.1-factory
+  ghcr.io/industrial-aiops/iaiops:0.15.0-factory
 ExecStop=/usr/bin/podman stop iaiops
 Restart=on-failure
 RestartSec=5
