@@ -133,9 +133,13 @@ Everything below is the detailed backlog with per-item status.
   tool + `iaiops diag learn-weights` / `iaiops diag rca --weights`) derives that
   per-site profile from a labeled incident corpus via an explainable smoothed
   signal→cause precision estimator (Laplace smoothing + per-cause min-sample
-  guard + thin-history fall-back to defaults). Remaining follow-ups: a
-  maintenance-log corpus link to auto-build that history, and pulling timestamped
-  alarms from a live A&C event source (current OPC-UA surfacing is untimed).
+  guard + thin-history fall-back to defaults). ~~Maintenance-log corpus link~~ ✅
+  (2026-07-15, Unreleased): `iaiops/core/brain/maintenance_log.py` +
+  `rca_corpus_from_maintenance` MCP tool + `iaiops diag corpus` (CSV/JSON CMMS
+  export → `[{cause, signals}]` corpus → weights) — explicit cause → EN/中文
+  synonym table → unambiguous keyword inference; ambiguous/unknown rows are
+  reported, never guessed. Remaining follow-up: pulling timestamped alarms from
+  a live A&C event source (current OPC-UA surfacing is untimed).
 - ✅ **Data-quality watchdog enhancements** — shipped: configurable staleness/gap
   per tag + per feed (`staleness_s` / `gap_threshold_s` / `flatline_after_s`),
   flatline + dead-heartbeat surfaced as a first-class scored `liveness` section, and

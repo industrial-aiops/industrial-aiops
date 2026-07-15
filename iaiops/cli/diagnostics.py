@@ -214,6 +214,45 @@ def learn_weights_cmd(
     _emit(rca_weights.learn_cause_weights(_load_json(input), min_samples, smoothing))
 
 
+@diag_app.command("corpus")
+@cli_errors
+def corpus_cmd(
+    input: Path = typer.Option(
+        ...,
+        "--input",
+        help="CMMS/work-order export: .csv (one row per closed order) or .json (list of dicts)",
+    ),
+    synonyms: Path = typer.Option(
+        None,
+        "--synonyms",
+        help="JSON file: extra site vocabulary {term: taxonomy_cause}",
+    ),
+    learn: bool = typer.Option(True, "--learn/--no-learn"),
+    min_samples: int = typer.Option(8, "--min-samples"),
+    smoothing: float = typer.Option(1.0, "--smoothing"),
+) -> None:
+    """Build the RCA incident corpus (and weights) from a maintenance-log export.
+
+    Normalizes closed work orders into the ``[{cause, signals}]`` history that
+    ``diag learn-weights`` consumes — explicit taxonomy causes win, then the
+    built-in EN/中文 synonym table (extendable via ``--synonyms``), then
+    unambiguous keyword inference; unmappable rows are reported, never guessed.
+    With ``--learn`` (default) the learned ``cause_weights`` are included, ready
+    for ``diag rca --weights``.
+    """
+    from iaiops.core.brain import maintenance_log
+
+    if input.suffix.lower() == ".csv":
+        import csv
+
+        with Path(input).open(encoding="utf-8-sig", newline="") as fh:
+            rows: list = list(csv.DictReader(fh))
+    else:
+        rows = _load_json(input)
+    extra = _load_json(synonyms) if synonyms else None
+    _emit(maintenance_log.corpus_from_maintenance_log(rows, extra, learn, min_samples, smoothing))
+
+
 @diag_app.command("rca-live")
 @cli_errors
 def rca_live_cmd(
