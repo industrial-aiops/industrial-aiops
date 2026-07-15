@@ -9,9 +9,10 @@ on live instrumentation). The command codec is verified; the HART-IP transport i
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
-from iaiops.connectors.hart import codec
+from iaiops.connectors.hart import codec, transport
 from iaiops.connectors.hart.transport import hart_session
 from iaiops.core.brain._shared import num, s
 from iaiops.core.runtime.connection import OTConnectionError
@@ -173,10 +174,62 @@ def hart_burst_sample(target: Any, samples: int = 3) -> dict:
     }
 
 
+_MAX_LISTEN_SECONDS = 60
+
+
+def hart_burst_listen(target: Any, duration_s: float = 10.0, max_messages: int = 20) -> dict:
+    """[READ] Passively LISTEN for unsolicited HART burst-publish messages.
+
+    Unlike ``hart_burst_sample`` (which actively re-polls command 3), this opens a
+    session and receives whatever the device/gateway PUBLISHES on its own burst
+    schedule — no polling — for up to ``duration_s`` seconds or ``max_messages``.
+    Each HART-IP *publish* message (message_type 2) is decoded with the SAME
+    command-3 payload parser, so the shape matches the polled tools. Read-only; no
+    burst-mode configuration is written.
+
+    Requires a gateway that forwards unsolicited publishes on the session socket
+    (待核实 per gateway); a device not in burst mode simply yields nothing —
+    ``hart_burst_sample`` is the active fallback.
+    """
+    base = {"endpoint": s(getattr(target, "name", ""), 64), "host": s(target.host, 48)}
+    duration_s = max(0.0, min(float(duration_s), _MAX_LISTEN_SECONDS))
+    max_messages = max(1, min(int(max_messages), _MAX_BURST_SAMPLES))
+    collected: list[dict] = []
+    deadline = time.monotonic() + duration_s
+    with hart_session(target) as session:
+        receive = getattr(session, "receive_message", None)
+        if receive is None:
+            return {
+                **base,
+                "error": "This HART-IP transport does not support passive burst "
+                "listening; use hart_burst_sample (active polling).",
+            }
+        while time.monotonic() < deadline and len(collected) < max_messages:
+            message = receive(min(2.0, max(0.05, deadline - time.monotonic())))
+            if message is None:
+                continue  # timeout tick — keep listening until the deadline
+            if message.get("message_type") != transport.MT_PUBLISH:
+                continue  # keep-alive / stray response — only count publishes
+            parsed = _first_response(message.get("payload", b""))
+            if parsed is None:
+                continue
+            collected.append({"index": len(collected), **_dynamic_payload(parsed)})
+    return {
+        **base,
+        "listen_seconds": duration_s,
+        "received_messages": len(collected),
+        "messages": collected,
+        "note": "Passively listened for unsolicited HART burst publishes (message "
+        "type 2). Empty = the device is not bursting to this session or the gateway "
+        "does not forward publishes (待核实); hart_burst_sample actively polls instead.",
+    }
+
+
 __all__ = [
     "hart_device_identity",
     "hart_primary_variable",
     "hart_dynamic_variables",
     "hart_burst_sample",
+    "hart_burst_listen",
     "OTConnectionError",
 ]

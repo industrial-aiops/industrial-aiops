@@ -88,8 +88,14 @@ class SyslogUDPSink:
 class HttpSink:
     """POST each JSON line to an HTTP(S) endpoint (one request per row).
 
-    Optional bearer-token auth: set ``IAIOPS_FORWARD_TOKEN`` (or pass
-    ``token=``) to send an ``Authorization: Bearer ...`` header.
+    Optional token auth: set ``IAIOPS_FORWARD_TOKEN`` (or pass ``token=``).
+    The header shape is configurable for non-Bearer SIEMs:
+
+    * ``IAIOPS_FORWARD_AUTH_SCHEME`` (default ``Bearer``) — the scheme prefix,
+      e.g. ``Splunk`` (HEC) or ``ApiKey`` (Elastic). Empty string → the raw
+      token becomes the header value (``X-Api-Key``-style headers).
+    * ``IAIOPS_FORWARD_AUTH_HEADER`` (default ``Authorization``) — the header
+      name, e.g. ``X-Api-Key``.
     """
 
     def __init__(
@@ -98,10 +104,22 @@ class HttpSink:
         *,
         timeout: float = _DEFAULT_HTTP_TIMEOUT,
         token: str | None = None,
+        auth_scheme: str | None = None,
+        auth_header: str | None = None,
     ) -> None:
         self._url = url
         self._timeout = timeout
         self._token = token if token is not None else os.environ.get("IAIOPS_FORWARD_TOKEN", "")
+        self._auth_scheme = (
+            auth_scheme
+            if auth_scheme is not None
+            else os.environ.get("IAIOPS_FORWARD_AUTH_SCHEME", "Bearer")
+        ).strip()
+        self._auth_header = (
+            auth_header
+            if auth_header is not None
+            else os.environ.get("IAIOPS_FORWARD_AUTH_HEADER", "Authorization")
+        ).strip() or "Authorization"
         if url.lower().startswith("http://"):
             _log.warning(
                 "SIEM forward endpoint %s is PLAINTEXT http — audit rows (tool "
@@ -113,7 +131,8 @@ class HttpSink:
     def send(self, line: str) -> None:
         headers = {"Content-Type": "application/json"}
         if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
+            value = f"{self._auth_scheme} {self._token}" if self._auth_scheme else self._token
+            headers[self._auth_header] = value
         request = urllib.request.Request(
             self._url,
             data=line.encode("utf-8"),
