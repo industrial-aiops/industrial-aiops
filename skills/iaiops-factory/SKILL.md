@@ -24,7 +24,7 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 
 ### OPC-UA（只读）
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`
-- `opcua_subscribe_sample` `opcua_read_alarms` `opcua_read_history`(HDA)
+- `opcua_subscribe_sample` `opcua_read_alarms` `opcua_alarm_events`(A&C 带时间戳) `opcua_read_history`(HDA)
 - `opcua_diagnose_connection` — 连接失败五类归因（证书/策略/认证/网络/配置）
 - `opcua_discover_tags` — 自动发现 + 语义资产建模
 - `opcua_health_summary` — tag vs 阈值分类；`opcua_anomaly_scan` — 有界统计异常扫描

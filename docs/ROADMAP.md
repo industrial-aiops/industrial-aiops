@@ -138,8 +138,12 @@ Everything below is the detailed backlog with per-item status.
   `rca_corpus_from_maintenance` MCP tool + `iaiops diag corpus` (CSV/JSON CMMS
   export → `[{cause, signals}]` corpus → weights) — explicit cause → EN/中文
   synonym table → unambiguous keyword inference; ambiguous/unknown rows are
-  reported, never guessed. Remaining follow-up: pulling timestamped alarms from
-  a live A&C event source (current OPC-UA surfacing is untimed).
+  reported, never guessed. ~~Timestamped alarms from a live A&C event source~~ ✅
+  (2026-07-15, Unreleased): `opcua_alarm_events` (bounded A&C event subscription +
+  ConditionRefresh; events carry the server's own Time) — `collect_evidence` /
+  `downtime_rca_live` now try the timed path first and fall back to the untimed
+  address-space scan; verified against a real in-process asyncua server
+  (third-party A&C servers `待核实`).
 - ✅ **Data-quality watchdog enhancements** — shipped: configurable staleness/gap
   per tag + per feed (`staleness_s` / `gap_threshold_s` / `flatline_after_s`),
   flatline + dead-heartbeat surfaced as a first-class scored `liveness` section, and

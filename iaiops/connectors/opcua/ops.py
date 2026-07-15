@@ -200,9 +200,9 @@ def read_alarms(target: Any, node_id: str = OBJECTS_NODE, depth: int = 4) -> dic
         root = client.get_node(node_id)
         scanned = _scan_alarms(client, root, depth_left=depth, active=active)
     note = (
-        "Browsed boolean nodes whose name suggests an alarm/condition. Full "
-        "OPC-UA Alarms & Conditions (event subscriptions) is not modelled in "
-        "this preview — open an issue if your server exposes A&C events."
+        "Browsed boolean nodes whose name suggests an alarm/condition (untimed). "
+        "For servers with A&C event support, alarm_events returns the same "
+        "conditions WITH the server's event timestamps."
     )
     return {
         "active_alarms": active,
@@ -246,6 +246,115 @@ def _scan_alarms(client: Any, node: Any, depth_left: int, active: list[dict]) ->
             break
         scanned += _scan_alarms(client, child, depth_left - 1, active)
     return scanned
+
+
+class _AlarmEventBuffer:
+    """asyncua subscription handler collecting parsed A&C events (bounded)."""
+
+    def __init__(self, cap: int) -> None:
+        self.cap = cap
+        self.events: list[dict] = []
+
+    def event_notification(self, event: Any) -> None:
+        if len(self.events) >= self.cap:
+            return
+        self.events.append(_parse_alarm_event(event))
+
+
+def _localized_text(value: Any) -> str:
+    """Extract the text of a LocalizedText-ish value (best-effort)."""
+    text = getattr(value, "Text", value)
+    return "" if text is None else str(text)
+
+
+def _parse_alarm_event(event: Any) -> dict:
+    """Normalize one A&C event to the RCA/ISA-18.2 alarm-event shape (best-effort)."""
+    active_state = getattr(event, "ActiveState", None)
+    retain = getattr(event, "Retain", None)
+    if active_state is not None:
+        active: bool | None = _localized_text(active_state).strip().lower() == "active"
+    elif retain is not None:
+        active = bool(retain)
+    else:
+        active = None  # plain event (no condition state) — reported as EVENT
+    time_val = getattr(event, "Time", None)
+    severity = getattr(event, "Severity", None)
+    return {
+        "source": s(_localized_text(getattr(event, "SourceName", "")) or "event", 96),
+        "message": s(_localized_text(getattr(event, "Message", "")), 200),
+        "severity": int(severity) if severity is not None else None,
+        "state": "ACTIVE" if active else ("RTN" if active is False else "EVENT"),
+        # The SERVER's event Time — the timed alarm feed RCA temporal weighting needs.
+        "timestamp": s(time_val.isoformat(), 64) if isinstance(time_val, datetime) else None,
+    }
+
+
+def alarm_events(
+    target: Any, duration_s: float = 5.0, refresh: bool = True, max_events: int = 200
+) -> dict:
+    """[READ] Timestamped Alarms & Conditions via a *bounded* event subscription.
+
+    Subscribes to the Server object for Condition-type events, optionally calls
+    ``ConditionRefresh`` so currently-retained conditions are re-announced WITH
+    their original event ``Time``, listens for at most ``duration_s`` seconds (or
+    ``max_events``), then unsubscribes. This is the timed complement to
+    ``read_alarms``' address-space scan: each event carries the server's own
+    timestamp, so the RCA copilot can time-localize alarm evidence. Requires a
+    server that implements A&C event subscriptions (待核实 per server); on
+    servers without it the subscription simply yields nothing — pair with
+    ``read_alarms`` as the untimed fallback.
+    """
+    duration_s = max(0.0, min(float(duration_s), MAX_SAMPLE_SECONDS))
+    max_events = max(1, min(int(max_events), MAX_SAMPLES))
+    buffer = _AlarmEventBuffer(max_events)
+    refreshed = False
+    refresh_error = ""
+    with opcua_session(target) as client:
+        from asyncua import ua  # session guarantees asyncua is importable here
+
+        sub = client.create_subscription(500, buffer)
+        try:
+            server_node = client.get_node(ua.ObjectIds.Server)
+            condition_type = client.get_node(ua.ObjectIds.ConditionType)
+            sub.subscribe_events(server_node, condition_type)
+            if refresh:
+                try:
+                    # asyncua's sync Subscription doesn't proxy subscription_id —
+                    # it lives on the wrapped aio object (verified against 1.x).
+                    sub_id = getattr(sub, "subscription_id", None)
+                    if sub_id is None:
+                        sub_id = sub.aio_obj.subscription_id
+                    condition_type.call_method(
+                        ua.NodeId(ua.ObjectIds.ConditionType_ConditionRefresh),
+                        ua.Variant(sub_id, ua.VariantType.UInt32),
+                    )
+                    refreshed = True
+                except Exception as exc:  # noqa: BLE001 — refresh support varies per server
+                    if "BadNothingToDo" in str(exc):
+                        refreshed = True  # refresh ran; the server holds no retained conditions
+                    else:
+                        refresh_error = s(str(exc), 200)
+            deadline = time.monotonic() + duration_s
+            while time.monotonic() < deadline and len(buffer.events) < max_events:
+                time.sleep(0.1)
+        finally:
+            try:
+                sub.delete()
+            except Exception:  # noqa: BLE001 — best-effort teardown
+                pass
+    return {
+        "endpoint": s(target.name, 64),
+        "duration_s": duration_s,
+        "condition_refresh": refreshed,
+        "refresh_error": refresh_error,
+        "event_count": len(buffer.events),
+        "events": buffer.events[:max_events],
+        "note": (
+            "Events carry the server's own Time (timed alarm evidence). An empty "
+            "result can mean either no events in the window or a server without "
+            "A&C event support — read_alarms is the untimed fallback."
+        ),
+    }
 
 
 def _parse_iso(value: Any) -> datetime | None:
@@ -334,6 +443,7 @@ __all__ = [
     "read_many",
     "subscribe_sample",
     "read_alarms",
+    "alarm_events",
     "read_history",
     "opcua_session",
     "OTConnectionError",
