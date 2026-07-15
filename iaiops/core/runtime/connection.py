@@ -101,7 +101,10 @@ _translate_iolink = _iolink_tx._translate_iolink
 opcua_session = make_session(
     protocol="opcua",
     build=lambda target: _build_opcua_client(target),
-    connect=lambda client, target: client.connect(),
+    # NOT a plain client.connect(): asyncua's sync Client starts a non-daemon
+    # ThreadLoop in its constructor, so a failed connect must tear it down again
+    # (make_session skips close on connect failure) or the thread leaks forever.
+    connect=_opcua_tx._connect_opcua,
     close=lambda client: client.disconnect(),
     translate=_translate_opcua,
 )

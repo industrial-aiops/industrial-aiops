@@ -33,7 +33,7 @@ description: >-
 ### OPC-UA（只读；设备内控层 / opc.tcp 端点）
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`
 - `opcua_subscribe_sample` — 有界采样后返回（绝不死循环）
-- `opcua_read_alarms` — best-effort 活动告警/condition
+- `opcua_read_alarms` — best-effort 活动告警/condition（untimed）；`opcua_alarm_events` — A&C 事件订阅（带服务器时间戳）
 - `opcua_read_history` — HDA 历史读取（[start,end] 窗口）
 - `opcua_diagnose_connection` — 连不上时归因（证书/安全策略/认证/防火墙/DNS/端口/配置）
 - `opcua_discover_tags` — 自动发现 tag 并建语义资产模型

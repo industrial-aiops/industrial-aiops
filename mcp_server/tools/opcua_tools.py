@@ -95,11 +95,11 @@ def opcua_subscribe_sample(
 def opcua_read_alarms(
     endpoint: Optional[str] = None, node_id: str = "i=85", depth: int = 4
 ) -> dict:
-    """[READ][risk=low] Best-effort surfacing of active alarm/condition booleans.
+    """[READ][risk=low] Best-effort surfacing of active alarm/condition booleans (untimed).
 
     Browses the address space (bounded) for alarm-like boolean nodes reading
-    True. Full OPC-UA Alarms & Conditions event subscriptions are not modelled
-    in this preview; returns a clear note when nothing alarm-like is found.
+    True. Untimed by nature — for servers with A&C event support use
+    opcua_alarm_events, which returns conditions WITH the server's timestamps.
 
     Args:
         endpoint: Endpoint name from config.
@@ -107,6 +107,39 @@ def opcua_read_alarms(
         depth: Bounded scan depth.
     """
     return ops.read_alarms(_target(endpoint), node_id, depth)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def opcua_alarm_events(
+    endpoint: Optional[str] = None,
+    duration_s: float = 5.0,
+    refresh: bool = True,
+    max_events: int = 200,
+) -> dict:
+    """[READ][risk=low] Timestamped Alarms & Conditions via a bounded event subscription.
+
+    Subscribes to the Server object for Condition-type events, optionally calls
+    ConditionRefresh so currently-retained conditions are re-announced WITH their
+    original event Time, listens for at most duration_s seconds, unsubscribes.
+    The timed complement to opcua_read_alarms: each event carries the server's own
+    timestamp, so RCA can time-localize alarm evidence. Requires a server that
+    implements A&C event subscriptions (待核实 per server); an empty result can mean
+    no events in the window OR no A&C support — pair with opcua_read_alarms.
+
+    Args:
+        endpoint: Endpoint name from config.
+        duration_s: Listen window in seconds (0..60, default 5).
+        refresh: Call ConditionRefresh to replay retained/active conditions (default true).
+        max_events: Stop after this many events (1..200).
+
+    Returns dict: {endpoint, duration_s, condition_refresh, refresh_error, event_count,
+        events:[{source, message, severity, state (ACTIVE|RTN|EVENT), timestamp}], note}.
+
+    Example: opcua_alarm_events(endpoint="line1", duration_s=5).
+    """
+    return ops.alarm_events(_target(endpoint), duration_s, refresh, max_events)
 
 
 @mcp.tool()
