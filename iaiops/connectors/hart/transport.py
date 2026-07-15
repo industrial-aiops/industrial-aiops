@@ -29,6 +29,7 @@ HART_IP_VERSION = 1
 # message_type
 MT_REQUEST = 0
 MT_RESPONSE = 1
+MT_PUBLISH = 2  # unsolicited burst publish from the gateway/device
 # message_id
 MID_SESSION_INITIATE = 0
 MID_SESSION_CLOSE = 1
@@ -133,6 +134,18 @@ class HartIpSession:
         resp = self._exchange(MID_TOKEN_PASSING, pdu)
         return parse_message(resp)["payload"]
 
+    def receive_message(self, timeout_s: float) -> dict | None:
+        """Read ONE incoming HART-IP datagram, or None on timeout (burst listener)."""
+        previous = self._sock.gettimeout()
+        self._sock.settimeout(max(0.05, float(timeout_s)))
+        try:
+            data, _ = self._sock.recvfrom(65535)
+            return parse_message(data)
+        except TimeoutError:
+            return None
+        finally:
+            self._sock.settimeout(previous)
+
     def _exchange(self, message_id: int, payload: bytes) -> bytes:
         self._seq = (self._seq + 1) & 0xFFFF
         self._sock.sendto(
@@ -218,6 +231,21 @@ class HartIpTcpSession:
         """Send a HART command PDU as a token-passing message; return the HART response bytes."""
         resp = self._exchange(MID_TOKEN_PASSING, pdu)
         return parse_message(resp)["payload"]
+
+    def receive_message(self, timeout_s: float) -> dict | None:
+        """Read ONE incoming HART-IP message (framed), or None on timeout.
+
+        Used by the unsolicited-burst listener: publish messages arrive without a
+        matching request, so this bypasses the request/response matcher.
+        """
+        previous = self._sock.gettimeout()
+        self._sock.settimeout(max(0.05, float(timeout_s)))
+        try:
+            return parse_message(self._read_message())
+        except TimeoutError:
+            return None
+        finally:
+            self._sock.settimeout(previous)
 
     def _exchange(self, message_id: int, payload: bytes) -> bytes:
         self._seq = (self._seq + 1) & 0xFFFF
