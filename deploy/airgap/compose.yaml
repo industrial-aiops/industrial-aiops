@@ -1,0 +1,61 @@
+# Fully air-gapped edge stack: iaiops (governed OT tap + RCA) + an on-box LLM (Ollama) for
+# plain-language narration of cited RCA verdicts — no cloud egress anywhere in the diagnostic path.
+# See docs/AIRGAP.md for the full guide (offline install, offline model provisioning, egress checks).
+#
+#   docker compose -f deploy/airgap/compose.yaml up      # (or: podman-compose ...)
+#
+# Topology: the LLM sits on an INTERNAL-ONLY network — it has no route out of the host and no
+# published ports; only iaiops can reach it. iaiops keeps its hardened posture (non-root,
+# read-only rootfs, no caps) and exposes exactly one loopback-bound MCP port for the local
+# agent/orchestrator. The OT side stays strictly outbound to the endpoints in config.yaml.
+services:
+  iaiops:
+    # Published, cosign-signed per-edition image (see deploy/margo/README.md to verify signatures).
+    # The IAIOPS_MCP env selects the edition variant: fab | factory | process | building | water.
+    image: ghcr.io/industrial-aiops/iaiops:0.14.0-${IAIOPS_MCP:-factory}
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    user: "10001:10001"
+    # The ONLY inbound port on the host: the MCP tool interface, loopback-bound.
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      IAIOPS_MCP: ${IAIOPS_MCP:-factory}
+      IAIOPS_MCP_TRANSPORT: ${IAIOPS_MCP_TRANSPORT:-streamable-http}
+      IAIOPS_MCP_HOST: "0.0.0.0"
+      IAIOPS_MCP_PORT: "8000"
+      IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}
+      # Secret REFERENCE model: inject from the host secret facility — never hardcode.
+      IAIOPS_MASTER_PASSWORD: ${IAIOPS_MASTER_PASSWORD:?set in the host secret store}
+    volumes:
+      - iaiops-state:/home/iaiops/.iaiops
+    networks:
+      - mcp # host-published MCP port + outbound to the configured OT endpoints
+      - llm # private path to the on-box model
+    restart: unless-stopped
+
+  ollama:
+    # On-box narration model server. Pinned for reproducibility; models are provisioned OFFLINE
+    # into the volume below (docs/AIRGAP.md §3) — this container never needs internet access.
+    image: ollama/ollama:0.32.0
+    # No published ports: reachable ONLY as http://ollama:11434 from iaiops on the internal
+    # network. Call it via the rca_narrate tool: rca_narrate(verdict=…, base_url="http://ollama:11434").
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - llm
+    restart: unless-stopped
+
+networks:
+  mcp:
+  llm:
+    # internal: no gateway — containers on this network cannot reach anything outside the host.
+    internal: true
+
+volumes:
+  iaiops-state:
+  # Provisioned offline: `ollama pull <model>` on a connected staging host, then copy its
+  # ~/.ollama into this volume via approved transfer (USB / data diode). See docs/AIRGAP.md §3.
+  ollama-models:
