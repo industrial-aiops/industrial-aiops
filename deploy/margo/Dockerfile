@@ -1,6 +1,7 @@
 # iaiops as a Margo-style edge application — reproducible, headless, non-root, read-only-rootfs friendly.
-# See docs/MARGO-ALIGNMENT.md (§4 work items). NOT a Margo-compliant image yet — this is the
-# `⏳` container skeleton; the app-package descriptor + conformance run are still 待核实.
+# See docs/MARGO-ALIGNMENT.md (§4 work items). Built + cosign-signed per profile by CI
+# (.github/workflows/publish-image.yml → ghcr.io/industrial-aiops/iaiops:<version>-<profile>).
+# NOT Margo-compliant yet — the conformance run is still 待核实.
 #
 # Build:  docker build -t iaiops:factory --build-arg PROFILE=factory -f deploy/margo/Dockerfile .
 # Run:    see deploy/margo/compose.yaml

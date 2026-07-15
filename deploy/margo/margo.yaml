@@ -12,9 +12,13 @@
 #     NAME/reference, never a value — resolved on-device from the encrypted secret store. See
 #     `masterPassword` below and ../../docs/MARGO-ALIGNMENT.md appendix B.
 #
-# Remaining genuine `待核实`: (1) the hosted, signed package location + signing key (needs a
-# host/registry), and (2) the secret-parameter flag pending #145. iaiops has NOT been run through
-# the conformance toolkit, so it is still NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
+# Package hosting + signing (resolved): CI (.github/workflows/publish-image.yml) builds
+# ghcr.io/industrial-aiops/iaiops:<version>-<profile> (cosign-signed), assembles this descriptor +
+# the deploy-ready compose into iaiops-margo-package-<version>.tar.gz, cosign-signs the tarball,
+# and attaches both to the GitHub release. Verify key: deploy/margo/cosign.pub (keyLocation).
+#
+# Remaining genuine `待核实`: the secret-parameter flag pending #145. iaiops has NOT been run
+# through the conformance toolkit, so it is still NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
 apiVersion: margo.org/v1-alpha1
 kind: ApplicationDescription
 id: io-github-industrial-aiops-iaiops
@@ -48,8 +52,11 @@ deploymentProfiles:
     components:
       - name: iaiops
         properties:
-          packageLocation: 待核实   # URL to the signed compose.tar.gz (needs a host/registry)
-          keyLocation: 待核实       # URL to the signing public key
+          # Signed package (built + attached to the release by CI; version kept in sync with
+          # pyproject.toml by tests/test_margo_package.py). Detached signature at the same URL + .sig.
+          packageLocation: https://github.com/industrial-aiops/industrial-aiops/releases/download/v0.14.0/iaiops-margo-package-0.14.0.tar.gz
+          # Cosign public key (verify: cosign verify-blob --key … --signature <pkg>.sig <pkg>).
+          keyLocation: https://raw.githubusercontent.com/industrial-aiops/industrial-aiops/main/deploy/margo/cosign.pub
           wait: true
           timeout: "5m00s"
     requiredResources:

@@ -498,7 +498,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.13.0"
+version = "0.14.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -513,6 +513,7 @@ dependencies = [
 all = [
     { name = "asyncua" },
     { name = "bac0" },
+    { name = "hart-protocol" },
     { name = "nats-py" },
     { name = "paho-mqtt" },
     { name = "pnio-dcp" },
@@ -538,6 +539,12 @@ building = [
     { name = "pymodbus" },
     { name = "pyserial" },
     { name = "requests" },
+]
+clinical = [
+    { name = "asyncua" },
+    { name = "bac0" },
+    { name = "pymodbus" },
+    { name = "pyserial" },
 ]
 eip = [
     { name = "pycomm3" },
@@ -637,6 +644,15 @@ tdengine = [
     { name = "taospy", version = "2.8.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "taospy", version = "2.8.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
+warehouse = [
+    { name = "asyncua" },
+    { name = "paho-mqtt" },
+    { name = "pnio-dcp" },
+    { name = "protobuf" },
+    { name = "pycomm3" },
+    { name = "pymodbus" },
+    { name = "pyserial" },
+]
 water = [
     { name = "asyncua" },
     { name = "hart-protocol" },
@@ -663,10 +679,13 @@ requires-dist = [
     { name = "bac0", marker = "extra == 'all'", specifier = ">=2023.6,<2026" },
     { name = "bac0", marker = "extra == 'bacnet'", specifier = ">=2023.6,<2026" },
     { name = "cryptography", specifier = ">=42.0" },
+    { name = "hart-protocol", marker = "extra == 'all'", specifier = ">=2023.6,<2025" },
     { name = "hart-protocol", marker = "extra == 'hart'", specifier = ">=2023.6,<2025" },
     { name = "iaiops", extras = ["bacnet"], marker = "extra == 'building'" },
+    { name = "iaiops", extras = ["bacnet"], marker = "extra == 'clinical'" },
     { name = "iaiops", extras = ["bas"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["eip"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["eip"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["ethercat"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["fins"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["hart"], marker = "extra == 'process'" },
@@ -677,29 +696,35 @@ requires-dist = [
     { name = "iaiops", extras = ["iotdb"], marker = "extra == 'xinchuang'" },
     { name = "iaiops", extras = ["mc"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'building'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'clinical'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'plcnext'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'renewables'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'bas'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'ignition'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'iolink'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'building'" },
+    { name = "iaiops", extras = ["opcua"], marker = "extra == 'clinical'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'plcnext'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'renewables'" },
+    { name = "iaiops", extras = ["opcua"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["opcua"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["profinet"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["profinet"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["s7"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["s7"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["secsgem"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'renewables'" },
+    { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["tdengine"], marker = "extra == 'xinchuang'" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.10,<2.0" },
     { name = "nats-py", marker = "extra == 'all'", specifier = ">=2.6,<3" },
@@ -735,7 +760,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "warehouse", "clinical", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [
