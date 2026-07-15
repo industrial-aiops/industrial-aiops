@@ -111,11 +111,12 @@ Everything below is the detailed backlog with per-item status.
   live/physical PLCnext (no gear in CI). Follow-ups: 汇川/台达/信捷 domestic-PLC live pass
   (same reused-Modbus/Ethernet pattern); GDS security (sign/encrypt) once demanded.
 - ❌ Not doing: CC-Link *network roles* (master/slave/device stacks — hardware/cert-gated,
-  write-side). ⏳ **Feasible instead** (study 2026-07-15, `docs/CCLINK.md`): CC-Link link-device
-  + SB/SW network-diagnostics reads *through the master PLC* via SLMP (= MC 3E frame; existing
-  `mc` connector + pymcprotocol already speak it) — plan = extend `mc` with link-device templates
-  + a network-diag `[READ]` tool; live pass `待核实`. Still not doing: PROFIBUS-DP (needs a
-  master card, not software-tappable), FL-net (niche, no library).
+  write-side). ✅ **Shipped instead** (2026-07-15, study + Phase 1 in `docs/CCLINK.md`):
+  CC-Link link-device + SB/SW network-diagnostics reads *through the master PLC* via SLMP
+  (= MC 3E frame; the existing `mc` connector) — `mc_cclink_templates` /
+  `mc_cclink_link_read` / `mc_cclink_network_health` (classic SW0080–; IE Field SB0049 +
+  SW00B0– + SW00A0– baton pass; mock-tested, live pass `待核实`). Still not doing:
+  PROFIBUS-DP (needs a master card, not software-tappable), FL-net (niche, no library).
 
 ## Capabilities / intelligence
 - ✅ **AI downtime root-cause copilot (flagship)** — shipped in v0.5.0 as

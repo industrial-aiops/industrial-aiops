@@ -50,7 +50,7 @@ notable gaps are hardware-gated (like EtherCAT/PROFINET), so coverage is honest,
 | **Omron FINS** (CS/CJ/CP/NX) | ✅ covered (`fins`) | APAC/Japan Omron installed base |
 | **SECS/GEM (HSMS)** | ✅ covered (`secsgem`) | semiconductor/display fabs — huge in Japan |
 | **Modbus / OPC-UA / MQTT-Sparkplug** | ✅ covered | global, present in Japan too |
-| **CC-Link / CC-Link IE (TSN)** | ⏳ **feasibility RESOLVED** (2026-07-15, `docs/CCLINK.md`) | **the biggest Japan gap** — direct network participation stays hardware/role-gated, but the viable route needs **zero new hardware**: read link devices + SB/SW network diagnostics *through the master PLC* via SLMP (whose format = MC 3E frame — the existing `mc` connector already speaks it). Plan = extend `mc` (templates + network-diag tool), no new connector. Live pass `待核实` |
+| **CC-Link / CC-Link IE (TSN)** | ✅ **Phase 1 shipped** (2026-07-15, `docs/CCLINK.md`) | **the biggest Japan gap** — closed via the master-PLC SLMP route (SLMP = MC 3E frame; existing `mc` connector), zero new hardware: `mc_cclink_templates` / `mc_cclink_link_read` (refresh-image templates + overrides) + `mc_cclink_network_health` (SW0080– / SB0049+SW00B0– per-station diagnostics). Live pass on a real master `待核实`; network participation stays out of scope |
 | **FL-net (OPCN-2, JEMA)** | ❌ not covered | niche Japanese FA Ethernet; low priority |
 | **Yokogawa Vnet/IP** (Centum DCS) | ❌ not covered | Yokogawa DCS backbone; niche, proprietary |
 
