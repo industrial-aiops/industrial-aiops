@@ -1,10 +1,13 @@
 # `deploy/igel/` — iaiops on IGEL OS 12 (distribution overlay)
 
 > **One distribution target, not the core.** iaiops stays **vendor-neutral**; the neutral artifact
-> is the OCI image in [`../margo/`](../margo/). This folder is a thin **IGEL-specific overlay** that
-> reuses that image — analogous overlays could exist for any other edge host. Exact IGEL SDK / App
-> Creator Portal / UMS specifics below are `待核实` until validated on a real IGEL OS 12 box.
-> **Status: roadmap `⏳`.**
+> is the **published, cosign-signed** OCI image in [`../margo/`](../margo/)
+> (`ghcr.io/industrial-aiops/iaiops:<version>-<profile>`). This folder is a thin **IGEL-specific
+> overlay** that reuses that image — analogous overlays could exist for any other edge host. The
+> **Managed-Container route is now fully unlocked**: the image ships per-profile, signed, and fronts
+> MCP as a socket (the transport question is resolved). Exact IGEL SDK / App Creator Portal / UMS
+> specifics below stay `待核实` until validated on a real IGEL OS 12 box. **Status: roadmap `⏳`
+> (materials submission-ready; the submission itself needs an IGEL Ready account — email-gated).**
 
 ## Getting listed — IGEL Ready + the submission workflow
 
@@ -14,6 +17,10 @@ Two visibility levels, pick per goal:
 |---|---|---|
 | Who | anyone | must be an **IGEL Ready Technology Partner** first |
 | Result | signed for **your own devices**; NOT on the public App Portal | IGEL **validates + certifies** → listed on the public **App Portal** (app.igel.com) |
+
+> **Submission answers are pre-filled** in [`SUBMISSION.md`](SUBMISSION.md) — copy/paste into the
+> Guided App Submission Workflow once an IGEL Ready account exists (the account is email-gated; see
+> §4 there).
 
 **To get certified (public):**
 1. Join **IGEL Ready** at `igel.com/partners/technology-partners/` (ecosystem program; a warm intro
@@ -35,9 +42,9 @@ point IGEL at your OCI registry and deploy the neutral `deploy/margo/` image —
 and it sidesteps the debian/ubuntu-only dependency constraint** (deps live inside the OCI image).
 
 ```bash
-# 1. Build + push the neutral image to an OCI registry IGEL can reach
-docker build -t <registry>/iaiops:0.10.1-factory --build-arg PROFILE=factory -f deploy/margo/Dockerfile .
-docker push <registry>/iaiops:0.10.1-factory
+# 1. Pull the PUBLISHED, cosign-signed neutral image (no local build needed) + verify it
+podman pull ghcr.io/industrial-aiops/iaiops:0.15.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.15.0-factory
 # 2. In IGEL: connect the OCI registry + deploy the container via UMS / App Portal (待核实: exact
 #    Managed-Container config surface — the feature is evolving; confirm against current IGEL docs).
 ```
@@ -60,7 +67,7 @@ runs the neutral image via the container runtime.
 
 | Path | Purpose |
 |------|---------|
-| `app.json` | App metadata — `version` (SemVer 0.10.1), `public_version` absent (submission rule), `rw_partition`, `prefer_btrfs`. |
+| `app.json` | App metadata — `version` (SemVer 0.15.0), `public_version` absent (submission rule), `rw_partition`, `prefer_btrfs`. |
 | `igel/thirdparty.json` | Binaries the app uses (container runtime). Submission requirement. |
 | `igel/install.sh` | Enables the systemd service (`enable_system_service iaiops.service`). |
 | `input/all/etc/systemd/system/iaiops.service` | systemd unit that runs the neutral image via the container runtime. `待核实`: run mode for an MCP stdio workload. |
