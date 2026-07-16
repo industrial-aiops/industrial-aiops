@@ -3,6 +3,21 @@
 ## Unreleased
 
 ### Added
+- **OEE / energy analysis depth (no new tools)** — the always-on `oee_compute` and
+  `oee_multidim` tools gain deeper analytics with **zero** new `@mcp.tool` (the brain tool
+  count is unchanged, so no profile crosses the flood ceiling). `oee_compute` now returns a
+  **Six Big Losses** decomposition (`six_big_losses` in `iaiops/core/brain/oee.py`): a
+  telescoping time-ladder attributing every second of planned time to fully-productive output
+  or one of breakdown / setup / minor-stops / speed / startup-rejects / production-rejects,
+  where each loss's `pct_of_planned` is exactly the OEE points it costs (the six shares sum
+  with OEE to 1.0; an optimistic ideal cycle is flagged, not hidden). New pure
+  `iaiops/core/brain/energy.py` adds **energy intensity** (kWh/unit), optional **carbon**
+  accounting, and **actual-vs-baseline deviation** by shift/period — flagging anomalies by
+  two explainable rules (fixed tolerance band + robust Iglewicz-Hoaglin MAD outlier). Wired
+  into `oee_compute` (single run) and `oee_multidim` (per-dimension + cross-group). The carbon
+  emission factor is a **caller-configurable** parameter; its default (0.5 kg CO2e/kWh) is an
+  explicit placeholder surfaced with its source and marked `待核实` — no authoritative grid
+  factor is baked in.
 - **HART passive burst listener** — `hart_burst_listen` receives unsolicited HART-IP
   burst-publish messages (message type 2) on the session socket, the timed complement to the
   active `hart_burst_sample`; publishes decode through the same command-3 parser. Live gateway
