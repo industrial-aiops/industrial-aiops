@@ -18,6 +18,16 @@
   emission factor is a **caller-configurable** parameter; its default (0.5 kg CO2e/kWh) is an
   explicit placeholder surfaced with its source and marked `待核实` — no authoritative grid
   factor is baked in.
+- **MTConnect incremental long-poll streaming** — `mtconnect_sample` gains stream mode
+  (no new tool): pass `from_sequence` + `max_samples`/`duration_s` (+ optional `interval_ms`)
+  and it polls `/sample?from=<seq>&count=<n>`, advancing by the Streams header's
+  `nextSequence` each round to pull observations incrementally by sequence. Strictly
+  **bounded** — stops on the first of max_samples / duration_s / `MAX_STREAM_POLLS` /
+  caught-up / no-progress / agent `instanceId` reset (never an unbounded loop). This is
+  client-side polling, deliberately **not** the agent's server-push multipart `interval`
+  hold; `interval_ms` is client-side poll spacing. `mtconnect_current` and the snapshot
+  `mtconnect_sample` now also return `next_sequence` (the resume cursor). Mock-tested against
+  synthetic advancing/caught-up/reset agents; real MTConnect agent long-poll behavior `待核实`.
 - **HART passive burst listener** — `hart_burst_listen` receives unsolicited HART-IP
   burst-publish messages (message type 2) on the session socket, the timed complement to the
   active `hart_burst_sample`; publishes decode through the same command-3 parser. Live gateway

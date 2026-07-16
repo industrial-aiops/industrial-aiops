@@ -9,10 +9,18 @@ ship an MTConnect agent.
 
 The HTTP fetch is a module-level function (``_http_get``) so tests can inject a
 static XML fixture without a live agent. All agent-returned text is sanitized.
+
+Incremental streaming (``mtconnect_stream``) is done by **client-side polling**:
+each round issues ``/sample?from=<seq>&count=<n>`` and advances by the Streams
+header's ``nextSequence``, always bounded by ``max_samples`` / ``duration_s`` /
+``MAX_STREAM_POLLS``. This is deliberately NOT the agent's server-push multipart
+``interval`` mode (that holds the socket open indefinitely — unsuitable for a
+request/response tool); ``interval_ms`` here is client-side poll spacing.
 """
 
 from __future__ import annotations
 
+import time
 import xml.etree.ElementTree as ET  # noqa: N817 — conventional ET alias
 from typing import Any
 
@@ -22,6 +30,19 @@ MAX_OBSERVATIONS = 500
 DEFAULT_SAMPLE_COUNT = 100
 MAX_SAMPLE_COUNT = 500
 _HTTP_TIMEOUT_S = 10
+
+# Bounds for the incremental long-poll stream (mtconnect_stream). Every one of
+# these is a hard ceiling — the loop can NEVER run unbounded.
+MAX_STREAM_SAMPLES = 2000  # total observation budget across all poll rounds
+MAX_STREAM_POLLS = 60  # hard iteration cap (independent of time/samples)
+MAX_STREAM_DURATION_S = 120.0  # wall-clock ceiling for a whole stream call
+DEFAULT_STREAM_DURATION_S = 30.0
+MIN_STREAM_INTERVAL_MS = 0  # 0 == back-to-back polling (still bounded)
+MAX_STREAM_INTERVAL_MS = 10_000
+DEFAULT_STREAM_INTERVAL_MS = 1000
+
+# Indirection so tests can stub the inter-poll sleep without real wall-clock waits.
+_sleep = time.sleep
 
 # Agent documents are bounded (count-capped /sample pages); cap the body at
 # 4 MiB — well past any legitimate page, a hard ceiling against a hostile or
@@ -105,6 +126,50 @@ def _agent_base(target: Any) -> str:
 def _strip(tag: str) -> str:
     """Drop the XML namespace from a tag, leaving the local name."""
     return tag.rsplit("}", 1)[-1]
+
+
+def _int_or_none(value: str | None) -> int | None:
+    """Parse an MTConnect sequence attribute to int, or None if absent/malformed."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _stream_header(root: ET.Element) -> dict:
+    """Extract sequence bookkeeping from a Streams/Current document ``<Header>``.
+
+    An MTConnect Streams header carries ``nextSequence`` (the sequence to pass as
+    the next ``from=``), ``firstSequence`` / ``lastSequence`` (the agent's buffer
+    window) and ``instanceId`` (changes when the agent restarts and its sequence
+    numbering resets — which invalidates any held ``from`` cursor).
+    """
+    for el in root.iter():
+        if _strip(el.tag) == "Header":
+            return {
+                "next_sequence": _int_or_none(el.get("nextSequence")),
+                "first_sequence": _int_or_none(el.get("firstSequence")),
+                "last_sequence": _int_or_none(el.get("lastSequence")),
+                "instance_id": s(el.get("instanceId", ""), 32),
+            }
+    return {
+        "next_sequence": None,
+        "first_sequence": None,
+        "last_sequence": None,
+        "instance_id": "",
+    }
+
+
+def _clamp_int(value: int, lo: int, hi: int) -> int:
+    """Clamp an int into ``[lo, hi]`` (coerces via ``int`` first)."""
+    return max(lo, min(int(value), hi))
+
+
+def _clamp_float(value: float, lo: float, hi: float) -> float:
+    """Clamp a float into ``[lo, hi]`` (coerces via ``float`` first)."""
+    return max(lo, min(float(value), hi))
 
 
 def _fetch_xml(target: Any, path: str, query: str = "") -> ET.Element:
@@ -194,22 +259,154 @@ def _observations(root: ET.Element) -> list[dict]:
 
 
 def mtconnect_current(target: Any) -> dict:
-    """[READ] Latest value of every data item (a snapshot of the machine now)."""
+    """[READ] Latest value of every data item (a snapshot of the machine now).
+
+    Also returns the header's ``next_sequence`` so a caller can start an
+    incremental ``mtconnect_stream`` exactly at 'now'.
+    """
     root = _fetch_xml(target, "current")
     obs = _observations(root)
-    return {"endpoint": s(target.name, 64), "observation_count": len(obs), "observations": obs}
-
-
-def mtconnect_sample(target: Any, count: int = DEFAULT_SAMPLE_COUNT) -> dict:
-    """[READ] A BOUNDED stream of recent observations (count capped server-side)."""
-    count = max(1, min(int(count), MAX_SAMPLE_COUNT))
-    root = _fetch_xml(target, "sample", query=f"count={count}")
-    obs = _observations(root)
+    hdr = _stream_header(root)
     return {
         "endpoint": s(target.name, 64),
+        "observation_count": len(obs),
+        "next_sequence": hdr["next_sequence"],
+        "observations": obs,
+    }
+
+
+def _sample_page(
+    target: Any, count: int, from_sequence: int | None = None
+) -> tuple[list[dict], dict]:
+    """Fetch ONE ``/sample`` page → ``(observations, header)``.
+
+    ``header`` carries next/first/last sequence + instanceId (see ``_stream_header``).
+    When ``from_sequence`` is given it is passed as ``from=`` so the agent returns
+    observations at or after that sequence (the incremental-pull primitive).
+    """
+    query = f"count={count}"
+    if from_sequence is not None:
+        query = f"from={int(from_sequence)}&{query}"
+    root = _fetch_xml(target, "sample", query=query)
+    return _observations(root), _stream_header(root)
+
+
+def mtconnect_sample(
+    target: Any, count: int = DEFAULT_SAMPLE_COUNT, from_sequence: int | None = None
+) -> dict:
+    """[READ] ONE bounded ``/sample`` page (count capped server-side).
+
+    With ``from_sequence`` this is a single *incremental* page (observations at or
+    after that sequence); without it, the most recent ``count`` observations. The
+    returned ``next_sequence`` is the cursor to resume from (feed it back here, or
+    into ``mtconnect_stream``).
+    """
+    count = _clamp_int(count, 1, MAX_SAMPLE_COUNT)
+    obs, hdr = _sample_page(target, count, from_sequence)
+    return {
+        "endpoint": s(target.name, 64),
+        "mode": "snapshot",
         "requested_count": count,
+        "from_sequence": from_sequence,
+        "next_sequence": hdr["next_sequence"],
+        "first_sequence": hdr["first_sequence"],
+        "last_sequence": hdr["last_sequence"],
         "observation_count": len(obs),
         "observations": obs,
+    }
+
+
+def mtconnect_stream(
+    target: Any,
+    from_sequence: int | None = None,
+    interval_ms: int = DEFAULT_STREAM_INTERVAL_MS,
+    count: int = DEFAULT_SAMPLE_COUNT,
+    max_samples: int = MAX_STREAM_SAMPLES,
+    duration_s: float = DEFAULT_STREAM_DURATION_S,
+) -> dict:
+    """[READ] BOUNDED incremental long-poll: poll ``/sample`` advancing by sequence.
+
+    Repeatedly fetch ``/sample?from=<seq>&count=<count>`` and advance ``seq`` by the
+    header's ``nextSequence`` each round, accumulating new observations until a hard
+    bound is hit. This NEVER loops unboundedly — it stops on the FIRST of:
+
+    * ``max_samples`` observations collected (``stopped_reason='max_samples'``),
+    * ``duration_s`` wall-clock elapsed (``'duration'``),
+    * ``MAX_STREAM_POLLS`` rounds (``'max_polls'``),
+    * the agent returns no new observations — caught up (``'caught_up'``),
+    * ``nextSequence`` does not advance / is absent (``'no_progress'``),
+    * the agent's ``instanceId`` changes mid-stream — a restart reset the buffer,
+      so the held cursor is no longer valid (``'instance_changed'``).
+
+    ``interval_ms`` is client-side spacing between rounds (NOT the agent's
+    server-push interval). ``from_sequence=None`` starts from the most recent
+    ``count`` observations. Returns the observation sequence plus ``next_sequence``
+    to resume from.
+    """
+    count = _clamp_int(count, 1, MAX_SAMPLE_COUNT)
+    interval_ms = _clamp_int(interval_ms, MIN_STREAM_INTERVAL_MS, MAX_STREAM_INTERVAL_MS)
+    max_samples = _clamp_int(max_samples, 1, MAX_STREAM_SAMPLES)
+    duration_s = _clamp_float(duration_s, 0.0, MAX_STREAM_DURATION_S) or DEFAULT_STREAM_DURATION_S
+    deadline = time.monotonic() + duration_s
+
+    seq = from_sequence
+    collected: list[dict] = []
+    polls = 0
+    instance_id: str | None = None
+    next_sequence: int | None = from_sequence
+    stopped = "duration"
+
+    while True:
+        if polls >= MAX_STREAM_POLLS:
+            stopped = "max_polls"
+            break
+        if time.monotonic() >= deadline:
+            stopped = "duration"
+            break
+
+        obs, hdr = _sample_page(target, count, seq)
+        polls += 1
+
+        # A restarted agent renumbers sequences; the held cursor is stale → stop
+        # rather than silently mixing observations from a reset buffer.
+        header_instance = hdr["instance_id"] or ""
+        if instance_id is None:
+            instance_id = header_instance
+        elif header_instance and header_instance != instance_id:
+            stopped = "instance_changed"
+            break
+
+        if obs:
+            collected.extend(obs[: max_samples - len(collected)])
+        hdr_next = hdr["next_sequence"]
+        if hdr_next is not None:
+            next_sequence = hdr_next
+
+        if len(collected) >= max_samples:
+            stopped = "max_samples"
+            break
+        if not obs:
+            stopped = "caught_up"
+            break
+        if hdr_next is None or hdr_next == seq:
+            stopped = "no_progress"
+            break
+
+        seq = hdr_next
+        if interval_ms > 0 and time.monotonic() < deadline:
+            _sleep(interval_ms / 1000.0)
+
+    return {
+        "endpoint": s(target.name, 64),
+        "mode": "stream",
+        "from_sequence": from_sequence,
+        "next_sequence": next_sequence,
+        "observation_count": len(collected),
+        "poll_count": polls,
+        "stopped_reason": stopped,
+        "interval_ms": interval_ms,
+        "max_samples": max_samples,
+        "observations": collected,
     }
 
 
@@ -274,6 +471,7 @@ __all__ = [
     "mtconnect_probe",
     "mtconnect_current",
     "mtconnect_sample",
+    "mtconnect_stream",
     "mtconnect_assets",
     "mtconnect_oee_snapshot",
     "num",
