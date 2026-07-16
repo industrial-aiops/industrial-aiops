@@ -135,7 +135,11 @@ class HartIpSession:
         return parse_message(resp)["payload"]
 
     def receive_message(self, timeout_s: float) -> dict | None:
-        """Read ONE incoming HART-IP datagram, or None on timeout (burst listener)."""
+        """Read ONE incoming HART-IP datagram, or None on timeout (burst listener).
+
+        A runt/garbage datagram (not HART-IP framing) also returns None — the
+        listener keeps waiting, same policy as the request/response reader.
+        """
         previous = self._sock.gettimeout()
         self._sock.settimeout(max(0.05, float(timeout_s)))
         try:
@@ -143,6 +147,8 @@ class HartIpSession:
             return parse_message(data)
         except TimeoutError:
             return None
+        except ValueError:
+            return None  # runt/garbage datagram — skip it, don't abort the listen
         finally:
             self._sock.settimeout(previous)
 
@@ -237,13 +243,52 @@ class HartIpTcpSession:
 
         Used by the unsolicited-burst listener: publish messages arrive without a
         matching request, so this bypasses the request/response matcher.
+
+        TCP is a byte stream: "no frame arrived" (timeout before the FIRST byte →
+        None) must be distinguished from "timeout MID-FRAME" — the latter leaves
+        consumed bytes unaccounted for, so the next read would start mid-stream and
+        desynchronize the whole session. A mid-frame timeout therefore raises,
+        telling the caller to abandon this session rather than trust garbage.
         """
         previous = self._sock.gettimeout()
         self._sock.settimeout(max(0.05, float(timeout_s)))
         try:
-            return parse_message(self._read_message())
+            first = self._sock.recv(1)
         except TimeoutError:
-            return None
+            self._sock.settimeout(previous)
+            return None  # silence — no frame even started
+        if not first:
+            self._sock.settimeout(previous)
+            raise OTConnectionError(
+                f"HART-IP TCP connection to {self._host}:{self._port} closed while "
+                "listening for burst publishes.",
+                endpoint=self._host,
+                protocol="hart",
+            )
+        # The frame has STARTED — finish it under the session's base timeout; a
+        # timeout from here on is a mid-frame stall, not silence.
+        self._sock.settimeout(self._timeout)
+        try:
+            header = first + self._recv_exactly(HEADER_LEN - 1)
+            byte_count = parse_message(header)["byte_count"]
+            body_len = byte_count - HEADER_LEN
+            if body_len < 0:
+                raise OTConnectionError(
+                    f"HART-IP TCP framing error: header byte_count {byte_count} < "
+                    f"{HEADER_LEN} (header length). The peer is not speaking HART-IP framing.",
+                    endpoint=self._host,
+                    protocol="hart",
+                )
+            body = self._recv_exactly(body_len) if body_len else b""
+            return parse_message(header + body)
+        except TimeoutError as exc:
+            raise OTConnectionError(
+                f"HART-IP TCP {self._host}:{self._port}: timed out MID-FRAME while "
+                "listening — the stream is desynchronized; close and reopen the "
+                "session instead of trusting subsequent bytes.",
+                endpoint=self._host,
+                protocol="hart",
+            ) from exc
         finally:
             self._sock.settimeout(previous)
 
