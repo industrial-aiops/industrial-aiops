@@ -22,6 +22,10 @@ from dataclasses import dataclass
 from typing import Any
 
 MAX_STATION_WORDS = 8  # SW00B0–B7 / SW0080–0083 style bitmaps never exceed 8 words
+# Same bound the MC ops layer enforces per batch read (ops.MAX_POINTS) — kept equal here
+# so a template/override can never promise more than one read will actually deliver
+# (tests pin the two constants together).
+MAX_AREA_COUNT = 256
 
 
 @dataclass(frozen=True)
@@ -164,7 +168,7 @@ def resolve_area(area: LinkArea, override: str | None) -> LinkArea:
     """Apply a ``"HEAD"`` or ``"HEAD:COUNT"`` override to a template area (pure).
 
     Returns a NEW ``LinkArea`` (immutability rule) with the overridden head device
-    and/or count; the count stays within 1..1024.
+    and/or count; the count stays within 1..MAX_AREA_COUNT (= the ops batch cap).
     """
     if not override:
         return area
@@ -178,7 +182,7 @@ def resolve_area(area: LinkArea, override: str | None) -> LinkArea:
             raise ValueError(
                 f"Bad override {override!r} for area {area.name!r} — use 'HEAD' or 'HEAD:COUNT'."
             ) from None
-    count = max(1, min(count, 1024))
+    count = max(1, min(count, MAX_AREA_COUNT))
     return LinkArea(name=area.name, device=head, kind=area.kind, count=count, label=area.label)
 
 
@@ -202,6 +206,7 @@ __all__ = [
     "LinkTemplate",
     "NetworkDiag",
     "MAX_STATION_WORDS",
+    "MAX_AREA_COUNT",
     "list_link_templates",
     "get_link_template",
     "get_network_diag",
