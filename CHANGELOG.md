@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Added
+- **Predictive-maintenance depth (no new tool)** — the always-on `pdm_forecast` now returns three
+  deeper, equally-explainable views on top of the Theil–Sen trend, all pure/stdlib-only:
+  a **degradation pattern** (`gradual` vs `sudden` vs `cyclic` vs `irregular`, via transparent
+  monotonicity / step-score / autocorrelation-period metrics, each cited); a **remaining-useful-life**
+  `rul` block when degrading (linear *and* exponential extrapolation to the limit, an ETA confidence
+  band from the slope IQR, and a fit-quality R² that picks the better model); and optional
+  time-domain **waveform features** (RMS / kurtosis / crest factor / peak-to-peak / zero-crossing
+  rate — bearing-fault impulsiveness) behind a new `include_waveform` flag. New pure helpers live in
+  `iaiops/core/brain/pdm_math.py`, `pdm_features.py`, `pdm_rul.py`, `pdm_patterns.py` (fully
+  unit-testable without a device). **Zero new `@mcp.tool`** — only the existing `pdm_forecast` was
+  deepened, so no profile tool-count / flood-threshold change.
 - **HART passive burst listener** — `hart_burst_listen` receives unsolicited HART-IP
   burst-publish messages (message type 2) on the session socket, the timed complement to the
   active `hart_burst_sample`; publishes decode through the same command-3 parser. Live gateway
