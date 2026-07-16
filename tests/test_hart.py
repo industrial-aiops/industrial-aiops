@@ -789,3 +789,96 @@ def test_burst_listen_stops_at_max_messages(monkeypatch):
 
     out = ops.hart_burst_listen(target, duration_s=30, max_messages=2)
     assert out["received_messages"] == 2
+
+
+# ── receive_message hardening (burst-listener transport paths) ────────────────
+
+
+class _FakeUdpSock:
+    def __init__(self, datagrams):
+        self._datagrams = list(datagrams)
+        self._timeout = None
+
+    def gettimeout(self):
+        return self._timeout
+
+    def settimeout(self, value):
+        self._timeout = value
+
+    def recvfrom(self, size):
+        if not self._datagrams:
+            raise TimeoutError
+        return self._datagrams.pop(0), ("10.0.0.7", 5094)
+
+
+class _FakeTcpSock:
+    """Byte-stream double: script items are bytes chunks or the string 'timeout'."""
+
+    def __init__(self, script):
+        self._script = list(script)
+        self._timeout = None
+
+    def gettimeout(self):
+        return self._timeout
+
+    def settimeout(self, value):
+        self._timeout = value
+
+    def recv(self, size):
+        if not self._script:
+            raise TimeoutError
+        item = self._script[0]
+        if item == "timeout":
+            self._script.pop(0)
+            raise TimeoutError
+        chunk, rest = item[:size], item[size:]
+        if rest:
+            self._script[0] = rest
+        else:
+            self._script.pop(0)
+        return chunk
+
+
+@pytest.mark.unit
+def test_udp_receive_skips_garbage_datagram_instead_of_aborting():
+    publish = tx.frame_message(tx.MT_PUBLISH, tx.MID_TOKEN_PASSING, 1, b"\x01\x02")
+    session = tx.HartIpSession("10.0.0.7", 5094)
+    session._sock = _FakeUdpSock([b"junk", publish])
+    assert session.receive_message(0.1) is None  # runt datagram → skipped, not raised
+    parsed = session.receive_message(0.1)
+    assert parsed["message_type"] == tx.MT_PUBLISH
+    assert session.receive_message(0.1) is None  # silence → None
+
+
+@pytest.mark.unit
+def test_tcp_receive_none_on_pure_silence():
+    session = tx.HartIpTcpSession("10.0.0.7", 5094)
+    session._sock = _FakeTcpSock(["timeout"])
+    assert session.receive_message(0.1) is None
+
+
+@pytest.mark.unit
+def test_tcp_receive_mid_frame_timeout_is_a_desync_error_not_none():
+    """One header byte arrives, then the stream stalls: returning None here would
+    leave the consumed byte unaccounted for and desynchronize every later read."""
+    session = tx.HartIpTcpSession("10.0.0.7", 5094)
+    session._sock = _FakeTcpSock([b"\x01", "timeout"])
+    with pytest.raises(tx.OTConnectionError, match="MID-FRAME"):
+        session.receive_message(0.1)
+
+
+@pytest.mark.unit
+def test_tcp_receive_reassembles_a_fragmented_frame():
+    frame = tx.frame_message(tx.MT_PUBLISH, tx.MID_TOKEN_PASSING, 2, b"\xaa\xbb\xcc")
+    session = tx.HartIpTcpSession("10.0.0.7", 5094)
+    session._sock = _FakeTcpSock([frame[:3], frame[3:9], frame[9:]])
+    parsed = session.receive_message(0.1)
+    assert (parsed["message_type"], parsed["payload"]) == (tx.MT_PUBLISH, b"\xaa\xbb\xcc")
+
+
+@pytest.mark.unit
+def test_tcp_receive_closed_while_listening_raises():
+    session = tx.HartIpTcpSession("10.0.0.7", 5094)
+    session._sock = _FakeTcpSock([b""])
+    with pytest.raises(tx.OTConnectionError, match="closed while"):
+        session.receive_message(0.1)
