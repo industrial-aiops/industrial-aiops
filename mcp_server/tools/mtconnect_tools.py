@@ -40,8 +40,9 @@ def mtconnect_current(endpoint: Optional[str] = None) -> dict:
     Args:
         endpoint: Endpoint name from config.
 
-    Returns dict: {endpoint, observation_count, observations:[{data_item_id, type,
-        name, timestamp, sequence, value}]}.
+    Returns dict: {endpoint, observation_count, next_sequence,
+        observations:[{data_item_id, type, name, timestamp, sequence, value}]}.
+        Pass next_sequence as from_sequence to mtconnect_sample to stream from 'now'.
 
     Example: mtconnect_current(endpoint="vmc1").
     """
@@ -51,19 +52,60 @@ def mtconnect_current(endpoint: Optional[str] = None) -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def mtconnect_sample(endpoint: Optional[str] = None, count: int = 100) -> dict:
-    """[READ][risk=low] A BOUNDED stream of recent observations (history).
+def mtconnect_sample(
+    endpoint: Optional[str] = None,
+    count: int = 100,
+    from_sequence: Optional[int] = None,
+    interval_ms: int = 1000,
+    max_samples: int = 0,
+    duration_s: float = 0.0,
+) -> dict:
+    """[READ][risk=low] Recent observations — a bounded snapshot OR a bounded
+    incremental long-poll stream. Both modes are read-only and can NEVER run
+    unbounded.
+
+    Modes:
+      - snapshot (default): one /sample page of up to `count` observations. Pass
+        `from_sequence` for a single incremental page starting at that sequence.
+      - stream: set `max_samples` and/or `duration_s` to poll the agent
+        repeatedly, advancing by the header's nextSequence each round, until a
+        bound is hit. Feed the returned `next_sequence` back as `from_sequence`
+        to resume exactly where you stopped.
 
     Args:
         endpoint: Endpoint name from config.
-        count: Max observations to request (1..500, capped server-side).
+        count: Max observations per /sample page (1..500, capped server-side).
+        from_sequence: Start sequence for an incremental pull (use next_sequence
+            from mtconnect_current or a prior call). None = the most recent `count`.
+        interval_ms: Poll spacing between rounds in stream mode (0..10000; 0 =
+            back-to-back). Client-side spacing — NOT the agent's server-push interval.
+        max_samples: Total observation budget across rounds; >0 selects stream mode
+            (capped at 2000). 0 = snapshot.
+        duration_s: Wall-clock budget in seconds; >0 selects stream mode (capped 120).
 
-    Returns dict: {endpoint, requested_count, observation_count,
-        observations:[{data_item_id, type, name, timestamp, sequence, value}]}.
+    Returns dict (snapshot): {endpoint, mode:'snapshot', requested_count,
+        from_sequence, next_sequence, first_sequence, last_sequence,
+        observation_count, observations:[{data_item_id, type, name, timestamp,
+        sequence, value}]}.
+    Returns dict (stream): {endpoint, mode:'stream', from_sequence, next_sequence,
+        observation_count, poll_count, stopped_reason, interval_ms, max_samples,
+        observations:[...]}.
 
-    Example: mtconnect_sample(endpoint="vmc1", count=200).
+    Example (snapshot): mtconnect_sample(endpoint="vmc1", count=200).
+    Example (stream):   mtconnect_sample(endpoint="vmc1", from_sequence=1500,
+        interval_ms=1000, max_samples=500, duration_s=30).
     """
-    return ops.mtconnect_sample(_target(endpoint), count)
+    target = _target(endpoint)
+    if max_samples or duration_s:
+        return ops.mtconnect_stream(
+            target,
+            from_sequence=from_sequence,
+            interval_ms=interval_ms,
+            count=count,
+            max_samples=max_samples or ops.MAX_STREAM_SAMPLES,
+            duration_s=duration_s or ops.DEFAULT_STREAM_DURATION_S,
+        )
+    return ops.mtconnect_sample(target, count, from_sequence)
 
 
 @mcp.tool()
