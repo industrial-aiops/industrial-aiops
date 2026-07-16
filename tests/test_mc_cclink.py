@@ -70,8 +70,12 @@ class TestTemplates:
     def test_resolve_area_is_immutable_and_bounded(self):
         area = cclink.get_link_template("cclink_classic_default").areas[0]
         resolved = cclink.resolve_area(area, "X1200:9999")
-        assert (resolved.device, resolved.count) == ("X1200", 1024)
+        assert (resolved.device, resolved.count) == ("X1200", 256)
         assert (area.device, area.count) == ("X1000", 128)  # original untouched
+
+    def test_area_cap_matches_the_ops_batch_cap(self):
+        # A template/override must never promise more than one batch read delivers.
+        assert cclink.MAX_AREA_COUNT == ops.MAX_POINTS
 
     def test_resolve_area_rejects_bad_count(self):
         area = cclink.get_link_template("cclink_classic_default").areas[0]
