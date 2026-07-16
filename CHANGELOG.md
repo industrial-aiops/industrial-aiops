@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Added
+- **HART passive burst listener** — `hart_burst_listen` receives unsolicited HART-IP
+  burst-publish messages (message type 2) on the session socket, the timed complement to the
+  active `hart_burst_sample`; publishes decode through the same command-3 parser. Live gateway
+  `待核实`. Hardened after review: a runt/garbage UDP datagram is skipped (not an abort), and a
+  TCP timeout **mid-frame** raises a desync error instead of silently returning None (the
+  consumed bytes would otherwise shift every later read on the stream).
+- **SIEM forwarder auth-header shapes** — `IAIOPS_FORWARD_AUTH_SCHEME` (default `Bearer`;
+  empty = raw token value) and `IAIOPS_FORWARD_AUTH_HEADER` (default `Authorization`) cover
+  Splunk HEC (`Splunk <token>`), Elastic `ApiKey`, and `X-Api-Key`-style SIEMs.
+- **IGEL overlay refreshed** — the Managed-Container route references the published,
+  cosign-signed 0.15.0 image with the socket MCP transport; ready-to-paste submission answers
+  in `deploy/igel/SUBMISSION.md`.
+
 ## 0.15.0 — 2026-07-15
 
 > **Japan-gap + RCA-depth release.** CC-Link data becomes readable with zero new hardware
