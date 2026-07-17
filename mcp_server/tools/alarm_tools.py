@@ -70,17 +70,23 @@ def alarm_flood_analysis(
     stale_after_s: float = 86400.0,
     max_episodes: int = 20,
     max_rows: int = 50,
+    load_bucket_s: float = 600.0,
 ) -> dict:
-    """[READ][risk=low] ISA-18.2 deep alarm-flood analysis: episodes + chattering + stale.
+    """[READ][risk=low] ISA-18.2 deep alarm-flood analysis: episodes + chattering + stale + advice.
 
     Deepens alarm_bad_actors: detects flood *episodes* (start/end/count/peak rate/
-    top contributors, per ISA-18.2's >=10 alarms per 10 min per operator), alarms
-    chattering ACTIVE↔CLEARED, standing/stale alarms, and percent-time-in-flood vs
-    the ISA-18.2 targets (~1-2 alarms/10 min steady state, <1% time in flood).
-    Pass 'events' for pure analysis, or an endpoint to collect live via the same
-    OPC-UA active-condition scan the RCA copilot uses (polled over duration_s;
-    other protocols contribute no alarms). Output is bounded; 'truncated' flags
-    say when caps bit.
+    top contributors + each episode's first-out annunciation, per ISA-18.2's >=10
+    alarms per 10 min per operator), alarms chattering ACTIVE↔CLEARED, standing/
+    stale alarms, and percent-time-in-flood vs the ISA-18.2 targets (~1-2 alarms/
+    10 min steady state, <1% time in flood). Also returns an ISA-18.2 'load_profile'
+    (per-bucket rate band + peak period + trend) and per-source 'suppression_advice'
+    (deadband/on-off-delay for chatter, time-limited shelve for standing alarms).
+    The suppression advice is ADVISORY ONLY — starting values for a human to review
+    and approve via your ISA-18.2 / management-of-change process; this tool never
+    applies suppression, shelving, deadband, or delay changes. Pass 'events' for
+    pure analysis, or an endpoint to collect live via the same OPC-UA active-
+    condition scan the RCA copilot uses (polled over duration_s; other protocols
+    contribute no alarms). Output is bounded; 'truncated' flags say when caps bit.
 
     Args:
         endpoint: Endpoint name from config (used only when events is omitted).
@@ -91,14 +97,17 @@ def alarm_flood_analysis(
             (ACTIVE/RTN/CLEARED)}; skips live collection entirely.
         stale_after_s: Continuously-active age that marks a standing alarm (default 24h).
         max_episodes: Cap on returned flood episodes (default 20).
-        max_rows: Cap on chattering / stale / worksheet-preview rows (default 50).
+        max_rows: Cap on chattering / stale / suppression-advice / worksheet rows (default 50).
+        load_bucket_s: Load-profile bucket width in seconds (ISA-18.2 default 600 = 10 min).
 
     Returns dict: {event_count, summary:{insufficient_data, percent_time_in_flood,
         avg_alarms_per_10min, peak_alarms_per_10min, isa_18_2_targets, ...},
-        flood_episodes:[{start, end, duration_s, count, peak_count_in_window,
-        peak_rate_per_10min, top_contributors}], chattering:[{source, cycles,
-        cycles_per_hour, ...}], stale_standing:[{source, active_since,
-        active_for_s}], worksheet_preview:[...], truncated:{...}, collected?}.
+        load_profile:{overall_band, peak_bucket, band_distribution, trend,
+        busiest_buckets:[...], ...}, flood_episodes:[{start, end, ..., top_contributors,
+        first_out:{source, ts}}], chattering:[{source, cycles, cycles_per_hour, ...}],
+        stale_standing:[{source, active_since, active_for_s}], suppression_advice:[{source,
+        kind, technique, suggested_on_delay_s, suggested_off_delay_s, suggested_shelve_max_s,
+        basis, advisory}], worksheet_preview:[...], advisory_note, truncated:{...}, collected?}.
 
     Example: alarm_flood_analysis(events=[{"source":"FIC101",
         "timestamp":"2026-06-28T10:00:00Z","state":"ACTIVE"}, ...]).
@@ -120,6 +129,7 @@ def alarm_flood_analysis(
         stale_after_s=stale_after_s,
         max_episodes=max_episodes,
         max_rows=max_rows,
+        load_bucket_s=load_bucket_s,
     )
     if collected is not None:
         report["collected"] = collected
