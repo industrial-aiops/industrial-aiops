@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
+from statistics import median
 
 from iaiops.core.brain._shared import s
 from iaiops.core.brain.diagnostics import MAX_EVENTS, _parse_ts
@@ -48,6 +49,30 @@ DEFAULT_STALE_AFTER_S = 86400  # 24h continuously active → standing/stale
 MAX_EPISODES = 50
 MAX_CONTRIBUTORS = 5
 MAX_WORKSHEET_ROWS = 500
+MAX_LOAD_BUCKETS = 200
+MAX_ADVICE_ROWS = 200
+# Guard against a huge span / tiny bucket producing an unbounded bucket count.
+MAX_LOAD_BUCKET_SPAN = 200_000
+
+# ISA-18.2 / EEMUA-191 average-alarm-rate bands, per 10 min per operator position:
+#   <=1 very likely acceptable · <=2 max manageable · <10 over target · >=10 flood.
+RATE_ACCEPTABLE_PER_10MIN = 1.0
+RATE_MANAGEABLE_PER_10MIN = TARGET_AVG_PER_10MIN  # 2.0
+RATE_FLOOD_PER_10MIN = float(FLOOD_THRESHOLD)  # 10.0
+
+DEFAULT_LOAD_BUCKET_S = 600  # ISA-18.2 quotes alarm rates per 10-minute bucket.
+
+# ISA-18.2 shelving must be time-limited with auto-unshelve; suggest one shift.
+DEFAULT_MAX_SHELVE_S = 8 * 3600
+
+# Reused wherever the tool line emits a suppression/shelving suggestion: these
+# are recommendations for human review, never actions this tool performs.
+ADVISORY_NOTE = (
+    "ADVISORY ONLY — a recommendation for human review, never an executed action. "
+    "iaiops does not apply alarm suppression, shelving, deadband, or delay changes; "
+    "adopt only through your ISA-18.2 rationalization / management-of-change process "
+    "with engineering approval and auto-unshelve time limits."
+)
 
 _ACTIVE_STATES = frozenset({"ACTIVE", "ALM", "ALARM", ""})
 _CLEARED_STATES = frozenset({"RTN", "RETURN", "NORMAL", "CLEARED", "INACTIVE"})
@@ -64,6 +89,7 @@ class FloodEpisode:
     peak_count_in_window: int
     peak_rate_per_10min: float
     top_contributors: tuple[dict, ...]
+    first_out: dict  # earliest annunciation in the episode — heuristic root, not causal
 
 
 @dataclass(frozen=True)
@@ -96,6 +122,35 @@ class WorksheetRow:
     chattering: bool
     in_flood: bool
     recommendation: str
+
+
+@dataclass(frozen=True)
+class LoadBucket:
+    """One fixed-width bucket of the ISA-18.2 alarm-load profile."""
+
+    start: str
+    end: str
+    count: int
+    rate_per_10min: float
+    band: str
+
+
+@dataclass(frozen=True)
+class SuppressionAdvice:
+    """A per-source ISA-18.2 suppression/shelving *suggestion* (advisory only).
+
+    Numeric fields are starting points derived from observed timing, never
+    executed by iaiops — ``advisory`` restates that. See ``ADVISORY_NOTE``.
+    """
+
+    source: str
+    kind: str  # "chattering" | "standing"
+    technique: str
+    suggested_on_delay_s: float | None
+    suggested_off_delay_s: float | None
+    suggested_shelve_max_s: float | None
+    basis: str
+    advisory: str
 
 
 WORKSHEET_COLUMNS = (
@@ -208,6 +263,7 @@ def _episode(
     for _, src in evts:
         counts[src] = counts.get(src, 0) + 1
     top = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:MAX_CONTRIBUTORS]
+    first_ts, first_src = evts[0] if evts else (start, "unknown")
     return FloodEpisode(
         start=start.isoformat(),
         end=end.isoformat(),
@@ -216,6 +272,7 @@ def _episode(
         peak_count_in_window=peak,
         peak_rate_per_10min=round(peak * 600.0 / window_s, 2),
         top_contributors=tuple({"source": src, "count": n} for src, n in top),
+        first_out={"source": first_src, "ts": first_ts.isoformat()},
     )
 
 
@@ -457,7 +514,237 @@ def worksheet_rows_as_dicts(rows: list[WorksheetRow]) -> list[dict]:
     return [asdict(r) for r in rows]
 
 
-# ─── 6. combined report (tool-facing, still pure) ────────────────────────────
+# ─── 6. alarm-load profile (ISA-18.2 rate bands over time) ───────────────────
+
+
+def classify_alarm_rate(per_10min: float) -> str:
+    """Map an average alarm rate (per 10 min) to its ISA-18.2 load band.
+
+    ISA-18.2 / EEMUA-191 per-operator guidance: ``<=1`` very likely acceptable,
+    ``<=2`` maximum manageable, ``<10`` over target, ``>=10`` flood.
+    """
+    if per_10min >= RATE_FLOOD_PER_10MIN:
+        return "flood"
+    if per_10min > RATE_MANAGEABLE_PER_10MIN:
+        return "over_target"
+    if per_10min > RATE_ACCEPTABLE_PER_10MIN:
+        return "manageable"
+    return "acceptable"
+
+
+def _trend_label(first_avg: float, second_avg: float) -> str:
+    """Direction of alarm load from the first half to the second half of the span."""
+    if second_avg > first_avg * 1.2 and second_avg - first_avg > 0.5:
+        return "rising"
+    if second_avg < first_avg * 0.8 and first_avg - second_avg > 0.5:
+        return "falling"
+    return "flat"
+
+
+def alarm_load_profile(
+    events: list,
+    bucket_s: float = DEFAULT_LOAD_BUCKET_S,
+    max_buckets: int = MAX_LOAD_BUCKETS,
+) -> dict:
+    """[READ] ISA-18.2 alarm-load profile: per-bucket rate band, peak period, trend.
+
+    Buckets annunciations into fixed ``bucket_s`` windows (ISA-18.2 quotes rates
+    per 10 minutes) across the observed span, classifies each bucket's rate into
+    the ISA-18.2 load band (acceptable / manageable / over_target / flood), then
+    reports the peak-load bucket, the band distribution (empty buckets count as
+    acceptable), and a first-half vs second-half load trend. Returns an honest
+    ``insufficient_data`` result when the span is too thin to bucket. Pure.
+    """
+    if bucket_s <= 0:
+        raise ValueError("bucket_s must be > 0.")
+    acts = _activations(_norm_events(events))
+    if len(acts) < 2:
+        return {
+            "insufficient_data": True,
+            "reason": "Need >=2 timestamped annunciations to profile alarm load.",
+            "event_count": len(acts),
+        }
+    t0 = acts[0][0]
+    span_s = (acts[-1][0] - t0).total_seconds()
+    n_buckets = int(span_s // bucket_s) + 1
+    if n_buckets > MAX_LOAD_BUCKET_SPAN:
+        raise ValueError(
+            f"span/bucket_s yields {n_buckets} buckets (> {MAX_LOAD_BUCKET_SPAN}); "
+            "increase bucket_s."
+        )
+    counts: dict[int, int] = {}
+    for ts, _ in acts:
+        idx = min(int((ts - t0).total_seconds() // bucket_s), n_buckets - 1)
+        counts[idx] = counts.get(idx, 0) + 1
+
+    def _bucket(idx: int, count: int) -> LoadBucket:
+        start = t0 + timedelta(seconds=idx * bucket_s)
+        rate = round(count * 600.0 / bucket_s, 2)
+        return LoadBucket(
+            start=start.isoformat(),
+            end=(start + timedelta(seconds=bucket_s)).isoformat(),
+            count=count,
+            rate_per_10min=rate,
+            band=classify_alarm_rate(rate),
+        )
+
+    dist: dict[str, int] = {}
+    for idx, c in counts.items():
+        band = _bucket(idx, c).band
+        dist[band] = dist.get(band, 0) + 1
+    empty = n_buckets - len(counts)
+    if empty > 0:  # quiet buckets have rate 0 → acceptable band
+        dist["acceptable"] = dist.get("acceptable", 0) + empty
+
+    half = n_buckets / 2.0
+    first_sum = sum(c for idx, c in counts.items() if idx < half)
+    second_sum = sum(c for idx, c in counts.items() if idx >= half)
+    first_n = max(1, int(half))
+    second_n = max(1, n_buckets - int(half))
+    trend = _trend_label(first_sum / first_n, second_sum / second_n)
+
+    peak_idx = max(counts, key=lambda i: counts[i])
+    busiest = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[: max(1, int(max_buckets))]
+    avg_rate = len(acts) * 600.0 / span_s
+    return {
+        "insufficient_data": False,
+        "bucket_s": bucket_s,
+        "bucket_count": n_buckets,
+        "event_count": len(acts),
+        "span_s": round(span_s, 3),
+        "avg_rate_per_10min": round(avg_rate, 3),
+        "overall_band": classify_alarm_rate(avg_rate),
+        "peak_bucket": asdict(_bucket(peak_idx, counts[peak_idx])),
+        "band_distribution": dist,
+        "trend": trend,
+        "busiest_buckets": [asdict(_bucket(idx, c)) for idx, c in busiest],
+        "buckets_truncated": len(counts) > max(1, int(max_buckets)),
+        "isa_18_2_bands": {
+            "acceptable_max_per_10min": RATE_ACCEPTABLE_PER_10MIN,
+            "manageable_max_per_10min": RATE_MANAGEABLE_PER_10MIN,
+            "flood_min_per_10min": RATE_FLOOD_PER_10MIN,
+        },
+    }
+
+
+# ─── 7. suppression / shelving advice (ADVISORY ONLY, never executed) ─────────
+
+
+def _by_source_states(events: list) -> dict[str, list[tuple[datetime, str]]]:
+    """Group normalized events into per-source ``(ts, state)`` sequences."""
+    by: dict[str, list[tuple[datetime, str]]] = {}
+    for ts, src, state in _norm_events(events):
+        by.setdefault(src, []).append((ts, state))
+    return by
+
+
+def _cycle_stats(seq: list[tuple[datetime, str]]) -> tuple[list[float], list[float]]:
+    """Per-source active durations (ACTIVE→CLEARED) and re-annunciation periods.
+
+    Active durations feed an on-delay suggestion (filter brief excursions);
+    ACTIVE→next-ACTIVE periods feed an off-delay suggestion (collapse cycling).
+    """
+    active_durations: list[float] = []
+    cycle_periods: list[float] = []
+    active_since: datetime | None = None
+    last_active: datetime | None = None
+    for ts, state in seq:
+        if state in _ACTIVE_STATES:
+            if last_active is not None:
+                cycle_periods.append((ts - last_active).total_seconds())
+            last_active = ts
+            if active_since is None:
+                active_since = ts
+        elif state in _CLEARED_STATES:
+            if active_since is not None:
+                active_durations.append((ts - active_since).total_seconds())
+                active_since = None
+    return active_durations, cycle_periods
+
+
+def suppression_advice(
+    events: list,
+    now: datetime | str | None = None,
+    stale_after_s: float = DEFAULT_STALE_AFTER_S,
+    min_cycles: int = CHATTER_MIN_CYCLES,
+    chatter_window_s: float = CHATTER_WINDOW_S,
+    max_shelve_s: float = DEFAULT_MAX_SHELVE_S,
+    max_rows: int = MAX_ADVICE_ROWS,
+) -> list[SuppressionAdvice]:
+    """[READ][ADVISORY] ISA-18.2 nuisance-alarm suppression *suggestions*.
+
+    For each chattering source, derives a starting on-/off-delay (debounce) from
+    the observed cycle timing; for each standing/stale source, suggests a
+    time-limited shelve pending root-cause elimination. Every row is advisory
+    only (see ``ADVISORY_NOTE``) — iaiops never applies any of it, it only
+    proposes values for an engineer to review and approve. Chattering rows
+    first (worst cycling first), then standing rows (oldest first). Pure.
+    """
+    norm = _norm_events(events)
+    if not norm:
+        return []
+    ref = _parse_ts(now) if now is not None else norm[-1][0] + timedelta(seconds=1)
+    if ref is None:
+        raise ValueError("now must be a datetime or ISO-8601 timestamp.")
+    by_source = _by_source_states(events)
+    chatter = {c.source: c for c in chattering_alarms(events, min_cycles, chatter_window_s)}
+    stale = {a.source: a for a in stale_standing_alarms(events, ref, stale_after_s)}
+
+    out: list[SuppressionAdvice] = []
+    for src, c in chatter.items():
+        active_durs, cycle_periods = _cycle_stats(by_source.get(src, []))
+        on_delay = round(median(active_durs), 1) if active_durs else None
+        off_delay = round(median(cycle_periods), 1) if cycle_periods else None
+        out.append(
+            SuppressionAdvice(
+                source=src,
+                kind="chattering",
+                technique=(
+                    "Debounce with an on-/off-delay timer (ISA-18.2); consider a "
+                    "deadband once process-value data confirms the cycling amplitude."
+                ),
+                suggested_on_delay_s=on_delay,
+                suggested_off_delay_s=off_delay,
+                suggested_shelve_max_s=None,
+                basis=(
+                    f"{c.cycles} ACTIVE->CLEARED cycles (peak {c.max_cycles_in_window} "
+                    f"in {int(c.window_s)}s); on-delay~=median active duration filters "
+                    f"brief excursions, off-delay~=median re-annunciation interval "
+                    f"collapses cycling. Tune so genuine alarms still pass."
+                ),
+                advisory=ADVISORY_NOTE,
+            )
+        )
+    for src, a in stale.items():
+        if src in chatter:
+            continue  # already advised under chattering
+        out.append(
+            SuppressionAdvice(
+                source=src,
+                kind="standing",
+                technique=(
+                    "Investigate and eliminate the root cause; interim time-limited "
+                    "shelve with auto-unshelve (ISA-18.2) — not permanent suppression."
+                ),
+                suggested_on_delay_s=None,
+                suggested_off_delay_s=None,
+                suggested_shelve_max_s=round(float(max_shelve_s), 1),
+                basis=(
+                    f"Continuously active {round(a.active_for_s / 3600.0, 2)}h since "
+                    f"{a.active_since} with no return-to-normal."
+                ),
+                advisory=ADVISORY_NOTE,
+            )
+        )
+    return out[: max(1, int(max_rows))]
+
+
+def advice_as_dicts(rows: list[SuppressionAdvice]) -> list[dict]:
+    """JSON-friendly dict view of suppression-advice rows."""
+    return [asdict(r) for r in rows]
+
+
+# ─── 8. combined report (tool-facing, still pure) ────────────────────────────
 
 
 def alarm_flood_report(
@@ -468,12 +755,18 @@ def alarm_flood_report(
     stale_after_s: float = DEFAULT_STALE_AFTER_S,
     max_episodes: int = 20,
     max_rows: int = 50,
+    load_bucket_s: float = DEFAULT_LOAD_BUCKET_S,
 ) -> dict:
     """[READ] One bounded ISA-18.2 deep report: floods + chattering + stale + summary.
 
     Pure composition of the detectors above with explicit output caps; the
     ``truncated`` flags say when caps bit. ``now`` (default: last event time)
-    anchors the stale-alarm check deterministically.
+    anchors the stale-alarm check deterministically. Also carries the ISA-18.2
+    ``load_profile`` (per-bucket rate bands, peak period, trend) and per-source
+    ``suppression_advice`` — the latter is advisory only (``advisory_note``);
+    iaiops proposes deadband/delay/shelve values, it never applies them. Each
+    ``flood_episodes`` row also names its ``first_out`` annunciation (the earliest
+    in the episode — a heuristic root cited by timestamp, not a causal claim).
     """
     norm = _norm_events(events)
     if not norm:
@@ -483,18 +776,23 @@ def alarm_flood_report(
     chatter = chattering_alarms(events)
     stale = stale_standing_alarms(events, ref, stale_after_s)
     rows = rationalization_worksheet(events, window_s, threshold)
+    advice = suppression_advice(events, ref, stale_after_s)
     cap_ep, cap_rows = max(1, int(max_episodes)), max(1, int(max_rows))
     return {
         "event_count": len(norm),
         "summary": flood_summary(events, window_s, threshold),
+        "load_profile": alarm_load_profile(events, load_bucket_s),
         "flood_episodes": [asdict(e) for e in episodes[:cap_ep]],
         "chattering": [asdict(c) for c in chatter[:cap_rows]],
         "stale_standing": [asdict(a) for a in stale[:cap_rows]],
+        "suppression_advice": advice_as_dicts(advice[:cap_rows]),
         "worksheet_preview": worksheet_rows_as_dicts(rows[:cap_rows]),
+        "advisory_note": ADVISORY_NOTE,
         "truncated": {
             "flood_episodes": len(episodes) > cap_ep,
             "chattering": len(chatter) > cap_rows,
             "stale_standing": len(stale) > cap_rows,
+            "suppression_advice": len(advice) > cap_rows,
             "worksheet": len(rows) > cap_rows,
         },
     }
@@ -546,11 +844,18 @@ __all__ = [
     "ChatteringAlarm",
     "StaleAlarm",
     "WorksheetRow",
+    "LoadBucket",
+    "SuppressionAdvice",
     "WORKSHEET_COLUMNS",
+    "ADVISORY_NOTE",
     "detect_floods",
     "chattering_alarms",
     "stale_standing_alarms",
     "flood_summary",
+    "classify_alarm_rate",
+    "alarm_load_profile",
+    "suppression_advice",
+    "advice_as_dicts",
     "alarm_cascade",
     "rationalization_worksheet",
     "worksheet_rows_as_dicts",
