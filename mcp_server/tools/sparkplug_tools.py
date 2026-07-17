@@ -23,7 +23,9 @@ def sparkplug_decode_payload(
 
     Full protobuf decode (vendored Eclipse Tahu schema): per metric returns name,
     alias, datatype (Int/Float/Bool/String/DateTime/DataSet/Template…), value,
-    timestamp, and is_historical / is_null flags.
+    timestamp, and is_historical / is_null flags. Rich types expand: a DataSet
+    value decodes to {columns, types, rows} and a Template value to {template_ref,
+    is_definition, version, members, parameters} (members decoded recursively).
 
     Args:
         payload: Raw Sparkplug B protobuf bytes as a string, ``base64`` (default) or ``hex``.
@@ -33,7 +35,10 @@ def sparkplug_decode_payload(
 
     Returns dict: {encoding:'sparkplug_b', timestamp, seq, uuid, metric_count,
         historical_count, metrics:[{name, alias, datatype, value, timestamp,
-        is_historical, is_null}]}.
+        is_historical, is_null}]}. A DataSet ``value`` is {dataset:true, columns,
+        types, rows, row_count}; a Template ``value`` is {template:true,
+        template_ref, is_definition, version, members:[{name, type, value}],
+        parameters}.
 
     Example: sparkplug_decode_payload(payload="CAESBwoDYWJjEAE=", encoding="base64").
     """
