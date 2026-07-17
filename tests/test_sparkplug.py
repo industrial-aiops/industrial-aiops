@@ -142,6 +142,224 @@ def test_historical_flag_decoded():
     assert out["historical_count"] == 1
 
 
+# ─── rich-type decode: DataSet / Template (pure codec, no broker) ─────────────
+#
+# DataType enums used below: Double=10, Int32=3, Int16=2, Boolean=11, String=12,
+# DataSet=16, Template=19. Signed integers travel two's-complement in the
+# UNSIGNED protobuf fields, so a negative cell/member/parameter is set as its
+# 32-bit wire value and must sign-reinterpret through its declared column/type.
+_INT32_WIRE = 1 << 32
+
+
+def _add_dataset_row(dataset, cells):
+    """Append a DataSet row. ``cells`` is a list of (field_name, wire_value)."""
+    row = dataset.rows.add()
+    for field, value in cells:
+        setattr(row.elements.add(), field, value)
+
+
+def _dataset_metric_payload():
+    """One metric of datatype DataSet: 4 typed columns, 2 rows (incl. a −Int32)."""
+    pb = _pb()
+    p = pb.Payload()
+    p.timestamp = 3000
+    p.seq = 2
+    m = p.metrics.add()
+    m.name = "ProcessTable"
+    m.datatype = 16  # DataSet
+    ds = m.dataset_value
+    ds.num_of_columns = 4
+    ds.columns.extend(["temp", "count", "running", "label"])
+    ds.types.extend([10, 3, 11, 12])  # Double, Int32, Boolean, String
+    _add_dataset_row(
+        ds,
+        [
+            ("double_value", 21.5),
+            ("int_value", _INT32_WIRE - 5),
+            ("boolean_value", True),
+            ("string_value", "ok"),
+        ],
+    )
+    _add_dataset_row(
+        ds,
+        [
+            ("double_value", 99.5),
+            ("int_value", 7),
+            ("boolean_value", False),
+            ("string_value", "warn"),
+        ],
+    )
+    return p.SerializeToString()
+
+
+@pytest.mark.unit
+def test_decode_dataset_columns_types_rows():
+    out = ops.decode_sparkplug_payload(_dataset_metric_payload())
+    metric = out["metrics"][0]
+    assert metric["datatype"] == "DataSet"
+    ds = metric["value"]
+    assert ds["dataset"] is True
+    assert ds["num_columns"] == 4
+    assert ds["columns"] == ["temp", "count", "running", "label"]
+    # Each column's enum type maps to its name.
+    assert ds["types"] == ["Double", "Int32", "Boolean", "String"]
+    assert ds["row_count"] == 2
+    assert ds["truncated"] is False
+    # Rows are column-aligned value lists; the −5 Int32 sign-reinterprets.
+    assert ds["rows"] == [[21.5, -5, True, "ok"], [99.5, 7, False, "warn"]]
+
+
+@pytest.mark.unit
+def test_decode_dataset_unset_cell_is_null():
+    """A DataSetValue with no oneof field set decodes to None (not a crash)."""
+    pb = _pb()
+    p = pb.Payload()
+    m = p.metrics.add()
+    m.name = "T"
+    m.datatype = 16
+    ds = m.dataset_value
+    ds.num_of_columns = 2
+    ds.columns.extend(["a", "b"])
+    ds.types.extend([10, 12])
+    row = ds.rows.add()
+    setattr(row.elements.add(), "double_value", 1.5)
+    row.elements.add()  # second element left unset
+    out = ops.decode_sparkplug_payload(p.SerializeToString())
+    assert out["metrics"][0]["value"]["rows"] == [[1.5, None]]
+
+
+@pytest.mark.unit
+def test_dataset_via_public_decode_tool_base64():
+    """The rich decode surfaces through the public base64 tool path, not just internals."""
+    b64 = base64.b64encode(_dataset_metric_payload()).decode()
+    out = ops.sparkplug_decode_payload(b64, encoding="base64")
+    rows = out["metrics"][0]["value"]["rows"]
+    assert rows[0] == [21.5, -5, True, "ok"]
+
+
+def _template_metric_payload():
+    """One metric of datatype Template: 2 members (incl. a −Int16) + 2 parameters."""
+    pb = _pb()
+    p = pb.Payload()
+    p.timestamp = 4000
+    p.seq = 3
+    m = p.metrics.add()
+    m.name = "Pump1"
+    m.datatype = 19  # Template
+    tpl = m.template_value
+    tpl.template_ref = "PumpType"
+    tpl.is_definition = False
+    tpl.version = "1.0"
+    mm1 = tpl.metrics.add()
+    mm1.name = "flow"
+    mm1.datatype = 10  # Double
+    mm1.double_value = 12.5
+    mm2 = tpl.metrics.add()
+    mm2.name = "trim"
+    mm2.datatype = 2  # Int16
+    mm2.int_value = _INT32_WIRE - 40  # −40, two's-complement wire
+    par1 = tpl.parameters.add()
+    par1.name = "maxPressure"
+    par1.type = 10  # Double
+    par1.double_value = 200.0
+    par2 = tpl.parameters.add()
+    par2.name = "offset"
+    par2.type = 3  # Int32
+    par2.int_value = _INT32_WIRE - 12  # −12, two's-complement wire
+    return p.SerializeToString()
+
+
+@pytest.mark.unit
+def test_decode_template_members_and_parameters():
+    out = ops.decode_sparkplug_payload(_template_metric_payload())
+    metric = out["metrics"][0]
+    assert metric["datatype"] == "Template"
+    tpl = metric["value"]
+    assert tpl["template"] is True
+    assert tpl["template_ref"] == "PumpType"
+    assert tpl["is_definition"] is False
+    assert tpl["version"] == "1.0"
+    assert tpl["members_truncated"] is False
+    # Members are {name, type, value}; the −40 Int16 member sign-reinterprets.
+    assert tpl["members"] == [
+        {"name": "flow", "type": "Double", "value": 12.5},
+        {"name": "trim", "type": "Int16", "value": -40},
+    ]
+    # Parameters are type-aware; the −12 Int32 parameter sign-reinterprets.
+    assert tpl["parameters"] == [
+        {"name": "maxPressure", "type": "Double", "value": 200.0},
+        {"name": "offset", "type": "Int32", "value": -12},
+    ]
+
+
+def _nested_template_payload():
+    """A Template whose member is itself a Template (one level of nesting)."""
+    pb = _pb()
+    p = pb.Payload()
+    m = p.metrics.add()
+    m.name = "Skid"
+    m.datatype = 19
+    outer = m.template_value
+    outer.template_ref = "SkidType"
+    pump = outer.metrics.add()
+    pump.name = "pump"
+    pump.datatype = 19  # Template
+    inner = pump.template_value
+    inner.template_ref = "PumpType"
+    leaf = inner.metrics.add()
+    leaf.name = "flow"
+    leaf.datatype = 10
+    leaf.double_value = 3.3
+    return p.SerializeToString()
+
+
+@pytest.mark.unit
+def test_decode_nested_template_recurses():
+    out = ops.decode_sparkplug_payload(_nested_template_payload())
+    outer = out["metrics"][0]["value"]
+    assert outer["template_ref"] == "SkidType"
+    pump_member = outer["members"][0]
+    assert pump_member["name"] == "pump"
+    assert pump_member["type"] == "Template"
+    # The nested Template member expanded, not stringified.
+    inner = pump_member["value"]
+    assert inner["template_ref"] == "PumpType"
+    assert inner["members"] == [{"name": "flow", "type": "Double", "value": 3.3}]
+
+
+def _deeply_nested_template(levels: int):
+    """Chain ``levels`` Templates, each carrying the next as its sole member."""
+    pb = _pb()
+    p = pb.Payload()
+    m = p.metrics.add()
+    m.name = "L0"
+    m.datatype = 19
+    cur = m.template_value
+    cur.template_ref = "L0"
+    for i in range(1, levels):
+        child = cur.metrics.add()
+        child.name = f"L{i}"
+        child.datatype = 19
+        cur = child.template_value
+        cur.template_ref = f"L{i}"
+    return p.SerializeToString()
+
+
+@pytest.mark.unit
+def test_nested_template_depth_guard_terminates():
+    """Pathological deep nesting is bounded — decode terminates and flags truncation."""
+    out = ops.decode_sparkplug_payload(_deeply_nested_template(ops.MAX_TEMPLATE_DEPTH + 4))
+    node = out["metrics"][0]["value"]
+    depth = 0
+    while node.get("template") and node.get("members"):
+        node = node["members"][0]["value"]
+        depth += 1
+    # Recursion halted at the ceiling with members omitted, not stack-overflowed.
+    assert depth == ops.MAX_TEMPLATE_DEPTH
+    assert node["members"] == []
+    assert node["members_truncated"] is True
+
+
 @pytest.mark.unit
 def test_subscribe_sample_birth_data_model(monkeypatch):
     msgs = [
