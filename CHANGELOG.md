@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Added
+- **EtherNet/IP PCCC (PLC-5 / SLC-500 / MicroLogix) + Micro800** — the EtherNet/IP
+  connector now selects the pycomm3 driver by a `plctype` field (config key or per-call
+  arg on every `eip_*` tool): `logix` (default, ControlLogix/CompactLogix/GuardLogix
+  symbolic tags — unchanged), `slc` (PCCC data-table addressing via `SLCDriver`: `N7:0`
+  integer, `B3:0/0` bit, `F8:0` float, `T4:0.ACC`/`C5:0.ACC` timer/counter, `N7:0{10}`
+  slice), or `micro800` (Micro820/850/870 symbolic variables via `LogixDriver`, IP-only,
+  `init_program_tags=False`). No new tools — the existing five `eip_*` tools gained the
+  selector. `eip_list_tags` returns the SLC **data-file directory** (there is no PCCC
+  online symbol table) and `eip_controller_info` returns the SLC **processor type**;
+  reads/writes and the write-undo work across all three families. Real PLC-5/SLC-500/
+  MicroLogix/Micro800 hardware is **待核实** — the driver-selection, PCCC read/write and
+  file-directory paths are exercised against a mocked pycomm3 `SLCDriver` only.
 - **Predictive-maintenance depth (no new tool)** — the always-on `pdm_forecast` now returns three
   deeper, equally-explainable views on top of the Theil–Sen trend, all pure/stdlib-only:
   a **degradation pattern** (`gradual` vs `sudden` vs `cyclic` vs `irregular`, via transparent
