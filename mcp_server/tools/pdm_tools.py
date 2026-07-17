@@ -23,6 +23,7 @@ def pdm_forecast(
     warn_low: Optional[float] = None,
     alarm_low: Optional[float] = None,
     imminent_within_s: float = 86400.0,
+    include_waveform: bool = True,
 ) -> dict:
     """[READ][risk=low] Forecast a value's trend + time until it crosses a warn/alarm limit.
 
@@ -32,15 +33,26 @@ def pdm_forecast(
     (inverter/turbine degradation, bearing drift, filter clogging). Refuses thin history; read-only,
     pure over the provided series; no device I/O.
 
+    Beyond the trend, the result deepens into three explainable, stdlib-only views: a degradation
+    'pattern' (gradual vs sudden vs cyclic), a remaining-useful-life 'rul' block when degrading
+    (linear + exponential extrapolation to the limit, a confidence band from the slope spread, and a
+    fit R^2), and optional time-domain 'waveform' features (RMS/kurtosis/crest/... for
+    vibration-type signals). Each states its own uncertainty rather than guessing.
+
     Args:
         series: Time-ordered samples: [{value, timestamp?}] (timestamp ISO-8601; if all present the
             ETA is in seconds, otherwise in samples). >= 30 numeric samples required.
         warn_high/alarm_high/warn_low/alarm_low: Optional limits; the forecast targets the nearest
             one in the trend's direction (rising → highs, falling → lows).
         imminent_within_s: ETA (seconds) at/under which status is 'imminent' (default 86400 = 24h).
+        include_waveform: Add the time-domain 'waveform' feature block (default True). Set False for
+            slow trend-only signals where vibration features do not apply.
 
     Returns dict: {status (insufficient_data|stable|degrading|imminent), samples, direction,
-        slope_per_unit, unit (s|samples), current, limit:{name,value}, eta_to_limit}.
+        slope_per_unit, unit (s|samples), current, limit:{name,value}, eta_to_limit,
+        degradation:{pattern,confidence,rationale,metrics},
+        waveform:{rms,crest_factor,kurtosis,...} (when include_waveform),
+        rul:{linear,exponential,eta_band,recommended_model,confidence,...} (when degrading)}.
 
     Example: pdm_forecast(series=[{"value": 62.1, "timestamp": "2026-07-12T00:00:00Z"}, ...],
         warn_high=75, alarm_high=85).
@@ -52,4 +64,5 @@ def pdm_forecast(
         warn_low=warn_low,
         alarm_low=alarm_low,
         imminent_within_s=imminent_within_s,
+        include_waveform=include_waveform,
     )

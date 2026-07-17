@@ -9,6 +9,13 @@ Deliberately NOT a black box: the slope is a robust **Theil–Sen** estimator (m
 slopes — no ML, resistant to outliers/spikes), it **refuses thin history** (like baseline learning),
 and every verdict cites its window, slope, current value, limit, and ETA. Pure/injectable: analyzes
 PROVIDED series, so it is fully unit-testable without a live plant.
+
+On top of the trend, each forecast carries three deeper, equally-explainable views (pure helpers
+in sibling modules): a **degradation pattern** (:mod:`pdm_patterns` — gradual vs sudden vs cyclic,
+so an ETA is only offered when it is meaningful), a **remaining-useful-life** block when degrading
+(:mod:`pdm_rul` — linear *and* exponential extrapolation to the limit with a confidence band and a
+fit-quality R²), and optional **waveform features** (:mod:`pdm_features` — RMS/kurtosis/crest/… for
+vibration-type signals). All stdlib-only; each states its own uncertainty rather than guessing.
 """
 
 from __future__ import annotations
@@ -18,6 +25,10 @@ from statistics import median
 from typing import Any
 
 from iaiops.core.brain._shared import num, s
+from iaiops.core.brain.pdm_features import waveform_features
+from iaiops.core.brain.pdm_math import pairwise_slopes
+from iaiops.core.brain.pdm_patterns import classify_degradation
+from iaiops.core.brain.pdm_rul import estimate_rul
 
 MAX_POINTS = 5_000
 MIN_SAMPLES = 30  # below this, refuse (insufficient_data) rather than extrapolate noise
@@ -55,18 +66,6 @@ def _extract(series: list[Any]) -> tuple[list[float], list[float | None]]:
     return values, times
 
 
-def _theil_sen(xs: list[float], ys: list[float]) -> float:
-    """Median of pairwise slopes (robust to outliers). O(n²); n is bounded by MAX_POINTS."""
-    slopes: list[float] = []
-    n = len(xs)
-    for i in range(n):
-        for j in range(i + 1, n):
-            dx = xs[j] - xs[i]
-            if dx != 0:
-                slopes.append((ys[j] - ys[i]) / dx)
-    return median(slopes) if slopes else 0.0
-
-
 def _nearest_limit(
     current: float, slope: float, limits: dict[str, float | None]
 ) -> tuple[str, float] | None:
@@ -96,12 +95,18 @@ def pdm_forecast(
     alarm_low: float | None = None,
     imminent_within_s: float = 86_400.0,
     min_samples: int = MIN_SAMPLES,
+    include_waveform: bool = True,
 ) -> dict:
     """Estimate a value's trend and the time until it crosses a warn/alarm limit.
 
     Returns ``{status, ...}`` where status is ``insufficient_data`` (too few samples), ``stable``
     (flat trend), ``degrading`` (heading toward a limit with an ETA), or ``imminent`` (ETA within
     ``imminent_within_s``). ETA is in seconds when the series carries timestamps, else in samples.
+
+    Every non-refused result also carries a ``degradation`` pattern block (gradual/sudden/cyclic;
+    :mod:`pdm_patterns`) and, when ``include_waveform``, a ``waveform`` feature block
+    (:mod:`pdm_features`). A ``degrading``/``imminent`` result additionally carries a ``rul`` block
+    (linear + exponential extrapolation, confidence band, fit R²; :mod:`pdm_rul`).
     """
     values, times = _extract(series)
     n = len(values)
@@ -114,12 +119,14 @@ def pdm_forecast(
         }
     have_time = all(t is not None for t in times)
     xs = [float(t) for t in times] if have_time else [float(i) for i in range(n)]  # type: ignore[arg-type]
-    slope = _theil_sen(xs, values)
+    slopes = pairwise_slopes(xs, values)
+    slope = median(slopes) if slopes else 0.0
     current = values[-1]
     unit = "s" if have_time else "samples"
+    extra = _analysis(values, include_waveform)
 
     if abs(slope) < _FLAT_EPS:
-        return _result("stable", n, slope, current, unit, None, None, None)
+        return _result("stable", n, slope, current, unit, None, None, None, extra=extra)
 
     limits = {
         "warn_high": warn_high,
@@ -139,14 +146,28 @@ def pdm_forecast(
             None,
             None,
             note="Trending but no limit configured in the direction of travel.",
+            extra=extra,
         )
     limit_name, limit_val = target
     eta = (limit_val - current) / slope  # slope sign matches direction → eta > 0
     status = "imminent" if (have_time and 0 <= eta <= float(imminent_within_s)) else "degrading"
-    return _result(status, n, slope, current, unit, limit_name, limit_val, eta)
+    rul = estimate_rul(xs, values, slopes, current, limit_name, limit_val, unit)
+    return _result(
+        status, n, slope, current, unit, limit_name, limit_val, eta, extra={**extra, "rul": rul}
+    )
 
 
-def _result(status, n, slope, current, unit, limit_name, limit_val, eta, note=None) -> dict:
+def _analysis(values: list[float], include_waveform: bool) -> dict:
+    """Trend-independent enrichments attached to every non-refused forecast."""
+    out: dict[str, Any] = {"degradation": classify_degradation(values)}
+    if include_waveform:
+        out["waveform"] = waveform_features(values)
+    return out
+
+
+def _result(
+    status, n, slope, current, unit, limit_name, limit_val, eta, note=None, extra=None
+) -> dict:
     out = {
         "status": status,
         "samples": n,
@@ -160,7 +181,9 @@ def _result(status, n, slope, current, unit, limit_name, limit_val, eta, note=No
         "eta_to_limit": None if eta is None else round(eta, 2),
     }
     if note:
-        out["note"] = note
+        out = {**out, "note": note}
+    if extra:
+        out = {**out, **{k: v for k, v in extra.items() if v is not None}}
     return out
 
 
