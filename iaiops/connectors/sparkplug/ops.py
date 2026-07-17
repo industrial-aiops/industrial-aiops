@@ -11,7 +11,12 @@ parsed with a *vendored, byte-for-byte* copy of the official Eclipse Tahu
 depends only on ``protobuf``). Per metric we surface name, **alias** (resolved to
 its name via the NBIRTH/DBIRTH model), datatype (Int/Float/Bool/String/DateTime/
 DataSet/Template…), value, timestamp, and the ``is_historical`` / ``is_null``
-flags. A birth/death + seq model tracks node/device online state, builds the
+flags. Rich datatypes are expanded, not skipped: a **DataSet** metric decodes to
+columnar ``{columns, types, rows}`` (each cell decoded through its declared column
+type), and a **Template** decodes to ``{template_ref, is_definition, version,
+members, parameters}`` with members decoded recursively (nested DataSet/Template
+included, bounded against pathological nesting). A birth/death + seq model tracks
+node/device online state, builds the
 alias→name map from BIRTH, applies NDATA/DDATA by alias, marks DEATH offline, and
 flags ``seq`` gaps / out-of-order. STATE topics surface primary-host status.
 
@@ -36,6 +41,13 @@ from iaiops.core.runtime.connection import OTConnectionError, mqtt_session
 
 MAX_MESSAGES = 500
 MAX_METRICS = 1000
+# Rich-type (DataSet / Template) decode caps — bound the structured output so a
+# large table or a deeply nested Template instance can never blow up a tool result.
+MAX_DATASET_ROWS = 2000  # rows returned from a DataSet metric
+MAX_DATASET_COLUMNS = 256  # columns / column-types returned from a DataSet metric
+MAX_TEMPLATE_MEMBERS = 1000  # member metrics returned from a Template metric
+MAX_TEMPLATE_PARAMS = 256  # parameters returned from a Template metric
+MAX_TEMPLATE_DEPTH = 8  # ceiling on nested-Template recursion (pathological guard)
 DEFAULT_MESSAGES = 25
 DEFAULT_TIMEOUT_S = 10
 MAX_TIMEOUT_S = 60
@@ -138,8 +150,119 @@ def _sparkplug_pb():
         return None
 
 
-def _metric_value(metric: Any) -> Any:
-    """Extract a metric's scalar/complex value, JSON-safe, from the protobuf oneof."""
+def _scalar_from_oneof(holder: Any, declared_type: int, str_cap: int = 512) -> Any:
+    """Decode a scalar from a Sparkplug ``value`` oneof (DataSetValue / Parameter).
+
+    These cells carry no datatype of their own — the governing DataType comes from
+    the DataSet column (or the Template parameter's ``type``), so the signed integer
+    fields must sign-reinterpret at that declared width, exactly as a top-level
+    metric does. Returns None when the oneof is unset; an extension value is
+    surfaced as a short structural preview (rare in practice).
+    """
+    which = holder.WhichOneof("value")
+    if which is None:
+        return None
+    raw = getattr(holder, which)
+    if which in ("int_value", "long_value"):
+        return _reinterpret_signed(raw, declared_type)
+    if which in ("float_value", "double_value", "boolean_value"):
+        return raw
+    if which == "string_value":
+        return s(raw, str_cap)
+    return s(str(raw), 128)  # extension_value — structural preview only
+
+
+def _decode_dataset(dataset: Any) -> dict:
+    """Decode a Sparkplug B DataSet metric to a columnar ``{columns, types, rows}``.
+
+    Column ``types`` map the DataType enum to names, and every row cell is decoded
+    through its governing column type (so signed integers in the table sign-
+    reinterpret correctly). Rows/columns are bounded; ``row_count`` / ``truncated``
+    report the true size versus what was returned.
+    """
+    type_ints = [int(t) for t in list(dataset.types)[:MAX_DATASET_COLUMNS]]
+    columns = [s(c, 48) for c in list(dataset.columns)[:MAX_DATASET_COLUMNS]]
+    types = [_DATATYPE_NAMES.get(t, str(t)) for t in type_ints]
+    rows: list[list[Any]] = []
+    for row in list(dataset.rows)[:MAX_DATASET_ROWS]:
+        elements = list(row.elements)
+        rows.append(
+            [
+                _scalar_from_oneof(elements[i], type_ints[i] if i < len(type_ints) else 0)
+                for i in range(len(elements))
+            ]
+        )
+    return {
+        "dataset": True,
+        "num_columns": int(getattr(dataset, "num_of_columns", 0)),
+        "columns": columns,
+        "types": types,
+        "rows": rows,
+        "row_count": len(dataset.rows),
+        "truncated": len(dataset.rows) > MAX_DATASET_ROWS,
+    }
+
+
+def _decode_parameter(param: Any) -> dict:
+    """Decode a Template Parameter to ``{name, type, value}`` (type-aware scalar)."""
+    ptype = int(param.type)
+    return {
+        "name": s(param.name, 64),
+        "type": _DATATYPE_NAMES.get(ptype, str(ptype)),
+        "value": _scalar_from_oneof(param, ptype, 256),
+    }
+
+
+def _decode_template_member(metric: Any, depth: int) -> dict:
+    """Decode one Template member metric to ``{name, type, value}``.
+
+    The value is decoded recursively, so a member that is itself a DataSet or a
+    nested Template expands fully (bounded by :data:`MAX_TEMPLATE_DEPTH`).
+    """
+    return {
+        "name": s(metric.name, 96),
+        "type": _DATATYPE_NAMES.get(int(metric.datatype), str(int(metric.datatype))),
+        "value": None if metric.is_null else _metric_value(metric, depth),
+    }
+
+
+def _decode_template(template: Any, depth: int = 0) -> dict:
+    """Decode a Sparkplug B Template metric to a structured instance/definition.
+
+    Surfaces ``template_ref``, ``is_definition``, ``version``, the recursively
+    decoded ``members`` (each a metric, which may itself be a nested DataSet or
+    Template), and typed ``parameters``. ``depth`` bounds pathological nesting: at
+    the ceiling members are omitted (``members_truncated``) rather than recursing
+    without limit.
+    """
+    if depth >= MAX_TEMPLATE_DEPTH:
+        members: list[dict] = []
+        members_truncated = bool(len(template.metrics))
+    else:
+        members = [
+            _decode_template_member(m, depth + 1)
+            for m in list(template.metrics)[:MAX_TEMPLATE_MEMBERS]
+        ]
+        members_truncated = len(template.metrics) > MAX_TEMPLATE_MEMBERS
+    parameters = [_decode_parameter(p) for p in list(template.parameters)[:MAX_TEMPLATE_PARAMS]]
+    return {
+        "template": True,
+        "template_ref": s(getattr(template, "template_ref", ""), 96),
+        "is_definition": bool(template.is_definition),
+        "version": s(getattr(template, "version", ""), 32),
+        "members": members,
+        "parameters": parameters,
+        "metric_count": len(template.metrics),
+        "members_truncated": members_truncated,
+    }
+
+
+def _metric_value(metric: Any, depth: int = 0) -> Any:
+    """Extract a metric's scalar/complex value, JSON-safe, from the protobuf oneof.
+
+    ``depth`` tracks Template nesting so recursively decoded Template members
+    cannot recurse without bound (see :data:`MAX_TEMPLATE_DEPTH`).
+    """
     which = metric.WhichOneof("value")
     if which is None:
         return None
@@ -153,18 +276,9 @@ def _metric_value(metric: Any) -> Any:
     if which == "bytes_value":
         return {"bytes": len(raw), "hex_preview": raw[:32].hex()}
     if which == "dataset_value":
-        return {
-            "dataset": True,
-            "num_columns": int(getattr(raw, "num_of_columns", 0)),
-            "columns": [s(c, 48) for c in list(raw.columns)[:64]],
-            "row_count": len(raw.rows),
-        }
+        return _decode_dataset(raw)
     if which == "template_value":
-        return {
-            "template": True,
-            "template_ref": s(getattr(raw, "template_ref", ""), 96),
-            "metric_count": len(raw.metrics),
-        }
+        return _decode_template(raw, depth)
     return s(str(raw), 256)
 
 
