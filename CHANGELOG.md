@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.16.0 — 2026-07-17
+
+> **Protocol + intelligence depth release, tool surface unchanged.** Eight features that
+> *deepen existing tools* rather than add new ones — the tool count is identical (no profile
+> crosses the flood ceiling): EtherNet/IP PCCC (PLC-5 / SLC-500 / MicroLogix) + Micro800,
+> MTConnect bounded long-poll streaming, Sparkplug B DataSet/Template rich decode, live-verified
+> OPC-UA certificate security, predictive-maintenance RUL + waveform features, OEE Six Big
+> Losses + energy/carbon analytics, an RCA causal-graph export, and ISA-18.2 alarm
+> rationalization (suppression/first-out advice). Plus the earlier HART passive burst listener,
+> SIEM auth-header shapes, and the IGEL Managed-Container refresh.
+
 ### Added
 - **EtherNet/IP PCCC (PLC-5 / SLC-500 / MicroLogix) + Micro800** — the EtherNet/IP
   connector now selects the pycomm3 driver by a `plctype` field (config key or per-call
