@@ -63,6 +63,21 @@
 - **IGEL overlay refreshed** — the Managed-Container route references the published,
   cosign-signed 0.15.0 image with the socket MCP transport; ready-to-paste submission answers
   in `deploy/igel/SUBMISSION.md`.
+- **Alarm-rationalization depth (no new tool)** — the always-on `alarm_flood_analysis` tool now
+  returns three deeper ISA-18.2 views with **zero** new `@mcp.tool` (the brain tool count is
+  unchanged, so no profile crosses the flood ceiling). New pure/stdlib-only functions in
+  `iaiops/core/brain/alarm_flood.py`: an **alarm-load profile** (`alarm_load_profile` +
+  `classify_alarm_rate`) bucketing annunciations per 10 min into ISA-18.2/EEMUA-191 rate bands
+  (acceptable / manageable / over_target / flood) with the peak-load bucket, band distribution
+  and a first-half-vs-second-half trend; **root-cause grouping** — each detected flood episode
+  now names its **first-out** annunciation (earliest in the episode, a heuristic root cited by
+  timestamp, not a causal claim); and **suppression/shelving advice** (`suppression_advice`)
+  deriving a starting on-/off-delay (debounce) from observed cycle timing for chattering alarms
+  and a time-limited shelve for standing alarms. The suppression advice is **advisory only**
+  (`advisory_note`, restated on every row) — iaiops proposes deadband/delay/shelve *values* for
+  human review and never applies suppression, shelving, or delay changes; adoption goes through
+  the operator's ISA-18.2 / management-of-change process. Surfaced through the existing
+  `alarm_flood_analysis` tool (new `load_bucket_s` arg) and the `iaiops diag alarm-flood` CLI.
 - **OPC-UA certificate message security — validated end-to-end (no new tool)** — the existing
   application-certificate path in `iaiops/connectors/opcua/transport.py` (a `client_cert` +
   `client_key` target builds asyncua's `set_security_string`, optional `server_cert`) is now

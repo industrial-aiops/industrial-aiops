@@ -55,8 +55,9 @@ def alarm_flood_cmd(
     stale_after_s: float = typer.Option(86400.0, "--stale-after-s"),
     max_episodes: int = typer.Option(20, "--max-episodes"),
     max_rows: int = typer.Option(50, "--max-rows"),
+    load_bucket_s: float = typer.Option(600.0, "--load-bucket-s", help="ISA-18.2 load bucket (s)"),
 ) -> None:
-    """ISA-18.2 deep flood report: episodes + chattering + stale + summary."""
+    """ISA-18.2 deep flood report: episodes + chattering + stale + load profile + advice."""
     from iaiops.core.brain import alarm_flood as flood
 
     _emit(
@@ -67,6 +68,7 @@ def alarm_flood_cmd(
             stale_after_s=stale_after_s,
             max_episodes=max_episodes,
             max_rows=max_rows,
+            load_bucket_s=load_bucket_s,
         )
     )
 
