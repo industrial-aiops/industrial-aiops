@@ -76,6 +76,50 @@
   empty graph. A paste-ready Mermaid string ships inline and `causal_graph_dot()` renders
   Graphviz DOT. **Zero new `@mcp.tool`** — only existing tools gained the flag, so no profile
   tool-count / flood-threshold change (factory stays 134). Omit the flag ⇒ byte-identical output.
+- **Alarm-rationalization depth (no new tool)** — the always-on `alarm_flood_analysis` tool now
+  returns three deeper ISA-18.2 views with **zero** new `@mcp.tool` (the brain tool count is
+  unchanged, so no profile crosses the flood ceiling). New pure/stdlib-only functions in
+  `iaiops/core/brain/alarm_flood.py`: an **alarm-load profile** (`alarm_load_profile` +
+  `classify_alarm_rate`) bucketing annunciations per 10 min into ISA-18.2/EEMUA-191 rate bands
+  (acceptable / manageable / over_target / flood) with the peak-load bucket, band distribution
+  and a first-half-vs-second-half trend; **root-cause grouping** — each detected flood episode
+  now names its **first-out** annunciation (earliest in the episode, a heuristic root cited by
+  timestamp, not a causal claim); and **suppression/shelving advice** (`suppression_advice`)
+  deriving a starting on-/off-delay (debounce) from observed cycle timing for chattering alarms
+  and a time-limited shelve for standing alarms. The suppression advice is **advisory only**
+  (`advisory_note`, restated on every row) — iaiops proposes deadband/delay/shelve *values* for
+  human review and never applies suppression, shelving, or delay changes; adoption goes through
+  the operator's ISA-18.2 / management-of-change process. Surfaced through the existing
+  `alarm_flood_analysis` tool (new `load_bucket_s` arg) and the `iaiops diag alarm-flood` CLI.
+- **OPC-UA certificate message security — validated end-to-end (no new tool)** — the existing
+  application-certificate path in `iaiops/connectors/opcua/transport.py` (a `client_cert` +
+  `client_key` target builds asyncua's `set_security_string`, optional `server_cert`) is now
+  covered by a live in-process test (`tests/test_opcua_security.py`): a self-signed asyncua
+  server that accepts **only** Basic256Sha256 secure channels is driven through the ops layer
+  over the encrypted channel in **both Sign and SignAndEncrypt** modes — asserting the
+  negotiated policy URI + message-security mode on the wire, that `server_cert` pinning *and*
+  client-side auto-discovery both read, that anonymous is refused by the secure-only server,
+  and that a no-cert target still connects anonymously (back-compat). The README OPC-UA entry
+  moves from "roadmap, not validated" to this verified matrix; third-party / vendor-server
+  interop, the other policies (Aes128 / Aes256 / Basic128Rsa15 / Basic256), server-side
+  certificate-trust enforcement, and X509 *user* tokens stay `待核实`. No new `@mcp.tool` — no
+  profile tool-count / flood-threshold change.
+- **Sparkplug B DataSet / Template rich-type deep decode (no new tool)** — the existing
+  Sparkplug decode path (`sparkplug_decode_payload`, `sparkplug_subscribe_sample`) now fully
+  expands the two structured UNS datatypes instead of summarizing them. A **DataSet** metric
+  decodes to columnar `{columns, types, rows}` — column `types` mapped from the DataType enum,
+  and every row cell decoded through its governing column type so signed integers in the table
+  sign-reinterpret correctly (with `row_count` / `truncated` reporting true vs returned size).
+  A **Template** metric decodes to `{template_ref, is_definition, version, members, parameters}`,
+  where `members` are `{name, type, value}` decoded **recursively** (a member that is itself a
+  DataSet or a nested Template expands in place, bounded by `MAX_TEMPLATE_DEPTH` against
+  pathological nesting) and `parameters` are type-aware `{name, type, value}`. New pure codec
+  helpers (`_decode_dataset` / `_decode_template` / `_decode_parameter` / `_scalar_from_oneof`)
+  in `iaiops/connectors/sparkplug/ops.py` are fully unit-tested from crafted protobuf fixtures
+  (column-type mapping, row values, two's-complement cells/members/parameters, nested Template,
+  depth guard). **Zero new `@mcp.tool`** — only existing tools/codec were deepened, so no
+  profile tool-count / flood-threshold change. Real broker end-to-end DataSet/Template streams
+  are **待核实** (verified against synthetic Tahu-schema payloads only, no live broker).
 
 ## 0.15.0 — 2026-07-15
 
