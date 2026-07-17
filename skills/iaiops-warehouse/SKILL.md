@@ -34,6 +34,8 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 - `eip_list_tags` — 控制器 tag 列表
 - `eip_read_tag` / `eip_read_many` — 读单/多 tag（输送段状态、分拣计数、速度）
 - `eip_write_tag` — **[WRITE][HIGH][MOC]** 写 tag（默认 `dry_run=True` + 改前值 undo + 双确认）
+- `plctype` 入参（或 config key）选驱动：`logix`（默认 Logix 符号 tag）、`slc`（老 AB 输送/分拣
+  PLC-5/SLC-500/MicroLogix 走 PCCC 数据表 `N7:0`/`B3:0/0`/`F8:0`）、`micro800`。真 PCCC/Micro800 待核实。
 
 ### Profinet（Siemens 物料搬运线）
 - `profinet_discover` — DCP 发现网上 IO 设备/station
@@ -102,7 +104,7 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 
 | 协议 | 库(pin) | 规范/版本 | 覆盖 | 传输 | 自测 |
 |---|---|---|---|---|---|
-| EtherNet/IP | `pycomm3>=1.2,<2`（extra） | CIP / EtherNet/IP；Logix tags | Allen-Bradley/Rockwell ControlLogix/CompactLogix | TCP/44818 | ⚠️ mock；真 PLC 待核实 |
+| EtherNet/IP | `pycomm3>=1.2,<2`（extra） | CIP / EtherNet/IP；Logix tag + PCCC 数据表 | AB/Rockwell ControlLogix/CompactLogix + PLC-5/SLC-500/MicroLogix（PCCC）+ Micro800（`plctype` 选） | TCP/44818 | ⚠️ mock（含 SLCDriver）；真 PLC 待核实 |
 | Profinet | `pnio-dcp>=1.1,<3`（extra） | PN-DCP（发现/命名） | 现场 IO 设备/station | Ethernet(raw)/UDP | ⚠️ 发现层自测;真设备 待核实 |
 | Modbus-TCP | `pymodbus>=3.5,<4` | App 1.1b3；FC 1/2/3/4/5/6/15/16 | VFD/能耗表/AGV BMS/任意从站 | TCP/502 | ✅ |
 | Modbus-RTU | `pymodbus>=3.5,<4` + `pyserial>=3.5` | Modbus serial (RTU) | 串口从站/表计 | RS-485/serial | ✅ socat PTY;物理 RS-485 待核实 |
