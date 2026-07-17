@@ -7,6 +7,8 @@ extraction, and OEE snapshot logic are exercised for real.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from iaiops.connectors.mtconnect import ops
@@ -216,3 +218,159 @@ def test_oee_snapshot_running(cnc_target):
     assert out["program"] == "O1234"
     assert out["available"] is True and out["running"] is True
     assert out["verdict"] == "running"
+
+
+# ── incremental long-poll streaming (mtconnect_stream + sequence-aware sample) ──
+
+
+def _streams_doc(
+    observations: list[tuple[str, int, str]],
+    next_sequence: int,
+    instance_id: str = "1",
+) -> str:
+    """Build a MTConnectStreams document with a sequence-bearing <Header>.
+
+    ``observations`` is a list of ``(dataItemId, sequence, value)`` Position samples;
+    the header advertises ``nextSequence`` (the cursor a client passes as ``from=``).
+    """
+    samples = "".join(
+        f'<Position dataItemId="{did}" timestamp="2026-06-28T10:00:00Z" '
+        f'sequence="{seq}">{val}</Position>'
+        for did, seq, val in observations
+    )
+    return (
+        '<?xml version="1.0"?>'
+        f'<MTConnectStreams xmlns="{_NS_STREAMS}">'
+        f'<Header creationTime="2026-06-28T10:00:00Z" instanceId="{instance_id}" '
+        f'sender="agent" nextSequence="{next_sequence}" firstSequence="1" '
+        f'lastSequence="{max(next_sequence - 1, 1)}"/>'
+        '<Streams><DeviceStream name="VMC1" uuid="VMC1-001">'
+        '<ComponentStream component="Linear" name="X" componentId="x">'
+        f"<Samples>{samples}</Samples>"
+        "</ComponentStream></DeviceStream></Streams>"
+        "</MTConnectStreams>"
+    )
+
+
+def _from_arg(url: str) -> int | None:
+    m = re.search(r"[?&]from=(\d+)", url)
+    return int(m.group(1)) if m else None
+
+
+def _stream_target(monkeypatch, fake_get) -> TargetConfig:
+    monkeypatch.setattr(ops, "_http_get", fake_get)
+    monkeypatch.setattr(ops, "_sleep", lambda _s: None)  # no real waits in tests
+    return TargetConfig(name="vmc1", protocol="mtconnect", agent_url="http://h:5000")
+
+
+@pytest.mark.unit
+def test_stream_advances_by_sequence_then_stops_caught_up(monkeypatch):
+    """Two incremental pages advance the cursor; an empty page ends the stream."""
+
+    def _fake_get(url, timeout=10):
+        frm = _from_arg(url)
+        if frm is None:
+            return _streams_doc([("xpos", 1, "1.0"), ("xpos", 2, "2.0")], next_sequence=3)
+        if frm == 3:
+            return _streams_doc([("xpos", 3, "3.0"), ("xpos", 4, "4.0")], next_sequence=5)
+        if frm == 5:
+            return _streams_doc([], next_sequence=5)  # caught up
+        raise AssertionError(f"unexpected from={frm}")
+
+    target = _stream_target(monkeypatch, _fake_get)
+    out = ops.mtconnect_stream(
+        target, from_sequence=None, interval_ms=0, count=10, max_samples=100, duration_s=60
+    )
+    assert out["mode"] == "stream"
+    assert [o["sequence"] for o in out["observations"]] == ["1", "2", "3", "4"]
+    assert out["observation_count"] == 4
+    assert out["next_sequence"] == 5
+    assert out["stopped_reason"] == "caught_up"
+    assert out["poll_count"] == 3
+
+
+@pytest.mark.unit
+def test_stream_stops_at_max_samples(monkeypatch):
+    """A perpetually-advancing agent is bounded by the max_samples budget."""
+
+    def _fake_get(url, timeout=10):
+        frm = _from_arg(url) or 1
+        return _streams_doc([("xpos", frm, "a"), ("xpos", frm + 1, "b")], next_sequence=frm + 2)
+
+    target = _stream_target(monkeypatch, _fake_get)
+    out = ops.mtconnect_stream(
+        target, from_sequence=1, interval_ms=0, count=10, max_samples=5, duration_s=60
+    )
+    assert out["observation_count"] == 5  # never exceeds the budget
+    assert out["stopped_reason"] == "max_samples"
+
+
+@pytest.mark.unit
+def test_stream_stops_at_max_polls_and_spaces_by_interval(monkeypatch):
+    """The iteration cap bounds an endless agent; interval spacing is applied."""
+    sleeps: list[float] = []
+
+    def _fake_get(url, timeout=10):
+        frm = _from_arg(url) or 1
+        return _streams_doc([("xpos", frm, "a")], next_sequence=frm + 1)
+
+    monkeypatch.setattr(ops, "_http_get", _fake_get)
+    monkeypatch.setattr(ops, "_sleep", lambda s: sleeps.append(s))
+    target = TargetConfig(name="vmc1", protocol="mtconnect", agent_url="http://h:5000")
+
+    out = ops.mtconnect_stream(
+        target, from_sequence=1, interval_ms=250, count=10, max_samples=100_000, duration_s=120
+    )
+    assert out["poll_count"] == ops.MAX_STREAM_POLLS
+    assert out["stopped_reason"] == "max_polls"
+    assert sleeps and all(s == 0.25 for s in sleeps)  # interval_ms honored
+
+
+@pytest.mark.unit
+def test_stream_stops_when_agent_instance_resets(monkeypatch):
+    """A changed instanceId (agent restart) invalidates the cursor → stop."""
+
+    def _fake_get(url, timeout=10):
+        frm = _from_arg(url) or 1
+        if frm == 1:
+            return _streams_doc([("xpos", 1, "a")], next_sequence=2, instance_id="1")
+        return _streams_doc([("xpos", 2, "b")], next_sequence=3, instance_id="2")
+
+    target = _stream_target(monkeypatch, _fake_get)
+    out = ops.mtconnect_stream(
+        target, from_sequence=1, interval_ms=0, count=10, max_samples=100, duration_s=60
+    )
+    assert out["stopped_reason"] == "instance_changed"
+    assert out["observation_count"] == 1  # data from the reset buffer is discarded
+
+
+@pytest.mark.unit
+def test_sample_incremental_page_sends_from_and_returns_next_sequence(monkeypatch):
+    """A from_sequence snapshot page sends from=/count= and surfaces next_sequence."""
+    captured: dict[str, str] = {}
+
+    def _fake_get(url, timeout=10):
+        captured["url"] = url
+        return _streams_doc([("xpos", 7, "9.9")], next_sequence=8)
+
+    monkeypatch.setattr(ops, "_http_get", _fake_get)
+    target = TargetConfig(name="vmc1", protocol="mtconnect", agent_url="http://h:5000")
+
+    out = ops.mtconnect_sample(target, count=50, from_sequence=7)
+    assert "from=7" in captured["url"] and "count=50" in captured["url"]
+    assert out["mode"] == "snapshot"
+    assert out["from_sequence"] == 7
+    assert out["next_sequence"] == 8
+    assert out["observation_count"] == 1
+
+
+@pytest.mark.unit
+def test_current_exposes_next_sequence(monkeypatch):
+    """/current surfaces next_sequence so a caller can start a stream at 'now'."""
+    monkeypatch.setattr(
+        ops, "_http_get", lambda url, timeout=10: _streams_doc([("xpos", 5, "1.0")], 6)
+    )
+    target = TargetConfig(name="vmc1", protocol="mtconnect", agent_url="http://h:5000")
+    out = ops.mtconnect_current(target)
+    assert out["next_sequence"] == 6
+    assert out["observation_count"] == 1

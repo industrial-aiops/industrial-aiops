@@ -6,6 +6,7 @@ collected inputs, so they need no live plant. Structured JSON for agent visuals.
 
 from typing import Any, Optional
 
+from iaiops.core.brain import energy as en
 from iaiops.core.brain import oee as ops
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
@@ -20,8 +21,16 @@ def oee_compute(
     ideal_cycle_time_s: float,
     total_count: float,
     good_count: float,
+    breakdown_time_s: Optional[float] = None,
+    setup_time_s: Optional[float] = None,
+    minor_stop_time_s: Optional[float] = None,
+    startup_reject_count: Optional[float] = None,
+    actual_kwh: Optional[float] = None,
+    baseline_kwh: Optional[float] = None,
+    emission_factor_kg_per_kwh: Optional[float] = None,
+    energy_tolerance: float = en.DEFAULT_ENERGY_TOLERANCE,
 ) -> dict:
-    """[READ][risk=low] OEE = Availability × Performance × Quality from inputs.
+    """[READ][risk=low] OEE = Availability × Performance × Quality (+ loss/energy depth).
 
     Args:
         planned_time_s: Planned production time (seconds).
@@ -29,14 +38,56 @@ def oee_compute(
         ideal_cycle_time_s: Ideal/nameplate cycle time per part (seconds).
         total_count: Total parts produced.
         good_count: Good (non-reject) parts produced.
+        breakdown_time_s: Optional — unplanned-stop seconds (splits availability loss).
+        setup_time_s: Optional — changeover/setup seconds (splits availability loss).
+        minor_stop_time_s: Optional — minor-stop seconds (splits performance loss;
+            the remainder is speed loss).
+        startup_reject_count: Optional — startup/warm-up rejects (splits quality
+            loss; the remainder is production rejects).
+        actual_kwh: Optional — measured energy for this run; enables the energy block.
+        baseline_kwh: Optional — expected/baseline energy for the actual-vs-baseline
+            deviation verdict.
+        emission_factor_kg_per_kwh: Optional — carbon factor (kg CO2e/kWh). Default is
+            a flagged placeholder (see the tool's carbon note); pass the grid's value.
+        energy_tolerance: ± band (fraction) for the over/under/on-target verdict.
 
-    Returns dict: {availability, performance, quality (each {raw, value, capped}),
-        oee, oee_pct, inputs, losses}.
+    Returns dict: OEE factors + oee/oee_pct + inputs + losses, plus
+        ``six_big_losses`` (breakdown/setup/minor-stops/speed/startup/production-reject
+        time-ladder that sums with OEE to 100%) and, when ``actual_kwh`` is given,
+        ``energy`` (kwh_per_unit, carbon, and baseline deviation).
 
     Example: oee_compute(planned_time_s=28800, run_time_s=25200,
-        ideal_cycle_time_s=2.0, total_count=12000, good_count=11800).
+        ideal_cycle_time_s=2.0, total_count=12000, good_count=11800,
+        setup_time_s=1800, actual_kwh=940, baseline_kwh=880).
     """
-    return ops.oee_compute(planned_time_s, run_time_s, ideal_cycle_time_s, total_count, good_count)
+    result = ops.oee_compute(
+        planned_time_s, run_time_s, ideal_cycle_time_s, total_count, good_count
+    )
+    result = {
+        **result,
+        "six_big_losses": ops.six_big_losses(
+            planned_time_s,
+            run_time_s,
+            ideal_cycle_time_s,
+            total_count,
+            good_count,
+            breakdown_time_s,
+            setup_time_s,
+            minor_stop_time_s,
+            startup_reject_count,
+        ),
+    }
+    if actual_kwh is not None:
+        energy_block = en.energy_intensity(actual_kwh, good_count, emission_factor_kg_per_kwh)
+        if baseline_kwh is not None:
+            energy_block = {
+                **energy_block,
+                "baseline": en.energy_baseline_deviation(
+                    actual_kwh, baseline_kwh, energy_tolerance
+                ),
+            }
+        result = {**result, "energy": energy_block}
+    return result
 
 
 @mcp.tool()
@@ -68,19 +119,31 @@ def downtime_events(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def oee_multidim(records: list[dict[str, Any]], dimensions: Optional[list[str]] = None) -> dict:
-    """[READ][risk=low] Aggregate OEE across dimensions (machine × part × shift).
+def oee_multidim(
+    records: list[dict[str, Any]],
+    dimensions: Optional[list[str]] = None,
+    emission_factor_kg_per_kwh: Optional[float] = None,
+    energy_tolerance: float = en.DEFAULT_ENERGY_TOLERANCE,
+) -> dict:
+    """[READ][risk=low] Aggregate OEE (+ optional energy) across dimensions.
 
     Args:
         records: Labelled records — {<dimension labels>, planned_time_s, run_time_s,
-            ideal_cycle_time_s, total_count, good_count}.
-        dimensions: Dimension keys to group by (default ['machine','part','shift']).
+            ideal_cycle_time_s, total_count, good_count} plus optional actual_kwh /
+            baseline_kwh to enable the energy rollup.
+        dimensions: Dimension keys to group by (default ['machine','part','shift']);
+            use ['shift'] for the classic by-shift energy comparison.
+        emission_factor_kg_per_kwh: Optional carbon factor (kg CO2e/kWh); default is a
+            flagged placeholder — pass the grid's published value.
+        energy_tolerance: ± band (fraction) for the actual-vs-baseline verdict.
 
     Returns dict: {dimensions, group_count, mean_oee, worst_performers:[...],
-        matrix:[{dimensions, oee, oee_pct, availability, performance, quality}]}.
+        matrix:[{dimensions, oee, oee_pct, availability, performance, quality,
+        energy?}]}. When any record carries energy, adds an ``energy_baseline`` block
+        that flags cross-group deviation anomalies (tolerance + robust-outlier rules).
 
-    Example: oee_multidim(records=[{"machine":"M1","part":"A","shift":"day",
-        "planned_time_s":28800,"run_time_s":25000,"ideal_cycle_time_s":2,
-        "total_count":12000,"good_count":11800}], dimensions=["machine","part"]).
+    Example: oee_multidim(records=[{"shift":"day","planned_time_s":28800,
+        "run_time_s":25000,"ideal_cycle_time_s":2,"total_count":12000,
+        "good_count":11800,"actual_kwh":940,"baseline_kwh":880}], dimensions=["shift"]).
     """
-    return ops.oee_multidim(records, dimensions)
+    return ops.oee_multidim(records, dimensions, emission_factor_kg_per_kwh, energy_tolerance)
