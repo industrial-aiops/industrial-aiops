@@ -63,6 +63,19 @@
 - **IGEL overlay refreshed** — the Managed-Container route references the published,
   cosign-signed 0.15.0 image with the socket MCP transport; ready-to-paste submission answers
   in `deploy/igel/SUBMISSION.md`.
+- **OPC-UA certificate message security — validated end-to-end (no new tool)** — the existing
+  application-certificate path in `iaiops/connectors/opcua/transport.py` (a `client_cert` +
+  `client_key` target builds asyncua's `set_security_string`, optional `server_cert`) is now
+  covered by a live in-process test (`tests/test_opcua_security.py`): a self-signed asyncua
+  server that accepts **only** Basic256Sha256 secure channels is driven through the ops layer
+  over the encrypted channel in **both Sign and SignAndEncrypt** modes — asserting the
+  negotiated policy URI + message-security mode on the wire, that `server_cert` pinning *and*
+  client-side auto-discovery both read, that anonymous is refused by the secure-only server,
+  and that a no-cert target still connects anonymously (back-compat). The README OPC-UA entry
+  moves from "roadmap, not validated" to this verified matrix; third-party / vendor-server
+  interop, the other policies (Aes128 / Aes256 / Basic128Rsa15 / Basic256), server-side
+  certificate-trust enforcement, and X509 *user* tokens stay `待核实`. No new `@mcp.tool` — no
+  profile tool-count / flood-threshold change.
 - **Sparkplug B DataSet / Template rich-type deep decode (no new tool)** — the existing
   Sparkplug decode path (`sparkplug_decode_payload`, `sparkplug_subscribe_sample`) now fully
   expands the two structured UNS datatypes instead of summarizing them. A **DataSet** metric

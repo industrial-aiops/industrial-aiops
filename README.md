@@ -177,10 +177,10 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 ## Per-protocol reference
 
 ### OPC-UA
-- **Versions/variants**: binary `opc.tcp://` via `asyncua` (sync facade). Security: **anonymous + username/password**. Certificate message security (Sign / SignAndEncrypt) = **roadmap, not validated**.
-- **Connection params**: `endpoint_url`, `username` (password encrypted), `security_mode`, `security_policy`.
+- **Versions/variants**: binary `opc.tcp://` via `asyncua` (sync facade). Security: **anonymous + username/password**, plus **application-certificate message security (Sign / SignAndEncrypt)** — set `client_cert` + `client_key` (+ optional `server_cert`) and the client opens a signed/encrypted secure channel (no cert ⇒ the anonymous / username path is unchanged). **Validated end-to-end against an in-process asyncua server** (`tests/test_opcua_security.py`) for **Basic256Sha256** in **both Sign and SignAndEncrypt** modes: `server_cert` pinning *and* client-side server-cert auto-discovery are exercised, and the test asserts the negotiated policy URI + message-security mode on the live encrypted channel (plus a negative test that anonymous is refused by a secure-only server).
+- **Connection params**: `endpoint_url`, `username` (password encrypted), `security_mode`, `security_policy`; for cert security `client_cert` / `client_key` / optional `server_cert` (PEM or DER paths; aliases `certfile` / `keyfile`).
 - **Alarms & Conditions**: `opcua_alarm_events` — bounded event subscription + `ConditionRefresh`, events carry the server's own timestamps (verified against an in-process asyncua server; third-party A&C servers `待核实`). Untimed fallback: `opcua_read_alarms` browses alarm-like boolean nodes.
-- **Not supported / planned**: cert security.
+- **Not supported / planned** (`待核实`): cert-security interop with third-party / vendor servers (KEPServerEX / Prosys / Siemens / real PLCs), the other policies (Aes128Sha256RsaOaep / Aes256Sha256RsaPss / Basic128Rsa15 / Basic256), strict server-side certificate-trust enforcement, and cert-based *user* identity (X509 identity token, distinct from channel security).
 
 ### Modbus-TCP / Modbus-RTU
 - **Versions/variants**: Modbus-TCP and **Modbus-RTU (serial RS-485/232)** via `pymodbus` (+ `pyserial`). Read function codes **FC01 (coils), FC02 (discrete), FC03 (holding), FC04 (input)**. Write FCs (**FC05/06/15/16**) = **not implemented** (read-only).
