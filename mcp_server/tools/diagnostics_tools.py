@@ -186,6 +186,7 @@ def downtime_root_cause(
     state_series: Optional[list[dict[str, Any]]] = None,
     lead_window_s: float = 300.0,
     cause_weights: Optional[dict[str, float]] = None,
+    include_graph: bool = False,
 ) -> dict:
     """[READ][risk=low] AI downtime root-cause copilot — cited verdict, ADVISORY only.
 
@@ -212,6 +213,12 @@ def downtime_root_cause(
             learn_cause_weights) — scales each cause's evidence (1.0 = neutral
             default) before the noisy-OR. Unknown causes / non-numeric weights are
             rejected; values are clamped. Omit for the shipped default weighting.
+        include_graph: When true, also return a 'graph' block — the SAME verdict
+            re-projected as a causal graph {nodes, edges, mermaid, meta} (signal →
+            cause → downtime) for a frontend/Grafana. Pure re-shape: signal→cause
+            edge weights are the evidence contribution scores, cause→symptom edge
+            weights are the hypothesis confidences — no new reasoning. Omit for the
+            flat verdict only (default).
 
     When a per-site 'historian:' block is configured (~/.iaiops/config.yaml, A7),
     the 2h pre-incident window is additionally pulled from that reader and scored
@@ -222,7 +229,9 @@ def downtime_root_cause(
         'insufficient_evidence'), primary_cause, hypotheses:[{cause, confidence (0..1),
         confidence_band, evidence:[{signal, ref, at?, lead_time_s?, detail, weight}],
         recommended_action}], evidence_summary, recommended_next_data?,
-        anti_hallucination}.
+        anti_hallucination, graph? (when include_graph): {nodes:[{id, kind
+        (signal|cause|symptom), label, score, ...}], edges:[{from, to, weight,
+        relation (supports|attributed_to)}], mermaid, meta}}.
 
     Example: downtime_root_cause(window={"start":"2026-06-28T10:00:00Z","asset":"line1"},
         alarms=[{"source":"M1_DRIVE","timestamp":"2026-06-28T09:59:50Z",
@@ -239,6 +248,7 @@ def downtime_root_cause(
         lead_window_s,
         cause_weights,
         historian=historian,
+        include_graph=include_graph,
     )
 
 
@@ -253,6 +263,7 @@ def downtime_root_cause_live(
     interval_ms: int = 200,
     include_alarms: bool = True,
     lead_window_s: float = 300.0,
+    include_graph: bool = False,
 ) -> dict:
     """[READ][risk=low] AI downtime RCA copilot that GATHERS its own live evidence.
 
@@ -272,6 +283,9 @@ def downtime_root_cause_live(
         interval_ms: Delay between reads (>=50ms, default 200).
         include_alarms: Surface active OPC-UA conditions as alarm evidence (OPC-UA only).
         lead_window_s: Causal lead window before onset (default 300s).
+        include_graph: When true, also return the 'graph' block (same {nodes, edges,
+            mermaid, meta} causal-graph re-projection as downtime_root_cause). Pure
+            re-shape of the verdict; no new reasoning. Omit for the flat verdict.
 
     Returns dict: same shape as downtime_root_cause plus 'collected_evidence'
         {endpoint, protocol, refs_sampled, alarms_found, dataflow_verdict}.
@@ -293,6 +307,7 @@ def downtime_root_cause_live(
         interval_ms,
         include_alarms,
         lead_window_s,
+        include_graph=include_graph,
     )
 
 

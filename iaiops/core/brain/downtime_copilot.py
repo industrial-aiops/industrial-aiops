@@ -51,6 +51,7 @@ def downtime_triage(
     cause_weights: dict[str, float] | None = None,
     historian: dict | None = None,
     imminent_within_s: float = 86_400.0,
+    include_graph: bool = False,
 ) -> dict:
     """[READ] Compose the alarm cascade, RCA verdict, and PdM precursors into one triage.
 
@@ -60,6 +61,10 @@ def downtime_triage(
     alarm_low?}`` — each series is run through ``pdm_forecast`` and kept only when
     it was degrading/imminent (a warning that preceded the trip). Sub-reports are
     echoed under ``cascade`` / ``rca`` / ``precursor_forecasts`` for drill-down.
+
+    ``include_graph`` forwards to the RCA so the echoed ``rca`` sub-report also
+    carries the ``graph`` causal-graph re-projection (pure re-shape of the verdict,
+    no new reasoning). Absent ⇒ unchanged output.
     """
     rca = downtime_rca(
         window,
@@ -70,6 +75,7 @@ def downtime_triage(
         lead_window_s,
         cause_weights,
         historian=historian,
+        include_graph=include_graph,
     )
     cascade = alarm_cascade(alarms or [], window_s=cascade_window_s)
     flagged = _forecast_precursors(precursors, imminent_within_s)
@@ -211,11 +217,14 @@ def _cascade_summary(cascade: dict) -> dict:
 
 
 def _rca_summary(rca: dict) -> dict:
-    return {
+    summary = {
         "verdict": rca.get("verdict"),
         "primary_cause": rca.get("primary_cause"),
         "top_hypotheses": (rca.get("hypotheses") or [])[:MAX_HYPOTHESES],
     }
+    if "graph" in rca:  # only when the caller asked for include_graph
+        summary = {**summary, "graph": rca["graph"]}
+    return summary
 
 
 __all__ = ["downtime_triage", "MAX_HYPOTHESES", "MAX_PRECURSORS"]

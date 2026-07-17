@@ -78,6 +78,7 @@ def downtime_rca_live(
     interval_ms: int = DEFAULT_INTERVAL_MS,
     include_alarms: bool = True,
     lead_window_s: float = 300.0,
+    include_graph: bool = False,
 ) -> dict:
     """[READ] Collect live evidence for an endpoint, then run the RCA copilot.
 
@@ -90,6 +91,10 @@ def downtime_rca_live(
     window is additionally pulled from that reader and scored as historian
     evidence (cited with source/window/sample count). Without the config the
     behaviour is byte-identical to before.
+
+    ``include_graph`` forwards to ``downtime_rca`` so the returned verdict also
+    carries the ``graph`` causal-graph re-projection (pure re-shape, no new
+    reasoning). Absent ⇒ unchanged output.
     """
     bundle = collect_evidence(
         target,
@@ -109,6 +114,7 @@ def downtime_rca_live(
         dataflow=bundle["dataflow"],
         lead_window_s=lead_window_s,
         historian=historian,
+        include_graph=include_graph,
     )
     verdict["collected_evidence"] = bundle["collected"]
     return verdict

@@ -30,6 +30,7 @@ def downtime_triage(
     lead_window_s: float = 300.0,
     cause_weights: Optional[dict[str, float]] = None,
     imminent_within_s: float = 86400.0,
+    include_graph: bool = False,
 ) -> dict:
     """[READ][risk=low] One-call downtime triage: first-look alarm + RCA cause + precursors.
 
@@ -57,13 +58,17 @@ def downtime_triage(
         lead_window_s: Causal lead window before onset (default 300s).
         cause_weights: Optional per-site {cause: multiplier} RCA override.
         imminent_within_s: ETA horizon that marks a precursor 'imminent' (default 24h).
+        include_graph: When true, the echoed 'rca' sub-report also carries a 'graph'
+            block — the SAME verdict re-projected as a causal graph {nodes, edges,
+            mermaid, meta} (signal → cause → downtime) for a frontend. Pure re-shape;
+            no new reasoning. Omit to keep the flat rca summary (default).
 
     Returns dict: {window, triage:{first_look:{source, ts, cascade_size, basis},
         likely_cause:{cause, verdict, confidence, confidence_band,
         recommended_action}, cross_check:{status ('corroborated'|'diverging'|
         'no_alarm_root'|'no_rca_primary'), detail}, precursors_missed:[{signal,
         status, direction, eta_to_limit, unit, limit}], recommended_next_data},
-        cascade:{...}, rca:{verdict, primary_cause, top_hypotheses},
+        cascade:{...}, rca:{verdict, primary_cause, top_hypotheses, graph?},
         precursor_forecasts:[...], anti_hallucination}.
 
     Example: downtime_triage(window={"start":"2026-06-28T10:00:00Z","asset":"line1"},
@@ -85,4 +90,5 @@ def downtime_triage(
         cause_weights=cause_weights,
         historian=historian,
         imminent_within_s=imminent_within_s,
+        include_graph=include_graph,
     )
