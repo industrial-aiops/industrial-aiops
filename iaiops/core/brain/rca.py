@@ -42,6 +42,11 @@ from iaiops.core.brain.diagnostics import (
     tag_health,
 )
 from iaiops.core.brain.oee import downtime_events
+from iaiops.core.brain.rca_graph import (
+    build_causal_graph,
+    causal_graph_dot,
+    causal_graph_mermaid,
+)
 
 # How far before onset a signal may sit and still count as a *cause* candidate.
 DEFAULT_LEAD_WINDOW_S = 300.0
@@ -173,6 +178,7 @@ def downtime_rca(
     lead_window_s: float = DEFAULT_LEAD_WINDOW_S,
     cause_weights: dict[str, float] | None = None,
     historian: dict | None = None,
+    include_graph: bool = False,
 ) -> dict:
     """[READ] Correlate evidence around a downtime window into a cited root cause.
 
@@ -199,11 +205,20 @@ def downtime_rca(
     band, and real-signal ``evidence`` citations + an advisory action),
     ``primary_cause``, an ``evidence_summary``, and — when thin —
     ``recommended_next_data``. Nothing is executed; all actions are advisory.
+
+    ``include_graph`` attaches a ``graph`` block — the *same* verdict re-projected
+    as a ``{nodes, edges, mermaid, meta}`` causal graph (signal → cause → downtime)
+    for a frontend/Grafana. It is a pure visual re-shape via
+    :func:`iaiops.core.brain.rca_graph.build_causal_graph`: ``signal → cause`` edge
+    weights are the evidence contribution scores and ``cause → symptom`` edge
+    weights are the hypothesis confidences — no new reasoning, nothing invented.
+    Absent ⇒ byte-identical output to before.
     """
     weights = _normalize_cause_weights(cause_weights)
     win = _resolve_window(window, state_series)
     if "error" in win:
-        return {"verdict": "insufficient_evidence", **win, "anti_hallucination": _AH_NOTE}
+        err = {"verdict": "insufficient_evidence", **win, "anti_hallucination": _AH_NOTE}
+        return _with_graph(err, include_graph)
 
     lead = max(0.0, float(lead_window_s))
     contributions, alarm_ctx = _collect_contributions(dataflow, alarms, tags, historian, win, lead)
@@ -213,7 +228,15 @@ def downtime_rca(
     summary = _evidence_summary(alarm_ctx, tags, dataflow, contributions)
     if historian is not None:
         summary = {**summary, **_historian_summary(historian)}
-    return _render_rca(win, verdict, primary, hypotheses, summary, alarm_ctx, tags, dataflow)
+    out = _render_rca(win, verdict, primary, hypotheses, summary, alarm_ctx, tags, dataflow)
+    return _with_graph(out, include_graph)
+
+
+def _with_graph(verdict: dict, include_graph: bool) -> dict:
+    """Attach the causal-graph re-projection to a verdict when requested (immutably)."""
+    if not include_graph:
+        return verdict
+    return {**verdict, "graph": build_causal_graph(verdict)}
 
 
 def _collect_contributions(
@@ -713,6 +736,9 @@ def _next_data(alarm_ctx: dict, tags: list[dict] | None, dataflow: dict | None) 
 
 __all__ = [
     "downtime_rca",
+    "build_causal_graph",
+    "causal_graph_mermaid",
+    "causal_graph_dot",
     "KNOWN_CAUSES",
     "DEFAULT_CAUSE_WEIGHT",
     "MIN_CAUSE_WEIGHT",

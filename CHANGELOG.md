@@ -63,6 +63,19 @@
 - **IGEL overlay refreshed** — the Managed-Container route references the published,
   cosign-signed 0.15.0 image with the socket MCP transport; ready-to-paste submission answers
   in `deploy/igel/SUBMISSION.md`.
+- **RCA causal-graph export (no new tool)** — the always-on RCA copilot can now emit its
+  cited verdict as a structured **causal graph** for a frontend/Grafana via a new opt-in
+  `include_graph` flag on the existing `downtime_root_cause`, `downtime_root_cause_live`, and
+  `downtime_triage` tools (and `rca.downtime_rca`). It attaches a `graph` block —
+  `{nodes:[{id, kind (signal|cause|symptom), label, score, …}], edges:[{from, to, weight,
+  relation (supports|attributed_to)}], mermaid, meta}` — where a **signal→cause** edge weight
+  is the evidence item's contribution score and a **cause→symptom** edge weight is the
+  hypothesis confidence, both copied verbatim. It is a **pure re-projection of the
+  already-computed verdict** (new module `iaiops/core/brain/rca_graph.py`): no new correlation,
+  scoring, or inference; no orphan nodes, no fabricated edges; a thin/error verdict yields an
+  empty graph. A paste-ready Mermaid string ships inline and `causal_graph_dot()` renders
+  Graphviz DOT. **Zero new `@mcp.tool`** — only existing tools gained the flag, so no profile
+  tool-count / flood-threshold change (factory stays 134). Omit the flag ⇒ byte-identical output.
 - **Alarm-rationalization depth (no new tool)** — the always-on `alarm_flood_analysis` tool now
   returns three deeper ISA-18.2 views with **zero** new `@mcp.tool` (the brain tool count is
   unchanged, so no profile crosses the flood ceiling). New pure/stdlib-only functions in
