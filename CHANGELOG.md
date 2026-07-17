@@ -76,6 +76,22 @@
   interop, the other policies (Aes128 / Aes256 / Basic128Rsa15 / Basic256), server-side
   certificate-trust enforcement, and X509 *user* tokens stay `待核实`. No new `@mcp.tool` — no
   profile tool-count / flood-threshold change.
+- **Sparkplug B DataSet / Template rich-type deep decode (no new tool)** — the existing
+  Sparkplug decode path (`sparkplug_decode_payload`, `sparkplug_subscribe_sample`) now fully
+  expands the two structured UNS datatypes instead of summarizing them. A **DataSet** metric
+  decodes to columnar `{columns, types, rows}` — column `types` mapped from the DataType enum,
+  and every row cell decoded through its governing column type so signed integers in the table
+  sign-reinterpret correctly (with `row_count` / `truncated` reporting true vs returned size).
+  A **Template** metric decodes to `{template_ref, is_definition, version, members, parameters}`,
+  where `members` are `{name, type, value}` decoded **recursively** (a member that is itself a
+  DataSet or a nested Template expands in place, bounded by `MAX_TEMPLATE_DEPTH` against
+  pathological nesting) and `parameters` are type-aware `{name, type, value}`. New pure codec
+  helpers (`_decode_dataset` / `_decode_template` / `_decode_parameter` / `_scalar_from_oneof`)
+  in `iaiops/connectors/sparkplug/ops.py` are fully unit-tested from crafted protobuf fixtures
+  (column-type mapping, row values, two's-complement cells/members/parameters, nested Template,
+  depth guard). **Zero new `@mcp.tool`** — only existing tools/codec were deepened, so no
+  profile tool-count / flood-threshold change. Real broker end-to-end DataSet/Template streams
+  are **待核实** (verified against synthetic Tahu-schema payloads only, no live broker).
 
 ## 0.15.0 — 2026-07-15
 
