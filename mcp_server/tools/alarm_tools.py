@@ -19,6 +19,7 @@ from typing import Any, Optional
 from iaiops.core.brain import alarm_flood as flood
 from iaiops.core.brain.rca_collect import collect_active_alarms
 from iaiops.core.governance import governed_tool
+from iaiops.core.runtime.envelope import envelope_fields
 from mcp_server._shared import _target, mcp, tool_errors
 
 MAX_DURATION_S = 300
@@ -228,12 +229,20 @@ def alarm_rationalization_worksheet(
             writer = csv.DictWriter(fh, fieldnames=list(flood.WORKSHEET_COLUMNS))
             writer.writeheader()
             writer.writerows(dicts)
-        result.update({"csv_path": str(path), "truncated": False})
+        # The FULL worksheet went to disk, so nothing was cut: returned == total.
+        result.update(
+            {
+                "csv_path": str(path),
+                "truncated": False,  # legacy bool — see `is_truncated`
+                **envelope_fields(returned=len(dicts), total=len(dicts)),
+            }
+        )
         return result
     result.update(
         {
             "rows": dicts[:MAX_INLINE_ROWS],
-            "truncated": len(dicts) > MAX_INLINE_ROWS,
+            "truncated": len(dicts) > MAX_INLINE_ROWS,  # legacy bool — see `is_truncated`
+            **envelope_fields(returned=min(len(dicts), MAX_INLINE_ROWS), total=len(dicts)),
         }
     )
     return result
