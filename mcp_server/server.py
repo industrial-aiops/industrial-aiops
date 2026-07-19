@@ -32,6 +32,7 @@ from mcp_server.profiles import (
     resolve_selection,
     selected_tool_modules,
 )
+from mcp_server.readonly import READ_ONLY_ENV, apply_read_only, read_only_enabled
 
 __all__ = [
     "mcp",
@@ -104,6 +105,8 @@ def main() -> None:
     - ``IAIOPS_MCP_NO_BRAIN=1`` → register the protocol selection without the
       cross-protocol brain (multi-process sites with a dedicated brain server);
       the ``protocols_supported`` discovery tool stays exposed.
+    - ``IAIOPS_READ_ONLY=1`` → every high/critical (write) tool is removed from
+      the registry, so it never appears in ``list_tools()``.
     """
     logging.basicConfig(level=logging.INFO)
     spec = os.environ.get("IAIOPS_MCP")
@@ -123,6 +126,19 @@ def main() -> None:
             file=sys.stderr,
         )
         raise SystemExit(2) from exc
+    # Narrowing pass — must sit AFTER registration (import is what registers, and
+    # registration cannot narrow) and BEFORE the governance assertion.
+    if read_only_enabled(os.environ.get(READ_ONLY_ENV)):
+        withheld = apply_read_only(mcp)
+        logger.info(
+            "%s is on — %d write tool(s) withheld from list_tools(): %s. "
+            "%d read tool(s) remain; unset %s to restore write tools.",
+            READ_ONLY_ENV,
+            len(withheld),
+            ", ".join(withheld) or "none",
+            _registered_tool_count(),
+            READ_ONLY_ENV,
+        )
     assert_all_tools_governed()
     tool_count = _registered_tool_count()
     if tool_count > TOOL_FLOOD_WARN_THRESHOLD:
