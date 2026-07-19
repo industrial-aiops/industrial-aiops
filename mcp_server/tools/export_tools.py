@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from iaiops.core.governance import governed_tool
+from iaiops.core.governance.evidence import validate_output_path
 from iaiops.core.governance.paths import ops_path
 from iaiops.core.sink.export import EXPORT_FORMATS, FORMAT_EXTENSIONS, export_samples
 from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
@@ -71,7 +72,17 @@ def export_data(
         raise ValueError(f"Unknown format '{fmt}'. Supported: {', '.join(EXPORT_FORMATS)}.")
     if not 1 <= int(limit) <= MAX_TOOL_LIMIT:
         raise ValueError(f"limit must be 1..{MAX_TOOL_LIMIT} (got {limit}).")
-    target = Path(out_path).expanduser() if out_path else _default_out_path(kind)
+    # Same shared guard as compliance_report / the evidence zip export. out_path
+    # is free text chosen by the CALLER, and under this repo's threat model the
+    # caller is a weak, local, or prompt-injected model. Validating against the
+    # CHOSEN format's extension also catches a format/extension mismatch, which
+    # would otherwise hand an operator a ".csv" holding parquet bytes. The
+    # generated default path needs no check — it is ours, not the caller's.
+    target = (
+        validate_output_path(out_path, suffixes=(f".{FORMAT_EXTENSIONS[kind]}",))
+        if out_path
+        else _default_out_path(kind)
+    )
     result = export_samples(
         kind,
         target,

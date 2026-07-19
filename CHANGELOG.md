@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Fixed
+- **Two tools wrote to a caller-supplied path without the shared traversal guard.**
+  `alarm_rationalization_worksheet` and `export_data` took an `out_path` and wrote to it
+  after only an ad-hoc check (`alarm_rationalization_worksheet` verified the parent
+  existed; `export_data` checked nothing beyond `expanduser()`), while
+  `compliance_report` and the evidence zip export already routed the same kind of
+  argument through `validate_output_path`, which rejects `..` traversal and enforces the
+  extension.
+
+  That inconsistency matters under this repo's own threat model: `out_path` is free text
+  chosen by the **caller**, and the caller is assumed to be a weak, local, or
+  prompt-injected model — the same reasoning that withholds `rca_narrate` under
+  `IAIOPS_NO_EGRESS` because its `base_url` is caller-chosen. An unvalidated write path
+  let a confused model overwrite a dotfile or a config with CSV. The guard already
+  existed; it simply was not applied.
+
+  `export_data` now validates against the **chosen format's** extension, so a
+  format/extension mismatch (a `.csv` holding parquet bytes) is refused too.
+
+  **Behaviour change:** `alarm_rationalization_worksheet` now **creates** a missing
+  parent directory (mode `0700`) instead of raising. That is what the other two
+  `out_path` tools already did; three tools taking the same argument should not answer
+  the same input three different ways.
+
+### Added
+- **CI gate for caller-supplied output paths** (`tests/test_output_path_guard.py`) — an
+  AST scan that finds every MCP tool taking an `out_path` and asserts it routes through
+  the shared validator, so the next file-writing tool is caught by the suite rather than
+  by a reviewer noticing. `compliance_evidence_bundle` is allowlisted because it
+  delegates validation one hop down; following the repo's existing facade pattern, that
+  exemption is **corroborated against the delegate's real source**, so a refactor moving
+  the guard out of `evidence.py` fails the gate instead of silently widening the
+  exemption.
+
 ## 0.18.0 — 2026-07-19
 
 > **Read-only means read-only.** A one-fix release for the gate's *selection* rule, with

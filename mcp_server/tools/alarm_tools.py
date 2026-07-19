@@ -13,12 +13,12 @@ from __future__ import annotations
 import csv
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, Optional
 
 from iaiops.core.brain import alarm_flood as flood
 from iaiops.core.brain.rca_collect import collect_active_alarms
 from iaiops.core.governance import governed_tool
+from iaiops.core.governance.evidence import validate_output_path
 from iaiops.core.runtime.envelope import envelope_fields
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -222,9 +222,13 @@ def alarm_rationalization_worksheet(
     dicts = flood.worksheet_rows_as_dicts(rows)
     result: dict = {"row_count": len(rows), "columns": list(flood.WORKSHEET_COLUMNS)}
     if out_path:
-        path = Path(out_path).expanduser()
-        if not path.parent.is_dir():
-            raise ValueError(f"Parent directory does not exist: {path.parent}")
+        # Same shared guard as compliance_report and the evidence zip export.
+        # out_path is free text chosen by the CALLER, and under this repo's
+        # threat model the caller is a weak, local, or prompt-injected model —
+        # the same reasoning that withholds rca_narrate under IAIOPS_NO_EGRESS
+        # because its base_url is caller-chosen. Checking only "does the parent
+        # exist" let a confused model overwrite a dotfile or a config with CSV.
+        path = validate_output_path(out_path, suffixes=(".csv",))
         with path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=list(flood.WORKSHEET_COLUMNS))
             writer.writeheader()

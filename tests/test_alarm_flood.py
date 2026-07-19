@@ -338,9 +338,30 @@ def test_worksheet_tool_writes_csv(tmp_path):
 
 
 @pytest.mark.unit
-def test_worksheet_tool_rejects_missing_parent_dir(tmp_path):
+def test_worksheet_tool_creates_a_missing_parent_dir(tmp_path):
+    """A missing parent is CREATED (0700), not rejected — deliberate change.
+
+    This tool used to raise on a missing parent while the repo's other two
+    ``out_path`` tools (``compliance_report``, the evidence zip export) created
+    it, because this one did its own ad-hoc check instead of calling the shared
+    ``validate_output_path``. Routing it through the shared guard — which is what
+    added traversal and suffix rejection here — also made the three consistent.
+    Consistency is the point: three tools taking the same argument should not
+    answer the same input three different ways.
+    """
     fn = _tool_fn("alarm_rationalization_worksheet")
-    out = fn(events=_burst(12, 0), out_path=str(tmp_path / "nope" / "w.csv"))
+    target = tmp_path / "nope" / "w.csv"
+    out = fn(events=_burst(12, 0), out_path=str(target))
+    assert "error" not in out, out
+    assert target.exists()
+    assert (target.parent.stat().st_mode & 0o777) == 0o700
+
+
+@pytest.mark.unit
+def test_worksheet_tool_rejects_traversal(tmp_path):
+    """The guard that the shared validator brought with it."""
+    fn = _tool_fn("alarm_rationalization_worksheet")
+    out = fn(events=_burst(12, 0), out_path=str(tmp_path / ".." / "escaped.csv"))
     assert "error" in out
 
 
