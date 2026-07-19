@@ -2,9 +2,19 @@
 # cosign-sign the images and attach the SIGNED Margo application package (descriptor +
 # deploy-ready compose) to the GitHub release.
 #
-# The image installs the PUBLISHED PyPI wheel (deploy/margo/Dockerfile). The release flow pushes
-# the tag BEFORE the wheel lands on PyPI, so the first job polls PyPI until the version exists
-# (this race broke v0.12.0–v0.14.0 image builds; see the wait-for-pypi job).
+# The image installs the PUBLISHED PyPI wheel (deploy/margo/Dockerfile), and the release flow
+# pushes the tag BEFORE the wheel lands on PyPI. That race is guarded in TWO places, because it
+# has two distinct failure modes:
+#
+#   1. `wait-for-pypi` — polls the SIMPLE index (what pip resolves against; the JSON API updates
+#      first and lying about it broke v0.15.0) until the version is published at all. This race
+#      broke v0.12.0–v0.14.0.
+#   2. per-runner `Pre-flight` in `build` — the gate job runs on a DIFFERENT runner and therefore
+#      a different CDN edge, so it cannot speak for the five parallel build runners. v0.18.0
+#      proved it: the gate passed, four profiles built, and `building` still failed with "No
+#      matching distribution". Each build runner now resolves the version itself, with pip,
+#      before building. That replaced a blind 60s sleep — a guess at propagation time — with an
+#      actual precondition checked where the failure lands.
 #
 # Triggers:
 #   - push a tag  vX.Y.Z            → builds images for version X.Y.Z
@@ -61,11 +71,16 @@ jobs:
           # API — the JSON API updates first, and the v0.15.0 release proved a stale
           # simple-index CDN edge can still fail `pip install` after the JSON API is
           # already serving the version.
+          # This job proves the wheel was PUBLISHED. It cannot prove the wheel is
+          # visible to the OTHER runners: each build runner resolves through its own
+          # CDN edge, and v0.18.0 proved one can still be stale after this job has
+          # seen the version (4 of 5 profiles built; `building` failed with "No
+          # matching distribution"). A blind sleep here was a guess at propagation
+          # time; the per-runner pre-flight in the build job replaces it with an
+          # actual precondition checked where the failure lands.
           for i in $(seq 1 60); do
             if curl -fsS "https://pypi.org/simple/iaiops/" 2>/dev/null | grep -q "iaiops-${v}"; then
               echo "iaiops ${v} is on the PyPI simple index (attempt ${i})."
-              echo "Sleeping 60s for CDN propagation before building…"
-              sleep 60
               exit 0
             fi
             echo "iaiops ${v} not on the simple index yet (attempt ${i}/60) — sleeping 30s…"
@@ -95,6 +110,29 @@ jobs:
             tags="${tags},${IMAGE}:${v},${IMAGE}:latest"
           fi
           echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      # Per-runner pre-flight. The wait-for-pypi job ran on a DIFFERENT runner and
+      # therefore a different CDN edge; this one is what the build's `pip install`
+      # will actually resolve through. Uses a real pip resolution rather than a
+      # curl of the index, because pip is what fails: `pip download --no-deps` is
+      # the cheapest thing that exercises the same resolver path.
+      #
+      # Without this, v0.18.0 lost one profile of five to a stale edge and needed a
+      # manual re-run — with the signed margo package skipped as collateral.
+      - name: Pre-flight — this runner can resolve iaiops==<version>
+        run: |
+          v="${{ needs.wait-for-pypi.outputs.version }}"
+          for i in $(seq 1 20); do
+            if pip download --no-deps --quiet --dest /tmp/preflight "iaiops==${v}" 2>/dev/null; then
+              echo "iaiops ${v} resolves from this runner (attempt ${i})."
+              rm -rf /tmp/preflight
+              exit 0
+            fi
+            echo "not resolvable from this runner yet (attempt ${i}/20) — sleeping 30s…"
+            sleep 30
+          done
+          echo "::error::iaiops ${v} is on the index but did not become resolvable from this runner within 10 min (stale CDN edge). Re-run this job."
+          exit 1
 
       - uses: docker/setup-qemu-action@v3 # arm64 emulation
       - uses: docker/setup-buildx-action@v3
