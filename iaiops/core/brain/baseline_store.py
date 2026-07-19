@@ -22,6 +22,7 @@ from typing import Any
 from iaiops.core.brain import baseline as bl
 from iaiops.core.brain._shared import s
 from iaiops.core.governance.paths import ops_home
+from iaiops.core.runtime.envelope import envelope_fields
 from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
 STORE_FILENAME = "baselines.json"
@@ -241,8 +242,9 @@ def status_flow(tag: str | None = None, base_dir: Path | None = None) -> dict:
     return {
         "tracked_tags": len(tags),
         "listed": min(len(tags), MAX_STATUS_TAGS),
-        "truncated": len(tags) > MAX_STATUS_TAGS,
+        "truncated": len(tags) > MAX_STATUS_TAGS,  # legacy bool — see `is_truncated`
         "tags": [_tag_status(t, _record(store, t)) for t in tags[:MAX_STATUS_TAGS]],
+        **envelope_fields(returned=min(len(tags), MAX_STATUS_TAGS), total=len(tags)),
     }
 
 
