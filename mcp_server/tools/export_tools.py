@@ -26,6 +26,13 @@ def _default_out_path(fmt: str) -> Path:
     return ops_path("exports", f"iaiops-export-{stamp}.{FORMAT_EXTENSIONS[fmt]}")
 
 
+# Deliberately NOT egress=True, stated explicitly because "export" sounds like
+# data leaving and a future reader will second-guess it: this reads the LOCAL
+# SQLite store and writes a LOCAL file under ~/.iaiops/exports. No socket, no
+# caller-named destination — the bytes never leave the box, so withholding it
+# under IAIOPS_NO_EGRESS would cost the operator their own offline workflow and
+# buy no confidentiality. Getting them off the box afterwards is scp's problem,
+# and a host-level one. Same call for compliance_evidence_bundle (local zip).
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")

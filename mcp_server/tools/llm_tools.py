@@ -14,8 +14,25 @@ from iaiops.core.llm.base import SUPPORTED_PROVIDERS
 from mcp_server._shared import mcp, tool_errors
 
 
+# egress=True — the closest judgment call in the classification; argued here so a
+# reviewer can disagree with the reasoning rather than guess at it.
+#
+# AGAINST marking it: the tool is designed for air-gapped use, ``base_url``
+# defaults to localhost, and a site that sets IAIOPS_NO_EGRESS is exactly the
+# site that wants on-box narration. Marking it costs that site a capability.
+#
+# FOR marking it (what we did): ``base_url`` is a free-text argument, so the
+# DESTINATION is chosen by the caller — and under this repo's threat model the
+# caller is a weak, local, or prompt-injected model. The payload is not
+# incidental: the prompt embeds the full RCA verdict, i.e. plant tags, values and
+# evidence citations. "Nothing leaves this box, as long as the model passes
+# localhost" is not a guarantee, and the gate deliberately refuses to police
+# arguments at call time. Same reasoning as historian_push's local 'sqlite' sink.
+#
+# A truly air-gapped box has no route out anyway, so the operator loses defence
+# in depth, not the narration itself, by leaving IAIOPS_NO_EGRESS off there.
 @mcp.tool()
-@governed_tool(risk_level="low")
+@governed_tool(risk_level="low", egress=True)
 @tool_errors("dict")
 def rca_narrate(
     verdict: dict[str, Any],

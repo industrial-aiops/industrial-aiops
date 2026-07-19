@@ -152,8 +152,14 @@ def uns_browse(
     return ops.uns_browse(_target(endpoint), topic, timeout_s, count)
 
 
+# egress=True AND risk_level="high": both gates must withhold this one
+# independently. It is a real control path (Sparkplug NCMD/DCMD commands a live
+# system) and a real egress path (an arbitrary payload leaves the box for a
+# broker). Neither gate may rely on the other being on.
+#
+# The sibling MQTT tools above are NOT egress: SUBSCRIBE/browse pull data IN.
 @mcp.tool()
-@governed_tool(risk_level="high")
+@governed_tool(risk_level="high", egress=True)
 @tool_errors("dict")
 def mqtt_publish(
     topic: str,
