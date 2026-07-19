@@ -9,7 +9,7 @@
 # sync with pyproject.toml by tests/test_margo_package.py.
 services:
   iaiops:
-    image: ghcr.io/industrial-aiops/iaiops:0.16.0-${IAIOPS_MCP:-factory}
+    image: ghcr.io/industrial-aiops/iaiops:0.17.0-${IAIOPS_MCP:-factory}
     # Least-privilege posture a Margo device/host would give an OT workload (same as compose.yaml):
     # non-root, read-only rootfs, no capabilities, one IP-allowlisted MCP port, no OT inbound.
     read_only: true
