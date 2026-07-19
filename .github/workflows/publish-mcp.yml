@@ -1,0 +1,66 @@
+# Publish server.json to the MCP Registry.
+#
+# WHY THIS IS A WORKFLOW AND NOT A MANUAL STEP
+# --------------------------------------------
+# `mcp-publisher login github` mints a JWT that lives for FIVE MINUTES, so the
+# manual path is "log in, then publish within the window" — a step that is easy
+# to postpone and easy to forget, and it was in fact skipped for several
+# releases.
+#
+# It also could not work for this org at all: `industrial-aiops` enables the
+# third-party OAuth application restriction, so the registry's OAuth app cannot
+# see the publisher's org membership (public or not) and mints a token scoped to
+# `io.github.<user>/*` only. Publishing `io.github.industrial-aiops/iaiops` then
+# fails with 403.
+#
+# OIDC has neither problem: GitHub issues the token to the REPOSITORY, so the
+# namespace follows the repo owner (`io.github.industrial-aiops/*`) with no
+# OAuth app, no org setting, and no human in the five-minute window.
+#
+# Trigger:
+#   - tag push  v*.*.*        → publish that release (the normal path)
+#   - workflow_dispatch       → re-publish a tag whose run failed or predates
+#                               this workflow; `ref` must be the tag itself, so
+#                               the checked-out server.json is that release's.
+name: publish-mcp
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC — this is what grants the org namespace
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" \
+            | tar xz mcp-publisher
+
+      # server.json is bumped in the release commit, so it is already correct at
+      # the tag. Verified rather than rewritten: a mismatch means the release
+      # commit was incomplete, and publishing a corrected-on-the-fly descriptor
+      # would hide that instead of surfacing it.
+      - name: Verify server.json matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          declared="$(jq -r '.version' server.json)"
+          if [ "$tag" != "$declared" ]; then
+            echo "::error::tag v${tag} but server.json declares ${declared} — bump server.json in the release commit."
+            exit 1
+          fi
+          echo "server.json ${declared} matches tag v${tag}"
+
+      - name: Authenticate to the MCP Registry (OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish
+        run: ./mcp-publisher publish
