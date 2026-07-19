@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.18.1 — 2026-07-20
+
+> **Path-handling hardening.** Two tools wrote to a caller-supplied `out_path` without the
+> traversal guard the repo already had and already applied elsewhere. Found by a follow-on
+> question rather than a report: since 0.18.0 made `medium` count as a write, *do any
+> `low` tools persist state?* Two do — both write a local file, which is correctly neither
+> a control-path write nor egress. The classification held; the path handling did not.
+
 ### Fixed
 - **Two tools wrote to a caller-supplied path without the shared traversal guard.**
   `alarm_rationalization_worksheet` and `export_data` took an `out_path` and wrote to it
