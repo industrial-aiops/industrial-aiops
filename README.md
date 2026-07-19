@@ -721,6 +721,25 @@ IAIOPS_MCP_NO_BRAIN=1 iaiops-mcp-opcua    # lean protocol server, no brain
 IAIOPS_MCP_NO_BRAIN=1 iaiops-mcp-modbus
 ```
 
+**Read-only sites — make the write tools cease to exist.** `IAIOPS_READ_ONLY=1`
+removes every high/critical (write) tool from the registry *before the server
+serves*, so they never appear in `list_tools()`:
+
+```bash
+IAIOPS_READ_ONLY=1 iaiops-mcp-factory   # 134 tools -> 126; 8 write tools withheld
+```
+
+This is a **registration-time** guarantee, not a call-time refusal. A weak or
+local model (or a prompt-injected one) can call any tool it can *see*, and a
+stray OT write is physically irreversible — a tool absent from the registry
+cannot be hallucinated into a call at all. `protocols_supported` stays exposed
+and reports the read-only state, so the model is *told* rather than left to
+infer it from missing tools. Scope: read-only means **no control-path write**
+(no PLC register, BACnet setpoint or PROFINET output). It does not disable data
+**egress** — `stream_publish`/`stream_publish_event` still forward already-read
+points to a message bus; restrict those at the network layer if the site
+requires it.
+
 Named profiles: `all` · `brain` · `fab` · `factory` · `process` · `building` ·
 `plcnext` · `water` · `renewables` · `warehouse` · `clinical`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
 server entry — or point the entry straight at the matching `iaiops-mcp-<name>`
@@ -731,6 +750,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 ## Safety & governance
 
 - **Read-first.** 156 of 166 tools are read-only. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. 9 of the 10 **capture the BEFORE value/state and register an undo descriptor**; the exceptions are `mqtt_publish` (a fire-and-forget MQTT/Sparkplug command has no automatic inverse) and `ethercat_set_state` (a state transition has no clean inverse) — both have **no automatic undo**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-only mode is enforced at registration.** `IAIOPS_READ_ONLY=1` withholds all 10 write tools from `list_tools()` (verified across every named profile), leaving a genuinely read-only tap for 等保 / IEC-62443 contexts where "read-only" must be an auditable fact about the running server rather than a promise in a prompt. The gate **fails closed**: if the tool registry cannot be introspected, the server refuses to start rather than serving write tools to an operator who asked for none.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
 - All endpoint-returned text is sanitized (prompt-injection defense); secrets are never returned by any tool; MTConnect XML is parsed with DTD/entity declarations refused.
 - Every tool runs through the vendored governance harness: SQLite **audit** (`~/.iaiops/audit.db`, SHA-256 **hash-chained** rows + `iaiops audit verify`; audit **fails closed** for high/critical writes), token/call **budget** + runaway breaker, **risk-tier** gate (policy engine fails closed on a broken `rules.yaml`), **undo** recording. The MCP server **refuses to start** if any registered tool lacks the governance marker.
