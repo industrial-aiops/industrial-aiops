@@ -12,7 +12,7 @@ FROM python:${PYTHON_VERSION}-slim AS build
 # Which edition profile to bake in. Matches an IAIOPS_MCP profile AND the same-named pip extra
 # (fab / factory / process / building / water). Pin the version for a reproducible image.
 ARG PROFILE=factory
-ARG IAIOPS_VERSION=0.16.0
+ARG IAIOPS_VERSION=0.17.0
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"

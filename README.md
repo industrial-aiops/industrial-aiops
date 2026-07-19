@@ -777,10 +777,10 @@ Scope, stated plainly — this is **not a firewall**:
   separate server in a separate package and **does not honour them yet** — it
   mirrors in the base brain/compliance tools, so `IAIOPS_NO_EGRESS=1` there
   still leaves `historian_push`, `rca_narrate`, `stream_publish` and
-  `stream_publish_event` exposed. Setting the vars on the energy server is
-  silently ineffective today; wiring them in is the next change in that repo.
-  Said out loud because a switch believed to be on is worse than one known to
-  be absent.
+  `stream_publish_event` exposed **on `iaiops-energy` 0.1.6 and earlier**.
+  Fixed in `iaiops-energy` **0.1.7**, which pins `iaiops>=0.17` for exactly
+  this reason. Said out loud because a switch believed to be on is worse than
+  one known to be absent.
 
 Named profiles: `all` · `brain` · `fab` · `factory` · `process` · `building` ·
 `plcnext` · `water` · `renewables` · `warehouse` · `clinical`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
