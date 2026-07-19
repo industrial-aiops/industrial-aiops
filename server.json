@@ -34,6 +34,18 @@
           "description": "Master password unlocking the encrypted secret store (~/.iaiops/secrets.enc).",
           "isRequired": false,
           "isSecret": true
+        },
+        {
+          "name": "IAIOPS_READ_ONLY",
+          "description": "Set to 1 to withhold every write tool from list_tools() at registration time. The tools cease to exist rather than refusing at call time, so a weak or local model cannot call what it cannot see. Read-only means no control-path write; it does not stop data egress (see IAIOPS_NO_EGRESS).",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "IAIOPS_NO_EGRESS",
+          "description": "Set to 1 to withhold every data-shipping tool (message bus, external historian, remote LLM) from list_tools() at registration time. Orthogonal to IAIOPS_READ_ONLY: set both for a read-only sealed tap. Gates MCP tools only — not a firewall.",
+          "isRequired": false,
+          "isSecret": false
         }
       ]
     }
