@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### Fixed
+- **`IAIOPS_READ_ONLY` now withholds `medium`-risk tools, and anything it cannot
+  classify.** Two changes to the gate's selection, no change to iaiops' own surface
+  (verified: `factory` 134→126, `all` 147→138, `building` 93→91 — identical to 0.17.0,
+  because this package has no `medium` tool).
+
+  1. **`medium` is a write.** 0.17.0 deliberately left it out and let a test force the
+     decision the day a medium tool appeared. It appeared in `iaiops-enterprise`:
+     `approval_approve` — whose n-th distinct approver **mints the token that authorises
+     an OT write** — and `approval_approvers_set`, which rewrites *who may approve*
+     (passing `[]` reopens approval to anyone). A read-only server that still hands out
+     write authorisation is a contradiction: it cannot touch the PLC itself, but it can
+     issue the credential that lets something else do it, and the audit trail will show a
+     perfectly legitimate approval. Reclassifying those tools to `high` would have been
+     the wrong fix — in this family `high` means "MOC-gated, needs a recorded approver",
+     so a `high` `approval_approve` is circular. The honest classification is `medium`,
+     so the gate had to learn that `medium` is a write.
+  2. **Selection is now an allowlist** (`READ_RISK_LEVELS = {"low"}`) instead of a denylist
+     of write levels. A tool whose level is unrecognised — a new level, a typo like
+     `"hgih"`, one never set — is now **withheld** rather than served. The previous
+     behaviour deferred to `assert_all_tools_governed`, but that only asserts the
+     `@governed_tool` marker is present, not that the risk level is one the gate
+     understands, so a typo'd level passed governance *and* got served by a read-only
+     server. A read-only site noticing a missing read tool is a cheap, visible failure;
+     serving one unclassifiable tool as if it were safe is not.
+
+  `WRITE_RISK_LEVELS` is still exported and still names the state-changing levels; it now
+  contains `medium`. Downstream packages that run their own MCP server (`iaiops-energy`,
+  `iaiops-enterprise`) inherit both changes as soon as they pin this version.
+
 ## 0.17.0 — 2026-07-19
 
 > **Weak / local-model hardening.** Field reports from an air-gapped PoC driving an
