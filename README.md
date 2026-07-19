@@ -8,21 +8,51 @@
 
 Industrial-AIOps is the OT member of the [industrial-aiops](https://github.com/industrial-aiops) org. It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), scores data trustworthiness, ranks unhealthy tags, computes OEE / categorizes downtime, builds an active asset register, auto-discovers OPC-UA tags into a semantic asset model, and — the flagship — runs an **AI downtime root-cause copilot** that correlates the evidence into an **evidence-cited, advisory** verdict. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
 
-> **Since v0.14.0 (this block is otherwise unchanged and still current).** **OPC-UA
-> certificate message security** moved from "roadmap, not validated" to a **verified**
-> `Sign` / `SignAndEncrypt` matrix against an in-process `asyncua` server — third-party /
-> vendor servers, certificate-*trust* enforcement and X509 *user* tokens stay `待核实`.
-> **OPC-UA Alarms & Conditions** is verified against the same in-process server;
-> third-party A&C servers stay `待核实`. Newly added and **not** hardware-verified:
-> **CC-Link / CC-Link IE Field** via master-PLC SLMP (a live master is `待核实`),
-> **EtherNet/IP PCCC** for PLC-5 / SLC-500 / MicroLogix / Micro800 (exercised against a
-> mocked pycomm3 `SLCDriver` only), **MTConnect long-poll streaming** (synthetic
-> advancing/caught-up/reset agents; real agent behaviour `待核实`), and **Sparkplug B
-> DataSet/Template decode** (synthetic Tahu-schema payloads only, no live broker). The
-> two posture gates and the return envelope added in 0.17.0 are pure-software and fully
-> covered by the suite.
+> **v0.18.0 — validation status (honest).** Grouped by *how strongly* each path is
+> verified, because "tested" spans a real container round-trip and a synthetic fixture and
+> the difference is what an evaluator needs. Every `待核实` below is hardware-gated, not
+> forgotten — see [issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28).
 >
-> **v0.14.0 — validation status (honest).** Pure analysis + the OPC-UA path are tested against a **real in-process asyncua server**. The 信创 bindings were run against **real libraries + containers**: **IoTDB** + **TDengine** (live container write→read round-trip) are **verified**; the HART command codec is verified vs `hart-protocol`. **Phoenix Contact PLCnext vPLC** (virtualized PLC) is **route-verified** over its OPC-UA server (an in-process `asyncua` server reproducing the `Arp.Plc.Eclr` GDS address space) and a Modbus-TCP process-data block (`tests/test_plcnext_route.py`); live PLCnext hardware reads stay `待核实`. **Modbus-RTU (live serial)** is **verified** (2026-07-02): the read ops round-trip over a real serial link built from a `socat` PTY pair + a `pymodbus` RTU server (`tests/test_modbus_rtu_live.py`), exercising the actual RTU framing — though not yet validated against a specific physical RS-485 device. The **BACnet/IP read path** is **verified** (2026-07-02): a genuine Who-Is discover + present-value read round-trip against a **real bacpypes3 virtual BACnet/IP device** on a two-IP subnet in a Linux container (`tests/test_bacnet_live.py`), through the actual async BAC0 (2024+) stack. The new **Omron FINS** connector is verified against an in-repo mock FINS UDP/TCP responder (`tests/test_fins.py`); the new **IO-Link** connector against an in-process mock master in both JSON dialects (`tests/test_iolink.py`). The two new vendor-REST read layers are **mock-verified**: the **BAS controller layer** against an in-repo mock supervisory controller in **both vendor dialects (Metasys OpenBlue REST + Niagara oBIX/REST)**, and the **Ignition Gateway** read layer against an in-repo mock Gateway in **both flavors (`webdev` / `gateway`)** — live Metasys/Niagara controllers (incl. native oBIX-XML encoding) and live Ignition gateways (exact API version/paths) stay `待核实`. **Still `待核实` (preview, not hardware-verified):** live Omron PLCs (incl. banked-EM access), live IO-Link master datapoint paths, BACnet write/COV/trend on live HVAC, HART-IP wire transport (live gateway), EtherCAT (no software simulator — Linux + root + a real bus only), physical Modbus-RTU RS-485 devices, live PLCnext. Mocked clients cover S7/MC/EtherNet-IP/SECS-GEM; MTConnect uses static XML fixtures; Sparkplug uses synthetic protobuf payloads. (The energy edition's IEC-104 / DNP3 / IEC-61850 validation lives in the [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) repo.) See *Safety*.
+> **Verified against real libraries / containers / in-process servers.** Pure analysis and
+> the **OPC-UA** path run against a real in-process `asyncua` server — including
+> **certificate message security** (a `Sign` / `SignAndEncrypt` matrix) and **Alarms &
+> Conditions**. **IoTDB** and **TDengine** do a live container write→read round-trip. The
+> **HART** command codec is checked against `hart-protocol`. **Modbus-RTU** round-trips over
+> a real serial link (a `socat` PTY pair + a `pymodbus` RTU server,
+> `tests/test_modbus_rtu_live.py`), exercising actual RTU framing. The **BACnet/IP** read
+> path does a genuine Who-Is discover + present-value read against a real `bacpypes3`
+> virtual device on a two-IP subnet in a Linux container (`tests/test_bacnet_live.py`),
+> through the real async BAC0 (2024+) stack. **Phoenix Contact PLCnext vPLC** is
+> *route*-verified over an in-process `asyncua` server reproducing the `Arp.Plc.Eclr` GDS
+> address space plus a Modbus-TCP process-data block (`tests/test_plcnext_route.py`).
+>
+> **Mock-verified — the protocol logic is exercised, no real device is.** **Omron FINS**
+> (in-repo mock UDP/TCP responder, `tests/test_fins.py`), **IO-Link** (in-process mock
+> master, both JSON dialects, `tests/test_iolink.py`), the **BAS controller** layer (mock supervisory controller in both vendor
+> dialects — Metasys OpenBlue REST and Niagara oBIX/REST), the **Ignition Gateway** read
+> layer (mock Gateway, both `webdev` / `gateway` flavors), **EtherNet/IP PCCC** for
+> PLC-5 / SLC-500 / MicroLogix / Micro800 (mocked pycomm3 `SLCDriver`), **CC-Link /
+> CC-Link IE Field** via master-PLC SLMP, **MTConnect** long-poll streaming (synthetic
+> advancing / caught-up / reset agents; static XML fixtures elsewhere), **Sparkplug B**
+> incl. DataSet/Template decode (synthetic Tahu-schema protobuf payloads), and mocked
+> clients for **S7 / MC / EtherNet-IP / SECS-GEM**.
+>
+> **Pure software, fully covered by the suite.** The `IAIOPS_READ_ONLY` /
+> `IAIOPS_NO_EGRESS` posture gates and the return envelope (0.17.0–0.18.0).
+>
+> **Still `待核实` — preview, not hardware-verified.** Live Omron PLCs (incl. banked-EM
+> access); live IO-Link master datapoint paths; BACnet write / COV / trend on live HVAC;
+> HART-IP wire transport against a live gateway; **EtherCAT** (no software simulator
+> exists — Linux + root + a real bus only); physical Modbus-RTU RS-485 devices; live
+> PLCnext hardware; a live CC-Link master; real PLC-5 / SLC-500 / MicroLogix / Micro800;
+> a real MTConnect agent's long-poll behaviour; a live MQTT broker for Sparkplug;
+> third-party / vendor OPC-UA servers, certificate-*trust* enforcement and X509 *user*
+> tokens; third-party A&C servers; live Metasys / Niagara controllers (incl. native
+> oBIX-XML encoding) and live Ignition gateways (exact API version / paths).
+>
+> (The energy edition's IEC-104 / DNP3 / IEC-61850 validation lives in the
+> [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) repo.)
+> See *Safety*.
 
 ## Why
 
