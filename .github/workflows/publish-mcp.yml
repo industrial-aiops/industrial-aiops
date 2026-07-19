@@ -19,9 +19,16 @@
 #
 # Trigger:
 #   - tag push  v*.*.*        → publish that release (the normal path)
-#   - workflow_dispatch       → re-publish a tag whose run failed or predates
-#                               this workflow; `ref` must be the tag itself, so
-#                               the checked-out server.json is that release's.
+#   - workflow_dispatch       → re-publish a release whose run failed.
+#                               Dispatching against a TAG only works if that tag
+#                               already contains this file — GitHub reads the
+#                               trigger from the ref being dispatched, so an
+#                               older tag returns HTTP 422 "workflow does not
+#                               have 'workflow_dispatch' trigger". For a tag
+#                               that predates this workflow, dispatch `main`
+#                               instead, once main's server.json is that
+#                               release's (which the release commit makes true).
+#                               v0.17.0 was published exactly that way.
 name: publish-mcp
 
 on:
