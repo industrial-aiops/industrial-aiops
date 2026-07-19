@@ -14,8 +14,11 @@ from iaiops.core.sink.base import normalize_points
 from mcp_server._shared import mcp, tool_errors
 
 
+# egress=True: the whole point of these two is to put plant data on a broker the
+# caller names. Low risk (they change no plant state, so IAIOPS_READ_ONLY keeps
+# them) but they are exactly what IAIOPS_NO_EGRESS exists to withhold.
 @mcp.tool()
-@governed_tool(risk_level="low")
+@governed_tool(risk_level="low", egress=True)
 @tool_errors("dict")
 def stream_publish(
     points: list[dict[str, Any]],
@@ -65,7 +68,7 @@ def stream_publish(
 
 
 @mcp.tool()
-@governed_tool(risk_level="low")
+@governed_tool(risk_level="low", egress=True)
 @tool_errors("dict")
 def stream_publish_event(
     subject: str,
