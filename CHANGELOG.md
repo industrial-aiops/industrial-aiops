@@ -27,8 +27,7 @@
   deliberately *not* treated as a read: no MCP tool uses it today, and a test fails if
   one appears, forcing the call to be made explicitly rather than by default.
   `protocols_supported` survives and **reports the read-only state**, so the model is
-  told rather than left to infer it from absent tools. Lives in core, so `iaiops-energy`
-  and `iaiops-enterprise` inherit it.
+  told rather than left to infer it from absent tools.
 - **No-egress registration gate (`IAIOPS_NO_EGRESS=1`)** — a second, **orthogonal**
   switch: "nothing leaves this box". Same mechanism (removal from the FastMCP registry
   before serving, fails closed, pure narrowing pass), different predicate. It withholds
@@ -98,6 +97,19 @@
   with a caller-supplied destination is withheld even when its default is localhost —
   under this threat model the *model* picks the argument. Local file writes are not
   egress, so `export_data` and `compliance_evidence_bundle` stay exposed.
+- **Both gates apply to the `iaiops-mcp` server only** (and its per-protocol /
+  per-edition entry-point shims). The `envelope` contract lives in
+  `iaiops/core/runtime/`, so anything building on `iaiops.core` picks it up — but the
+  two gates live in `mcp_server/` and are wired in *that* server's `main()`. In
+  particular **`iaiops-energy-mcp` does not yet honour either switch**: it mirrors in
+  the base brain/compliance tools and its own `register()` never applies the gates, so
+  `IAIOPS_NO_EGRESS=1` there leaves `historian_push`, `rca_narrate`, `stream_publish`
+  and `stream_publish_event` exposed (verified against its real registry — 59 tools).
+  Setting the vars on `iaiops-energy-mcp` is silently ineffective today. Wiring the
+  gates into `iaiops-energy` is tracked as the next change in that repo; until it
+  ships, treat the switches as guarantees of the base server only. Documented rather
+  than quietly left for an operator to discover, because a switch believed to be on is
+  worse than one known to be absent.
 
 ## 0.16.0 — 2026-07-17
 

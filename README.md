@@ -772,6 +772,15 @@ Scope, stated plainly — this is **not a firewall**:
 - Local file writes are **not** egress: `export_data` and
   `compliance_evidence_bundle` stay exposed. The bytes never leave the box;
   getting them off it afterwards is a host-level concern.
+- **Both switches cover the `iaiops-mcp` server only** (including its
+  per-protocol / per-edition entry-point shims). `iaiops-energy-mcp` is a
+  separate server in a separate package and **does not honour them yet** — it
+  mirrors in the base brain/compliance tools, so `IAIOPS_NO_EGRESS=1` there
+  still leaves `historian_push`, `rca_narrate`, `stream_publish` and
+  `stream_publish_event` exposed. Setting the vars on the energy server is
+  silently ineffective today; wiring them in is the next change in that repo.
+  Said out loud because a switch believed to be on is worse than one known to
+  be absent.
 
 Named profiles: `all` · `brain` · `fab` · `factory` · `process` · `building` ·
 `plcnext` · `water` · `renewables` · `warehouse` · `clinical`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
