@@ -20,14 +20,18 @@ MCP-registry publishing is now automated from CI via OIDC in both repos
 for this org (third-party OAuth app restriction) and its token lived five minutes, which
 is why the registry step was skipped in several past releases.
 
-Open, not hardware-gated:
-- **`iaiops-enterprise`** — wire the two posture gates into its own `FastMCP` server and
-  adopt the return envelope for `evidence_export`'s bounded result. Needs the base
-  release carrying "medium is a write" (see `## Unreleased`).
-- **Doc drift** — the honest-validation block in `README.md` is anchored at v0.14.0 with
-  a "since" delta on top; fold it into one block next time it is touched substantively.
+Both items that were open here on 2026-07-19 are now closed:
+- ✅ **`iaiops-enterprise`** — both posture gates wired into its own `FastMCP` server and
+  the return envelope adopted for `evidence_export`; shipped as `iaiops-enterprise` 0.3.0
+  (read-only there now goes 9 → 7). Private wheel, no PyPI.
+- ✅ **Doc drift** — the two stacked validation blocks in `README.md` are folded into one,
+  anchored at v0.18.0 and grouped by strength of verification.
 
-The hardware-gated 待核实 list below is unchanged.
+**Nothing non-hardware-gated is currently open.** Feature development is effectively
+complete; the remaining value is in real-device verification and ecosystem conformance,
+and both need a field partner rather than more code — see
+[issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28). The
+hardware-gated 待核实 list below is unchanged.
 
 ## Status — 2026-07-13 (historical: `iaiops 0.14.0` · `iaiops-energy 0.1.5`)
 
