@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.17.0 — 2026-07-19
+
 > **Weak / local-model hardening.** Field reports from an air-gapped PoC driving an
 > MCP server with a local Llama 3.3 70B ([VMware-AIops#31](https://github.com/zw008/VMware-AIops/issues/31))
 > showed an operator compensating with ~17 hand-written prompt guardrails — "work
@@ -106,10 +108,11 @@
   `IAIOPS_NO_EGRESS=1` there leaves `historian_push`, `rca_narrate`, `stream_publish`
   and `stream_publish_event` exposed (verified against its real registry — 59 tools).
   Setting the vars on `iaiops-energy-mcp` is silently ineffective today. Wiring the
-  gates into `iaiops-energy` is tracked as the next change in that repo; until it
-  ships, treat the switches as guarantees of the base server only. Documented rather
-  than quietly left for an operator to discover, because a switch believed to be on is
-  worse than one known to be absent.
+  gates into `iaiops-energy` ships alongside this release as **`iaiops-energy` 0.1.7**
+  (which pins `iaiops>=0.17` for exactly this reason); on 0.1.6 and earlier the
+  switches are silently ineffective there. Documented rather than quietly left for an
+  operator to discover, because a switch believed to be on is worse than one known to
+  be absent.
 
 ## 0.16.0 — 2026-07-17
 

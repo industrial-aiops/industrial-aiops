@@ -12,7 +12,7 @@ services:
   iaiops:
     # Published, cosign-signed per-edition image (see deploy/margo/README.md to verify signatures).
     # The IAIOPS_MCP env selects the edition variant: fab | factory | process | building | water.
-    image: ghcr.io/industrial-aiops/iaiops:0.16.0-${IAIOPS_MCP:-factory}
+    image: ghcr.io/industrial-aiops/iaiops:0.17.0-${IAIOPS_MCP:-factory}
     read_only: true
     tmpfs: ["/tmp"]
     cap_drop: ["ALL"]
