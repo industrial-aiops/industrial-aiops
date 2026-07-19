@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.18.0 — 2026-07-19
+
+> **Read-only means read-only.** A one-fix release for the gate's *selection* rule, with
+> no change to this package's own surface. It exists because the follow-on audit of
+> `iaiops-enterprise` found `IAIOPS_READ_ONLY=1` there withholding **nothing** — 9 tools
+> in, 9 tools out — while serving the two tools that mint OT write authority. Verified
+> against the published 0.17.0 wheel, not inferred.
+
 ### Fixed
 - **`IAIOPS_READ_ONLY` now withholds `medium`-risk tools, and anything it cannot
   classify.** Two changes to the gate's selection, no change to iaiops' own surface
