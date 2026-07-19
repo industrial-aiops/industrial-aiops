@@ -4,7 +4,32 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
-## Status — 2026-07-13 (current: `iaiops 0.14.0` · `iaiops-energy 0.1.5`)
+## Status — 2026-07-19 (current: `iaiops 0.17.0` · `iaiops-energy 0.1.7`)
+
+Latest published: base **`iaiops 0.17.0`**, energy **`iaiops-energy 0.1.7`** — PyPI +
+GitHub Release + MCP registry + SkillHub + 5 signed profile images. Since the 2026-07-13
+block below: **0.15.0** (CC-Link tools over master-PLC SLMP, CMMS corpus bridge, timed
+A&C, air-gap packaging, signed artifacts), **0.16.0** (eight depth features at zero
+tool-surface growth: EtherNet/IP PCCC, MTConnect long-poll streaming, PdM RUL, OEE Six
+Big Losses, Sparkplug DataSet/Template, live-verified OPC-UA cert security, RCA causal
+graph, ISA-18.2 alarm rationalization), and **0.17.0** (weak/local-model hardening — the
+`IAIOPS_READ_ONLY` / `IAIOPS_NO_EGRESS` registration gates and the return envelope).
+
+MCP-registry publishing is now automated from CI via OIDC in both repos
+(`.github/workflows/publish-mcp.yml`); the manual `mcp-publisher login` path cannot work
+for this org (third-party OAuth app restriction) and its token lived five minutes, which
+is why the registry step was skipped in several past releases.
+
+Open, not hardware-gated:
+- **`iaiops-enterprise`** — wire the two posture gates into its own `FastMCP` server and
+  adopt the return envelope for `evidence_export`'s bounded result. Needs the base
+  release carrying "medium is a write" (see `## Unreleased`).
+- **Doc drift** — the honest-validation block in `README.md` is anchored at v0.14.0 with
+  a "since" delta on top; fold it into one block next time it is touched substantively.
+
+The hardware-gated 待核实 list below is unchanged.
+
+## Status — 2026-07-13 (historical: `iaiops 0.14.0` · `iaiops-energy 0.1.5`)
 
 Latest published: base **`iaiops 0.14.0`**, energy **`iaiops-energy 0.1.5`** (PyPI +
 GitHub Release + MCP registry). Since the 2026-07-02 block below was written, five
@@ -264,9 +289,12 @@ Everything below is the detailed backlog with per-item status.
 - **OPC-UA FX / TSN** roadmap watch (2026 certification) as a future credibility point.
 
 ## Standing release debt
-- ⚠️ **PyPI token** — the same token was re-exposed in chat for the 0.7.0 AND 0.8.0
-  publishes and MUST be revoked; mint a fresh industrial-aiops token, keep it in
-  `~/.pypirc` / a secret manager, never paste it into a conversation.
+- ⚠️ **PyPI token — STILL OPEN as of 2026-07-19.** The same token was re-exposed in chat
+  for the 0.7.0 AND 0.8.0 publishes and MUST be revoked; mint a fresh industrial-aiops
+  token, keep it in `~/.pypirc` / a secret manager, never paste it into a conversation.
+  Releases since then (through 0.17.0) have used the credentials already stored in
+  `~/.pypirc` with no token in chat — but if that file still holds the exposed token,
+  the exposure is live. Revoking it is the only fix; nothing in this repo can do it.
 - ✅ Published all channels: **iaiops 0.8.0** + **iaiops-energy 0.1.2** on PyPI, GitHub
   Releases (v0.8.0 / v0.1.2), and the MCP registry (`io.github.industrial-aiops/iaiops`
   + `…/iaiops-energy`) under the industrial-aiops org (2026-07-02). Base 0.7.0 was also
