@@ -30,6 +30,7 @@ from statistics import median
 
 from iaiops.core.brain._shared import s
 from iaiops.core.brain.diagnostics import MAX_EVENTS, _parse_ts
+from iaiops.core.runtime.envelope import envelope_fields
 
 # ISA-18.2 flood definition: >=10 annunciated alarms per 10 min per operator.
 FLOOD_WINDOW_S = 600
@@ -778,6 +779,17 @@ def alarm_flood_report(
     rows = rationalization_worksheet(events, window_s, threshold)
     advice = suppression_advice(events, ref, stale_after_s)
     cap_ep, cap_rows = max(1, int(max_episodes)), max(1, int(max_rows))
+    # This report is MULTI-section: five independently capped lists. The
+    # envelope therefore aggregates across all five (returned = rows actually
+    # emitted, total = rows that exist, is_truncated = ANY section was cut), so
+    # a reader gets one unambiguous "did I get everything?" answer without
+    # walking the per-section legacy 'truncated' dict.
+    sections = (
+        (episodes, cap_ep),
+        *((section, cap_rows) for section in (chatter, stale, advice, rows)),
+    )
+    returned_total = sum(min(len(items), cap) for items, cap in sections)
+    exact_total = sum(len(items) for items, _cap in sections)
     return {
         "event_count": len(norm),
         "summary": flood_summary(events, window_s, threshold),
@@ -788,6 +800,8 @@ def alarm_flood_report(
         "suppression_advice": advice_as_dicts(advice[:cap_rows]),
         "worksheet_preview": worksheet_rows_as_dicts(rows[:cap_rows]),
         "advisory_note": ADVISORY_NOTE,
+        # Legacy key: a per-section DICT, not a bool. Kept verbatim for
+        # published consumers; `is_truncated` below is the aggregate boolean.
         "truncated": {
             "flood_episodes": len(episodes) > cap_ep,
             "chattering": len(chatter) > cap_rows,
@@ -795,6 +809,7 @@ def alarm_flood_report(
             "suppression_advice": len(advice) > cap_rows,
             "worksheet": len(rows) > cap_rows,
         },
+        **envelope_fields(returned=returned_total, total=exact_total),
     }
 
 

@@ -38,6 +38,7 @@ from typing import Any
 
 from iaiops.core.brain._shared import s
 from iaiops.core.runtime.connection import OTConnectionError, mqtt_session
+from iaiops.core.runtime.envelope import envelope_fields
 
 MAX_MESSAGES = 500
 MAX_METRICS = 1000
@@ -198,8 +199,9 @@ def _decode_dataset(dataset: Any) -> dict:
         "columns": columns,
         "types": types,
         "rows": rows,
-        "row_count": len(dataset.rows),
-        "truncated": len(dataset.rows) > MAX_DATASET_ROWS,
+        "row_count": len(dataset.rows),  # legacy key: the TRUE total, not len(rows)
+        "truncated": len(dataset.rows) > MAX_DATASET_ROWS,  # legacy bool — see `is_truncated`
+        **envelope_fields(returned=len(rows), total=len(dataset.rows)),
     }
 
 

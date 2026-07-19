@@ -27,6 +27,7 @@ from typing import Any
 
 from iaiops.core.brain.rca import CAUSE_KEYWORDS
 from iaiops.core.brain.rca_weights import LEARNABLE_CAUSES, learn_cause_weights
+from iaiops.core.runtime.envelope import envelope_fields
 
 MAX_ROWS = 5000  # defensive bound for agent-supplied payloads
 _EXCERPT = 120
@@ -185,8 +186,13 @@ def corpus_from_maintenance_log(
             "rows — add synonyms for recurring site vocabulary rather than relabeling "
             "by hand."
         ),
+        # Standard return envelope — always present, so a reader never has to
+        # infer completeness from the ABSENCE of the legacy 'truncated' key.
+        **envelope_fields(returned=min(len(rows), MAX_ROWS), total=len(rows)),
     }
     if len(rows) > MAX_ROWS:
+        # Legacy key: a STRING, not a bool. Kept verbatim for published
+        # consumers; `is_truncated` above is the unambiguous boolean.
         result["truncated"] = f"only the first {MAX_ROWS} of {len(rows)} rows were processed"
     if learn:
         result["weights"] = learn_cause_weights(corpus, min_samples, smoothing)

@@ -15,6 +15,7 @@ from iaiops.core.brain.plc_program.awl_parser import parse_awl
 from iaiops.core.brain.plc_program.l5x_parser import parse_l5x, rung_texts
 from iaiops.core.brain.plc_program.model import Block, ProgramOutline
 from iaiops.core.brain.plc_program.st_parser import parse_st
+from iaiops.core.runtime.envelope import envelope_fields
 
 ALLOWED_EXTENSIONS = frozenset({".st", ".scl", ".awl", ".l5x", ".txt"})
 MAX_FILE_BYTES = 5 * 1024 * 1024  # exported program text; anything bigger is suspect
@@ -146,13 +147,15 @@ def block_section(path: str, block: str, max_lines: int = MAX_SECTION_LINES) -> 
             for bname, num, rtext, comment in rung_texts(text, str(resolved))
             if bname == blk.name
         ]
-        truncated = len(rows) > max_lines
+        total_lines = len(rows)
+        truncated = total_lines > max_lines
         source = "\n".join(rows[:max_lines])
     else:
         lines = text.splitlines()
         start, end = max(blk.line - 1, 0), min(blk.end_line, len(lines))
         span = lines[start:end]
-        truncated = len(span) > max_lines
+        total_lines = len(span)
+        truncated = total_lines > max_lines
         source = "\n".join(span[:max_lines])
 
     return {
@@ -163,7 +166,10 @@ def block_section(path: str, block: str, max_lines: int = MAX_SECTION_LINES) -> 
         "start_line": blk.line,
         "end_line": blk.end_line,
         "lines_returned": min(max_lines, source.count("\n") + 1 if source else 0),
-        "truncated": truncated,
+        "truncated": truncated,  # legacy bool — see `is_truncated`
         "source": source,
         "parse_errors": list(outline.parse_errors),
+        # "Items" here are SOURCE LINES, not list rows — the contract is the
+        # same: how many came back, how many exist, was anything cut.
+        **envelope_fields(returned=min(total_lines, max_lines), total=total_lines),
     }

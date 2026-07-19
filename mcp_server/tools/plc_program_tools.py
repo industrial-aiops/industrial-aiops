@@ -12,6 +12,7 @@ full grammar; parse_errors are reported instead of raised.
 from iaiops.core.brain import plc_program as ops
 from iaiops.core.brain.plc_visibility import plc_visibility
 from iaiops.core.governance import governed_tool
+from iaiops.core.runtime.envelope import envelope_fields
 from mcp_server._shared import mcp, tool_errors
 
 MAX_BLOCKS = 50
@@ -97,8 +98,9 @@ def plc_program_xref(path: str, symbol: str) -> dict:
             }
             for h in hits[:MAX_XREF_HITS]
         ],
-        "hits_truncated": len(hits) > MAX_XREF_HITS,
+        "hits_truncated": len(hits) > MAX_XREF_HITS,  # legacy bool — see `is_truncated`
         "by_access": by_access,
+        **envelope_fields(returned=min(len(hits), MAX_XREF_HITS), total=len(hits)),
     }
 
 

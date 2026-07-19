@@ -17,6 +17,7 @@ from iaiops.core.brain.compliance_report import render_markdown_report as _rende
 from iaiops.core.governance import governed_tool
 from iaiops.core.governance.evidence import export_evidence_bundle as _export_evidence_bundle
 from iaiops.core.governance.evidence import validate_output_path as _validate_output_path
+from iaiops.core.runtime.envelope import envelope_fields
 from iaiops.core.sink.push import historian_push as _historian_push
 from mcp_server._shared import mcp, tool_errors
 
@@ -121,20 +122,32 @@ def compliance_report(
     )
     line_count = markdown.count("\n") + 1
     result: dict = {"format": "markdown", "level": level, "line_count": line_count}
+    # "Items" here are markdown LINES; the envelope contract is unchanged —
+    # how many came back, how many exist, was anything cut.
     if out_path:
         path = _validate_output_path(out_path, suffixes=(".md", ".markdown"))
         path.write_text(markdown, encoding="utf-8")
-        return {**result, "path": str(path)}
+        # Full document on disk: nothing was cut.
+        return {
+            **result,
+            "path": str(path),
+            **envelope_fields(returned=line_count, total=line_count),
+        }
     if line_count > _MAX_INLINE_LINES:
         head = "\n".join(markdown.split("\n")[:_MAX_INLINE_LINES])
         return {
             **result,
             "markdown": head,
-            "truncated": True,
+            "truncated": True,  # legacy bool — see `is_truncated`
             "hint": f"Report exceeds {_MAX_INLINE_LINES} lines inline — pass "
             "out_path to write the full document to a file.",
+            **envelope_fields(returned=_MAX_INLINE_LINES, total=line_count),
         }
-    return {**result, "markdown": markdown}
+    return {
+        **result,
+        "markdown": markdown,
+        **envelope_fields(returned=line_count, total=line_count),
+    }
 
 
 @mcp.tool()
