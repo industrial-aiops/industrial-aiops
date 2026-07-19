@@ -12,6 +12,7 @@ from typing import Optional
 
 from iaiops.core.governance import governed_tool
 from iaiops.core.runtime.config import load_config_env
+from iaiops.core.runtime.envelope import envelope_fields
 from iaiops.core.sink.reader import SUPPORTED_READERS, HistorianReader, get_reader
 from iaiops.core.sink.sqlite_local import SampleFilter
 from mcp_server._shared import mcp, tool_errors
@@ -75,7 +76,11 @@ def historian_query(
         limit: Max rows returned (1..10000; default 1000).
 
     Returns dict: {reader, source, tag, since, until, rows,
-        samples:[{ts, endpoint, protocol, tag, value, quality, unit}], truncated}.
+        samples:[{ts, endpoint, protocol, tag, value, quality, unit}], truncated}
+        plus the standard return envelope (items_returned, items_total,
+        items_total_is_exact, is_truncated, truncation_note). Trust
+        `is_truncated`: an empty `samples` with is_truncated=false means the
+        history really is empty, NOT that the result was cut short.
 
     Example: historian_query(tag="line1.temp", since="2026-07-02T06:00:00Z",
         until="2026-07-02T08:00:00Z").
@@ -108,7 +113,12 @@ def historian_query(
         "until": until,
         "rows": len(samples),
         "samples": samples,
+        # Legacy bool, kept for published-consumer compatibility. `is_truncated`
+        # from the envelope below is the key a reader should trust.
         "truncated": truncated,
+        # limit+1 probe: the exact upstream total is unknown, so say so rather
+        # than reporting the page size as if it were the total.
+        **envelope_fields(returned=len(samples), more_available=truncated),
     }
 
 
@@ -133,7 +143,9 @@ def historian_coverage(
         limit: Max tags returned (1..2000; default 500).
 
     Returns dict: {reader, source, tag_count, tags:[{tag, rows, first_ts,
-        last_ts}], truncated}.
+        last_ts}], truncated} plus the standard return envelope
+        (items_returned, items_total, items_total_is_exact, is_truncated,
+        truncation_note).
 
     Example: historian_coverage().
     """
@@ -151,6 +163,7 @@ def historian_coverage(
         "source": f"historian:{name}",
         "tag_count": len(tags),
         "tags": tags,
-        "truncated": truncated,
+        "truncated": truncated,  # legacy bool — see `is_truncated`
         "supported_readers": list(SUPPORTED_READERS),
+        **envelope_fields(returned=len(tags), more_available=truncated),
     }

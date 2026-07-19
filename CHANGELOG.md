@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+> **Weak / local-model hardening.** Field reports from an air-gapped PoC driving an
+> MCP server with a local Llama 3.3 70B ([VMware-AIops#31](https://github.com/zw008/VMware-AIops/issues/31))
+> showed an operator compensating with ~17 hand-written prompt guardrails — "work
+> read-only", "never invent objects", "mark absent fields not-available", "don't claim
+> no data was returned". Every one of those is a **harness** gap dressed up as a prompt.
+> A guardrail the next operator forgets to paste is not a guarantee, and on an OT line
+> the failure mode is not a bad answer — it is a write to a live PLC, or an operator
+> told the plant is healthy because a capped alarm list read as empty. Both are fixed
+> here in the server, where they hold regardless of which model is driving.
+
+### Added
+- **Read-only registration gate (`IAIOPS_READ_ONLY=1`)** — every `high`/`critical`
+  (write) tool is removed from the FastMCP registry *before the server serves*, so it
+  never appears in `list_tools()`. A **registration-time** guarantee, not a call-time
+  refusal: a weak, local or prompt-injected model can call any tool it can *see*, and a
+  stray OT write is physically irreversible — a tool absent from the registry cannot be
+  hallucinated into a call at all. Verified across all 11 named profiles: writes go to
+  **0** in every one, covering all 10 write tools including the edition-scoped
+  `bas_command` (`factory` 134→126, `all` 147→138, `warehouse` 93→90). The gate **fails
+  closed** — if the registry cannot be introspected the server refuses to start rather
+  than serve write tools to an operator who asked for none — and it reuses the existing
+  `@governed_tool(risk_level=…)` metadata, so no tool needed reclassifying. `medium` is
+  deliberately *not* treated as a read: no MCP tool uses it today, and a test fails if
+  one appears, forcing the call to be made explicitly rather than by default.
+  `protocols_supported` survives and **reports the read-only state**, so the model is
+  told rather than left to infer it from absent tools. Lives in core, so `iaiops-energy`
+  and `iaiops-enterprise` inherit it.
+- **One return envelope for every bounded result** (`iaiops/core/runtime/envelope.py`) —
+  a model reading raw JSON cannot tell a *short* list from a *truncated* one. Every
+  bounded return now carries five keys, always: `items_returned`, `items_total`,
+  `items_total_is_exact`, `is_truncated` (a plain bool — never a string, never a nested
+  dict) and `truncation_note`. A `limit + 1` probe reports `items_total` as an explicit
+  **null** rather than passing the page size off as the total. Two supporting rules ship
+  with it: `with_explicit_nulls()` renders a requested-but-absent field as an explicit
+  `null` (an omitted key is a hallucination licence — the next best guess fills the
+  hole), and `enum_passthrough_violations()` makes "raw OT enums pass through verbatim"
+  assertable, so severity `800` never becomes "High" and `BAD_NOT_CONNECTED` never
+  becomes "bad". Migrated all 10 bounded returns across sparkplug, alarm-flood,
+  baseline-store, maintenance-log, PLC-program outline, alarm/compliance/historian/
+  plc-program tools.
+- **CI gates for both**, so the *next* tool is caught by the suite rather than by a
+  reviewer noticing: an AST scan asserts that any function emitting a truncation flag
+  builds the envelope through the shared helper (empty allowlist on purpose — an
+  exemption should have to be argued for in review), and a generalized invariant test
+  asserts no write tool can reach a read-only server. Both gates guard *themselves*
+  (they assert their own predicates fire on a known-bad snippet), so a refactor that
+  broke the matching cannot leave them passing vacuously.
+
+### Compatibility
+- The envelope keys are **purely additive**. The published `truncated` key already had
+  three different types — a string (`maintenance_log`), a per-section dict
+  (`alarm_flood_report`), a bool everywhere else — and that inconsistency is precisely
+  the hazard being fixed. Retyping a published key would break consumers, so every
+  legacy key is left byte-identical and the envelope is added alongside; `is_truncated`
+  is the one key a reader should trust.
+- `IAIOPS_READ_ONLY` is **opt-in** and unset by default: existing deployments are
+  byte-identical. Read-only means **no control-path write**; it does not disable data
+  egress (`stream_publish` still forwards already-read points to a message bus).
+
 ## 0.16.0 — 2026-07-17
 
 > **Protocol + intelligence depth release, tool surface unchanged.** Eight features that
