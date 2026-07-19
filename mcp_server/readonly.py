@@ -24,6 +24,7 @@ from typing import Any
 
 __all__ = [
     "READ_ONLY_ENV",
+    "READ_RISK_LEVELS",
     "WRITE_RISK_LEVELS",
     "apply_read_only",
     "read_only_active",
@@ -33,12 +34,34 @@ __all__ = [
 # Env toggle: "1"/"true"/"yes"/"on" → withhold every write tool.
 READ_ONLY_ENV = "IAIOPS_READ_ONLY"
 
-# Governance risk levels that denote a state-changing tool. ``@governed_tool``
-# sets ``fn._risk_level``; every MCP tool registered today is either ``low``
-# (read/advisory) or one of these. ``medium`` is intentionally absent: no MCP
-# tool uses it, and tests/test_read_only_gate.py fails if one appears, so the
-# call ("is medium a write?") gets made explicitly rather than by default.
-WRITE_RISK_LEVELS: frozenset[str] = frozenset({"high", "critical"})
+# The ONLY risk level a read-only server serves. Everything else is withheld.
+#
+# This is an ALLOWLIST on purpose. The obvious spelling is a denylist of write
+# levels, but then anything the list does not recognise — a new level, a typo
+# like "hgih", a tool whose level never got set — is served by default, and the
+# failure mode of a read-only gate must never be "serve it anyway".
+READ_RISK_LEVELS: frozenset[str] = frozenset({"low"})
+
+# Levels that denote a state change, kept as a name because it reads better at
+# the call site and in tests. ``medium`` IS one of them.
+#
+# That was an open question until a medium tool actually appeared. The iaiops
+# base has none, and the original gate excluded medium while a test forced the
+# decision the day one showed up. It showed up in `iaiops-enterprise`:
+# `approval_approve` (the n-th approver MINTS the token that authorises an OT
+# write) and `approval_approvers_set` (rewrites WHO may approve — passing []
+# reopens approval to anyone). Both are medium, and both are unambiguously state
+# changes.
+#
+# Reclassifying THEM to high would have been the wrong fix: in this family high
+# means "OT-dangerous, MOC-gated, needs a recorded approver", so a high
+# `approval_approve` is circular — approving would require an approval. The
+# honest classification is medium, so the GATE had to learn that medium is a
+# write. A read-only server that still lets a caller mint write authorisation is
+# a contradiction: it cannot touch the PLC itself, but it can hand out the
+# credential that lets something else do it, and the audit trail will show a
+# perfectly legitimate approval.
+WRITE_RISK_LEVELS: frozenset[str] = frozenset({"medium", "high", "critical"})
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 
@@ -66,11 +89,14 @@ def _risk_level_of(tool: Any) -> str | None:
 def apply_read_only(mcp: Any) -> tuple[str, ...]:
     """Withhold every write tool from ``mcp``'s registry; return the names removed.
 
-    Builds a NEW registry dict containing only the non-write tools and installs
-    it — the previous dict is left untouched (no in-place mutation of shared
-    state). Tools with no recognisable risk level are KEPT: classifying them is
-    ``assert_all_tools_governed``'s job, and dropping them here would silently
-    shrink the read surface for a reason the operator never asked for.
+    Builds a NEW registry dict containing only the read tools and installs it —
+    the previous dict is left untouched (no in-place mutation of shared state).
+
+    Selection is an ALLOWLIST (:data:`READ_RISK_LEVELS`), so a tool whose level
+    is unrecognised — a new level, a typo, one never set — is WITHHELD rather
+    than served. It is better for a read-only site to notice a missing read tool
+    than for one unclassifiable tool to be served as if it were safe; the log
+    line names everything withheld, so the diagnosis is one restart away.
 
     Raises RuntimeError if the registry cannot be introspected — the gate fails
     closed, because "started anyway" would mean serving write tools to a server
@@ -85,7 +111,7 @@ def apply_read_only(mcp: Any) -> tuple[str, ...]:
             "start, because the read-only guarantee cannot be enforced."
         )
     withheld = tuple(
-        sorted(name for name, tool in tools.items() if _risk_level_of(tool) in WRITE_RISK_LEVELS)
+        sorted(name for name, tool in tools.items() if _risk_level_of(tool) not in READ_RISK_LEVELS)
     )
     manager._tools = {name: tool for name, tool in tools.items() if name not in withheld}
     return withheld

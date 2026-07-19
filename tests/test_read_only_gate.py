@@ -20,19 +20,17 @@ import pytest
 
 from mcp_server.readonly import (
     READ_ONLY_ENV,
+    READ_RISK_LEVELS,
     WRITE_RISK_LEVELS,
     apply_read_only,
     read_only_enabled,
 )
 from mcp_server.server import mcp
 
-# Risk levels a REGISTERED MCP tool may carry today: ``low`` (read/advisory) or
-# a write level. ``medium`` is deliberately NOT allowed through — the repo's own
-# example of a medium tool is a VM power-off, i.e. a state change, so a medium
-# MCP tool would be a write slipping past a "read-only" server. If one is ever
-# added, this fails and forces the classification decision instead of shipping
-# the hole.
-_KNOWN_RISK_LEVELS = frozenset({"low"}) | frozenset(WRITE_RISK_LEVELS)
+# Risk levels a REGISTERED MCP tool may carry. ``medium`` now counts as a WRITE
+# (see the classification note in mcp_server/readonly.py): a medium tool mints or
+# re-delegates authority, which a read-only server must not serve.
+_KNOWN_RISK_LEVELS = READ_RISK_LEVELS | WRITE_RISK_LEVELS
 
 
 @pytest.fixture
@@ -172,14 +170,56 @@ def test_no_write_tool_can_escape_the_gate(restorable_registry):
 
 
 @pytest.mark.unit
-def test_gate_tolerates_a_tool_without_a_risk_level(restorable_registry):
-    """A tool object the gate cannot classify is kept, not silently dropped.
+def test_gate_withholds_a_tool_it_cannot_classify(restorable_registry):
+    """An unclassifiable tool is WITHHELD, not served on the benefit of the doubt.
 
-    Dropping unknown tools would make the gate a blunt instrument; the
-    governance gate (``assert_all_tools_governed``) is what rejects them.
+    This reverses the gate's original behaviour, deliberately. It used to keep
+    unknown tools, reasoning that classification was
+    ``assert_all_tools_governed``'s job — but that check only asserts the
+    ``@governed_tool`` marker is present, not that the risk level is one the gate
+    understands. A tool with a typo'd level ("hgih") therefore passed governance
+    AND got served by a read-only server.
+
+    Selection is now an allowlist of :data:`READ_RISK_LEVELS`. A read-only site
+    noticing a missing read tool is a cheap, visible failure; serving one
+    unclassifiable tool as if it were safe is not.
     """
     manager = mcp._tool_manager
     manager._tools = {**restorable_registry, "riskless_tool": SimpleNamespace(fn=lambda: {})}
     withheld = apply_read_only(mcp)
-    assert "riskless_tool" not in withheld
-    assert "riskless_tool" in manager._tools
+    assert "riskless_tool" in withheld
+    assert "riskless_tool" not in manager._tools
+
+
+@pytest.mark.unit
+def test_gate_withholds_a_typo_risk_level(restorable_registry):
+    """The concrete case the allowlist exists for."""
+    manager = mcp._tool_manager
+    typo = SimpleNamespace(fn=lambda: {})
+    typo.fn._risk_level = "hgih"  # type: ignore[attr-defined]
+    manager._tools = {**restorable_registry, "typo_tool": typo}
+    assert "typo_tool" in apply_read_only(mcp)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("level", ["medium", "high", "critical"])
+def test_every_write_level_is_withheld(restorable_registry, level: str):
+    """medium included — see the classification note in mcp_server/readonly.py.
+
+    A medium tool mints or re-delegates authority (the case that forced the
+    decision was `iaiops-enterprise`'s `approval_approve`, whose n-th approver
+    mints the token authorising an OT write). A read-only server that hands out
+    write authorisation is a contradiction, so medium is a write here.
+    """
+    assert level in WRITE_RISK_LEVELS
+    manager = mcp._tool_manager
+    tool = SimpleNamespace(fn=lambda: {})
+    tool.fn._risk_level = level  # type: ignore[attr-defined]
+    manager._tools = {**restorable_registry, f"{level}_tool": tool}
+    assert f"{level}_tool" in apply_read_only(mcp)
+
+
+@pytest.mark.unit
+def test_read_and_write_levels_do_not_overlap():
+    """The two sets are complements, not overlapping opinions."""
+    assert not (READ_RISK_LEVELS & WRITE_RISK_LEVELS)
