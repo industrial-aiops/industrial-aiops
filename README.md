@@ -735,10 +735,43 @@ stray OT write is physically irreversible — a tool absent from the registry
 cannot be hallucinated into a call at all. `protocols_supported` stays exposed
 and reports the read-only state, so the model is *told* rather than left to
 infer it from missing tools. Scope: read-only means **no control-path write**
-(no PLC register, BACnet setpoint or PROFINET output). It does not disable data
-**egress** — `stream_publish`/`stream_publish_event` still forward already-read
-points to a message bus; restrict those at the network layer if the site
-requires it.
+(no PLC register, BACnet setpoint or PROFINET output). It does not stop data
+leaving the box — that is the separate switch below.
+
+**Sealed sites — make the data-shipping tools cease to exist.**
+`IAIOPS_NO_EGRESS=1` removes every tool whose job is to transmit local or plant
+data to a destination the *caller* names, by the same registration-time
+mechanism:
+
+```bash
+IAIOPS_NO_EGRESS=1 iaiops-mcp-factory                     # 134 tools -> 129; 5 withheld
+IAIOPS_READ_ONLY=1 IAIOPS_NO_EGRESS=1 iaiops-mcp-factory  # 134 -> 122; read-only AND sealed
+```
+
+Withheld: `stream_publish`, `stream_publish_event` (NATS message bus),
+`historian_push` (external TSDB), `mqtt_publish` (broker), `rca_narrate` (POSTs
+the RCA verdict — plant tags, values and citations — to a caller-supplied model
+`base_url`). The two gates are **orthogonal**, which is why this is a second
+switch rather than a wider first one: `historian_push` is `risk_level="low"` —
+it changes no plant state, so the read-only gate keeps it — yet it ships
+telemetry off-box. A "read-only" server without this switch still exfiltrates.
+`mqtt_publish` is both, and either switch alone withholds it.
+`protocols_supported` reports each posture independently.
+
+Scope, stated plainly — this is **not a firewall**:
+
+- It gates **MCP tools only**. `iaiops audit forward` (SIEM) is a CLI path no
+  registry gate can reach; block it at the host if the box must be sealed.
+- Reads still open outbound sockets. iaiops is a network tap — it must talk to
+  PLCs, brokers and historians to read anything at all. The gate removes the
+  tools whose *purpose* is sending data outward, not the network itself.
+- It does not police arguments. A tool is present or absent as a whole; nothing
+  is inspected at call time (that would be the call-time refusal this design
+  rejects). This is why a tool with a caller-supplied destination is withheld
+  even when its default points at localhost — the model picks the argument.
+- Local file writes are **not** egress: `export_data` and
+  `compliance_evidence_bundle` stay exposed. The bytes never leave the box;
+  getting them off it afterwards is a host-level concern.
 
 Named profiles: `all` · `brain` · `fab` · `factory` · `process` · `building` ·
 `plcnext` · `water` · `renewables` · `warehouse` · `clinical`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
@@ -751,6 +784,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 - **Read-first.** 156 of 166 tools are read-only. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. 9 of the 10 **capture the BEFORE value/state and register an undo descriptor**; the exceptions are `mqtt_publish` (a fire-and-forget MQTT/Sparkplug command has no automatic inverse) and `ethercat_set_state` (a state transition has no clean inverse) — both have **no automatic undo**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Read-only mode is enforced at registration.** `IAIOPS_READ_ONLY=1` withholds all 10 write tools from `list_tools()` (verified across every named profile), leaving a genuinely read-only tap for 等保 / IEC-62443 contexts where "read-only" must be an auditable fact about the running server rather than a promise in a prompt. The gate **fails closed**: if the tool registry cannot be introspected, the server refuses to start rather than serving write tools to an operator who asked for none.
+- **No-egress mode is enforced the same way, and is orthogonal to it.** `IAIOPS_NO_EGRESS=1` withholds the 5 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `historian_push`, `mqtt_publish`, `rca_narrate`), also fail-closed. Two switches rather than one because they answer different questions — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so read-only alone would still exfiltrate. Set both for a read-only, sealed tap. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
 - All endpoint-returned text is sanitized (prompt-injection defense); secrets are never returned by any tool; MTConnect XML is parsed with DTD/entity declarations refused.
 - Every tool runs through the vendored governance harness: SQLite **audit** (`~/.iaiops/audit.db`, SHA-256 **hash-chained** rows + `iaiops audit verify`; audit **fails closed** for high/critical writes), token/call **budget** + runaway breaker, **risk-tier** gate (policy engine fails closed on a broken `rules.yaml`), **undo** recording. The MCP server **refuses to start** if any registered tool lacks the governance marker.

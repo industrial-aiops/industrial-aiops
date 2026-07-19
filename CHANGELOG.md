@@ -29,6 +29,28 @@
   `protocols_supported` survives and **reports the read-only state**, so the model is
   told rather than left to infer it from absent tools. Lives in core, so `iaiops-energy`
   and `iaiops-enterprise` inherit it.
+- **No-egress registration gate (`IAIOPS_NO_EGRESS=1`)** — a second, **orthogonal**
+  switch: "nothing leaves this box". Same mechanism (removal from the FastMCP registry
+  before serving, fails closed, pure narrowing pass), different predicate. It withholds
+  the 5 tools whose purpose is transmitting local/plant data to a destination the
+  *caller* names: `stream_publish` / `stream_publish_event` (NATS bus), `historian_push`
+  (external TSDB), `mqtt_publish` (broker), `rca_narrate` (POSTs the RCA verdict — plant
+  tags, values, citations — to a caller-supplied model `base_url`). Two gates rather
+  than one widened gate because the questions are genuinely different: `historian_push`
+  is `risk_level="low"`, it changes no plant state, so the read-only gate *keeps* it —
+  yet it ships telemetry off-box, meaning a "read-only" server without this switch still
+  exfiltrates. `mqtt_publish` is both a control path and an egress path, and either gate
+  alone withholds it. Measured on the real registry, governance assertion green in all
+  four combinations: `factory` 134 → 126 (read-only) / 129 (no-egress) / **122** (both);
+  `all` 147 → 138 / 142 / **134**; `building` 93 → 91 / 89 / **87**. The gates compose in
+  either order — both are pure filters over independent predicates.
+- **`@governed_tool(egress=True)`** — a new, optional keyword recording the fact on the
+  tool itself, alongside the existing `risk_level`. The gate reads *metadata*, never a
+  hardcoded name list: a name list is what would let the next egress tool escape
+  silently. Backward compatible by construction — the default is `False` and a tool
+  decorated by an older copy of the harness simply has no `_egress` attribute, which
+  readers must treat as `False`, so `iaiops-energy` and `iaiops-enterprise` are
+  unaffected until they opt in.
 - **One return envelope for every bounded result** (`iaiops/core/runtime/envelope.py`) —
   a model reading raw JSON cannot tell a *short* list from a *truncated* one. Every
   bounded return now carries five keys, always: `items_returned`, `items_total`,
@@ -42,13 +64,21 @@
   becomes "bad". Migrated all 10 bounded returns across sparkplug, alarm-flood,
   baseline-store, maintenance-log, PLC-program outline, alarm/compliance/historian/
   plc-program tools.
-- **CI gates for both**, so the *next* tool is caught by the suite rather than by a
+- **CI gates for all three**, so the *next* tool is caught by the suite rather than by a
   reviewer noticing: an AST scan asserts that any function emitting a truncation flag
   builds the envelope through the shared helper (empty allowlist on purpose — an
-  exemption should have to be argued for in review), and a generalized invariant test
-  asserts no write tool can reach a read-only server. Both gates guard *themselves*
-  (they assert their own predicates fire on a known-bad snippet), so a refactor that
-  broke the matching cannot leave them passing vacuously.
+  exemption should have to be argued for in review), a generalized invariant test
+  asserts no write tool can reach a read-only server, and a second AST scan
+  (`tests/test_egress_gate.py`, empty allowlist) asserts that any MCP tool *reaching* a
+  transport declares `egress=True`. That last one derives which functions transmit by
+  scanning `iaiops/` for send primitives on fully-qualified names — bare names like
+  `send` / `write` / `execute` collide across the codebase — and adds three declared
+  multi-hop facades (`core.egress`, `core.sink.push`, `core.llm`), each carrying a
+  written justification *and* a `transport_root` checked against source, so a transport
+  refactored out of a declared tree fails the gate instead of leaving a stale prefix
+  matching nothing. All three gates guard *themselves* (they assert their own predicates
+  fire on a known-bad snippet), so a refactor that broke the matching cannot leave them
+  passing vacuously.
 
 ### Compatibility
 - The envelope keys are **purely additive**. The published `truncated` key already had
@@ -57,9 +87,17 @@
   the hazard being fixed. Retyping a published key would break consumers, so every
   legacy key is left byte-identical and the envelope is added alongside; `is_truncated`
   is the one key a reader should trust.
-- `IAIOPS_READ_ONLY` is **opt-in** and unset by default: existing deployments are
-  byte-identical. Read-only means **no control-path write**; it does not disable data
-  egress (`stream_publish` still forwards already-read points to a message bus).
+- `IAIOPS_READ_ONLY` and `IAIOPS_NO_EGRESS` are both **opt-in** and unset by default:
+  existing deployments are byte-identical. Read-only means **no control-path write** and
+  does not stop data leaving; no-egress means **no data leaving via an MCP tool** and
+  does not stop writes. Neither implies the other; set both for a read-only sealed tap.
+- `IAIOPS_NO_EGRESS` is **not a firewall**, and the README says so where an operator will
+  read it. It gates MCP tools only — `iaiops audit forward` is a CLI path no registry
+  gate can reach. Reads still open outbound sockets (iaiops is a network tap). And it
+  never inspects arguments: a tool is present or absent as a whole, which is why a tool
+  with a caller-supplied destination is withheld even when its default is localhost —
+  under this threat model the *model* picks the argument. Local file writes are not
+  egress, so `export_data` and `compliance_evidence_bundle` stay exposed.
 
 ## 0.16.0 — 2026-07-17
 

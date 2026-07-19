@@ -21,6 +21,7 @@ import os
 import sys
 
 from mcp_server._shared import _safe_error, mcp, tool_errors
+from mcp_server.noegress import NO_EGRESS_ENV, apply_no_egress, no_egress_enabled
 from mcp_server.profiles import (
     MENU_SELECTION,
     NO_BRAIN_ENV,
@@ -107,6 +108,9 @@ def main() -> None:
       the ``protocols_supported`` discovery tool stays exposed.
     - ``IAIOPS_READ_ONLY=1`` → every high/critical (write) tool is removed from
       the registry, so it never appears in ``list_tools()``.
+    - ``IAIOPS_NO_EGRESS=1`` → every tool that ships data off-box (message bus,
+      external historian, remote model endpoint) is removed the same way.
+      Orthogonal to the above: set both to get a read-only, sealed tap.
     """
     logging.basicConfig(level=logging.INFO)
     spec = os.environ.get("IAIOPS_MCP")
@@ -126,8 +130,12 @@ def main() -> None:
             file=sys.stderr,
         )
         raise SystemExit(2) from exc
-    # Narrowing pass — must sit AFTER registration (import is what registers, and
-    # registration cannot narrow) and BEFORE the governance assertion.
+    # Narrowing passes — must sit AFTER registration (import is what registers,
+    # and registration cannot narrow) and BEFORE the governance assertion.
+    #
+    # The two gates are independent filters over independent predicates
+    # (risk_level vs egress), so the surviving surface is the same whichever runs
+    # first; read-only goes first only because it is the older, coarser cut.
     if read_only_enabled(os.environ.get(READ_ONLY_ENV)):
         withheld = apply_read_only(mcp)
         logger.info(
@@ -138,6 +146,19 @@ def main() -> None:
             ", ".join(withheld) or "none",
             _registered_tool_count(),
             READ_ONLY_ENV,
+        )
+    if no_egress_enabled(os.environ.get(NO_EGRESS_ENV)):
+        withheld = apply_no_egress(mcp)
+        logger.info(
+            "%s is on — %d data-shipping tool(s) withheld from list_tools(): %s. "
+            "%d tool(s) remain; unset %s to restore them. Note this gates MCP "
+            "tools only, not the CLI (e.g. 'iaiops audit forward') or the "
+            "outbound sockets a protocol read needs.",
+            NO_EGRESS_ENV,
+            len(withheld),
+            ", ".join(withheld) or "none",
+            _registered_tool_count(),
+            NO_EGRESS_ENV,
         )
     assert_all_tools_governed()
     tool_count = _registered_tool_count()

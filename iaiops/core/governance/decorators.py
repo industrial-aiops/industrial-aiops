@@ -77,6 +77,7 @@ def governed_tool(
     timeout_seconds: int = 300,
     sensitive_params: list[str] | None = None,
     undo: Any = None,
+    egress: bool = False,
 ) -> Any:
     """Decorator for all network MCP tool functions.
 
@@ -99,6 +100,20 @@ def governed_tool(
             successful call the inverse is recorded to ~/.iaiops/undo.db and the
             result dict gains an ``_undo_id``. Return None for "no safe inverse".
             Recording only — execution is an external orchestrator's job.
+        egress: Whether the tool transmits local/plant data to a destination the
+            CALLER names (a message bus, an external historian, a remote model
+            endpoint). Metadata only — this decorator never blocks on it; the
+            ``IAIOPS_NO_EGRESS`` registration gate reads ``_egress`` to withhold
+            such tools from the MCP registry (see ``mcp_server/noegress.py``).
+            Orthogonal to ``risk_level``: a tool can ship data off-box without
+            changing any plant state (``historian_push`` is low-risk egress), and
+            a high-risk write need not egress anything. Defaults to False, and a
+            tool decorated by an older copy of this module simply has no
+            ``_egress`` attribute — readers must treat that as False.
+
+            NOT egress: a protocol write to a plant device (that is what
+            ``risk_level`` and ``IAIOPS_READ_ONLY`` govern), a read that happens
+            to open an outbound socket, or a write to a local file.
     """
     _sensitive = set(sensitive_params or [])
 
@@ -164,6 +179,7 @@ def governed_tool(
         wrapper._idempotent = idempotent
         wrapper._timeout_seconds = timeout_seconds
         wrapper._sensitive_params = list(_sensitive)
+        wrapper._egress = bool(egress)
         return wrapper
 
     # Support @governed_tool and @governed_tool(...)
