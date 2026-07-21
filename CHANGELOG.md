@@ -28,7 +28,7 @@
   write`, …) executed with **no audit row**. A central pass
   (`iaiops/cli/_govern.py`, run once at app assembly) now governs **every**
   registered Typer command, so a command cannot ship ungoverned by omission
-  (`tests/test_cli_audit.py` pins 100% coverage). The eight CLI write commands use
+  (`tests/test_cli_audit.py` pins 100% coverage). The seven CLI write commands use
   **effect-based risk**: a dry-run preview (`--apply` omitted) audits at `low` —
   it changes nothing, so it needs no approver — while the real `--apply` write is
   `high`, **approver-gated** (`iaiops approve`) and audited. So the CLI is no
@@ -39,6 +39,15 @@
   governance spine, "audit on both MCP + CLI surfaces" principle, posture gates,
   decision record). `CLAUDE.md`'s dead `docs/PLATFORM-ARCHITECTURE.md` pointer is
   folded in.
+- **`iaiops/core/sink/historian_read.py`** — the historian READ logic (`query` /
+  `coverage`), extracted from `mcp_server/tools/historian_tools.py`. Both the MCP
+  tools and the `iaiops historian query|coverage` CLI commands now call this core
+  function at their own governed boundary. Previously the CLI commands imported
+  and called the `@governed_tool`-decorated MCP bodies, so once the CLI itself
+  became governed a single `historian query` produced **two** audit rows and
+  **two** budget decrements (the runaway guard would trip at half the configured
+  volume). Now governed exactly once per surface; the CLI no longer imports
+  `mcp_server`. (`tests/test_cli_audit.py::test_delegating_cli_command_audits_exactly_once`.)
 
 ## 0.18.1 — 2026-07-20
 

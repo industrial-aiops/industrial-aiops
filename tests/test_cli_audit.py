@@ -129,8 +129,8 @@ def test_real_write_is_high_and_approver_gated_and_body_does_not_run():
 
 
 def test_write_commands_are_classified_as_writes():
-    """The eight CLI write commands carry the effect-based write marker (declared
-    max risk ``high``), so their real ``--apply`` path is approver-gated."""
+    """The seven CLI write commands (six unique function names) carry the effect-
+    based write marker, so their real ``--apply`` path is approver-gated."""
     writes = {
         cmd.callback.__name__
         for cmd in _all_commands(app)
@@ -144,6 +144,17 @@ def test_write_commands_are_classified_as_writes():
         "write_words_cmd",  # mc + fins share the name
         "publish_cmd",
     }
+
+
+def test_delegating_cli_command_audits_exactly_once():
+    """``iaiops historian query`` shares core read logic with the MCP tool; it must
+    NOT reach through the governed MCP wrapper (that would double-audit and
+    double-count the budget). Exactly one row, under the CLI command's name."""
+    CliRunner().invoke(app, ["historian", "query", "--tag", "nope", "--endpoint", "plant1"])
+    rows = get_engine().query()
+    historian_rows = [r for r in rows if r["tool"] in {"query_cmd", "historian_query"}]
+    assert len(historian_rows) == 1
+    assert historian_rows[0]["tool"] == "query_cmd"
 
 
 # ── credentials never reach the audit row ────────────────────────────────────

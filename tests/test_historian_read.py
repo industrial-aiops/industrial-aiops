@@ -386,9 +386,9 @@ def test_historian_config_validation():
 
 def _no_site_config(monkeypatch):
     """Pin the tools to 'no historian: block' regardless of the dev machine."""
-    import mcp_server.tools.historian_tools as ht
+    from iaiops.core.sink import historian_read
 
-    monkeypatch.setattr(ht, "load_config_env", lambda: AppConfig())
+    monkeypatch.setattr(historian_read, "load_config_env", lambda: AppConfig())
 
 
 @pytest.mark.unit

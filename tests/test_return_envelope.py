@@ -371,9 +371,9 @@ def _seed_historian(home, points: list[dict[str, Any]]) -> None:
 def _no_site_config(monkeypatch) -> None:
     """Ignore any developer ``historian:`` config block — use the local sqlite store."""
     from iaiops.core.runtime.config import AppConfig
-    from mcp_server.tools import historian_tools as ht
+    from iaiops.core.sink import historian_read
 
-    monkeypatch.setattr(ht, "load_config_env", lambda: AppConfig())
+    monkeypatch.setattr(historian_read, "load_config_env", lambda: AppConfig())
 
 
 def test_historian_query_and_coverage_envelope(isolated_iaiops_home, monkeypatch) -> None:
