@@ -16,7 +16,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
-from iaiops.cli._common import cli_errors
+from iaiops.cli._common import audit_sensitive, cli_errors
 from iaiops.core.brain.compliance import (
     compliance_dengbao_levels,
     compliance_frameworks,
@@ -121,6 +121,7 @@ historian_app = typer.Typer(
 
 
 @historian_app.command("push")
+@audit_sensitive("password")
 @cli_errors
 def push_cmd(
     sink: str = typer.Option(..., "--sink", help="tdengine | iotdb"),

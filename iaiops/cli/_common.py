@@ -65,3 +65,38 @@ def get_manager(config_path: Path | None = None):
 def resolve_target(endpoint: str | None):
     """Resolve an endpoint target by name (or the default endpoint)."""
     return get_manager().target(endpoint)
+
+
+# ── governance markers ───────────────────────────────────────────────────────
+# The CLI is governed centrally (see iaiops.cli._govern) so every command leaves
+# an audit row and no command ships ungoverned by omission. These markers let a
+# command declare the per-command metadata the central pass reads; they only set
+# an attribute, so they are inert unless govern_app() runs.
+
+
+def high_risk(fn: Callable) -> Callable:
+    """Mark a CLI **write** command HIGH risk — approver-gated + audited, parity
+    with its MCP write tool. Read by ``iaiops.cli._govern.govern_app``."""
+    fn._cli_risk_level = "high"
+    return fn
+
+
+def audit_sensitive(*names: str) -> Callable:
+    """Mark param names to redact from this command's audit row (credentials).
+
+    ``@audit_sensitive("value")`` above the command → the value never lands in
+    ``~/.iaiops/audit.db`` in the clear.
+    """
+
+    def deco(fn: Callable) -> Callable:
+        fn._cli_sensitive = list(names)
+        return fn
+
+    return deco
+
+
+def no_audit(fn: Callable) -> Callable:
+    """Exclude a command from governance — a process launcher (``iaiops mcp``)
+    whose spawned operations are each governed on their own."""
+    fn._cli_skip_govern = True
+    return fn

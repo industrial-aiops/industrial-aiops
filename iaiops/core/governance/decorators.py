@@ -112,8 +112,8 @@ def governed_tool(
             ``_egress`` attribute — readers must treat that as False.
 
             NOT egress: a protocol write to a plant device (that is what
-            ``risk_level`` and ``IAIOPS_READ_ONLY`` govern), a read that happens
-            to open an outbound socket, or a write to a local file.
+            ``risk_level`` governs and audits), a read that happens to open an
+            outbound socket, or a write to a local file.
     """
     _sensitive = set(sensitive_params or [])
 

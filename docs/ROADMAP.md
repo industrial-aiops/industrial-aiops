@@ -13,7 +13,10 @@ A&C, air-gap packaging, signed artifacts), **0.16.0** (eight depth features at z
 tool-surface growth: EtherNet/IP PCCC, MTConnect long-poll streaming, PdM RUL, OEE Six
 Big Losses, Sparkplug DataSet/Template, live-verified OPC-UA cert security, RCA causal
 graph, ISA-18.2 alarm rationalization), and **0.17.0** (weak/local-model hardening — the
-`IAIOPS_READ_ONLY` / `IAIOPS_NO_EGRESS` registration gates and the return envelope).
+`IAIOPS_NO_EGRESS` registration gate and the return envelope; the `IAIOPS_READ_ONLY` gate
+also shipped here but was **removed** in a later release — read/write authorisation is the
+caller's decision, and the tap's guarantee is un-bypassable audit on both MCP and CLI; see
+CHANGELOG and `docs/HLD.md`).
 
 MCP-registry publishing is now automated from CI via OIDC in both repos
 (`.github/workflows/publish-mcp.yml`); the manual `mcp-publisher login` path cannot work

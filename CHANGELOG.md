@@ -1,6 +1,49 @@
 # Changelog
 
-## Unreleased
+## 0.19.0 — 2026-07-21
+
+> **Read/write authorisation is not the tap's job — audit is.** The
+> `IAIOPS_READ_ONLY` registration gate is **removed**. Encoding "this server may
+> not write" by hiding tools put an authorisation decision inside the data tap;
+> that decision belongs to the caller (agent judgement / account & permission
+> management). The tap's guarantee is instead **un-bypassable audit on both
+> front-ends** — and this release closes the gap that made read-only look
+> necessary: the CLI used to call `ops.*` directly, so a CLI write left **no audit
+> row**. Both surfaces are now governed at their own boundary, sharing one audit
+> DB / policy / budget engine. `IAIOPS_NO_EGRESS` is untouched — a separate
+> data-exfiltration / airgap axis, not authorisation.
+
+### Removed
+- **`IAIOPS_READ_ONLY` registration gate** (`mcp_server/readonly.py` and
+  `tests/test_read_only_gate.py`) and every reference to it (server wiring,
+  `server.json`, `protocols_supported` posture, README, ROADMAP). Write tools are
+  exposed and **governed**, not withheld; whether a write is authorised is the
+  caller's call. Writes remain high `risk_tier`, MOC-gated, dry-run-by-default,
+  and undo-captured. See `docs/HLD.md` (decision record D1/D3/D4).
+
+### Added
+- **CLI is audited on the same footing as the MCP server.** Previously
+  `@governed_tool` sat only on the MCP wrappers, while the CLI called `ops.*`
+  directly — so a CLI write (`iaiops ethercat write-sdo --apply`, `iaiops modbus
+  write`, …) executed with **no audit row**. A central pass
+  (`iaiops/cli/_govern.py`, run once at app assembly) now governs **every**
+  registered Typer command, so a command cannot ship ungoverned by omission
+  (`tests/test_cli_audit.py` pins 100% coverage). Reads audit at `low`; the eight
+  CLI write commands are `high` risk — **approver-gated** (`iaiops approve`) and
+  audited, parity with the MCP write tools, so the CLI is no longer a governance
+  backdoor around MOC. Credential-bearing commands (`secret set`, historian
+  `push --password`) redact the secret from the audit row.
+- **`docs/HLD.md`** — the missing authoritative architecture doc (4-layer design,
+  governance spine, "audit on both MCP + CLI surfaces" principle, posture gates,
+  decision record). `CLAUDE.md`'s dead `docs/PLATFORM-ARCHITECTURE.md` pointer is
+  folded in.
+
+### Note
+- Governing the CLI write commands at `high` risk means a **CLI dry-run of a write
+  now also requires a recorded approver** — identical to the MCP path, where the
+  write tools are `high` risk regardless of `dry_run`. Grant one with `iaiops
+  approve <tool> --endpoint <ep> --by <name>` (or configure `risk_tiers` in
+  rules.yaml to relax previews).
 
 ## 0.18.1 — 2026-07-20
 

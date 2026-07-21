@@ -17,8 +17,9 @@ meaningless:
 
 * **Protocol writes to a plant device** (OPC-UA write, BACnet setpoint, an HTTP
   PUT to a BAS controller). Data does go out on a wire, but to the equipment
-  under the operator's own control. That is a *write*, and ``IAIOPS_READ_ONLY``
-  is the gate for it — see ``mcp_server/readonly.py``.
+  under the operator's own control. That is a *write*, governed and audited by
+  ``@governed_tool`` (risk_level) — authorisation is the caller's decision, not a
+  server gate.
 * **Reads that open an outbound connection** (an MQTT SUBSCRIBE, a TSDB query,
   an MTConnect poll). The payload flows IN. iaiops is a network tap; if opening
   a socket were egress, the gate would have to withhold everything.

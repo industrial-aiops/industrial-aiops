@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import typer
 
+from iaiops.cli._common import no_audit
+from iaiops.cli._govern import govern_app
 from iaiops.cli.analytics import analytics_app
 from iaiops.cli.approve import approve_cmd
 from iaiops.cli.audit import audit_app
@@ -85,6 +87,7 @@ def protocols_cmd() -> None:
 
 
 @app.command("mcp")
+@no_audit
 def mcp_cmd() -> None:
     """Start the MCP server (stdio transport).
 
@@ -107,6 +110,12 @@ def mcp_cmd() -> None:
     from mcp_server.server import main as _mcp_main
 
     _mcp_main()
+
+
+# Un-bypassable audit: govern every registered command (see iaiops.cli._govern).
+# Runs once at import, after the app is fully assembled and before Typer builds
+# its Click commands. A command cannot ship ungoverned by omission.
+govern_app(app)
 
 
 if __name__ == "__main__":

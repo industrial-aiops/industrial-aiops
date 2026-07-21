@@ -1,15 +1,17 @@
 """No-egress registration gate: egress tools must not EXIST under IAIOPS_NO_EGRESS.
 
-Sibling of ``tests/test_read_only_gate.py``, and deliberately ORTHOGONAL to it.
-The read-only gate answers "can this server change the plant?"; this one answers
-"can plant data leave this box?". A tool can be one, both, or neither:
+This gate answers exactly one question — "can plant data leave this box?" — and
+keys off ``@governed_tool(egress=True)`` metadata. It is NOT an authorisation
+gate: whether the server may change the plant is the caller's decision (agent
+judgement / account permissions), audited by ``@governed_tool`` (risk_level), not
+enforced by removing tools. A low-risk tool can still exfiltrate:
 
-* ``historian_push`` is ``risk_level="low"`` — the read-only gate keeps it, yet
-  it ships telemetry to an external TSDB. Only this gate withholds it.
-* ``mqtt_publish`` is BOTH (Sparkplug NCMD/DCMD is a real control path *and* a
-  payload leaving the box) — either gate alone must withhold it.
+* ``historian_push`` is ``risk_level="low"`` — it changes no plant state — yet it
+  ships telemetry to an external TSDB. Only this gate withholds it.
+* ``mqtt_publish`` is a real control path *and* a payload leaving the box; this
+  gate withholds it on the egress axis alone.
 
-Same enforcement philosophy: removal from the FastMCP registry, not a call-time
+Enforcement philosophy: removal from the FastMCP registry, not a call-time
 refusal. A tool a weak/local/prompt-injected model cannot SEE cannot be
 hallucinated into a call, and an exfiltrated process value cannot be un-sent.
 
@@ -29,7 +31,6 @@ from mcp_server.noegress import (
     apply_no_egress,
     no_egress_enabled,
 )
-from mcp_server.readonly import READ_ONLY_ENV, WRITE_RISK_LEVELS, apply_read_only
 from mcp_server.server import assert_all_tools_governed, mcp
 
 #: Tools this repo classifies as egress today. This list is NOT what the gate
@@ -71,11 +72,7 @@ def _egress_tool_names(registry: dict[str, Any]) -> set[str]:
     return {name for name, tool in registry.items() if _egress_of(tool)}
 
 
-def _write_tool_names(registry: dict[str, Any]) -> set[str]:
-    return {name for name, tool in registry.items() if _risk_of(tool) in WRITE_RISK_LEVELS}
-
-
-# ── env parsing (same idiom as the read-only gate) ───────────────────────────
+# ── env parsing ──────────────────────────────────────────────────────────────
 
 
 @pytest.mark.unit
@@ -190,77 +187,42 @@ def test_local_file_export_is_not_egress(restorable_registry):
 
 
 @pytest.mark.unit
-def test_historian_push_escapes_the_read_only_gate(restorable_registry):
+def test_low_risk_tool_can_still_egress(restorable_registry):
     """The reason this gate has to exist at all, pinned as an executable fact.
 
-    ``historian_push`` is low-risk (it changes no plant state) so the read-only
-    gate keeps it — yet it ships telemetry to an external TSDB. Without a second,
-    orthogonal gate a "read-only" server would still exfiltrate.
+    ``historian_push`` changes no plant state (low risk) yet ships telemetry to
+    an external TSDB. Authorisation posture would keep it; only an egress-axis
+    gate withholds it.
     """
-    assert _risk_of(restorable_registry["historian_push"]) not in WRITE_RISK_LEVELS
-    apply_read_only(mcp)
-    assert "historian_push" in mcp._tool_manager._tools
+    assert _risk_of(restorable_registry["historian_push"]) == "low"
+    assert _egress_of(restorable_registry["historian_push"]) is True
+    apply_no_egress(mcp)
+    assert "historian_push" not in mcp._tool_manager._tools
 
 
 @pytest.mark.unit
-def test_mqtt_publish_is_withheld_by_either_gate_alone(restorable_registry):
-    """A tool that is both a control path and an egress path needs no coordination."""
-    manager = mcp._tool_manager
-    apply_read_only(mcp)
-    assert "mqtt_publish" not in manager._tools
-
-    manager._tools = dict(restorable_registry)
+def test_mqtt_publish_is_withheld_by_the_gate(restorable_registry):
+    """A control path that also ships a payload off-box is withheld on egress."""
     apply_no_egress(mcp)
-    assert "mqtt_publish" not in manager._tools
+    assert "mqtt_publish" not in mcp._tool_manager._tools
 
 
-# ── composition ─────────────────────────────────────────────────────────────
+# ── the gate leaves a fully governed registry ────────────────────────────────
 
 
 @pytest.mark.unit
-def test_gates_compose_in_either_order(restorable_registry):
-    """Both gates on → the surviving surface is identical whichever runs first.
+@pytest.mark.parametrize("no_egress", [False, True])
+def test_governance_assertion_holds_with_and_without_the_gate(restorable_registry, no_egress: bool):
+    """Both states still leave a fully governed registry.
 
-    Each gate is a pure narrowing filter over an independent predicate, so the
-    composition is order-insensitive. Pinned because the server applies them in
-    one fixed order and a future reader should not have to re-derive that the
-    order carries no meaning.
-    """
-    manager = mcp._tool_manager
-    apply_read_only(mcp)
-    apply_no_egress(mcp)
-    read_only_first = set(manager._tools)
-
-    manager._tools = dict(restorable_registry)
-    apply_no_egress(mcp)
-    apply_read_only(mcp)
-    assert set(manager._tools) == read_only_first
-
-    expected = set(restorable_registry) - _write_tool_names(restorable_registry)
-    expected -= _egress_tool_names(restorable_registry)
-    assert read_only_first == expected
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    ("read_only", "no_egress"),
-    [(False, False), (True, False), (False, True), (True, True)],
-)
-def test_governance_assertion_holds_for_every_gate_combination(
-    restorable_registry, read_only: bool, no_egress: bool
-):
-    """All four combinations still leave a fully governed registry.
-
-    The gates run BEFORE ``assert_all_tools_governed`` in ``main()``; a gate that
+    The gate runs BEFORE ``assert_all_tools_governed`` in ``main()``; a gate that
     installed a malformed registry would turn a security switch into a startup
     crash (or worse, a silently ungoverned surface).
     """
-    if read_only:
-        apply_read_only(mcp)
     if no_egress:
         apply_no_egress(mcp)
     assert_all_tools_governed()
-    assert mcp._tool_manager._tools, "a gate combination emptied the registry"
+    assert mcp._tool_manager._tools, "the gate emptied the registry"
 
 
 # ── the model must be TOLD, not left to infer ───────────────────────────────
@@ -282,26 +244,6 @@ def test_protocols_supported_reports_no_egress_on(monkeypatch: pytest.MonkeyPatc
     result = protocols_supported()
     assert result["no_egress_mode"] is True
     assert NO_EGRESS_ENV in result["no_egress_note"]
-
-
-@pytest.mark.unit
-def test_protocols_supported_reports_both_postures_independently(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """The two switches are reported separately — neither implies the other."""
-    from mcp_server.tools.overview_tools import protocols_supported
-
-    monkeypatch.setenv(READ_ONLY_ENV, "1")
-    monkeypatch.delenv(NO_EGRESS_ENV, raising=False)
-    result = protocols_supported()
-    assert result["read_only_mode"] is True
-    assert result["no_egress_mode"] is False
-
-    monkeypatch.delenv(READ_ONLY_ENV, raising=False)
-    monkeypatch.setenv(NO_EGRESS_ENV, "1")
-    result = protocols_supported()
-    assert result["read_only_mode"] is False
-    assert result["no_egress_mode"] is True
 
 
 # ── the decorator contract (shared with iaiops-energy / iaiops-enterprise) ───
