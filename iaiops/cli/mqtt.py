@@ -12,8 +12,8 @@ from iaiops.cli._common import (
     _emit,
     cli_errors,
     console,
-    high_risk,
     resolve_target,
+    write_command,
 )
 from iaiops.connectors.sparkplug import live, ops
 from iaiops.core.brain import uns_governance as uns
@@ -57,7 +57,7 @@ def browse_cmd(
 
 
 @mqtt_app.command("publish")
-@high_risk
+@write_command
 @cli_errors
 def publish_cmd(
     topic: str,

@@ -14,15 +14,18 @@ introspection, so wrapping the callbacks leaves every option / argument / help
 string unchanged — verified by ``tests/test_cli_audit.py``.
 
 Per-command metadata comes from markers in ``iaiops.cli._common``:
-``high_risk`` (write command → ``_cli_risk_level="high"``, approver-gated + audited,
-parity with the MCP write tool), ``audit_sensitive`` (``_cli_sensitive`` — param
-names redacted from the audit row) and ``no_audit`` (``_cli_skip_govern`` — a
-launcher such as ``iaiops mcp``, whose spawned tools are governed individually).
+``write_command`` (a write → ``_cli_apply_param``; effect-based risk — the real
+``--apply`` write is ``high`` and approver-gated, the dry-run preview is ``low``,
+both audited), ``audit_sensitive`` (``_cli_sensitive`` — param names redacted from
+the audit row) and ``no_audit`` (``_cli_skip_govern`` — a launcher such as
+``iaiops mcp``, whose spawned tools are governed individually).
 """
 
 from __future__ import annotations
 
 import functools
+import inspect
+from collections.abc import Callable
 from typing import Any
 
 import typer
@@ -33,18 +36,10 @@ from iaiops.core.governance.budget import BudgetExceeded
 from iaiops.core.governance.decorators import PolicyDenied
 
 
-def _wrap(callback: Any) -> Any:
-    """Return a governed callback: audit + policy + budget, with denials rendered
-    as a clean one-line CLI error instead of a traceback.
-
-    Signature-preserving (``@functools.wraps``) so Typer still builds the same
-    options. ``governed_tool`` runs first (policy pre-check + audit); a denial or
-    budget stop is caught here and turned into ``typer.Exit(1)`` — the same shape
-    ``cli_errors`` gives other failures.
-    """
-    risk = getattr(callback, "_cli_risk_level", "low")
-    sensitive = getattr(callback, "_cli_sensitive", None)
-    governed = governed_tool(risk_level=risk, sensitive_params=sensitive)(callback)
+def _with_denial_handling(callback: Callable, governed: Callable) -> Callable:
+    """Wrap a governed callable so a policy denial / budget stop becomes a clean
+    one-line CLI error (``typer.Exit(1)``) instead of a traceback — the same shape
+    ``cli_errors`` gives other failures. Signature-preserving for Typer."""
 
     @functools.wraps(callback)
     def cli_governed(*args: Any, **kwargs: Any) -> Any:
@@ -54,9 +49,58 @@ def _wrap(callback: Any) -> Any:
             console.print(f"[red]Denied: {exc}[/]")
             raise typer.Exit(1) from exc
 
-    cli_governed._is_governed_tool = True
-    cli_governed._risk_level = risk
     return cli_governed
+
+
+def _wrap_write(callback: Callable, apply_param: str, sensitive: Any) -> Callable:
+    """Govern a write command with **effect-based** risk.
+
+    A dry-run preview (``apply`` falsey) audits at ``low`` — it changes nothing, so
+    it needs no approver. The real write (``apply`` truthy) is ``high`` — audited
+    and approver-gated (MOC). Both governed variants are built once; the per-call
+    dispatch picks by the bound ``apply`` argument. If binding fails, fail safe:
+    treat the call as a real write.
+    """
+    signature = inspect.signature(callback)
+    low = governed_tool(risk_level="low", sensitive_params=sensitive)(callback)
+    high = governed_tool(risk_level="high", sensitive_params=sensitive)(callback)
+
+    def dispatch(*args: Any, **kwargs: Any) -> Any:
+        try:
+            bound = signature.bind(*args, **kwargs)
+            bound.apply_defaults()
+            applying = bool(bound.arguments.get(apply_param, True))
+        except TypeError:
+            applying = True
+        return (high if applying else low)(*args, **kwargs)
+
+    functools.update_wrapper(dispatch, callback)
+    governed = _with_denial_handling(callback, dispatch)
+    governed._cli_apply_param = apply_param
+    governed._risk_level = "high"  # declared max risk, for command classification
+    return governed
+
+
+def _wrap(callback: Any) -> Any:
+    """Return a governed callback: audit + policy + budget, denials rendered clean.
+
+    Write commands (``_cli_apply_param``) get effect-based risk; everything else is
+    audited at ``low`` (``_cli_risk_level`` may override).
+    """
+    sensitive = getattr(callback, "_cli_sensitive", None)
+    apply_param = getattr(callback, "_cli_apply_param", None)
+    if apply_param is not None:
+        governed = _wrap_write(callback, apply_param, sensitive)
+        governed._is_governed_tool = True
+        return governed
+
+    risk = getattr(callback, "_cli_risk_level", "low")
+    governed = _with_denial_handling(
+        callback, governed_tool(risk_level=risk, sensitive_params=sensitive)(callback)
+    )
+    governed._is_governed_tool = True
+    governed._risk_level = risk
+    return governed
 
 
 def govern_app(app: Any) -> int:

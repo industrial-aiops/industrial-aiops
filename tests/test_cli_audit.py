@@ -8,8 +8,9 @@ wrappers carry ``@governed_tool`` directly; the CLI is governed centrally by
 * every registered command is governed (a new command cannot ship ungoverned),
 * Typer still builds each command's options (governance is signature-transparent),
 * a CLI read leaves an audit row,
-* a CLI **write** is approver-gated (denied without an approver), matching the
-  MCP write tool — the CLI is not a governance backdoor around MOC,
+* a CLI **write** uses effect-based risk — the dry-run preview audits at ``low``
+  (no approver), the real ``--apply`` write is ``high`` and approver-gated, so the
+  CLI is not a governance backdoor around MOC yet previews stay friction-free,
 * a credential-bearing command (``secret set``) does not log the secret value.
 """
 
@@ -73,9 +74,9 @@ def test_cli_read_leaves_an_audit_row():
     assert rows[0]["status"] == "ok"
 
 
-def test_cli_write_is_denied_without_an_approver():
-    """A high-risk CLI write is approver-gated (parity with the MCP write tool):
-    denied with a clean one-line error, and the denial is audited."""
+def test_real_cli_write_is_denied_without_an_approver():
+    """The real ``--apply`` write is approver-gated (parity with the MCP write
+    tool): denied with a clean one-line error, and the denial is audited."""
     result = CliRunner().invoke(app, ["ethercat", "write-sdo", "0", "24698", "e803", "--apply"])
     assert result.exit_code == 1
     assert "Denied" in result.output
@@ -83,14 +84,59 @@ def test_cli_write_is_denied_without_an_approver():
     assert any(r["status"] == "denied" for r in rows)
 
 
-def test_write_commands_are_high_risk():
-    """The eight CLI write commands carry HIGH risk, so they are approver-gated."""
-    high = {
+def _effect_based_probe_app():
+    """A synthetic write command marked like the real ones — no network needed."""
+    from iaiops.cli._common import write_command
+    from iaiops.cli._govern import govern_app
+
+    calls: list[tuple[str, str]] = []
+    sub = typer.Typer()
+
+    @sub.command("w")
+    @write_command
+    def w(value: str, apply: bool = typer.Option(False, "--apply")) -> None:
+        calls.append(("apply" if apply else "dry", value))
+
+    root = typer.Typer()
+    root.add_typer(sub, name="probe")
+    govern_app(root)
+    return root, calls
+
+
+def test_write_dry_run_audits_low_and_is_not_approver_gated():
+    """Effect-based risk: a dry-run preview changes nothing, so it audits at ``low``
+    and runs WITHOUT an approver — previewing a write must stay friction-free."""
+    root, calls = _effect_based_probe_app()
+    result = CliRunner().invoke(root, ["probe", "w", "e803"])
+    assert result.exit_code == 0, result.output
+    assert calls == [("dry", "e803")]  # the body ran
+    assert "Denied" not in result.output
+    row = get_engine().query(tool="w")[-1]
+    assert row["risk_level"] == "low" and row["status"] == "ok"
+
+
+def test_real_write_is_high_and_approver_gated_and_body_does_not_run():
+    """The ``--apply`` write is ``high``: denied without an approver, and the body
+    never executes (no plant change on a denied call)."""
+    root, calls = _effect_based_probe_app()
+    result = CliRunner().invoke(root, ["probe", "w", "e803", "--apply"])
+    assert result.exit_code == 1
+    assert "Denied" in result.output
+    assert calls == []  # the body did NOT run
+    assert any(
+        r["status"] == "denied" and r["risk_level"] == "high" for r in get_engine().query(tool="w")
+    )
+
+
+def test_write_commands_are_classified_as_writes():
+    """The eight CLI write commands carry the effect-based write marker (declared
+    max risk ``high``), so their real ``--apply`` path is approver-gated."""
+    writes = {
         cmd.callback.__name__
         for cmd in _all_commands(app)
-        if cmd.callback is not None and getattr(cmd.callback, "_risk_level", "low") == "high"
+        if cmd.callback is not None and getattr(cmd.callback, "_cli_apply_param", None) == "apply"
     }
-    assert high == {
+    assert writes == {
         "write_sdo_cmd",
         "set_state_cmd",
         "write_db_cmd",

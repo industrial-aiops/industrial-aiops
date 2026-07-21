@@ -9,8 +9,8 @@ from iaiops.cli._common import (
     _emit,
     cli_errors,
     console,
-    high_risk,
     resolve_target,
+    write_command,
 )
 from iaiops.connectors.eip import ops
 
@@ -51,7 +51,7 @@ def read_many_cmd(
 
 
 @eip_app.command("write-tag")
-@high_risk
+@write_command
 @cli_errors
 def write_tag_cmd(
     tag: str,

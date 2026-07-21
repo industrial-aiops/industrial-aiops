@@ -28,22 +28,17 @@
   write`, …) executed with **no audit row**. A central pass
   (`iaiops/cli/_govern.py`, run once at app assembly) now governs **every**
   registered Typer command, so a command cannot ship ungoverned by omission
-  (`tests/test_cli_audit.py` pins 100% coverage). Reads audit at `low`; the eight
-  CLI write commands are `high` risk — **approver-gated** (`iaiops approve`) and
-  audited, parity with the MCP write tools, so the CLI is no longer a governance
-  backdoor around MOC. Credential-bearing commands (`secret set`, historian
-  `push --password`) redact the secret from the audit row.
+  (`tests/test_cli_audit.py` pins 100% coverage). The eight CLI write commands use
+  **effect-based risk**: a dry-run preview (`--apply` omitted) audits at `low` —
+  it changes nothing, so it needs no approver — while the real `--apply` write is
+  `high`, **approver-gated** (`iaiops approve`) and audited. So the CLI is no
+  longer a governance backdoor around MOC, yet previewing a write stays friction-
+  free. Credential-bearing commands (`secret set`, historian `push --password`)
+  redact the secret from the audit row.
 - **`docs/HLD.md`** — the missing authoritative architecture doc (4-layer design,
   governance spine, "audit on both MCP + CLI surfaces" principle, posture gates,
   decision record). `CLAUDE.md`'s dead `docs/PLATFORM-ARCHITECTURE.md` pointer is
   folded in.
-
-### Note
-- Governing the CLI write commands at `high` risk means a **CLI dry-run of a write
-  now also requires a recorded approver** — identical to the MCP path, where the
-  write tools are `high` risk regardless of `dry_run`. Grant one with `iaiops
-  approve <tool> --endpoint <ep> --by <name>` (or configure `risk_tiers` in
-  rules.yaml to relax previews).
 
 ## 0.18.1 — 2026-07-20
 

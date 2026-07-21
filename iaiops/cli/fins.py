@@ -9,8 +9,8 @@ from iaiops.cli._common import (
     _emit,
     cli_errors,
     console,
-    high_risk,
     resolve_target,
+    write_command,
 )
 from iaiops.connectors.fins import ops
 
@@ -59,7 +59,7 @@ def bits_cmd(
 
 
 @fins_app.command("write-words")
-@high_risk
+@write_command
 @cli_errors
 def write_words_cmd(
     address: int,

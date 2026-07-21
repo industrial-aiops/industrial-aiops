@@ -74,10 +74,16 @@ def resolve_target(endpoint: str | None):
 # an attribute, so they are inert unless govern_app() runs.
 
 
-def high_risk(fn: Callable) -> Callable:
-    """Mark a CLI **write** command HIGH risk — approver-gated + audited, parity
-    with its MCP write tool. Read by ``iaiops.cli._govern.govern_app``."""
-    fn._cli_risk_level = "high"
+def write_command(fn: Callable) -> Callable:
+    """Mark a CLI **write** command — audited on EVERY call, with effect-based risk.
+
+    A dry-run preview (``--apply`` omitted) audits at ``low``: it changes nothing,
+    so it needs no approver — a human previewing a write should not have to mint a
+    token first. The real write (``--apply``) is ``high``: approver-gated (MOC) and
+    audited. ``iaiops.cli._govern`` reads ``_cli_apply_param`` to pick the per-call
+    risk from the command's ``apply`` flag.
+    """
+    fn._cli_apply_param = "apply"
     return fn
 
 

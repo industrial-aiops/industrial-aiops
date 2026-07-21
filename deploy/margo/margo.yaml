@@ -28,7 +28,7 @@ metadata:
     Vendor-neutral, read-first OT data tap across ~14 field protocols with a cross-protocol
     root-cause brain, exposed as governed MCP tools (audit / budget / risk-tier / undo + MOC
     gating on the few writes). Air-gap friendly.
-  version: "0.18.1"
+  version: "0.19.0"
   catalog:
     application:
       tagline: Governed OT read tap + cross-protocol RCA, as MCP tools
@@ -54,7 +54,7 @@ deploymentProfiles:
         properties:
           # Signed package (built + attached to the release by CI; version kept in sync with
           # pyproject.toml by tests/test_margo_package.py). Detached signature at the same URL + .sig.
-          packageLocation: https://github.com/industrial-aiops/industrial-aiops/releases/download/v0.18.1/iaiops-margo-package-0.18.1.tar.gz
+          packageLocation: https://github.com/industrial-aiops/industrial-aiops/releases/download/v0.19.0/iaiops-margo-package-0.19.0.tar.gz
           # Cosign public key (verify: cosign verify-blob --key … --signature <pkg>.sig <pkg>).
           keyLocation: https://raw.githubusercontent.com/industrial-aiops/industrial-aiops/main/deploy/margo/cosign.pub
           wait: true

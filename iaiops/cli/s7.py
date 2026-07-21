@@ -9,8 +9,8 @@ from iaiops.cli._common import (
     _emit,
     cli_errors,
     console,
-    high_risk,
     resolve_target,
+    write_command,
 )
 from iaiops.connectors.s7 import ops
 
@@ -48,7 +48,7 @@ def read_cmd(
 
 
 @s7_app.command("write-db")
-@high_risk
+@write_command
 @cli_errors
 def write_db_cmd(
     db: int,
