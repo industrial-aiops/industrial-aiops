@@ -10,7 +10,14 @@ from __future__ import annotations
 
 import typer
 
-from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
+from iaiops.cli._common import (
+    EndpointOption,
+    _emit,
+    cli_errors,
+    console,
+    resolve_target,
+    write_command,
+)
 from iaiops.connectors.ethercat import ops
 
 ethercat_app = typer.Typer(
@@ -61,6 +68,7 @@ def read_pdo_cmd(slave: int, endpoint: EndpointOption = None) -> None:
 
 
 @ethercat_app.command("write-sdo")
+@write_command
 @cli_errors
 def write_sdo_cmd(
     slave: int,
@@ -90,6 +98,7 @@ def write_sdo_cmd(
 
 
 @ethercat_app.command("set-state")
+@write_command
 @cli_errors
 def set_state_cmd(
     state: str,

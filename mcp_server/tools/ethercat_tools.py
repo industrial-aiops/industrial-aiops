@@ -141,7 +141,7 @@ def _sdo_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_sdo_undo)
+@governed_tool(risk_level="high", undo=_sdo_undo, preview_param="dry_run")
 @tool_errors("dict")
 def ethercat_write_sdo(
     slave: int,
@@ -198,7 +198,7 @@ def _state_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_state_undo)
+@governed_tool(risk_level="high", undo=_state_undo, preview_param="dry_run")
 @tool_errors("dict")
 def ethercat_set_state(
     state: str,

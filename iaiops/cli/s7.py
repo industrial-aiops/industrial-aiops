@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import typer
 
-from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
+from iaiops.cli._common import (
+    EndpointOption,
+    _emit,
+    cli_errors,
+    console,
+    resolve_target,
+    write_command,
+)
 from iaiops.connectors.s7 import ops
 
 s7_app = typer.Typer(help="S7comm read-first telemetry (Siemens + 仿西门子).", no_args_is_help=True)
@@ -41,6 +48,7 @@ def read_cmd(
 
 
 @s7_app.command("write-db")
+@write_command
 @cli_errors
 def write_db_cmd(
     db: int,

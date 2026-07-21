@@ -12,7 +12,7 @@ from typing import Annotated
 
 import typer
 
-from iaiops.cli._common import cli_errors, console
+from iaiops.cli._common import audit_sensitive, cli_errors, console
 from iaiops.core.runtime.config import SECRET_ENV_PREFIX, SECRET_ENV_SUFFIX
 from iaiops.core.runtime.secretstore import (
     SECRETS_FILE,
@@ -32,6 +32,7 @@ NameArg = Annotated[str, typer.Argument(help="Endpoint name the secret belongs t
 
 
 @secret_app.command("set")
+@audit_sensitive("value")
 @cli_errors
 def secret_set(
     name: NameArg,

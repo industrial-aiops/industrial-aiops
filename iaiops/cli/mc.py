@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import typer
 
-from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
+from iaiops.cli._common import (
+    EndpointOption,
+    _emit,
+    cli_errors,
+    console,
+    resolve_target,
+    write_command,
+)
 from iaiops.connectors.mc import ops
 
 mc_app = typer.Typer(help="Mitsubishi MC read-first telemetry (Q/L/iQ-R).", no_args_is_help=True)
@@ -40,6 +47,7 @@ def bits_cmd(
 
 
 @mc_app.command("write-words")
+@write_command
 @cli_errors
 def write_words_cmd(
     headdevice: str,

@@ -65,3 +65,44 @@ def get_manager(config_path: Path | None = None):
 def resolve_target(endpoint: str | None):
     """Resolve an endpoint target by name (or the default endpoint)."""
     return get_manager().target(endpoint)
+
+
+# ── governance markers ───────────────────────────────────────────────────────
+# The CLI is governed centrally (see iaiops.cli._govern) so every command leaves
+# an audit row and no command ships ungoverned by omission. These markers let a
+# command declare the per-command metadata the central pass reads; they only set
+# an attribute, so they are inert unless govern_app() runs.
+
+
+def write_command(fn: Callable) -> Callable:
+    """Mark a CLI **write** command — audited on EVERY call, with effect-based risk.
+
+    A dry-run preview (``--apply`` omitted) audits at ``low``: it changes nothing,
+    so it needs no approver — a human previewing a write should not have to mint a
+    token first. The real write (``--apply``) is ``high``: approver-gated (MOC) and
+    audited. ``iaiops.cli._govern`` reads ``_cli_apply_param`` to pick the per-call
+    risk from the command's ``apply`` flag.
+    """
+    fn._cli_apply_param = "apply"
+    return fn
+
+
+def audit_sensitive(*names: str) -> Callable:
+    """Mark param names to redact from this command's audit row (credentials).
+
+    ``@audit_sensitive("value")`` above the command → the value never lands in
+    ``~/.iaiops/audit.db`` in the clear.
+    """
+
+    def deco(fn: Callable) -> Callable:
+        fn._cli_sensitive = list(names)
+        return fn
+
+    return deco
+
+
+def no_audit(fn: Callable) -> Callable:
+    """Exclude a command from governance — a process launcher (``iaiops mcp``)
+    whose spawned operations are each governed on their own."""
+    fn._cli_skip_govern = True
+    return fn

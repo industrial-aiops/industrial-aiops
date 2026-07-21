@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import typer
 
-from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
+from iaiops.cli._common import (
+    EndpointOption,
+    _emit,
+    cli_errors,
+    console,
+    resolve_target,
+    write_command,
+)
 from iaiops.connectors.eip import ops
 
 eip_app = typer.Typer(
@@ -44,6 +51,7 @@ def read_many_cmd(
 
 
 @eip_app.command("write-tag")
+@write_command
 @cli_errors
 def write_tag_cmd(
     tag: str,

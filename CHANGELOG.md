@@ -1,6 +1,65 @@
 # Changelog
 
-## Unreleased
+## 0.19.0 — 2026-07-21
+
+> **Read/write authorisation is not the tap's job — audit is.** The
+> `IAIOPS_READ_ONLY` registration gate is **removed**. Encoding "this server may
+> not write" by hiding tools put an authorisation decision inside the data tap;
+> that decision belongs to the caller (agent judgement / account & permission
+> management). The tap's guarantee is instead **un-bypassable audit on both
+> front-ends** — and this release closes the gap that made read-only look
+> necessary: the CLI used to call `ops.*` directly, so a CLI write left **no audit
+> row**. Both surfaces are now governed at their own boundary, sharing one audit
+> DB / policy / budget engine. `IAIOPS_NO_EGRESS` is untouched — a separate
+> data-exfiltration / airgap axis, not authorisation.
+
+### Removed
+- **`IAIOPS_READ_ONLY` registration gate** (`mcp_server/readonly.py` and
+  `tests/test_read_only_gate.py`) and every reference to it (server wiring,
+  `server.json`, `protocols_supported` posture, README, ROADMAP). Write tools are
+  exposed and **governed**, not withheld; whether a write is authorised is the
+  caller's call. Writes remain high `risk_tier`, MOC-gated, dry-run-by-default,
+  and undo-captured. See `docs/HLD.md` (decision record D1/D3/D4).
+
+### Changed
+- **Effect-based risk for writes, on BOTH surfaces.** `@governed_tool` gains an
+  opt-in `preview_param` (+ `preview_truthy`): a preview/dry-run call — one that
+  changes no state — audits and gates at `low` (no approver) even on a `high`
+  tool, while the real write keeps the declared `high`. The ten MCP write tools
+  opt in with `preview_param="dry_run"`, and the seven CLI write commands with
+  `preview_param="apply", preview_truthy=False`. So a **dry-run preview no longer
+  needs a recorded approver** on either front-end, but the real write still does.
+  The parameter defaults off, so tools that do not opt in — and the sibling
+  `iaiops-energy` / `iaiops-enterprise` repos that share this decorator — keep
+  exactly today's behaviour until they adopt it.
+
+### Added
+- **CLI is audited on the same footing as the MCP server.** Previously
+  `@governed_tool` sat only on the MCP wrappers, while the CLI called `ops.*`
+  directly — so a CLI write (`iaiops ethercat write-sdo --apply`, `iaiops modbus
+  write`, …) executed with **no audit row**. A central pass
+  (`iaiops/cli/_govern.py`, run once at app assembly) now governs **every**
+  registered Typer command, so a command cannot ship ungoverned by omission
+  (`tests/test_cli_audit.py` pins 100% coverage). The seven CLI write commands use
+  **effect-based risk**: a dry-run preview (`--apply` omitted) audits at `low` —
+  it changes nothing, so it needs no approver — while the real `--apply` write is
+  `high`, **approver-gated** (`iaiops approve`) and audited. So the CLI is no
+  longer a governance backdoor around MOC, yet previewing a write stays friction-
+  free. Credential-bearing commands (`secret set`, historian `push --password`)
+  redact the secret from the audit row.
+- **`docs/HLD.md`** — the missing authoritative architecture doc (4-layer design,
+  governance spine, "audit on both MCP + CLI surfaces" principle, posture gates,
+  decision record). `CLAUDE.md`'s dead `docs/PLATFORM-ARCHITECTURE.md` pointer is
+  folded in.
+- **`iaiops/core/sink/historian_read.py`** — the historian READ logic (`query` /
+  `coverage`), extracted from `mcp_server/tools/historian_tools.py`. Both the MCP
+  tools and the `iaiops historian query|coverage` CLI commands now call this core
+  function at their own governed boundary. Previously the CLI commands imported
+  and called the `@governed_tool`-decorated MCP bodies, so once the CLI itself
+  became governed a single `historian query` produced **two** audit rows and
+  **two** budget decrements (the runaway guard would trip at half the configured
+  volume). Now governed exactly once per surface; the CLI no longer imports
+  `mcp_server`. (`tests/test_cli_audit.py::test_delegating_cli_command_audits_exactly_once`.)
 
 ## 0.18.1 — 2026-07-20
 

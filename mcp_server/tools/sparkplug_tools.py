@@ -159,7 +159,7 @@ def uns_browse(
 #
 # The sibling MQTT tools above are NOT egress: SUBSCRIBE/browse pull data IN.
 @mcp.tool()
-@governed_tool(risk_level="high", egress=True)
+@governed_tool(risk_level="high", egress=True, preview_param="dry_run")
 @tool_errors("dict")
 def mqtt_publish(
     topic: str,

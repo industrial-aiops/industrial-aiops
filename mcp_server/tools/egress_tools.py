@@ -15,8 +15,8 @@ from mcp_server._shared import mcp, tool_errors
 
 
 # egress=True: the whole point of these two is to put plant data on a broker the
-# caller names. Low risk (they change no plant state, so IAIOPS_READ_ONLY keeps
-# them) but they are exactly what IAIOPS_NO_EGRESS exists to withhold.
+# caller names. Low risk (they change no plant state) but they are exactly what
+# IAIOPS_NO_EGRESS exists to withhold.
 @mcp.tool()
 @governed_tool(risk_level="low", egress=True)
 @tool_errors("dict")

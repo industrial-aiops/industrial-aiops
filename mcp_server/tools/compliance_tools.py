@@ -180,8 +180,8 @@ def compliance_evidence_bundle(
     return _export_evidence_bundle(out_path, since=since, until=until)
 
 
-# egress=True: this is THE case that motivates a second gate. It is risk_level
-# "low" — it changes no plant state — so IAIOPS_READ_ONLY keeps it, yet it ships
+# egress=True: this is THE case that motivates the no-egress gate. It is
+# risk_level "low" — it changes no plant state — yet it ships
 # collected telemetry to a TSDB at a caller-supplied host. The underlying
 # ``historian_push`` also accepts the LOCAL 'sqlite' sink, but the gate withholds
 # the tool as a whole: policing the ``sink`` argument at call time is precisely

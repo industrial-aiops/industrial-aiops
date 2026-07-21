@@ -69,6 +69,25 @@ class PolicyDenied(Exception):
         super().__init__(result.reason)
 
 
+def _effective_risk_level(
+    risk_level: str,
+    preview_param: str | None,
+    preview_truthy: bool,
+    params: dict[str, Any],
+) -> str:
+    """Per-call risk: ``low`` for a preview (it changes nothing), else declared.
+
+    A call is a preview when the ``preview_param`` boolean equals ``preview_truthy``
+    (MCP write tools: ``dry_run`` truthy; the CLI: ``apply`` falsy). No
+    ``preview_param`` → the declared ``risk_level`` always, so tools that do not
+    opt in — and the sibling iaiops-energy / iaiops-enterprise repos sharing this
+    decorator — keep exactly today's behaviour.
+    """
+    if preview_param is None:
+        return risk_level
+    return "low" if bool(params.get(preview_param, False)) == preview_truthy else risk_level
+
+
 def governed_tool(
     fn: Any = None,
     *,
@@ -78,6 +97,8 @@ def governed_tool(
     sensitive_params: list[str] | None = None,
     undo: Any = None,
     egress: bool = False,
+    preview_param: str | None = None,
+    preview_truthy: bool = True,
 ) -> Any:
     """Decorator for all network MCP tool functions.
 
@@ -112,8 +133,19 @@ def governed_tool(
             ``_egress`` attribute — readers must treat that as False.
 
             NOT egress: a protocol write to a plant device (that is what
-            ``risk_level`` and ``IAIOPS_READ_ONLY`` govern), a read that happens
-            to open an outbound socket, or a write to a local file.
+            ``risk_level`` governs and audits), a read that happens to open an
+            outbound socket, or a write to a local file.
+        preview_param: Name of a boolean parameter that marks a preview/dry-run
+            call — one that changes no state. When set, a preview call audits and
+            gates at ``low`` (no approver) even on a ``high`` tool; the real write
+            keeps the declared ``risk_level``. A preview is when that param equals
+            ``preview_truthy`` (MCP write tools opt in with ``preview_param=
+            "dry_run"``; the declared ``dry_run`` default applies when omitted).
+            Default None → declared risk always, preserving behaviour for tools
+            that do not opt in and for the sibling repos sharing this decorator.
+        preview_truthy: The value of ``preview_param`` that means "preview"
+            (default True — a truthy ``dry_run``). Set False when the flag is
+            inverted (the CLI's ``apply``: a preview is ``apply=False``).
     """
     _sensitive = set(sensitive_params or [])
 
@@ -137,6 +169,8 @@ def governed_tool(
                     risk_level,
                     timeout_seconds,
                     undo,
+                    preview_param,
+                    preview_truthy,
                 )
                 try:
                     _pre_check(state)
@@ -161,6 +195,8 @@ def governed_tool(
                     risk_level,
                     timeout_seconds,
                     undo,
+                    preview_param,
+                    preview_truthy,
                 )
                 try:
                     _pre_check(state)
@@ -180,6 +216,7 @@ def governed_tool(
         wrapper._timeout_seconds = timeout_seconds
         wrapper._sensitive_params = list(_sensitive)
         wrapper._egress = bool(egress)
+        wrapper._preview_param = preview_param
         return wrapper
 
     # Support @governed_tool and @governed_tool(...)
@@ -231,6 +268,8 @@ class _CallState:
         risk_level: str,
         timeout_seconds: int,
         undo: Any = None,
+        preview_param: str | None = None,
+        preview_truthy: bool = True,
     ) -> None:
         self.undo = undo
         self.skill = _infer_skill(func)
@@ -241,7 +280,6 @@ class _CallState:
         self.result: Any = None
         self.policy_result: PolicyResult | None = None
         self.pattern_match: PatternMatch | None = None
-        self.risk_level = risk_level
         self.timeout_seconds = timeout_seconds
         self.audit = get_engine()
         self.policy = get_policy_engine()
@@ -249,6 +287,11 @@ class _CallState:
         # Map positional args to parameter names so they appear in the audit
         # log and participate in env scoping (previously only kwargs did).
         params = _bind_params(signature, args, kwargs)
+        # Effect-based risk: a preview/dry-run call changes no state, so it audits
+        # and gates at ``low`` (no approver) even on a ``high`` tool — the real
+        # write keeps the declared risk. Determined from the bound preview flag
+        # (defaults applied above), so an omitted ``dry_run`` still reads True.
+        self.risk_level = _effective_risk_level(risk_level, preview_param, preview_truthy, params)
         # Control-char scrub of param values (recursively) before they land in
         # the audit row / SIEM forward — device-sourced strings can carry
         # terminal escapes.

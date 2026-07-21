@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import typer
 
-from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
+from iaiops.cli._common import (
+    EndpointOption,
+    _emit,
+    cli_errors,
+    console,
+    resolve_target,
+    write_command,
+)
 from iaiops.connectors.fins import ops
 
 fins_app = typer.Typer(
@@ -52,6 +59,7 @@ def bits_cmd(
 
 
 @fins_app.command("write-words")
+@write_command
 @cli_errors
 def write_words_cmd(
     address: int,

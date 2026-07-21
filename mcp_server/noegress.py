@@ -6,19 +6,18 @@ plant data to a destination the CALLER names (a message bus, an external
 historian, a remote model endpoint) — is removed from the FastMCP registry before
 the server starts serving, so it never appears in ``list_tools()``.
 
-Why this is a SEPARATE gate from ``mcp_server.readonly``, not a widening of it:
-the two answer orthogonal questions. Read-only asks "can this server change the
-plant?" and keys off ``risk_level``. This one asks "can plant data leave this
-box?" and keys off ``egress``. They cross: ``historian_push`` is ``low`` risk —
-it changes nothing — yet it pushes telemetry to an external TSDB, so a
-"read-only" server without this gate would still exfiltrate. Conversely
-``mqtt_publish`` is both, and either gate alone must withhold it.
+What this gate is (and is NOT): it answers exactly one question — "can plant data
+leave this box?" — and keys off ``egress``. It is NOT an authorisation gate: it
+does not ask "may this server change the plant?" That decision belongs to the
+caller (agent judgement / account permissions) and is audited by ``@governed_tool``
+(risk_level), not enforced by removing tools from the registry.
 
-Why removal rather than a call-time refusal: same reason as the read-only gate.
-A weak or local model (or a prompt-injected one) can call any tool it can SEE,
-and a process value that has been published to a broker cannot be un-sent.
-Refusal depends on the harness reaching the check; a tool absent from the
-registry cannot be hallucinated into a call at all.
+Why removal rather than a call-time refusal: a weak or local model (or a
+prompt-injected one) can call any tool it can SEE, and a process value that has
+been published to a broker cannot be un-sent. Refusal depends on the harness
+reaching the check; a tool absent from the registry cannot be hallucinated into a
+call at all. (This is the exfiltration axis only — an airgap/sealed-box property,
+not read/write authorisation.)
 
 SCOPE BOUNDARY — what this gate does NOT promise:
 
@@ -36,9 +35,7 @@ SCOPE BOUNDARY — what this gate does NOT promise:
 
 The gate is a *narrowing* pass: it must run AFTER ``register_profile`` (import is
 what registers tools, and registration is additive — it can never narrow an
-already-registered surface) and BEFORE ``assert_all_tools_governed``. It composes
-with ``apply_read_only`` in either order: both are pure filters over independent
-predicates.
+already-registered surface) and BEFORE ``assert_all_tools_governed``.
 """
 
 from __future__ import annotations
@@ -62,7 +59,7 @@ _TRUTHY = frozenset({"1", "true", "yes", "on"})
 def no_egress_enabled(env_value: str | None) -> bool:
     """Parse the ``IAIOPS_NO_EGRESS`` env value ("1"/"true"/"yes"/"on" → True).
 
-    Same idiom as ``mcp_server.readonly.read_only_enabled`` — anything else
+    Same idiom as ``mcp_server.profiles.brain_disabled`` — anything else
     (unset, empty, "0", "false", a typo) is False, so the gate is opt-in and a
     misspelled value never *silently* looks enabled while egress stays exposed.
     """

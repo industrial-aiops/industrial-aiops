@@ -177,7 +177,7 @@ def _mc_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_mc_undo)
+@governed_tool(risk_level="high", undo=_mc_undo, preview_param="dry_run")
 @tool_errors("dict")
 def mc_write_words(
     headdevice: str,

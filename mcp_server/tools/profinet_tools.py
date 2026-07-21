@@ -117,7 +117,7 @@ def _profinet_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_profinet_undo)
+@governed_tool(risk_level="high", undo=_profinet_undo, preview_param="dry_run")
 @tool_errors("dict")
 def profinet_dcp_set(
     mac: str,

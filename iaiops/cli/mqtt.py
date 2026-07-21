@@ -7,7 +7,14 @@ from pathlib import Path
 
 import typer
 
-from iaiops.cli._common import EndpointOption, _emit, cli_errors, console, resolve_target
+from iaiops.cli._common import (
+    EndpointOption,
+    _emit,
+    cli_errors,
+    console,
+    resolve_target,
+    write_command,
+)
 from iaiops.connectors.sparkplug import live, ops
 from iaiops.core.brain import uns_governance as uns
 
@@ -50,6 +57,7 @@ def browse_cmd(
 
 
 @mqtt_app.command("publish")
+@write_command
 @cli_errors
 def publish_cmd(
     topic: str,
