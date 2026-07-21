@@ -21,6 +21,18 @@
   caller's call. Writes remain high `risk_tier`, MOC-gated, dry-run-by-default,
   and undo-captured. See `docs/HLD.md` (decision record D1/D3/D4).
 
+### Changed
+- **Effect-based risk for writes, on BOTH surfaces.** `@governed_tool` gains an
+  opt-in `preview_param` (+ `preview_truthy`): a preview/dry-run call — one that
+  changes no state — audits and gates at `low` (no approver) even on a `high`
+  tool, while the real write keeps the declared `high`. The ten MCP write tools
+  opt in with `preview_param="dry_run"`, and the seven CLI write commands with
+  `preview_param="apply", preview_truthy=False`. So a **dry-run preview no longer
+  needs a recorded approver** on either front-end, but the real write still does.
+  The parameter defaults off, so tools that do not opt in — and the sibling
+  `iaiops-energy` / `iaiops-enterprise` repos that share this decorator — keep
+  exactly today's behaviour until they adopt it.
+
 ### Added
 - **CLI is audited on the same footing as the MCP server.** Previously
   `@governed_tool` sat only on the MCP wrappers, while the CLI called `ops.*`

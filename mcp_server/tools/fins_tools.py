@@ -137,7 +137,7 @@ def _fins_undo(params: dict, result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_fins_undo)
+@governed_tool(risk_level="high", undo=_fins_undo, preview_param="dry_run")
 @tool_errors("dict")
 def fins_write_words(
     area: str,

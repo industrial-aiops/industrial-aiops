@@ -126,7 +126,7 @@ def _eip_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_eip_undo)
+@governed_tool(risk_level="high", undo=_eip_undo, preview_param="dry_run")
 @tool_errors("dict")
 def eip_write_tag(
     tag: str,

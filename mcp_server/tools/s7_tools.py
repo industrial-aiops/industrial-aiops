@@ -121,7 +121,7 @@ def _s7_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_s7_undo)
+@governed_tool(risk_level="high", undo=_s7_undo, preview_param="dry_run")
 @tool_errors("dict")
 def s7_write_db(
     db: int,

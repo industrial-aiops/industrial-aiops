@@ -24,7 +24,6 @@ the audit row) and ``no_audit`` (``_cli_skip_govern`` — a launcher such as
 from __future__ import annotations
 
 import functools
-import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -57,28 +56,20 @@ def _wrap_write(callback: Callable, apply_param: str, sensitive: Any) -> Callabl
 
     A dry-run preview (``apply`` falsey) audits at ``low`` — it changes nothing, so
     it needs no approver. The real write (``apply`` truthy) is ``high`` — audited
-    and approver-gated (MOC). Both governed variants are built once; the per-call
-    dispatch picks by the bound ``apply`` argument. If binding fails, fail safe:
-    treat the call as a real write.
+    and approver-gated (MOC). The per-call selection is done by ``governed_tool``'s
+    preview support (a preview is ``apply == False``), the same mechanism the MCP
+    write tools use via ``preview_param="dry_run"``.
     """
-    signature = inspect.signature(callback)
-    low = governed_tool(risk_level="low", sensitive_params=sensitive)(callback)
-    high = governed_tool(risk_level="high", sensitive_params=sensitive)(callback)
-
-    def dispatch(*args: Any, **kwargs: Any) -> Any:
-        try:
-            bound = signature.bind(*args, **kwargs)
-            bound.apply_defaults()
-            applying = bool(bound.arguments.get(apply_param, True))
-        except TypeError:
-            applying = True
-        return (high if applying else low)(*args, **kwargs)
-
-    functools.update_wrapper(dispatch, callback)
-    governed = _with_denial_handling(callback, dispatch)
-    governed._cli_apply_param = apply_param
-    governed._risk_level = "high"  # declared max risk, for command classification
-    return governed
+    governed = governed_tool(
+        risk_level="high",
+        sensitive_params=sensitive,
+        preview_param=apply_param,
+        preview_truthy=False,
+    )(callback)
+    wrapped = _with_denial_handling(callback, governed)
+    wrapped._cli_apply_param = apply_param
+    wrapped._risk_level = "high"  # declared max risk, for command classification
+    return wrapped
 
 
 def _wrap(callback: Any) -> Any:

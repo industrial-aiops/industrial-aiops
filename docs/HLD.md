@@ -61,11 +61,13 @@ MCP 与 CLI 是两个独立前端，**没有任何一次调用同时穿过两者
 于是 `iaiops ethercat write-sdo --apply`（CLI 写）与 `ethercat_write_sdo`（MCP 写）
 产生**形状一致**的审计行。任一前端都无法绕过审计。
 
-CLI 写命令用**按实际效果定级**（effect-based risk）：dry-run 预览（不带 `--apply`）
-按 `low` 审计——它什么都不改，故不需审批人，人工预览一次写不该先去领 token；真正的
-`--apply` 写按 `high`——审计 + 审批门禁（MOC）。两者都留审计行。
-（注：MCP 写工具目前无论 `dry_run` 都是 `high`，即 MCP 的 dry-run 也需审批人——这是本轮
-之前就有的行为；两个前端在"真正的写需审批"上一致，仅"预览是否需审批"存在差异，见决策 D4。）
+写操作用**按实际效果定级**（effect-based risk），**两个前端一致**：dry-run 预览
+按 `low` 审计——它什么都不改，故不需审批人，预览一次写不该先去领 token；真正的写按
+`high`——审计 + 审批门禁（MOC）。两者都留审计行。机制在共享的 `@governed_tool`
+（`preview_param`）里：MCP 写工具用 `preview_param="dry_run"`（`dry_run` 为真=预览），
+CLI 写命令用 `preview_param="apply", preview_truthy=False`（`apply` 为假=预览）。
+该参数**默认关闭**，故 iaiops-energy / iaiops-enterprise 等复用本装饰器的仓库行为不变，
+除非它们也接入。
 
 > 曾经的缺口（已在本轮修复）：`@governed_tool` 只挂在 MCP 包装上，CLI 直接调 `ops.*`，
 > 导致 **CLI 写操作零审计**。修复 = 给 CLI 命令边界同样挂治理。

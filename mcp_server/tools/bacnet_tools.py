@@ -203,7 +203,7 @@ def _bacnet_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_bacnet_undo)
+@governed_tool(risk_level="high", undo=_bacnet_undo, preview_param="dry_run")
 @tool_errors("dict")
 def bacnet_write_property(
     address: str,

@@ -164,7 +164,7 @@ def _bas_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 @mcp.tool()
-@governed_tool(risk_level="high", undo=_bas_undo)
+@governed_tool(risk_level="high", undo=_bas_undo, preview_param="dry_run")
 @tool_errors("dict")
 def bas_command(
     base_url: str,
