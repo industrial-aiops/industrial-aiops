@@ -55,11 +55,15 @@ def test_mcp_launcher_is_deliberately_excluded():
 
 
 def test_governance_is_signature_transparent():
-    """A governed write command still exposes its options/args through Typer."""
-    result = CliRunner().invoke(app, ["ethercat", "write-sdo", "--help"])
-    assert result.exit_code == 0
-    assert "--apply" in result.output
-    assert "SLAVE" in result.output.upper()
+    """Governance wrapping must not hide a command's parameters — Typer builds its
+    options/args from the callback signature, so if the signature survives the
+    wrap the CLI is intact. Asserted on the signature directly (not on rendered
+    ``--help`` text, which Rich wraps differently by terminal width)."""
+    import inspect
+
+    cmd = next(c for c in _all_commands(app) if c.callback.__name__ == "write_sdo_cmd")
+    params = inspect.signature(cmd.callback).parameters
+    assert {"slave", "index", "value", "apply"} <= set(params)
 
 
 # ── behaviour: reads audit, writes are approver-gated ────────────────────────
