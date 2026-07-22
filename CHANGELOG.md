@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Margo descriptor schema gate** (CI job `margo-descriptor`, `scripts/margo_validate.sh`).
+  `deploy/margo/margo.yaml` is machine-read by an orchestrator we do not control, and nothing
+  checked it — a typo'd field or a dropped enum shipped silently and surfaced as a deployment
+  failure at a site. It now validates against Margo's published `margo.org/v1-alpha1` LinkML
+  schema on every PR. Both descriptors (this repo and `iaiops-energy`) pass clean.
+
+  The schema and Margo's own valid/invalid examples are **vendored** under
+  `deploy/margo/schema/`, pinned to upstream commit `c198139` — `pre-draft` is a moving branch
+  (it changed the day before vendoring), so a live fetch would turn an upstream edit into a red
+  build on an unrelated PR and would make the gate unrunnable offline. Drift is reported by an
+  advisory `continue-on-error` step instead. The upstream **invalid** examples are validated too
+  and must be rejected: a validator that has quietly stopped discriminating would pass our
+  descriptor just as happily as a working one.
+
+  **This is not a compliance claim, and the honest status in `docs/MARGO-ALIGNMENT.md` is
+  unchanged.** The Margo compliance test suite *cannot* be run today — it does not exist (no
+  conformance repo in the `margo` org; the PM group was still scoping a first PR1 vertical slice
+  as of 2026-01-15). Structural validity of the descriptor is what is checkable now, and it says
+  nothing about deployment behaviour, device-side runtime, or management-interface interaction.
+
 ## 0.19.0 — 2026-07-21
 
 > **Read/write authorisation is not the tap's job — audit is.** The

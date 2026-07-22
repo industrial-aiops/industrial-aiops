@@ -1,6 +1,6 @@
 # Quality gate for industrial-aiops (uv-managed; uv.lock is committed).
 #
-# Two lanes:
+# Three lanes:
 #   * gate                  — the release quality gate (pytest + ruff + bandit) on
 #                             Python 3.11 and 3.12, with only the cross-platform
 #                             connector libs (the `all` extra) installed. That set is
@@ -11,6 +11,9 @@
 #                             publish linux wheels and runs the `integration`-marked
 #                             library-API contract tests so the importorskip-gated
 #                             bindings actually execute on linux (see job comment).
+#   * margo-descriptor      — validates deploy/margo/margo.yaml against the vendored
+#                             margo.org/v1-alpha1 LinkML schema (structural validity
+#                             only; NOT a compliance claim).
 #
 # Action pins are floating major tags verified to exist:
 #   actions/checkout@v4, astral-sh/setup-uv@v6.
@@ -71,6 +74,52 @@ jobs:
       # are accepted), so without this it would fail on those Low findings.
       - name: bandit (static security scan, 0 Medium+)
         run: uvx bandit -q -r iaiops mcp_server --severity-level medium
+
+  # ── Margo descriptor schema gate ────────────────────────────────────────────
+  # deploy/margo/margo.yaml is a machine-readable artifact consumed by an
+  # orchestrator we do not control, and until now nothing checked it: a typo'd
+  # field name or a dropped enum value would ship and surface as a deployment
+  # failure at a customer site. The Margo compliance test suite does not exist
+  # yet (no conformance repo in the `margo` org), but the specification DOES
+  # publish a LinkML schema for the Application Description — so structural
+  # validity is checkable today, and this job checks it.
+  #
+  # Schema + upstream control examples are VENDORED (deploy/margo/schema/, pinned
+  # to an upstream commit): `pre-draft` is a moving branch, and a live fetch would
+  # turn an upstream edit into a red build on an unrelated PR. Drift is reported
+  # separately and advisory-only. See deploy/margo/schema/PROVENANCE.md.
+  margo-descriptor:
+    name: margo descriptor (schema-valid)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      # Validates the upstream valid AND invalid controls before our descriptor,
+      # so a validator that stopped discriminating fails here instead of passing
+      # us vacuously.
+      - name: Validate against vendored margo.org/v1-alpha1 schema
+        run: ./scripts/margo_validate.sh
+
+      # Advisory: tells us the spec moved, never fails somebody's PR. Re-vendor
+      # deliberately (copy the files, bump the commit in PROVENANCE.md, re-run).
+      - name: Upstream schema drift (advisory)
+        continue-on-error: true
+        run: |
+          upstream=$(mktemp)
+          curl -fsSL -o "$upstream" \
+            https://raw.githubusercontent.com/margo/specification/pre-draft/src/specification/applications/application-description.linkml.yaml
+          if diff -q "$upstream" deploy/margo/schema/application-description.linkml.yaml >/dev/null; then
+            echo "vendored schema matches upstream pre-draft"
+          else
+            echo "::warning::Margo's upstream schema has moved since it was vendored."
+            echo "Re-vendor deploy/margo/schema/ and update PROVENANCE.md. Diff:"
+            diff "$upstream" deploy/margo/schema/application-description.linkml.yaml || true
+          fi
 
   # ── Integration contract tests (linux only) ─────────────────────────────────
   # The base suite mocks every protocol library, so the preview/待核实 bindings can
