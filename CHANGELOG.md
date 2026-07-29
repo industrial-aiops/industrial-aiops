@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.20.1 — 2026-07-29
+
+> **The read/write distinction is now machine-readable.** Until this release the
+> only place a client could learn that `s7_write_db` writes to a PLC and
+> `opcua_browse` does not was the docstring tag `[READ]` / `[WRITE]` — text for a
+> human. Every tool now carries the MCP `ToolAnnotations` hints, **derived** from the
+> `@governed_tool` harness rather than hand-written, so a client can put a confirm
+> prompt in front of a plant write without knowing anything about OT. They are hints,
+> not a gate: authorisation stays the caller's call and enforcement stays in
+> `@governed_tool` (decision records D1/D3/D4).
+
 ### Added
 - **MCP tool annotations, derived from the governance harness.** Every registered tool now
   ships the four MCP `ToolAnnotations` hints (`readOnlyHint` / `destructiveHint` /
