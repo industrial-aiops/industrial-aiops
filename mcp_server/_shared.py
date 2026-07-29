@@ -23,6 +23,7 @@ from mcp.server.fastmcp import FastMCP
 from iaiops.core.governance import sanitize
 from iaiops.core.runtime.config import load_config
 from iaiops.core.runtime.connection import ConnectionManager, OTConnectionError
+from mcp_server.hints import hints_for
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,27 @@ def tool_errors(shape: str = "dict") -> Callable:
     return decorator
 
 
-mcp = FastMCP(
+class _GovernedFastMCP(FastMCP):
+    """FastMCP that annotates every tool from its ``@governed_tool`` metadata.
+
+    ``@mcp.tool()`` is the OUTERMOST decorator on every tool, so the function it
+    receives already carries the governance attributes ``hints_for`` reads. Doing
+    the derivation here — once — is what keeps the 170-odd registration sites free
+    of hand-written hints that could drift from the risk tier they describe.
+
+    An explicit ``annotations=`` argument still wins, for the rare tool that needs
+    to say something the harness cannot infer.
+    """
+
+    def tool(self, *args: Any, annotations: Any = None, **kwargs: Any) -> Callable:
+        def decorator(fn: Callable) -> Callable:
+            derived = annotations if annotations is not None else hints_for(fn)
+            return FastMCP.tool(self, *args, annotations=derived, **kwargs)(fn)
+
+        return decorator
+
+
+mcp = _GovernedFastMCP(
     "iaiops",
     instructions=(
         "Governed, vendor-neutral, READ-FIRST industrial data tap + intelligent "

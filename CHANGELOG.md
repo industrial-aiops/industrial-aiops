@@ -3,6 +3,37 @@
 ## Unreleased
 
 ### Added
+- **MCP tool annotations, derived from the governance harness.** Every registered tool now
+  ships the four MCP `ToolAnnotations` hints (`readOnlyHint` / `destructiveHint` /
+  `idempotentHint` / `openWorldHint`), so a client can tell a browse from a plant write
+  *programmatically* instead of parsing the `[READ]`/`[WRITE]` docstring tag a human reads.
+  A Claude Desktop-style client can put a confirm prompt in front of the eight destructive
+  tools without knowing anything about OT.
+
+  The hints are **derived, not hand-written**: `@governed_tool` already records
+  `_risk_level` / `_egress` / `_preview_param` / `_idempotent`, and `mcp_server/_hints.py`
+  maps those onto the annotations. `@mcp.tool()` is the outermost decorator on every tool, so
+  a `FastMCP` subclass (`_GovernedFastMCP` in `mcp_server/_shared.py`) applies the derivation
+  once for all ~170 registration sites. Hints therefore cannot drift from the governance they
+  describe, and a tool is annotated the moment it is governed. An explicit `annotations=`
+  argument still wins.
+
+  `readOnlyHint` is deliberately narrow — low risk **and** no preview/dry-run parameter
+  (having one means the tool has a real write mode) **and** no egress. That last clause is why
+  the four egress tools (`historian_push`, `rca_narrate`, `stream_publish`,
+  `stream_publish_event`) are neither read-only nor destructive: they ship plant data to a
+  caller-named destination without touching a device.
+
+  **These are hints, not a gate.** The MCP spec says annotations must not be relied on for
+  security decisions, and this repo agrees — authorisation is the caller's call and the tap's
+  guarantee is un-bypassable audit (decision records D1/D3/D4, the same reasoning that removed
+  the `IAIOPS_READ_ONLY` gate in 0.19.0). Enforcement stays entirely in `@governed_tool`.
+  Tool surface is unchanged (factory profile: 134 before and after).
+
+  New contract tests (`tests/test_mcp_tool_hints.py`) walk the full registered surface and
+  assert every tool is annotated, every hint is re-derivable from its decorator, the
+  destructive set equals the high/critical-risk set exactly, and no `[WRITE]`-tagged tool
+  claims `readOnlyHint`.
 - **Margo descriptor schema gate** (CI job `margo-descriptor`, `scripts/margo_validate.sh`).
   `deploy/margo/margo.yaml` is machine-read by an orchestrator we do not control, and nothing
   checked it — a typo'd field or a dropped enum shipped silently and surfaced as a deployment
