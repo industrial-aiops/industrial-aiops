@@ -91,6 +91,67 @@ def test_idempotent_flag_is_carried_through() -> None:
 
 
 @pytest.mark.unit
+def test_idempotent_is_unset_when_not_declared() -> None:
+    """Undeclared means unspecified — never an assertion that repeats differ."""
+
+    @governed_tool(risk_level="high", preview_param="dry_run")
+    def t(dry_run: bool = True) -> dict:
+        return {}
+
+    assert hints_for(t).idempotentHint is None
+
+
+@pytest.mark.unit
+def test_critical_risk_is_destructive() -> None:
+    @governed_tool(risk_level="critical")
+    def t() -> dict:
+        return {}
+
+    hints = hints_for(t)
+    assert hints.destructiveHint is True
+    assert hints.readOnlyHint is False
+
+
+@pytest.mark.unit
+def test_bare_decorator_still_raises_rather_than_registering_nothing() -> None:
+    """``@mcp.tool`` without parens must keep failing loudly, as upstream does.
+
+    A widened ``*args`` override would absorb the guard: the tool would silently
+    vanish from the surface instead of erroring at import time.
+    """
+    from mcp_server._shared import _GovernedFastMCP
+
+    server = _GovernedFastMCP("probe")
+
+    def fn() -> dict:
+        return {}
+
+    with pytest.raises(TypeError, match="forget to call it"):
+        server.tool(fn)
+    assert not server._tool_manager._tools
+
+
+@pytest.mark.unit
+def test_explicit_annotations_win_over_the_derivation() -> None:
+    """The escape hatch documented on the subclass must actually work."""
+    from mcp.types import ToolAnnotations
+
+    from mcp_server._shared import _GovernedFastMCP
+
+    server = _GovernedFastMCP("probe")
+    override = ToolAnnotations(title="hand-written", readOnlyHint=False)
+
+    @server.tool(annotations=override)
+    @governed_tool(risk_level="low")
+    def t() -> dict:
+        return {}
+
+    registered = server._tool_manager._tools["t"]
+    assert registered.annotations == override
+    assert registered.annotations.title == "hand-written"
+
+
+@pytest.mark.unit
 def test_every_tool_reaches_the_open_world() -> None:
     """This is an OT tap — its tools talk to plant equipment and external systems."""
     assert hints_for(_read_tool()).openWorldHint is True

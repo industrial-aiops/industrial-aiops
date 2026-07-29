@@ -37,8 +37,21 @@ def hints_for(fn: Any) -> Optional[ToolAnnotations]:
     low risk AND has no dry-run/preview parameter (having one means it has a real
     write mode) AND does not egress. Egress matters because a tool can ship plant
     data to a caller-named destination without touching any device — low risk, but
-    emphatically not read-only. ``openWorldHint`` is always true: every tool here
-    reaches plant equipment or an external system, never a closed local domain.
+    emphatically not read-only.
+
+    ``idempotentHint`` is left UNSET unless ``@governed_tool`` positively declares
+    ``idempotent=True``. Asserting ``False`` would be a claim — "calling this twice
+    differs from calling it once" — that the harness has no basis for, and it leans
+    the wrong way for the protocol writes, where writing the same value twice does
+    leave the same state. Unset means "not specified", which is the truth.
+
+    ``openWorldHint`` is asserted, not derived: it is ``True`` for every tool, which
+    is the spec default and the conservative direction. Most tools here do reach
+    plant equipment or an external system, but a minority are closed-domain
+    (``protocols_supported``, ``sparkplug_decode_payload``, the template listers).
+    Distinguishing them needs a signal the governance harness does not carry today —
+    a ``closed_world`` declaration on ``@governed_tool`` would be the honest fix, and
+    it would have to land in every repo sharing that decorator.
     """
     if not getattr(fn, "_is_governed_tool", False):
         return None
@@ -50,6 +63,6 @@ def hints_for(fn: Any) -> Optional[ToolAnnotations]:
     return ToolAnnotations(
         readOnlyHint=risk_level == "low" and not has_write_mode and not egresses,
         destructiveHint=risk_level in _DESTRUCTIVE_TIERS,
-        idempotentHint=bool(getattr(fn, "_idempotent", False)),
+        idempotentHint=True if getattr(fn, "_idempotent", False) else None,
         openWorldHint=True,
     )

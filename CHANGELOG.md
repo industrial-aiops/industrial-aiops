@@ -7,11 +7,12 @@
   ships the four MCP `ToolAnnotations` hints (`readOnlyHint` / `destructiveHint` /
   `idempotentHint` / `openWorldHint`), so a client can tell a browse from a plant write
   *programmatically* instead of parsing the `[READ]`/`[WRITE]` docstring tag a human reads.
-  A Claude Desktop-style client can put a confirm prompt in front of the eight destructive
-  tools without knowing anything about OT.
+  A Claude Desktop-style client can put a confirm prompt in front of the ten destructive
+  tools (across the full surface — eight in the `factory` profile) without knowing anything
+  about OT.
 
   The hints are **derived, not hand-written**: `@governed_tool` already records
-  `_risk_level` / `_egress` / `_preview_param` / `_idempotent`, and `mcp_server/_hints.py`
+  `_risk_level` / `_egress` / `_preview_param` / `_idempotent`, and `mcp_server/hints.py`
   maps those onto the annotations. `@mcp.tool()` is the outermost decorator on every tool, so
   a `FastMCP` subclass (`_GovernedFastMCP` in `mcp_server/_shared.py`) applies the derivation
   once for all ~170 registration sites. Hints therefore cannot drift from the governance they
@@ -29,6 +30,14 @@
   guarantee is un-bypassable audit (decision records D1/D3/D4, the same reasoning that removed
   the `IAIOPS_READ_ONLY` gate in 0.19.0). Enforcement stays entirely in `@governed_tool`.
   Tool surface is unchanged (factory profile: 134 before and after).
+
+  `idempotentHint` is left **unset** unless a tool positively declares `idempotent=True`
+  (none does today). Asserting `False` everywhere would claim "calling this twice differs
+  from calling it once" with no basis, and it leans the wrong way for the protocol writes.
+  `openWorldHint` is the one hint **asserted rather than derived** — always `true`, the spec
+  default and the conservative direction. A minority of tools are genuinely closed-domain
+  (`protocols_supported`, `sparkplug_decode_payload`, the template listers); telling them
+  apart needs a `closed_world` declaration on `@governed_tool` that does not exist yet.
 
   New contract tests (`tests/test_mcp_tool_hints.py`) walk the full registered surface and
   assert every tool is annotated, every hint is re-derivable from its decorator, the
