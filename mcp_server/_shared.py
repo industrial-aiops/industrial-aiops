@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import Icon, ToolAnnotations
 
 from iaiops.core.governance import sanitize
 from iaiops.core.runtime.config import load_config
@@ -84,12 +85,40 @@ class _GovernedFastMCP(FastMCP):
 
     An explicit ``annotations=`` argument still wins, for the rare tool that needs
     to say something the harness cannot infer.
+
+    The signature mirrors ``FastMCP.tool`` keyword for keyword rather than taking
+    ``*args, **kwargs``. A widened signature would silently absorb upstream's
+    "did you forget to call it?" guard — ``@mcp.tool`` without parentheses would
+    stop raising and start registering nothing at all, so the tool would vanish
+    from the surface with no error to notice.
     """
 
-    def tool(self, *args: Any, annotations: Any = None, **kwargs: Any) -> Callable:
+    def tool(
+        self,
+        name: Optional[str] = None,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        annotations: Optional[ToolAnnotations] = None,
+        icons: Optional[list[Icon]] = None,
+        meta: Optional[dict[str, Any]] = None,
+        structured_output: Optional[bool] = None,
+    ) -> Callable:
+        if callable(name):
+            raise TypeError(
+                "The @tool decorator was used incorrectly. "
+                "Did you forget to call it? Use @tool() instead of @tool"
+            )
+
         def decorator(fn: Callable) -> Callable:
-            derived = annotations if annotations is not None else hints_for(fn)
-            return FastMCP.tool(self, *args, annotations=derived, **kwargs)(fn)
+            return super(_GovernedFastMCP, self).tool(
+                name=name,
+                title=title,
+                description=description,
+                annotations=annotations if annotations is not None else hints_for(fn),
+                icons=icons,
+                meta=meta,
+                structured_output=structured_output,
+            )(fn)
 
         return decorator
 
