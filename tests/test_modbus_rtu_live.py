@@ -114,20 +114,26 @@ def _build_context() -> Any:
         ModbusServerContext,
     )
 
-    # pymodbus 3.13 ``ModbusSequentialDataBlock`` is 1-based: it stores at
-    # ``address - 1`` internally, so base ``1`` seeds protocol register address 0.
+    # ``ModbusSequentialDataBlock`` is 1-based: it stores at ``address - 1``
+    # internally, so base ``1`` seeds protocol register address 0.
     base = 1
-    # NOTE: pymodbus 3.13's DEPRECATED ``ModbusDeviceContext`` wires the register
-    # blocks to function codes SWAPPED — FC03 (read_holding) is served by the
-    # ``ir=`` block and FC04 (read_input) by the ``hr=`` block (coils/discrete map
-    # normally). This is a scaffolding-only quirk of the compat shim; the connector
-    # under test issues the correct function codes. We seed by protocol meaning and
-    # pass each block to the kwarg that actually serves it, so ``modbus_read_holding``
-    # returns the holding values and ``modbus_read_input`` the input values — exactly
-    # what a real RTU device would return.
+    # Seeded by PROTOCOL MEANING: ``hr=`` holds the holding registers (FC03),
+    # ``ir=`` the input registers (FC04). Do not "compensate" here.
+    #
+    # pymodbus 3.13's deprecated ``ModbusDeviceContext`` wired these two kwargs to
+    # the opposite function codes, and this file used to swap the seeds to cancel
+    # that out. 3.14 fixed the wiring upstream, which turned the compensation into
+    # the bug: FC03 started returning input values and FC04 holding values. Since
+    # the package floor is ``pymodbus>=3.5,<4``, a fresh install resolves to 3.14+
+    # and the swapped version of this test failed 3 of 5 assertions.
+    #
+    # The lesson is the reason for this comment: a workaround for an upstream
+    # defect, baked into an assertion, silently becomes a wrong assertion the day
+    # upstream fixes it. ``_assert_server_wiring`` below re-checks the premise at
+    # runtime instead of trusting it.
     device = ModbusDeviceContext(
-        hr=ModbusSequentialDataBlock(base, _INPUT_VALUES),  # served on FC04 (input)
-        ir=ModbusSequentialDataBlock(base, _HOLDING_VALUES),  # served on FC03 (holding)
+        hr=ModbusSequentialDataBlock(base, _HOLDING_VALUES),  # FC03 read_holding
+        ir=ModbusSequentialDataBlock(base, _INPUT_VALUES),  # FC04 read_input
         co=ModbusSequentialDataBlock(base, [int(b) for b in _CO_VALUES]),
         di=ModbusSequentialDataBlock(base, [int(b) for b in _DI_VALUES]),
     )
@@ -182,6 +188,38 @@ class _RtuServer:
         self._thread.join(timeout=5)
 
 
+def _assert_server_wiring(target: TargetConfig) -> None:
+    """Fail fast if the scaffolding server does not wire FC03/FC04 per spec.
+
+    The point is to re-check the premise rather than assume it. pymodbus 3.13's
+    deprecated ``ModbusDeviceContext`` served FC03 from the ``ir=`` block and FC04
+    from ``hr=``; 3.14 fixed it. A test that silently compensates for such a quirk
+    turns into a wrong assertion the moment upstream corrects it — which is exactly
+    what happened here.
+
+    So: read one register through each function code and confirm the scaffolding
+    hands back the bank it was seeded with. If not, skip loudly and name the cause;
+    never re-orient the expectations to match whatever came out.
+    """
+    hold = ops.modbus_read_holding(target, address=0, count=1, decode="uint16")
+    inp = ops.modbus_read_input(target, address=0, count=1, decode="uint16")
+    got = (hold.get("raw_registers"), inp.get("raw_registers"))
+    want = ([_HOLDING_VALUES[0]], [_INPUT_VALUES[0]])
+    if got == (want[1], want[0]):
+        import pymodbus
+
+        pytest.skip(
+            f"pymodbus {pymodbus.__version__} serves FC03 from the ir= block and "
+            "FC04 from hr= (fixed in 3.14). The scaffolding cannot present a "
+            "spec-correct device on this version, so the connector's function-code "
+            "selection cannot be verified here — install pymodbus>=3.14."
+        )
+    assert got == want, (
+        "RTU scaffolding did not return the seeded banks: "
+        f"FC03 -> {got[0]} (seeded {want[0]}), FC04 -> {got[1]} (seeded {want[1]})"
+    )
+
+
 @pytest.fixture()
 def rtu_target() -> Iterator[TargetConfig]:
     """Stand up socat + an RTU server; yield a client-side TargetConfig."""
@@ -189,7 +227,7 @@ def rtu_target() -> Iterator[TargetConfig]:
     server = _RtuServer(server_pty)
     try:
         server.start()
-        yield TargetConfig(
+        cfg = TargetConfig(
             name="modbus-rtu-live",
             protocol="modbus",
             transport="rtu",
@@ -200,6 +238,7 @@ def rtu_target() -> Iterator[TargetConfig]:
             bytesize=8,
             unit_id=1,
         )
+        yield cfg
     finally:
         server.stop()
         proc.terminate()
@@ -212,21 +251,33 @@ def rtu_target() -> Iterator[TargetConfig]:
 # ─── the real round-trip assertions ───────────────────────────────────────────
 
 
-def test_rtu_read_holding_registers(rtu_target: TargetConfig) -> None:
-    out = ops.modbus_read_holding(rtu_target, address=0, count=6, decode="uint16")
+@pytest.fixture()
+def rtu_registers(rtu_target: TargetConfig) -> TargetConfig:
+    """``rtu_target`` plus a check that FC03/FC04 are wired per spec.
+
+    Scoped to the register tests on purpose: the coil and discrete-input paths are
+    unaffected by the pymodbus 3.13 hr/ir swap, so they keep running there. A
+    premise check should cost only the coverage that genuinely depends on it.
+    """
+    _assert_server_wiring(rtu_target)
+    return rtu_target
+
+
+def test_rtu_read_holding_registers(rtu_registers: TargetConfig) -> None:
+    out = ops.modbus_read_holding(rtu_registers, address=0, count=6, decode="uint16")
     assert out["raw_registers"] == _HOLDING_VALUES[0:6]
     assert out["unit_id"] == 1
     assert out["decode"] == "uint16"
 
 
-def test_rtu_read_holding_float32_decode(rtu_target: TargetConfig) -> None:
-    out = ops.modbus_read_holding(rtu_target, address=10, count=2, decode="float32")
+def test_rtu_read_holding_float32_decode(rtu_registers: TargetConfig) -> None:
+    out = ops.modbus_read_holding(rtu_registers, address=10, count=2, decode="float32")
     assert out["raw_registers"] == [_F_HI, _F_LO]
     assert out["decoded"] == [42.5]
 
 
-def test_rtu_read_input_registers(rtu_target: TargetConfig) -> None:
-    out = ops.modbus_read_input(rtu_target, address=0, count=5, decode="uint16")
+def test_rtu_read_input_registers(rtu_registers: TargetConfig) -> None:
+    out = ops.modbus_read_input(rtu_registers, address=0, count=5, decode="uint16")
     assert out["raw_registers"] == _INPUT_VALUES[0:5]
 
 
