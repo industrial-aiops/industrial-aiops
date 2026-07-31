@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+### Fixed
+- **A failed call was audited as a successful one — and the circuit breaker was told the
+  same.** Tools do not raise: `tool_errors` sits *inside* `@governed_tool` and converts
+  every exception into the canonical `{error, hint}` envelope, so the governance wrapper
+  saw an ordinary return value and recorded `status='ok'`. Two consequences, and the
+  second is the one that bites:
+
+  - the audit trail — this product line's compliance evidence — could not distinguish
+    *"wrote 5 to DB1"* from *"tried to write and the PLC was unreachable"*. Both read `ok`;
+  - `_finalize` reports `success=(status == 'ok')` to the pattern circuit breaker, so an
+    armed pattern that failed **every** time was reported as succeeding every time. The
+    breaker was blind to precisely the failures it exists to trip on.
+
+  `_annotate_result` now recognises the envelope and records `status='error'`, and skips
+  the undo computation for a call that changed nothing. Detection is deliberately narrow —
+  only the two structural shapes the envelope takes (a dict, or a single-element list of
+  one) and only when `error` holds a non-empty string, so a diagnostic tool returning
+  `error: None`, an `{code, text}` object, or a multi-row result that includes one error
+  row is left alone. The `str` shape is *not* sniffed: `"Error: ..."` is prose, and a
+  prefix match would misread a legitimate string result.
+
+### Added
+- **Approval-gate contract over the real write surface**
+  (`tests/test_write_approval_contract.py`). The gate was well covered against *synthetic*
+  `@governed_tool` functions and a *synthetic* CLI command, but nothing drove the ten
+  registered high-risk MCP write tools — the surface a client actually calls. A tool that
+  lost its `risk_level="high"` in a refactor would have kept every existing test green;
+  verified by mutation (downgrading `s7_write_db` to `low` now fails three tests).
+
+  Each tool is driven three ways: **no approver → denied *and the connector is never
+  reached*** (the second half is the assertion that matters — "it raised" only proves an
+  exception, not that nothing reached the device); **approver recorded → the body runs**
+  (without which the suite could pass by denying everything, which is a brick, not a
+  gate); **dry-run preview → runs with no approver and audits at `low`**, since a gate that
+  also blocked previews would teach operators to skip the preview and go straight to the
+  write. A coverage assertion fails the build if a new write tool is not added to the table.
+
+- **Audit-status fidelity tests** (`tests/test_audit_status_fidelity.py`) pinning both
+  edges of the detection above, plus the two consequences: a failed write records no undo,
+  and the circuit breaker is told the call failed.
+
 ## 0.20.2 — 2026-07-31
 
 ### Fixed (packaging)

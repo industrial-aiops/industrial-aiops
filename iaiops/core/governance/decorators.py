@@ -465,18 +465,52 @@ def _resolve_approver(state: _CallState, tier: Any) -> None:
     raise PolicyDenied(denial)
 
 
+def _returned_error(result: Any) -> str:
+    """Return the message if ``result`` is the canonical error envelope, else "".
+
+    Tools do not raise: the MCP layer converts every exception into the product's
+    canonical ``{error, hint}`` envelope so a client gets a value rather than a
+    protocol error. That conversion happens INSIDE this decorator's call, so
+    without this check a failed call reaches ``_finalize`` on the success path and
+    is recorded ``status='ok'`` — a failed plant write indistinguishable from a
+    completed one in the audit trail, and reported to the pattern circuit breaker
+    as a success it can never trip on.
+
+    Deliberately narrow: only the two structural shapes the envelope actually
+    takes (a dict, or a single-element list of one), and only when ``error`` holds
+    a non-empty string. A tool returning an ``error`` field with structured
+    contents of its own is not making this claim and is left alone. The ``str``
+    shape is not matched — "Error: ..." is prose, and sniffing a prefix would
+    misread a legitimate string result.
+    """
+    if isinstance(result, list) and len(result) == 1:
+        result = result[0]
+    if isinstance(result, dict):
+        message = result.get("error")
+        if isinstance(message, str) and message:
+            return message
+    return ""
+
+
 def _annotate_result(state: _CallState, result: Any) -> Any:
     """Record the result, surface pattern context, and record an undo token.
 
-    Runs only on the success path (the wrapper calls it with the function's
-    return value), so a recorded undo always corresponds to a change that
-    actually happened.
+    Reached whenever the wrapped function RETURNED, which is not the same as
+    succeeding — see ``_returned_error``. A returned error is recorded as one, so
+    the audit status and the circuit-breaker outcome match what happened.
     """
     state.result = result
+    returned_error = _returned_error(result)
+    if returned_error:
+        state.status = "error"
     if state.pattern_match and state.pattern_match.armed and isinstance(result, dict):
         result.setdefault("_pattern_id", state.pattern_match.pattern.pattern_id)
         result.setdefault("_pattern_armed", True)
-    _record_undo(state, result)
+    # An undo is only meaningful for a change that actually happened. The undo
+    # callables already gate on their own ``applied`` flag, but skipping the call
+    # outright keeps a failed write from ever reaching that path.
+    if not returned_error:
+        _record_undo(state, result)
     return result
 
 
