@@ -187,7 +187,7 @@ def compliance_evidence_bundle(
 # the tool as a whole: policing the ``sink`` argument at call time is precisely
 # the call-time refusal this design rejects (a weak model picks the argument).
 @mcp.tool()
-@governed_tool(risk_level="low", egress=True)
+@governed_tool(risk_level="low", egress=True, sensitive_params=["password"])
 @tool_errors("dict")
 def historian_push(
     points: list[dict[str, Any]],

@@ -18,7 +18,7 @@ from mcp_server._shared import mcp, tool_errors
 # caller names. Low risk (they change no plant state) but they are exactly what
 # IAIOPS_NO_EGRESS exists to withhold.
 @mcp.tool()
-@governed_tool(risk_level="low", egress=True)
+@governed_tool(risk_level="low", egress=True, sensitive_params=["token"])
 @tool_errors("dict")
 def stream_publish(
     points: list[dict[str, Any]],
@@ -68,7 +68,7 @@ def stream_publish(
 
 
 @mcp.tool()
-@governed_tool(risk_level="low", egress=True)
+@governed_tool(risk_level="low", egress=True, sensitive_params=["token"])
 @tool_errors("dict")
 def stream_publish_event(
     subject: str,
