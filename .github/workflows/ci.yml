@@ -97,6 +97,22 @@ jobs:
           docker logs iaiops-mosquitto || true
           exit 1
 
+      # BACnet/IP discovery is a UDP broadcast and loopback does not carry it, so
+      # the virtual device and the connector need two addresses on one subnet. The
+      # harness adds the second one; see scripts/bacnet_live_harness.sh.
+      #
+      # This ran as a continue-on-error experiment first: reproducing the recipe on
+      # Docker Desktop / arm64 had discovered no device, and it was not worth
+      # concluding anything about the product from a suspect substrate. ubuntu-latest
+      # passed it on both Python versions, which settled that the local failure was
+      # the macOS VM's bridge. Blocking from here on — a path that is verified only
+      # when convenient is the situation the last six rounds were about.
+      - name: BACnet two-IP harness (real broadcast round-trip)
+        if: runner.os == 'Linux'
+        run: |
+          sudo -E env "PATH=$PATH" scripts/bacnet_live_harness.sh \
+            uv run --no-sync pytest tests/test_bacnet_live.py -q -rs
+
       - name: pytest (base suite)
         # -rs prints the reason for every skip. Without it the log says "10 skipped"
         # and nothing else, so a test that quietly stops running — a missing optional
