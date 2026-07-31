@@ -97,15 +97,18 @@ jobs:
           docker logs iaiops-mosquitto || true
           exit 1
 
-      # EXPERIMENT (round 7): does a real Linux runner carry the BACnet broadcast?
-      # A local reproduction on Docker Desktop / arm64 put both addresses on one
-      # container interface and Who-Is discovered nothing — but that may be the
-      # macOS VM's bridge rather than the product. ubuntu-latest is the arbiter.
-      # continue-on-error so the experiment cannot redden the gate; the step's own
-      # conclusion is the result being measured.
-      - name: BACnet two-IP harness (experimental, non-blocking)
+      # BACnet/IP discovery is a UDP broadcast and loopback does not carry it, so
+      # the virtual device and the connector need two addresses on one subnet. The
+      # harness adds the second one; see scripts/bacnet_live_harness.sh.
+      #
+      # This ran as a continue-on-error experiment first: reproducing the recipe on
+      # Docker Desktop / arm64 had discovered no device, and it was not worth
+      # concluding anything about the product from a suspect substrate. ubuntu-latest
+      # passed it on both Python versions, which settled that the local failure was
+      # the macOS VM's bridge. Blocking from here on — a path that is verified only
+      # when convenient is the situation the last six rounds were about.
+      - name: BACnet two-IP harness (real broadcast round-trip)
         if: runner.os == 'Linux'
-        continue-on-error: true
         run: |
           sudo -E env "PATH=$PATH" scripts/bacnet_live_harness.sh \
             uv run --no-sync pytest tests/test_bacnet_live.py -q -rs
