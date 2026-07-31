@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### Fixed
+- **Security: three egress tools wrote their credential into the audit log in the clear.**
+  `stream_publish` / `stream_publish_event` (`token`, a NATS auth token) and
+  `historian_push` (`password`, the TSDB password) never declared those parameters in
+  `sensitive_params`, so `@governed_tool` bound them into the audit row verbatim — and
+  `audit_forward` then shipped that row to whatever SIEM is configured. The credential
+  therefore left the box twice: once at rest in `~/.iaiops/audit.db`, once over the
+  forward. Reproduced end-to-end before the fix (the row read
+  `{"token": "SUPER-SECRET-TOKEN", ...}`), and a **failed** publish audits too, so an
+  unreachable broker leaked just as readily as a working one.
+
+  The redaction mechanism was never broken and needed no change — the CLI twin of the same
+  operation (`iaiops historian push`) has always declared `@audit_sensitive("password")`
+  and redacted correctly. What was missing was anything that noticed when an MCP tool
+  forgot to. Rotate any NATS token or historian password that has been passed to these
+  three tools, and check existing audit rows / SIEM indexes for it.
+
+### Added
+- **Credential-redaction contract test over both front-ends**
+  (`tests/test_credential_redaction_contract.py`). Every registered MCP tool and every
+  registered CLI command is scanned for parameters whose name says "credential"
+  (`password` / `token` / `secret` / `api_key` / …); any that is not declared in
+  `sensitive_params` fails the build. Detection is name-based and deliberately crude — it
+  cannot know a parameter holds a secret, only that the name says so. The asymmetry is the
+  right one: a false positive costs one justified line in `_REFERENCE_NOT_SECRET` (today:
+  `secret_name`, a lookup key into the encrypted store, where redacting would blind the
+  audit trail and protect nothing), a false negative costs a credential in a log that
+  leaves the box. Two runtime proofs sit alongside the static scan — one per front-end —
+  asserting the secret really is absent from the written audit row.
+
+### Changed
+- The CLI governance wrapper now re-exposes `_sensitive_params`. `functools.wraps` copies
+  the *original* callback's `__dict__`, so a command's `@audit_sensitive` declaration was
+  invisible from outside the wrapper. Redaction was unaffected (the inner governed callable
+  is what audits), but an auditor — or the contract test above — reading the registered
+  command would have concluded it declared no credentials at all.
+
 ## 0.20.1 — 2026-07-29
 
 > **The read/write distinction is now machine-readable.** Until this release the

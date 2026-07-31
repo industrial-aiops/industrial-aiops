@@ -48,6 +48,13 @@ def _with_denial_handling(callback: Callable, governed: Callable) -> Callable:
             console.print(f"[red]Denied: {exc}[/]")
             raise typer.Exit(1) from exc
 
+    # ``functools.wraps`` copies the ORIGINAL callback's ``__dict__``, so the
+    # governance metadata the inner wrapper carries would be invisible from the
+    # outside. Redaction still happens (it is the inner ``governed`` that audits),
+    # but an auditor — or the credential-redaction contract test — reading
+    # ``_sensitive_params`` off the registered command would see nothing and
+    # conclude the command declares no credentials. Re-expose it.
+    cli_governed._sensitive_params = list(getattr(governed, "_sensitive_params", []))
     return cli_governed
 
 
