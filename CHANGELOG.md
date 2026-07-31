@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.20.2 — 2026-07-31
+
+> **Two governance invariants that were true in prose and false in code.** A credential
+> passed to one of the three egress tools was written into the audit log verbatim and
+> forwarded to SIEM — the redaction mechanism worked, nothing checked that tools used it.
+> And `mqtt_publish` was exempted from the undo requirement because "a published message
+> cannot be unsent", a claim true of a transient publish and wrongly applied to a retained
+> one, which overwrites durable broker state. Both are now enforced by contract tests over
+> the whole tool surface rather than by a comment.
+
 ### Fixed
 - **A retained `mqtt_publish` is reversible, and now records the inverse.** `mqtt_publish`
   was the one high-risk write exempted from the undo requirement, on the documented
