@@ -61,7 +61,12 @@ jobs:
       # default (no extras), which would UNINSTALL the `all` connector libs that
       # the base suite imports directly (asyncua / pymodbus / paho-mqtt …).
       - name: pytest (base suite)
-        run: uv run --no-sync pytest -q
+        # -rs prints the reason for every skip. Without it the log says "10 skipped"
+        # and nothing else, so a test that quietly stops running — a missing optional
+        # dependency, a platform guard, a gate that silently changed — is invisible
+        # for as long as the total stays plausible. That is how the DNP3 live test
+        # went unexercised for four weeks (iaiops-energy#23).
+        run: uv run --no-sync pytest -q -rs
 
       - name: ruff check
         run: uv run --no-sync ruff check .
@@ -162,5 +167,5 @@ jobs:
       # the lockfile (which has no energy/TSDB/HART extras).
       - name: Integration contract tests (real library APIs)
         run: >-
-          uv run --no-sync pytest -q -m integration
+          uv run --no-sync pytest -q -rs -m integration
           tests/test_binding_contracts.py tests/test_opcua_discovery.py
