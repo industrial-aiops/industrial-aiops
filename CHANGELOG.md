@@ -3,6 +3,32 @@
 ## Unreleased
 
 ### Fixed
+- **A retained `mqtt_publish` is reversible, and now records the inverse.** `mqtt_publish`
+  was the one high-risk write exempted from the undo requirement, on the documented
+  grounds that a published message cannot be unsent. That is true of a **transient**
+  publish and false of a retained one: `retain=True` REPLACES the broker's retained
+  message on that topic — durable state every later subscriber receives — and the payload
+  it replaced is readable beforehand and restorable after. The blanket claim had been
+  applied to the whole tool, so a retained overwrite of a live setpoint left nothing to
+  roll back to, in the one product line whose selling point is rollback.
+
+  A retained publish now captures the prior retained payload first (returned as `before`,
+  the same BEFORE-state contract `s7_write_db` and the other eight protocol writes follow)
+  and records an undo descriptor. When nothing was retained, the inverse is a zero-byte
+  retained publish — how MQTT clears one. The undo still returns `None` — "no safe
+  inverse" — for every case that genuinely has none: a transient publish, a failed
+  capture (never read as "there was nothing", which would make the inverse delete a
+  retained message the operator did set), and a non-UTF-8 prior payload such as a
+  Sparkplug protobuf, which cannot round-trip through the `str` payload parameter. An
+  inverse that over-promises is worse than none, because someone will replay it onto a
+  live broker.
+
+  `WRITE_TOOLS_WITHOUT_UNDO` in `tests/test_smoke.py` is now **empty**: all ten
+  high-risk writes declare an undo. Verified against a real mosquitto broker through the
+  full paho loop (`tests/test_mqtt_retained_undo.py`) — seed, overwrite, apply the
+  recorded inverse, confirm the broker holds the original again — which runs in CI, where
+  the gate job already stands a broker up.
+
 - **Security: three egress tools wrote their credential into the audit log in the clear.**
   `stream_publish` / `stream_publish_event` (`token`, a NATS auth token) and
   `historian_push` (`password`, the TSDB password) never declared those parameters in

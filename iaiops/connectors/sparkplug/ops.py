@@ -24,8 +24,10 @@ Topic convention: ``spBv1.0/{group}/{msg_type}/{edge_node}/[device]`` (msg_type 
 NBIRTH, DBIRTH, NDATA, DDATA, NDEATH, DDEATH, STATE).
 
 ``mqtt_publish`` is an OT-DANGEROUS command path: governed (high risk_tier), off
-by default (dry-run). A published command has no automatic inverse.
-未经授权勿对生产控制系统下发指令.
+by default (dry-run). A transient (``retain=False``) command has no automatic
+inverse — once delivered it cannot be recalled. A RETAINED publish does: it
+overwrites durable broker state, so the prior retained payload is captured first
+and an undo descriptor recorded. 未经授权勿对生产控制系统下发指令.
 """
 
 from __future__ import annotations
@@ -51,6 +53,9 @@ MAX_TEMPLATE_PARAMS = 256  # parameters returned from a Template metric
 MAX_TEMPLATE_DEPTH = 8  # ceiling on nested-Template recursion (pathological guard)
 DEFAULT_MESSAGES = 25
 DEFAULT_TIMEOUT_S = 10
+# Retained messages are delivered on SUBACK, so the BEFORE-state capture before a
+# retained publish only needs to cover broker/network latency — never live traffic.
+RETAINED_CAPTURE_S = 2.0
 MAX_TIMEOUT_S = 60
 _POLL_S = 0.05
 _SEQ_MOD = 256  # Sparkplug B seq is an unsigned 8-bit rolling counter
@@ -652,6 +657,45 @@ def uns_browse(
     }
 
 
+def capture_retained(target: Any, topic: str, timeout_s: float = RETAINED_CAPTURE_S) -> dict:
+    """Read the broker's currently-retained message on ``topic``, if any.
+
+    A retained message is delivered immediately on SUBACK, so a short bounded wait
+    is enough; the window exists only to cover broker/network latency, never to
+    wait for live traffic. ``topic`` must be a concrete topic, not a wildcard —
+    this is the BEFORE-state capture for a retained publish to that exact topic.
+
+    Returns ``{found, payload, binary, error?}``. ``payload`` is the retained bytes
+    decoded as UTF-8 text; a payload that is not valid UTF-8 sets ``binary=True``
+    and leaves ``payload`` None, because the publish path takes ``str`` and could
+    not faithfully restore raw bytes (see ``_mqtt_undo``: that case records NO
+    inverse rather than a lossy one). A capture failure sets ``error`` and is
+    likewise treated as "no captured before-state", never as "there was none".
+    """
+    captured: dict[str, Any] = {"found": False, "payload": None, "binary": False}
+
+    def _on_message(_client: Any, _userdata: Any, msg: Any) -> None:
+        if captured["found"]:
+            return
+        raw = bytes(msg.payload)
+        captured["found"] = True
+        try:
+            captured["payload"] = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            captured["binary"] = True
+
+    try:
+        with mqtt_session(target) as client:
+            client.on_message = _on_message
+            client.subscribe(topic)
+            deadline = time.monotonic() + max(0.0, float(timeout_s))
+            while not captured["found"] and time.monotonic() < deadline:
+                time.sleep(_POLL_S)
+    except Exception as exc:  # noqa: BLE001 — a failed capture must not block the write
+        return {"found": False, "payload": None, "binary": False, "error": s(str(exc), 200)}
+    return captured
+
+
 def mqtt_publish(
     target: Any,
     topic: str,
@@ -664,8 +708,20 @@ def mqtt_publish(
     """[WRITE][HIGH RISK] Publish/command to an MQTT topic (off by default).
 
     OT-dangerous: an MQTT command (e.g. a Sparkplug NCMD/DCMD) can change a live
-    control system and has no automatic inverse. Refuses to act unless
-    ``dry_run`` is explicitly False. 未经授权勿对生产控制系统下发指令.
+    control system. Refuses to act unless ``dry_run`` is explicitly False.
+    未经授权勿对生产控制系统下发指令.
+
+    **Reversibility depends on ``retain``**, and only one of the two cases is
+    genuinely un-invertible:
+
+    * ``retain=False`` — a transient command. Once delivered it cannot be recalled:
+      no inverse exists, and none is recorded.
+    * ``retain=True`` — the publish REPLACES the broker's retained message on that
+      topic, which is durable state a later subscriber will receive. That has an
+      inverse, so the prior retained payload is captured before publishing and
+      returned as ``before`` (``{found, payload, binary}``), the same BEFORE-state
+      contract the protocol write tools follow. When no message was retained, the
+      inverse is a zero-byte retained publish — the MQTT way to clear one.
     """
     qos = max(0, min(int(qos), 2))
     if dry_run:
@@ -677,16 +733,22 @@ def mqtt_publish(
             "qos": qos,
             "retain": bool(retain),
             "note": "Dry run — nothing published. Re-run with dry_run=False AND a "
-            "recorded approver to send. A published command cannot be auto-undone. "
+            "recorded approver to send. A transient (retain=False) command cannot be "
+            "auto-undone; a retained one restores the captured prior payload. "
             "未经授权勿对生产控制系统下发指令.",
         }
+    # Capture the BEFORE state only for a retained publish — that is the only case
+    # where the broker holds durable state this call overwrites. A transient publish
+    # has nothing to capture, and probing the topic would be a pointless extra
+    # connection on the OT-dangerous path.
+    before = capture_retained(target, topic) if retain else None
     with mqtt_session(target) as client:
         info = client.publish(topic, payload=payload, qos=qos, retain=bool(retain))
         try:
             info.wait_for_publish(timeout=DEFAULT_TIMEOUT_S)
         except Exception:  # noqa: BLE001 — best-effort confirmation
             pass
-    return {
+    result = {
         "endpoint": s(target.name, 64),
         "topic": s(topic, 128),
         "dry_run": False,
@@ -695,6 +757,9 @@ def mqtt_publish(
         "retain": bool(retain),
         "applied": True,
     }
+    if before is not None:
+        result["before"] = before
+    return result
 
 
 __all__ = [
@@ -704,6 +769,7 @@ __all__ = [
     "sparkplug_node_list",
     "uns_browse",
     "mqtt_publish",
+    "capture_retained",
     "decode_sparkplug_payload",
     "OTConnectionError",
 ]

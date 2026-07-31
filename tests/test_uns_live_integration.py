@@ -11,8 +11,9 @@ Stand one up cheaply to run it::
     docker run -d --rm -p 1883:1883 eclipse-mosquitto
     pytest -m integration tests/test_uns_live_integration.py
 
-待核实: validated locally against eclipse-mosquitto; not exercised in CI (no
-broker), and not validated against a production EoN-node / Sparkplug host.
+Validated against eclipse-mosquitto, and exercised on every CI build since the
+gate job started standing a broker up. 待核实: not validated against a production
+EoN-node / Sparkplug host.
 """
 
 from __future__ import annotations
