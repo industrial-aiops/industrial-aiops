@@ -498,7 +498,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.20.1"
+version = "0.20.2"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -521,6 +521,7 @@ all = [
     { name = "pycomm3" },
     { name = "pymcprotocol" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pys7" },
     { name = "pyserial" },
     { name = "pysoem" },
@@ -537,6 +538,7 @@ building = [
     { name = "asyncua" },
     { name = "bac0" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pyserial" },
     { name = "requests" },
 ]
@@ -544,6 +546,7 @@ clinical = [
     { name = "asyncua" },
     { name = "bac0" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pyserial" },
 ]
 eip = [
@@ -558,6 +561,7 @@ export = [
 fab = [
     { name = "asyncua" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pys7" },
     { name = "pyserial" },
     { name = "secsgem" },
@@ -570,6 +574,7 @@ factory = [
     { name = "pycomm3" },
     { name = "pymcprotocol" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pys7" },
     { name = "pyserial" },
     { name = "pysoem" },
@@ -608,16 +613,19 @@ ollama = [
 ]
 opcua = [
     { name = "asyncua" },
+    { name = "pyopenssl" },
 ]
 plcnext = [
     { name = "asyncua" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pyserial" },
 ]
 process = [
     { name = "asyncua" },
     { name = "hart-protocol" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pyserial" },
 ]
 profinet = [
@@ -628,6 +636,7 @@ renewables = [
     { name = "paho-mqtt" },
     { name = "protobuf" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pyserial" },
 ]
 s7 = [
@@ -651,12 +660,14 @@ warehouse = [
     { name = "protobuf" },
     { name = "pycomm3" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pyserial" },
 ]
 water = [
     { name = "asyncua" },
     { name = "hart-protocol" },
     { name = "pymodbus" },
+    { name = "pyopenssl" },
     { name = "pyserial" },
 ]
 xinchuang = [
@@ -742,6 +753,8 @@ requires-dist = [
     { name = "pymcprotocol", marker = "extra == 'mc'", specifier = ">=0.3,<1" },
     { name = "pymodbus", marker = "extra == 'all'", specifier = ">=3.5,<4" },
     { name = "pymodbus", marker = "extra == 'modbus'", specifier = ">=3.5,<4" },
+    { name = "pyopenssl", marker = "extra == 'all'", specifier = ">=25" },
+    { name = "pyopenssl", marker = "extra == 'opcua'", specifier = ">=25" },
     { name = "pys7", marker = "extra == 'all'", specifier = ">=2.8,<3" },
     { name = "pys7", marker = "extra == 's7'", specifier = ">=2.8,<3" },
     { name = "pyserial", marker = "extra == 'all'", specifier = ">=3.5" },

@@ -34,7 +34,16 @@ dependencies = [
 # connection session builders / connector ops), so the base package installs and
 # imports without any of these — a site installs only the 1-2 protocols it runs:
 #   pip install iaiops[opcua]        ·  pip install iaiops[opcua,modbus]
-opcua = ["asyncua>=1.0,<2"]
+# pyOpenSSL is asyncua's transitive dep, floored here as a RESOLVER GUARD, not
+# because this package uses it. asyncua asks for `pyOpenSSL` unbounded; a fresh
+# resolve prefers the newest `cryptography` (50.x), which no modern pyOpenSSL
+# accepts (26.3 caps it at <50), so the resolver backtracks pyOpenSSL all the way
+# to 22.0.0 — a 2022 release whose bounds are loose enough to "fit" and whose
+# bindings then fail against cryptography 50 at import
+# (`module 'lib' has no attribute 'GEN_EMAIL'`). The combination installs cleanly
+# and breaks at runtime on any OPC-UA cert path. The floor forces the resolver to
+# keep cryptography at 49 and pick a pyOpenSSL that actually works with it.
+opcua = ["asyncua>=1.0,<2", "pyopenssl>=25"]
 modbus = ["pymodbus>=3.5,<4", "pyserial>=3.5"]  # pyserial for Modbus-RTU (serial)
 s7 = ["pyS7>=2.8,<3"]
 mc = ["pymcprotocol>=0.3,<1"]
@@ -85,6 +94,7 @@ export = ["pyarrow>=15,<22"]
 # `iaiops-energy`, so its extras are not part of this package's `all`.
 all = [
     "asyncua>=1.0,<2",
+    "pyopenssl>=25",  # resolver guard — see the `opcua` extra above
     "pymodbus>=3.5,<4",
     "pyserial>=3.5",
     "pyS7>=2.8,<3",
