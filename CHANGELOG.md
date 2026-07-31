@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## 0.20.2 — 2026-07-31
+
+### Fixed (packaging)
+- **`pip install iaiops[opcua]` resolved to a combination that installs cleanly and breaks
+  at runtime.** asyncua asks for `pyOpenSSL` unbounded. A fresh resolve prefers the newest
+  `cryptography` (50.x), which no modern pyOpenSSL accepts — 26.3 caps it at `<50` — so the
+  resolver backtracks pyOpenSSL to **22.0.0**, a 2022 release whose bounds are loose enough
+  to "fit" and whose bindings then fail against cryptography 50 at import
+  (`AttributeError: module 'lib' has no attribute 'GEN_EMAIL'`). Any OPC-UA certificate /
+  security-policy path breaks. It dragged asyncua itself down to 1.1.0 as well.
+
+  The extras now floor `pyopenssl>=25` as an explicit **resolver guard** (not a dependency
+  of this package), which keeps cryptography at 49 and asyncua at 1.1.8. Caught by the
+  `integration contracts` CI job, which deliberately installs **unpinned** — it resolves
+  what a user installing today gets, not what the lockfile froze. The lockfile-based gate
+  job was green throughout, which is exactly the blind spot that job exists to cover.
+
+> **Two governance invariants that were true in prose and false in code.** A credential
+> passed to one of the three egress tools was written into the audit log verbatim and
+> forwarded to SIEM — the redaction mechanism worked, nothing checked that tools used it.
+> And `mqtt_publish` was exempted from the undo requirement because "a published message
+> cannot be unsent", a claim true of a transient publish and wrongly applied to a retained
+> one, which overwrites durable broker state. Both are now enforced by contract tests over
+> the whole tool surface rather than by a comment.
+
 ### Fixed
 - **A retained `mqtt_publish` is reversible, and now records the inverse.** `mqtt_publish`
   was the one high-risk write exempted from the undo requirement, on the documented
