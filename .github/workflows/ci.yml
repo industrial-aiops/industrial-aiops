@@ -57,6 +57,18 @@ jobs:
       - name: Sync env (base + dev tools + cross-platform connectors)
         run: uv sync --extra all
 
+      # socat is what lets tests/test_modbus_rtu_live.py stand up a PTY pair and
+      # drive a REAL pymodbus RTU server over it — the only test that exercises the
+      # connector's serial framing path end to end. Without it those five tests
+      # skip, which is what they had been doing on every run: the -rs change one
+      # commit earlier is what made that visible. Two seconds of apt buys a
+      # continuously-verified wire path instead of one that gets checked by hand
+      # every few weeks (see #115, where four weeks of not running let an upstream
+      # fix turn a workaround into a silent failure).
+      - name: Install socat (real-serial test scaffolding)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq socat
+
       # --no-sync: reuse the env synced above. A bare `uv run` re-syncs to the
       # default (no extras), which would UNINSTALL the `all` connector libs that
       # the base suite imports directly (asyncua / pymodbus / paho-mqtt …).
