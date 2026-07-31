@@ -97,6 +97,19 @@ jobs:
           docker logs iaiops-mosquitto || true
           exit 1
 
+      # EXPERIMENT (round 7): does a real Linux runner carry the BACnet broadcast?
+      # A local reproduction on Docker Desktop / arm64 put both addresses on one
+      # container interface and Who-Is discovered nothing — but that may be the
+      # macOS VM's bridge rather than the product. ubuntu-latest is the arbiter.
+      # continue-on-error so the experiment cannot redden the gate; the step's own
+      # conclusion is the result being measured.
+      - name: BACnet two-IP harness (experimental, non-blocking)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          sudo -E env "PATH=$PATH" scripts/bacnet_live_harness.sh \
+            uv run --no-sync pytest tests/test_bacnet_live.py -q -rs
+
       - name: pytest (base suite)
         # -rs prints the reason for every skip. Without it the log says "10 skipped"
         # and nothing else, so a test that quietly stops running — a missing optional
