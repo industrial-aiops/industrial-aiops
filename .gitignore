@@ -10,3 +10,7 @@ build/
 
 # Claude Code agent worktrees (transient)
 .claude/worktrees/
+
+# scratch scripts used to drive container verification runs
+_verify.sh
+_v.sh
