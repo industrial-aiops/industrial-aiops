@@ -72,6 +72,31 @@ jobs:
       # --no-sync: reuse the env synced above. A bare `uv run` re-syncs to the
       # default (no extras), which would UNINSTALL the `all` connector libs that
       # the base suite imports directly (asyncua / pymodbus / paho-mqtt …).
+      # test_uns_live_integration.py is the only test that drives the UNS bridge
+      # through the FULL paho loop against a real broker — every other MQTT test
+      # injects messages into the on_message callback, so nothing else proves the
+      # live path works on paho 2.x. It had been skipping on every run for want of
+      # a broker (surfaced by the -rs change in #117).
+      #
+      # mosquitto 2.x listens on localhost only and denies anonymous clients by
+      # default, so the config is supplied explicitly rather than relying on the
+      # image's defaults.
+      - name: Start MQTT broker (UNS live bridge scaffolding)
+        if: runner.os == 'Linux'
+        run: |
+          printf 'listener 1883 0.0.0.0\nallow_anonymous true\n' > /tmp/mosquitto.conf
+          docker run -d --rm --name iaiops-mosquitto -p 1883:1883 \
+            -v /tmp/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto:2
+          for i in $(seq 1 20); do
+            if (echo > /dev/tcp/127.0.0.1/1883) 2>/dev/null; then
+              echo "broker accepting connections (attempt $i)"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error title=MQTT broker::mosquitto did not accept connections within 20s"
+          docker logs iaiops-mosquitto || true
+          exit 1
+
       - name: pytest (base suite)
         # -rs prints the reason for every skip. Without it the log says "10 skipped"
         # and nothing else, so a test that quietly stops running — a missing optional
