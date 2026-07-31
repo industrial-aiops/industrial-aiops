@@ -164,10 +164,16 @@ WRITE_TOOLS = {
     "bas_command",
 }
 
-# ``mqtt_publish`` is the ONE deliberate no-undo write: a published MQTT message
-# cannot be unsent (there is no safe inverse), so @governed_tool declares no
-# undo for it. Every other high-risk write must declare an undo descriptor.
-WRITE_TOOLS_WITHOUT_UNDO = {"mqtt_publish"}
+# Every high-risk write must declare an undo descriptor — no exemptions.
+#
+# ``mqtt_publish`` used to be the one exemption, on the grounds that a published
+# message cannot be unsent. True of a TRANSIENT publish, but the claim was applied
+# to the whole tool: a RETAINED publish overwrites durable broker state, which does
+# have an inverse. It now declares an undo that captures the prior retained payload
+# and returns None only for the cases genuinely without one (transient publish,
+# failed capture, non-UTF-8 payload) — the "no safe inverse" the decorator's own
+# contract expects, expressed in code rather than in a comment here.
+WRITE_TOOLS_WITHOUT_UNDO: set[str] = set()
 
 
 def _declared_undo(fn) -> object | None:

@@ -1,8 +1,10 @@
 """MQTT / Sparkplug B / UNS MCP tools (consume-first).
 
 Read/consume tools are governed at risk_level='low'. ``mqtt_publish`` is
-risk_level='high' (MOC), off by default (dry_run). A published command has no
-automatic inverse. 未经授权勿对生产控制系统下发指令.
+risk_level='high' (MOC), off by default (dry_run). A transient command has no
+automatic inverse; a RETAINED publish overwrites durable broker state and does,
+so it captures the prior retained payload and records an undo descriptor.
+未经授权勿对生产控制系统下发指令.
 """
 
 from typing import Any, Optional
@@ -152,6 +154,50 @@ def uns_browse(
     return ops.uns_browse(_target(endpoint), topic, timeout_s, count)
 
 
+def _mqtt_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
+    """Inverse of an applied RETAINED mqtt_publish: restore the prior retained payload.
+
+    Returns None — "no safe inverse" — in every case where one genuinely does not
+    exist, and the distinction is the point:
+
+    * ``retain=False``: a transient command. Delivered is delivered; nothing to undo.
+    * the BEFORE capture failed or the topic held a non-UTF-8 payload (a Sparkplug
+      protobuf, say): an inverse exists in principle but this tool takes ``payload``
+      as ``str`` and could not restore the exact bytes. Recording no inverse beats
+      recording a lossy one that would corrupt the topic on replay.
+
+    When nothing was retained, the inverse is a zero-byte retained publish — how
+    MQTT clears a retained message.
+    """
+    if not isinstance(result, dict) or not result.get("applied"):
+        return None
+    if not result.get("retain"):
+        return None
+    before = result.get("before")
+    if not isinstance(before, dict) or before.get("error") or before.get("binary"):
+        return None
+    restored = before.get("payload") if before.get("found") else ""
+    if restored is None:
+        return None
+    note = (
+        "Restore prior retained MQTT payload (undo of mqtt_publish)."
+        if before.get("found")
+        else "Clear the retained MQTT message — nothing was retained before this publish."
+    )
+    return {
+        "tool": "mqtt_publish",
+        "params": {
+            "endpoint": params.get("endpoint"),
+            "topic": params.get("topic"),
+            "payload": restored,
+            "qos": params.get("qos", 0),
+            "retain": True,
+            "dry_run": False,
+        },
+        "note": note,
+    }
+
+
 # egress=True AND risk_level="high": both gates must withhold this one
 # independently. It is a real control path (Sparkplug NCMD/DCMD commands a live
 # system) and a real egress path (an arbitrary payload leaves the box for a
@@ -159,7 +205,7 @@ def uns_browse(
 #
 # The sibling MQTT tools above are NOT egress: SUBSCRIBE/browse pull data IN.
 @mcp.tool()
-@governed_tool(risk_level="high", egress=True, preview_param="dry_run")
+@governed_tool(risk_level="high", egress=True, undo=_mqtt_undo, preview_param="dry_run")
 @tool_errors("dict")
 def mqtt_publish(
     topic: str,
@@ -172,9 +218,13 @@ def mqtt_publish(
     """[WRITE][risk=HIGH][MOC] Publish/command to an MQTT topic (off by default).
 
     OT-DANGEROUS. A command (e.g. Sparkplug NCMD/DCMD) can change a live control
-    system and has NO automatic inverse. Defaults to dry_run=True. Set
-    dry_run=False AND record an approver (OPCUA_AUDIT_APPROVED_BY) to send.
-    未经授权勿对生产控制系统下发指令.
+    system. Defaults to dry_run=True. Set dry_run=False AND record an approver
+    (OPCUA_AUDIT_APPROVED_BY) to send. 未经授权勿对生产控制系统下发指令.
+
+    Reversibility depends on retain: a transient (retain=False) command has NO
+    inverse — delivered is delivered. A RETAINED publish overwrites durable broker
+    state, so the prior retained payload is captured first (returned as `before`)
+    and an undo descriptor recorded, as the protocol write tools do.
 
     Args:
         topic: MQTT topic to publish to.
@@ -185,7 +235,9 @@ def mqtt_publish(
         dry_run: When True (default) returns a preview without publishing.
 
     Returns dict: dry-run → {topic, dry_run:true, would_publish_bytes, note};
-        applied → {topic, dry_run:false, published_bytes, applied:true}.
+        applied → {topic, dry_run:false, published_bytes, applied:true}, plus
+        before:{found, payload, binary} when retain=True (the captured prior
+        retained payload; _undo_id is added when an inverse was recorded).
 
     Example (preview): mqtt_publish(topic="factory/line1/cmd", payload='{"setpoint":50}').
     """
