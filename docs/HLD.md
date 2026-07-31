@@ -99,3 +99,67 @@ CLI 写命令用 `preview_param="apply", preview_truthy=False`（`apply` 为假=
 | D3 | 治理留在前端边界，不下沉 ops | ops 层已丢失 endpoint 名，策略/审批 scoping 会失效 |
 | D4 | CLI 命令边界补挂 `@governed_tool` | 双前端单引擎，审计不可绕，与 MCP 形状一致 |
 | D5 | 保留 brain/connectors 中"read-only/非破坏性"**描述性**注释 | 描述行为，非被删功能 |
+| D6 | **拒绝** MCP Tunnels（私网反向穿透） | 隔离是产品承诺本身，不是待解决的障碍 —— 见 §7.2 |
+| D7 | **拒绝** 无状态传输 / 云托管横向扩；本地 stdio 是一等公民 | 协议会话天生有状态且昂贵；部署形态是现场边缘盒子，无横向扩需求 —— 见 §7.3 |
+| D8 | Tasks 扩展 **defer**，设计先行 | 异步拆开了「调用—审计—结果」同步闭环，治理语义未定 —— 见 §7.4 |
+| D9 | MCP Apps **有条件评估**，仅限「人在回路」场景 | 需 host 能渲 iframe；无人值守的边缘 agent runtime 用不上 —— 见 §7.5 |
+
+## 7. MCP 协议版本立场（2026-07-28 spec）
+
+### 7.1 没有 flag day —— 我们处在 opt-in 位置
+
+MCP 有三个**各自独立、版本协商**的东西，不是一个整体：协议 spec（带日期的版本）、server 声明支持哪个版本、客户端/host 连接时协商。握手时双方谈妥一个都支持的版本 → 新旧共存。**"spec 升级了" ≠ "server 必须跟"。**
+
+升级链条与我们的位置：
+
+```
+① spec 发布(2026-07-28, RC)  ②SDK 实现  ③host 支持  ④我们 opt-in ★  ⑤版本协商让新旧并存
+```
+
+在没有主动升 SDK、没启用新特性之前，①②③ 发生什么都不影响现有部署。**触发行动的只有我们自己的选择，不是外部强制。**
+
+事实核对（2026-07-30 实测，勿凭转述）：Python SDK **`mcp 2.0.0` 已是正式版**（PyPI 2026-07-28 发布，`Development Status :: 5 - Production/Stable`，未 yanked），不是 beta —— "等 SDK GA 再升"这个条件**已经满足**。真正让我们不急的是别的：pin `mcp[cli]>=1.10,<2.0` 已挡住被动升级，且本次 stateless 类改动主要针对 Streamable HTTP，我们走 stdio 几乎不受影响。
+
+⚠️ SDK v2 是唯一早晚要碰的**机械迁移**：`mcp.server.fastmcp` 模块已删除，`_GovernedFastMCP(FastMCP)` 在本仓与 `iaiops-energy` 都会 ImportError。但 `MCPServer.tool` 签名与 `FastMCP.tool` **逐字相同**，子类换一行基类即可；`ToolAnnotations` 字段改 snake_case 但 camelCase kwargs 仍被 pydantic alias 接受、wire 仍是 camelCase，故 `mcp_server/hints.py` 构造代码不变 —— **只有测试里的 `.readOnlyHint` 属性访问会断**。
+
+### 7.2 D6 — 拒绝 MCP Tunnels
+
+这条与 IT 线（`AIops-tools`）结论**相反**，必须显式记录，避免被跨线经验带偏。IT 线把私网反向穿透视为"够得着管理网"的关键钥匙；对 OT 线，网络隔离**是产品承诺本身**：
+
+- `IAIOPS_NO_EGRESS` 在注册期就把外发类工具从 `list_tools()` 摘掉（§4）
+- `deploy/airgap/compose.yaml` 是一等公民部署形态
+- Margo 描述符写明 outbound-only、零入站端口
+- 等保 2.0 / IEC 62443 分区分域交叉表
+
+一条从 OT 网反向连出公网的隧道，正是上述整套要排除的东西。（Tunnels 本就是某托管平台的产品功能，不属于 MCP 协议。）
+
+### 7.3 D7 — 拒绝无状态托管，本地 stdio 保持一等公民
+
+两个独立理由：
+
+1. **协议会话天生有状态且昂贵**：OPC-UA session、S7 连接、MQTT/Sparkplug 订阅、BACnet COV 订阅 —— `ConnectionManager` 存在的全部意义就是复用它们。无状态 = 每次调用重建会话，对老 PLC 是实打实的负担（部分设备连接数上限个位数）。
+2. **部署形态本就不是云托管**：IGEL recipe / Margo edge app / airgap compose 全是"跑在现场那台盒子上"。一个厂一个 tap，不存在"一个端点服务整个团队"的横向扩需求。
+
+**底线**：企业向复杂度（OAuth/OIDC、连接池、无状态）若将来引入，必须是**可选增量**，不得渗入本地/边缘路径 —— 否则破坏「弱模型/边缘模型兼容」这条家族级约束（§5）。OAuth 与 D1 不冲突（边界**认证**，非 tap 内**授权**），但 OT 现场常连不到 IdP（airgap 就是没有），故不得成为必需。
+
+### 7.4 D8 — Tasks defer，四个治理问题先答
+
+候选（真正耗时的操作，比 IT 线少得多 —— 绝大多数工具是读且快）：`monitor_changes`（bounded COV）、HART burst-listen、MTConnect stream、跨端点发现（PROFINET DCP / BACnet Who-Is / `asset_inventory`）、baseline 学习。**写操作不是候选** —— dry-run + MOC 审批的延迟是人的延迟。
+
+动手前必须回答：
+
+1. task 的审计行**何时**写？现有 `@governed_tool` 假设「调用—审计—结果」是同步闭环，Tasks 把它拆开了。
+2. **取消一个已把写请求发到 PLC 的 task，语义是什么？** 协议层已发出的帧收不回来，undo 捕获的 before 状态还算不算数？
+3. budget 在 task 生命周期哪个点扣？
+4. effect-based 风险降级（`_effective_risk_level`，preview 走 low）在异步下如何表达？
+
+审计的不可绕过性是本产品线的核心承诺（D1/D4）。**设计未定不写实现。**
+
+### 7.5 D9 — MCP Apps 有条件评估
+
+本次 spec 里**唯一**直接服务「边缘小模型」约束的能力：富内容渲染进沙箱 iframe，模型只拿紧凑摘要，大输出不再逐 token 灌 context。候选是报表类只读输出：RCA 叙述、OEE 报表、ISA-18.2 alarm Pareto、`asset_inventory` 全表、等保/62443 合规报告、historian 序列。
+
+**前提陷阱**：需 host 能渲 iframe。「工程师用桌面客户端连现场 tap」有效；「边缘盒子上无人值守的 agent runtime」没有 UI，完全白搭。评估第一步是确认目标场景占比，别为用不上的形态做工程。
+
+**不要指望它解决工具数问题** —— 本次 spec 对「工具数 / 选对工具的准确率」一字未提，那条杠杆仍是 `EDITION_MODULES` 菜单式 profile。
+
