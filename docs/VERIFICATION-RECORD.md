@@ -6,7 +6,11 @@
 > If a claim here cannot be reproduced by running the named test, the claim is wrong
 > and should be deleted rather than softened.
 >
-> Last updated **2026-08-01**.
+> Last updated **2026-08-01**, after a code review of the day's changes found a
+> harness bug that made this file's S7 row overstate (WORD reads returned silently
+> wrong data), a test whose docstring described a wire path that never runs, and a
+> protocol classified one rung too high. All three are corrected below and the
+> corrections are visible rather than quietly folded in.
 
 ## The rungs, in one line each
 
@@ -30,11 +34,11 @@ for every protocol in both repos.** Nothing below changes that.
 | **Modbus RTU** | 2a | `test_modbus_rtu_live.py` | Real `pymodbus` `ModbusSerialServer` over a socat PTY pair — actual RTU/CRC framing, all four function codes, float32 | Physical RS-485 bus / USB adapter; multi-drop addressing; baud/parity mismatch behaviour |
 | **MQTT / Sparkplug B** | 2a | `test_uns_live_integration.py`, `test_mqtt_retained_undo.py` | Real **mosquitto** broker through the full paho loop: UNS audit, Sparkplug schema from NBIRTH, retained-publish BEFORE capture and inverse round-trip | Production EoN node / Sparkplug host application; broker auth/TLS |
 | **BACnet/IP** | 2a | `test_bacnet_live.py` + `scripts/bacnet_live_harness.sh` | Real `bacpypes3` virtual device, **two IPs on one subnet**, real UDP broadcast Who-Is/I-Am round-trip | Physical HVAC/BMS controller; write, COV subscription, trend logs |
-| **MTConnect** | 2a¹ | `test_mtconnect_live.py` | Real HTTP agent: URL from host/port, `/sample?from=&count=` query, streamed body, **DTD/XXE guard on the first chunk** (discriminated from the full-body guard), size cap while reading, long-poll cursor advance + `instance_changed` stop | Real machine-tool agent (Mazak/Okuma/…); Assets; MTConnect ≥2.0 schema |
-| **SECS/GEM** | 2a | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
+| **MTConnect** | **2b**¹ | `test_mtconnect_live.py` | Real HTTP agent: URL from host/port, `/sample?from=&count=` query, streamed body, **DTD/XXE guard on the first chunk** (discriminated from the full-body guard), size cap while reading, long-poll cursor advance + `instance_changed` stop | Real machine-tool agent (Mazak/Okuma/…); Assets; MTConnect ≥2.0 schema |
+| **SECS/GEM** | 2a⁴ | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
 | **Mitsubishi MC** | **2b** | `test_mc_live.py` + `mc_plc_harness.py` | Real `pymcprotocol` `Type3E` client vs **our** SLMP-3E server: CPU identity, batch word/bit read, signed-word decode, offsets, random read of words+dwords, write BEFORE capture verified by read-back | Physical MELSEC CPU; 1E/4E frames; ASCII mode; iQ-R addressing |
-| **S7comm** | **2b** | `test_s7_live.py` + `s7_plc_harness.py` | Real `pyS7` client vs **our** ISO-TSAP server: COTP connect, PDU negotiation, DB/merker reads, signed INT, big-endian REAL, offsets, write BEFORE capture verified by read-back | Physical S7 CPU; PUT/GET access control; optimized-DB blocks; **our own bit handling** (see note ³) |
-| **EtherNet/IP** | **2b** | `test_eip_live.py` + `eip_plc_harness.py` | Real `pycomm3` `LogixDriver` vs **our** CIP PLC: RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back | Physical ControlLogix/CompactLogix; **PCCC (`slc`) and Micro800 paths — mock only**; UDT/structured tags; program-scoped tags |
+| **S7comm** | **2b** | `test_s7_live.py` + `s7_plc_harness.py` | Real `pyS7` client vs **our** ISO-TSAP server: COTP connect, PDU negotiation, DB/merker reads, signed INT, big-endian REAL, **WORD/DWORD/DINT/LREAL widths**, offsets, write BEFORE capture verified by read-back | Physical S7 CPU; PUT/GET access control; optimized-DB blocks; STRING/WSTRING; **our own bit handling** (see note ³) |
+| **EtherNet/IP** | **2b** | `test_eip_live.py` + `eip_plc_harness.py` | Real `pycomm3` `LogixDriver` vs **our** CIP PLC: RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back | Physical ControlLogix/CompactLogix; **PCCC (`slc`) and Micro800 paths — mock only**; UDT/structured tags; program-scoped tags; **the wire-level tag error** — pycomm3 rejects unknown tags client-side, so that branch is never reached |
 | **Omron FINS** | **2c** | `test_fins.py` | Real UDP/TCP sockets — but the client is **in-repo** (stdlib) *and* the server is ours, so no independent implementation is involved | Physical Omron CPU; everything about the wire format is our reading of it |
 | **HART-IP** | 1 + **2c** | `test_hart.py` | Command codec against the third-party `hart_protocol` (rung 1); the HART-IP UDP/TCP **transport is in-tree** and exercised against our own socket server (rung 2c) | Physical HART-IP gateway / multiplexer; burst mode against real devices |
 | **IO-Link** | **2c** | `test_iolink.py` | Real HTTP against our mock master — **the vendor JSON API shape is our assumption** | Any real IO-Link master (ifm/Balluff/…); JSON schema drift |
@@ -43,17 +47,24 @@ for every protocol in both repos.** Nothing below changes that.
 | **BAS (Metasys/Niagara)** | mock only | `test_bas_tools.py` | Vendor REST mocked | Real supervisory controller; vendor API drift |
 | **Ignition gateway** | mock only | `test_ignition_tools.py` | Vendor REST mocked | Real Ignition gateway; API version drift |
 
-¹ MTConnect's agent is an HTTP server we wrote, but the protocol under test is
-**HTTP + XML parsed by stdlib/`requests`**, not a bespoke binary frame — the
-"could we both be wrong together" risk that defines 2b does not really apply. Rung
-2a is the honest call; a reader who disagrees can read it as 2b without any claim
-here changing.
+¹ **Corrected from 2a after review.** The first version of this file argued that
+because the transport is HTTP + stdlib XML rather than a bespoke binary frame, the
+"wrong together" risk did not apply. That argument does not hold: the *content* —
+the Streams/Devices documents and the `nextSequence` / `instanceId` header
+semantics — is hand-written by the same person who wrote the expectations, which is
+exactly the 2b condition. The transport being third-party rescues the framing, not
+the protocol semantics.
 
 ² **Repeated short-lived HSMS sessions are not proven.** `GemEquipmentHandler` does
 not reliably return to `NOT_COMMUNICATING` between connects, so the test gives each
 case its own equipment process. Whether real fab equipment behaves the same is
 `待核实` — HSMS's T7 timer exists for that reason, so it is plausible; it is equally
 plausible this is specific to secsgem. **Nothing is asserted either way.**
+
+⁴ **SECS/GEM's 2a is real but narrower than it looks.** Host and equipment both come
+from `secsgem`, so a misreading *inside that library* would satisfy both ends. The
+rung holds for our connector code — an independent implementation of the GEM state
+machine judges it — but not for the SECS-II codec layer beneath.
 
 ³ **The S7 bit test does not cover our bit handling.** Mutation testing showed pyS7
 *coalesces* neighbouring bit tags into one byte read and extracts the bits itself.

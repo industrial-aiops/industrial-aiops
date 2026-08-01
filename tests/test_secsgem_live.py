@@ -24,9 +24,6 @@ never been exercised.
 from __future__ import annotations
 
 import socket
-import subprocess
-import sys
-import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -34,6 +31,8 @@ from typing import Any
 import pytest
 
 pytest.importorskip("secsgem", reason="secsgem not installed — install iaiops[secsgem]")
+
+from harness_process import harness  # noqa: E402
 
 from iaiops.connectors.secsgem import ops  # noqa: E402
 from iaiops.core.runtime.config import TargetConfig  # noqa: E402
@@ -98,30 +97,17 @@ def equipment() -> Iterator[TargetConfig]:
     written down rather than papered over.
     """
     port = _free_port()
-    proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
-        [sys.executable, str(Path(__file__).with_name("secsgem_equipment_harness.py")), str(port)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    try:
-        assert proc.stdout is not None
-        deadline = time.monotonic() + 30
-        while time.monotonic() < deadline:
-            if proc.poll() is not None:
-                pytest.skip("secsgem equipment harness exited before signalling READY")
-            line = proc.stdout.readline()
-            if line.strip() == "READY":
-                break
-        else:  # pragma: no cover — only on a pathologically slow host
-            pytest.skip("secsgem equipment harness did not start within 30s")
-
+    # skip_on_exit: unlike the stdlib-only harnesses, this one can fail to start for
+    # environmental reasons (secsgem import / enable), which is not a regression.
+    with harness(
+        Path(__file__).with_name("secsgem_equipment_harness.py"),
+        port,
+        timeout_s=30,
+        skip_on_exit=True,
+    ):
         yield TargetConfig(
             name="secsgem-live", protocol="secsgem", host="127.0.0.1", port=port, unit_id=0
         )
-    finally:
-        proc.kill()
-        proc.wait(timeout=10)
 
 
 def _find(rows: list[dict[str, Any]], key: str, value: Any) -> dict[str, Any] | None:

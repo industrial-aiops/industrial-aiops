@@ -23,9 +23,6 @@ MELSEC CPU remains 待核实 either way.
 from __future__ import annotations
 
 import socket
-import subprocess
-import sys
-import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -35,6 +32,7 @@ pytest.importorskip("pymcprotocol", reason="pymcprotocol not installed — insta
 
 # Bare module name, not ``tests.``: pytest puts this directory on sys.path, while
 # the repo root is only there under ``python -m pytest``.
+from harness_process import harness  # noqa: E402
 from mc_plc_harness import BITS, CPU_CODE, CPU_TYPE, WORDS  # noqa: E402
 
 from iaiops.connectors.mc import ops  # noqa: E402
@@ -55,27 +53,8 @@ def plc() -> Iterator[TargetConfig]:
     seeded state into a read test — the harness's word bank is mutable by design,
     since that is what proves a write reached it."""
     port = _free_port()
-    proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
-        [sys.executable, str(Path(__file__).with_name("mc_plc_harness.py")), str(port)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    try:
-        assert proc.stdout is not None
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            if proc.poll() is not None:
-                pytest.skip("MC harness exited before signalling READY")
-            if proc.stdout.readline().strip() == "READY":
-                break
-        else:  # pragma: no cover — only on a pathologically slow host
-            pytest.skip("MC harness did not start within 20s")
-
+    with harness(Path(__file__).with_name("mc_plc_harness.py"), port):
         yield TargetConfig(name="mc-live", protocol="mc", host="127.0.0.1", port=port, plctype="Q")
-    finally:
-        proc.kill()
-        proc.wait(timeout=10)
 
 
 # ─── the reads, over a real 3E frame ─────────────────────────────────────────

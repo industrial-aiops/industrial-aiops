@@ -134,7 +134,10 @@ def _handle(request: bytes) -> bytes:
             offset += 4
             low = WORDS.get(number, 0) & 0xFFFF
             high = WORDS.get(number + 1, 0) & 0xFFFF
-            data += struct.pack("<i", (high << 16) | low)
+            # Pack UNSIGNED: (high << 16) | low exceeds a signed int32 whenever the
+            # high word has its top bit set, and "<i" would raise struct.error. The
+            # seeded values never reach that today, so this was latent.
+            data += struct.pack("<I", (high << 16) | low)
         return _response(data)
 
     if command == 0x1401:  # batch write (word units)

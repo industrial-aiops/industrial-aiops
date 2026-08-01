@@ -66,7 +66,12 @@ SERIAL = 0xC0FFEE01
 PRODUCT_NAME = "1756-L83E/B"
 
 STATUS_OK = 0x00
-STATUS_PATH_DESTINATION_UNKNOWN = 0x05  # what a real CPU answers for a missing tag
+# What a real controller answers for a path it cannot resolve. NOTE: not reached by
+# a missing-tag read from pycomm3 — it validates tag names against the uploaded tag
+# list client-side, so such a request never leaves the driver. Kept because a real
+# controller must be able to answer it (and a stale tag list would get here), but it
+# is dead on the path test_eip_live.py exercises.
+STATUS_PATH_DESTINATION_UNKNOWN = 0x05
 
 # Connection ids handed out by Forward Open. pycomm3 switches to CONNECTED
 # messaging (SendUnitData) once the connection is open, so serving Forward Open
@@ -98,7 +103,9 @@ def _identity_payload() -> bytes:
 
 def _list_identity_payload() -> bytes:
     """One CPF item: type 0x000C (identity), socket address, then the identity."""
-    sockaddr = struct.pack(">hHI", 1, 44818, 0x7F000001) + b"\x00" * 8
+    # sin_family is big-endian AF_INET = 2 per the EtherNet/IP spec. pycomm3 does
+    # not check it, but a harness that is wrong on purpose teaches the wrong frame.
+    sockaddr = struct.pack(">hHI", 2, 44818, 0x7F000001) + b"\x00" * 8
     item = (
         struct.pack("<H", 1)  # protocol version
         + sockaddr
@@ -203,12 +210,19 @@ def _handle_cip(cip: bytes) -> bytes:
     return _cip_reply(service, STATUS_PATH_DESTINATION_UNKNOWN)
 
 
+#: Counts how many Multiple Service Packets have been served, so a test can assert
+#: that a multi-tag read really became ONE packet rather than N single reads — the
+#: harness answers both shapes, so without this the claim rests on nothing.
+MULTIPLE_SERVICE_COUNT = [0]
+
+
 def _multiple_service_reply(service: int, cip: bytes) -> bytes:
     """Serve service 0x0A: N embedded requests, N embedded replies.
 
     Both request and reply carry a count followed by that many 2-byte offsets,
     each relative to the START of the count field, then the payloads themselves.
     """
+    MULTIPLE_SERVICE_COUNT[0] += 1
     path_words = cip[1]
     body = cip[2 + path_words * 2 :]
     count = struct.unpack_from("<H", body, 0)[0]
@@ -326,6 +340,8 @@ def _handle(request: bytes) -> bytes:
             + reply
         )
         return _encap(command, session, body, context)
+    if command == 0x0099:  # NOT EtherNet/IP — a test-only probe for the MSP counter
+        return _encap(command, session, struct.pack("<I", MULTIPLE_SERVICE_COUNT[0]), context)
     if command == 0x0066:  # UnRegisterSession — no reply
         return b""
     return _encap(command, session, b"", context)

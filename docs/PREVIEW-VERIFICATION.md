@@ -37,14 +37,27 @@ no amount of any of them adds up to 3.**
 **Current standing (2026-08-01)** — the per-protocol evidence, including what each
 test does *not* cover, is in [`VERIFICATION-RECORD.md`](VERIFICATION-RECORD.md):
 
-- **2a:** OPC-UA · Modbus-TCP · Modbus-RTU · MQTT/Sparkplug · BACnet · MTConnect ·
-  SECS/GEM · IEC-104 · DNP3 · IEC-61850
-- **2b:** Mitsubishi MC · S7comm · EtherNet/IP
+- **2a:** OPC-UA · Modbus-TCP · Modbus-RTU · MQTT/Sparkplug · BACnet · SECS/GEM ·
+  IEC-104 · DNP3 · IEC-61850
+- **2b:** MTConnect · Mitsubishi MC · S7comm · EtherNet/IP
 - **2c:** Omron FINS · HART-IP (transport; its codec is rung 1 against
   `hart_protocol`) · IO-Link
 - **mock only:** PROFINET-DCP · EtherCAT · BAS · Ignition
 
 **Level 3 is zero for every protocol in both repos.**
+
+Two classifications that a review corrected, kept visible because the correction is
+the useful part:
+
+- **MTConnect was listed 2a and is 2b.** Its HTTP *transport* is third-party, but
+  the MTConnect *content* — the Streams/Devices XML, the `nextSequence` /
+  `instanceId` header semantics — is hand-written by whoever also wrote the
+  expectations. That is precisely the "wrong together" condition 2b names. The
+  transport being stdlib does not rescue it.
+- **SECS/GEM's 2a is real but narrower than it looks.** Host and equipment both come
+  from `secsgem`, so a misreading *inside that library* would satisfy both ends. The
+  rung holds for **our connector code** — an independent implementation of the GEM
+  state machine judges it — but not for the SECS-II codec layer.
 
 PROFINET-DCP is the one mock-only protocol that is *not* hopeless: `pnio-dcp` binds
 an L2 raw socket, so a veth pair plus a raw-socket responder on Linux with
