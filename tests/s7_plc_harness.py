@@ -151,7 +151,7 @@ def _read_var_ack(request: bytes) -> bytes:
 
     items = b""
     offset = 2  # past function byte + tag count
-    for _ in range(tag_count):
+    for index in range(tag_count):
         # 12 bytes: 12 | 0a | 10 | transport:1 | length:2 | db:2 | area:1 | address:3
         spec = parameter[offset : offset + 12]
         offset += 12
@@ -186,7 +186,8 @@ def _read_var_ack(request: bytes) -> bytes:
             + struct.pack(">H", len(payload) * 8)
             + payload
         )
-        if len(payload) % 2:  # fill byte between items
+        # A fill byte separates items; a real CPU does not append one after the last.
+        if len(payload) % 2 and index < tag_count - 1:
             items += b"\x00"
 
     return _s7_ack(b"\x04" + bytes([tag_count]), items)
@@ -235,24 +236,37 @@ def _write_var_ack(request: bytes) -> bytes:
     return _s7_ack(b"\x05" + bytes([tag_count]), codes)
 
 
-def _request_byte_size(transport: int, length: int) -> int:
-    """Byte width of a requested item.
+# Byte width per S7 data-type code, from pyS7's own ``DataTypeSize``. Getting this
+# wrong is silently wrong data, not an error: the first version mapped WORD to 1
+# byte and DWORD to 2, so a WORD read of the seeded 4242 came back as 4096 and a
+# DWORD read raised "payload too short". Both went unnoticed because the tests only
+# used INT/REAL/BIT.
+_WIDTH_BY_TRANSPORT = {
+    0x01: 1,  # BIT
+    0x02: 1,  # BYTE / USINT / SINT (pyS7 sends BYTE's code for the latter two)
+    0x03: 1,  # CHAR
+    0x04: 2,  # WORD — see the ambiguity note below
+    0x05: 2,  # INT
+    0x06: 4,  # DWORD
+    0x07: 4,  # DINT
+    0x08: 4,  # REAL
+}
 
-    ``pyS7`` sends the S7 data-type code as the transport size and the element
-    COUNT as the length, except for REAL/LREAL/STRING where it sends 0x04 with a
-    byte count. Mapping per S7 data-type codes.
-    """
-    widths = {
-        0x01: 1,  # BIT (handled separately)
-        0x02: 1,  # BYTE / CHAR
-        0x03: 1,  # CHAR
-        0x04: 1,  # BYTE_WORD_DWORD — length already in bytes
-        0x05: 2,  # INT / WORD
-        0x06: 2,  # INT
-        0x07: 4,  # DINT / REAL
-        0x08: 4,  # REAL
-    }
-    return length * widths.get(transport, 1)
+# Transport 0x04 is AMBIGUOUS on the wire: pyS7 sends it for WORD with an ELEMENT
+# count, and also for LREAL / STRING / WSTRING with a BYTE count
+# (requests.py:247-255). One code, two meanings, nothing in the request to tell them
+# apart.
+#
+# Resolved as WORD here, and that is safe in the only direction that matters: an
+# LREAL request then **over**-reads (8 bytes wanted, 16 returned) and pyS7 takes the
+# 8 it needs, so the value is correct. **Under**-reading is what silently corrupts
+# data — which is what the old width table did to WORD. ``test_s7_live.py`` asserts
+# the LREAL value rather than leaving this to reasoning.
+
+
+def _request_byte_size(transport: int, length: int) -> int:
+    """Byte width of a requested item: element count x the type's width."""
+    return length * _WIDTH_BY_TRANSPORT.get(transport, 1)
 
 
 def _handle(request: bytes) -> bytes:

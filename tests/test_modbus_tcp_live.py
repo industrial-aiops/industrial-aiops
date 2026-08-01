@@ -139,8 +139,10 @@ class _TcpServer:
 def tcp_target() -> Iterator[TargetConfig]:
     port = _free_port()
     server = _TcpServer(port)
-    server.start()
     try:
+        # start() inside the try: it spawns the background loop thread before it can
+        # fail, so a failure outside would leak that thread for the whole session.
+        server.start()
         yield TargetConfig(
             name="modbus-tcp-live",
             protocol="modbus",
@@ -311,8 +313,8 @@ def test_tcp_out_of_range_read_teaches_rather_than_fabricates(
     operator can act on — never as a value. Fabricating here would put an invented
     number in front of someone deciding whether to touch a live process.
 
-    The seeded block is 20 registers; 5000 is past the end, so a spec-conformant
-    server replies with a Modbus exception rather than data.
+    The seeded block is _BANK_SIZE registers; 5000 is far past the end, so a
+    spec-conformant server replies with a Modbus exception rather than data.
     """
     from iaiops.core.runtime.connection import OTConnectionError
 

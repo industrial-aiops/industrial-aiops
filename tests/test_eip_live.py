@@ -33,9 +33,7 @@ None of that is reachable through a mock.
 from __future__ import annotations
 
 import socket
-import subprocess
-import sys
-import time
+import struct
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -46,11 +44,25 @@ pytest.importorskip("pycomm3", reason="pycomm3 not installed — install iaiops[
 # Bare module name, not ``tests.``: pytest puts this directory on sys.path, while
 # the repo root is only there under ``python -m pytest``.
 from eip_plc_harness import PRODUCT_NAME, TAGS  # noqa: E402
+from harness_process import harness  # noqa: E402
 
 from iaiops.connectors.eip import ops  # noqa: E402
 from iaiops.core.runtime.config import TargetConfig  # noqa: E402
 
 pytestmark = [pytest.mark.integration]
+
+
+def _multiple_service_count(target: TargetConfig) -> int:
+    """Ask the harness how many Multiple Service Packets it has served.
+
+    A test-only encapsulation command (0x0099, not an EtherNet/IP command) — the
+    harness runs in a child process, so the counter cannot simply be imported.
+    """
+    host, port = target.host.split(":")
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        sock.sendall(struct.pack("<HHII", 0x0099, 0, 0, 0) + b"\x00" * 12)
+        reply = sock.recv(64)
+    return int(struct.unpack_from("<I", reply, 24)[0])
 
 
 def _free_port() -> int:
@@ -65,23 +77,7 @@ def plc() -> Iterator[TargetConfig]:
     a mutated tag value into a read test — the harness's tag bank is mutable by
     design, since that is what proves a write reached it."""
     port = _free_port()
-    proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
-        [sys.executable, str(Path(__file__).with_name("eip_plc_harness.py")), str(port)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    try:
-        assert proc.stdout is not None
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            if proc.poll() is not None:
-                pytest.skip("EtherNet/IP harness exited before signalling READY")
-            if proc.stdout.readline().strip() == "READY":
-                break
-        else:  # pragma: no cover — only on a pathologically slow host
-            pytest.skip("EtherNet/IP harness did not start within 20s")
-
+    with harness(Path(__file__).with_name("eip_plc_harness.py"), port):
         yield TargetConfig(
             name="eip-live",
             protocol="ethernetip",
@@ -89,9 +85,6 @@ def plc() -> Iterator[TargetConfig]:
             plctype="logix",
             timeout_s=5,
         )
-    finally:
-        proc.kill()
-        proc.wait(timeout=10)
 
 
 # ─── the session, and what it uploads ────────────────────────────────────────
@@ -137,12 +130,20 @@ def test_read_lands_on_the_requested_tag(plc: TargetConfig) -> None:
 def test_read_many_uses_one_multiple_service_packet(plc: TargetConfig) -> None:
     """A multi-tag read is not N reads: pycomm3 packs them into a single service
     0x0A request. Mixed types in one packet also pin the per-item type decoding."""
+    before = _multiple_service_count(plc)
     out = ops.eip_read_many(plc, ["Setpoint", "Offset", "Temperature"])
     values = {item["tag"]: item["value"] for item in out["items"]}
     assert values["Setpoint"] == 4242
     assert values["Offset"] == -7, "an unsigned decode would give 65529"
     assert values["Temperature"] == pytest.approx(42.5)
     assert all(item["good"] for item in out["items"])
+
+    # The harness answers BOTH shapes, so the values alone would look identical if
+    # pycomm3 had sent three single reads. A review pointed out the claim in the
+    # test name rested on nothing; now the harness counts the packets.
+    assert _multiple_service_count(plc) - before == 1, (
+        "the three tags did not travel as one Multiple Service Packet"
+    )
 
 
 # ─── the write, and its BEFORE capture ───────────────────────────────────────
@@ -177,9 +178,17 @@ def test_applied_write_reaches_the_plc_and_captures_the_before_value(
 
 
 def test_a_missing_tag_teaches_rather_than_fabricating(plc: TargetConfig) -> None:
-    """The harness answers CIP status 0x05 for a tag it does not hold, as a real
-    controller does. The connector must report that as not-good with a message —
-    never as a value an operator could act on."""
+    """What this proves, corrected after a review checked it on the wire:
+    **client-side** validation. pycomm3 checks requested tags against the tag list
+    it uploaded at ``open()`` and rejects unknown ones locally
+    (``logix_driver.py`` ``_parse_requested_tags``), so ``NoSuchTag`` never reaches
+    the socket and the harness's CIP-status branch is dead on this path.
+
+    The assertion still matters — the connector must surface that as not-good with
+    a message, never as a value an operator could act on. But the **wire-level**
+    error path (a tag that exists yet the controller refuses, or a stale tag list)
+    is NOT covered here; only real gear or a deliberately desynchronised tag list
+    would reach it."""
     out = ops.eip_read_tag(plc, "NoSuchTag")
     assert out["good"] is False
     assert out["value"] is None, "a missing tag produced a value"

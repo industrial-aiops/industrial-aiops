@@ -24,9 +24,7 @@ rejecting the answer, which is exactly the check a mock cannot perform.
 from __future__ import annotations
 
 import socket
-import subprocess
-import sys
-import time
+import struct
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -36,6 +34,7 @@ pytest.importorskip("pyS7", reason="pyS7 not installed — install iaiops[s7]")
 
 # Bare module name, not ``tests.``: pytest puts this directory on sys.path, while
 # the repo root is only there under ``python -m pytest``.
+from harness_process import harness  # noqa: E402
 from s7_plc_harness import DB1, DB2, MERKER  # noqa: E402
 
 from iaiops.connectors.s7 import ops  # noqa: E402
@@ -55,29 +54,10 @@ def plc() -> Iterator[TargetConfig]:
     """An S7 PLC in a child process. Function-scoped so the write test cannot leak
     mutated DB contents into a read test."""
     port = _free_port()
-    proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
-        [sys.executable, str(Path(__file__).with_name("s7_plc_harness.py")), str(port)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        text=True,
-    )
-    try:
-        assert proc.stdout is not None
-        deadline = time.monotonic() + 20
-        while time.monotonic() < deadline:
-            if proc.poll() is not None:
-                pytest.skip("S7 harness exited before signalling READY")
-            if proc.stdout.readline().strip() == "READY":
-                break
-        else:  # pragma: no cover — only on a pathologically slow host
-            pytest.skip("S7 harness did not start within 20s")
-
+    with harness(Path(__file__).with_name("s7_plc_harness.py"), port):
         yield TargetConfig(
             name="s7-live", protocol="s7", host="127.0.0.1", port=port, rack=0, slot=1
         )
-    finally:
-        proc.kill()
-        proc.wait(timeout=10)
 
 
 # ─── reads, over a real COTP + S7 exchange ───────────────────────────────────
@@ -115,6 +95,45 @@ def test_read_at_a_non_zero_offset(plc: TargetConfig) -> None:
     on the wire in BITS (``start * 8``), so an offset bug here is easy to make."""
     out = ops.s7_read_db(plc, db=1, dtype="INT", start=10, count=1)
     assert out["items"][0]["value"] == 1000
+
+
+def test_word_and_dword_widths_are_right(plc: TargetConfig) -> None:
+    """The regression a code review caught, now pinned.
+
+    The harness's width table originally mapped WORD to 1 byte and DWORD to 2. A
+    WORD read of the seeded 4242 came back as **4096** — silently wrong, no error —
+    and DWORD raised "payload too short". Neither was noticed because the tests only
+    used INT / REAL / BIT, and the connector exposes all of these as first-class
+    dtypes. Widths now come from pyS7's own ``DataTypeSize``.
+    """
+    assert ops.s7_read_db(plc, db=1, dtype="WORD", start=0, count=1)["items"][0]["value"] == 4242
+    # bytes 0..3 = 0x10 0x92 0xFF 0xF9 → 4242 then -7, read together as one DINT.
+    expected = int.from_bytes(bytes(DB1[0:4]), "big")
+    assert (
+        ops.s7_read_db(plc, db=1, dtype="DWORD", start=0, count=1)["items"][0]["value"] == expected
+    )
+    assert (
+        ops.s7_read_db(plc, db=1, dtype="DINT", start=0, count=1)["items"][0]["value"] == expected
+    )
+
+
+def test_lreal_decodes_correctly_despite_the_ambiguous_transport(plc: TargetConfig) -> None:
+    """pyS7 sends transport ``0x04`` for **WORD with an element count** and also for
+    **LREAL / STRING / WSTRING with a byte count** — one code, two meanings, and
+    nothing on the wire distinguishes them.
+
+    A review flagged that as unresolvable, and strictly it is; but the consequence
+    is benign in one direction and only one. Resolving it as WORD makes an LREAL
+    request **over**-read (8 → 16 bytes) and pyS7 takes only the 8 it needs, so the
+    value is right. **Under**-reading is what corrupts data — which is exactly what
+    the old width table did to WORD.
+
+    Asserted rather than reasoned about, because "it should be fine" is how the
+    WORD bug survived.
+    """
+    expected = struct.unpack(">d", bytes(DB1[0:8]))[0]
+    out = ops.s7_read_db(plc, db=1, dtype="LREAL", start=0, count=1)
+    assert out["items"][0]["value"] == expected
 
 
 def test_bit_addresses_select_the_right_bit(plc: TargetConfig) -> None:

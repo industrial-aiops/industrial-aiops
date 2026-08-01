@@ -105,9 +105,15 @@ def equipment_status(target: Any) -> dict:
     """[READ] Establish the GEM host link; report communication state + identity (S1F1/F2)."""
     with secsgem_session(target) as h:
         state = getattr(h, "communication_state", None)
+        raw = _decoded(h.are_you_there())
+        # Guarded like the other five reads. S1F1 is a MANDATORY GEM capability so
+        # this is unlikely in practice, but the module docstring claims "every read
+        # here", and a claim that is true of five out of six is just wrong.
+        if err := _undecodable(raw, what="S1F2 identity reply", stream_function="S1F1"):
+            return err
         return {
             "communication_state": s(str(getattr(state, "current", state)), 60),
-            "are_you_there": _plain(_decoded(h.are_you_there())),
+            "are_you_there": _plain(raw),
         }
 
 
