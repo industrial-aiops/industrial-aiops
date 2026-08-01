@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Added
+- **Modbus TCP now has a real wire** (`tests/test_modbus_tcp_live.py`). Modbus **RTU** has
+  had one since the socat/PTY test; Modbus **TCP** — by far the more common transport in
+  the field — had none. Every TCP test monkeypatched `_build_modbus_client`, so the code
+  that assembles and parses the **MBAP header** (transaction id / protocol id / length /
+  unit id) had never moved a byte. Sharing the read ops with RTU does not mean sharing the
+  transport: MBAP and CRC framing are different code.
+
+  A real `pymodbus` `ModbusTcpServer` on a loopback port, seeded with two deliberately
+  different banks, reached through the ordinary `TargetConfig` path with nothing patched.
+  Ten tests: the four read paths, float32 decode, a non-zero start address (the classic
+  off-by-one, invisible against a mock that ignores the address it was handed), and three
+  that only mean anything against a device —
+
+  - **`modbus_apply_template` reads the register file it declares.** A template says
+    whether its registers live in the holding or input file. A mock has one bank, so a
+    wrong function code still "works" there; here the banks differ, and the oracle is the
+    *same pure decoder* fed the declared bank, so any difference is the transport choosing
+    wrong rather than a disagreement about decoding. The seeded window is 80 registers
+    rather than a convenient 20 because the built-in templates that declare the **input**
+    file are the wide ones — a template test that only ever exercises `holding` cannot
+    catch a wrong function code, and the test asserts that both files were covered.
+  - **`modbus_health_summary`** opens its own session and reads address by address — a
+    different call shape from the block reads.
+  - **an out-of-range read teaches rather than fabricates.** A real server's "illegal data
+    address" exception must surface as an actionable error, never as a value. Fabricating
+    would put an invented number in front of someone deciding whether to touch a live
+    process.
+
+  Needs no socat, no root and no container, so unlike the RTU test it runs everywhere
+  including macOS. Verified by mutation: forcing the function code, shifting the template
+  base, and an off-by-one on the register address each turn it red.
 ## 0.20.3 — 2026-08-01
 
 > **Two governance invariants that reported the wrong thing, and three tests that had
