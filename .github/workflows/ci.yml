@@ -54,8 +54,14 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
 
+      # `iotdb` and `export` are pure wheels and cost seconds, but leaving them out
+      # meant two tests skipped on every build: the IoTDB binding contract (the
+      # historian sink's `Session` surface) and the Parquet export path. Both are
+      # code this repo ships; a skip there is coverage we claimed and did not have.
+      # `tdengine` stays out — its taospy needs a vendor C client, which the
+      # integration-contracts job installs deliberately rather than every gate run.
       - name: Sync env (base + dev tools + cross-platform connectors)
-        run: uv sync --extra all
+        run: uv sync --extra all --extra iotdb --extra export
 
       # socat is what lets tests/test_modbus_rtu_live.py stand up a PTY pair and
       # drive a REAL pymodbus RTU server over it — the only test that exercises the
@@ -215,6 +221,29 @@ jobs:
           uv venv --python 3.12
           uv pip install -e '.[all,iec104,iotdb,tdengine,hart]' pytest
           uv pip install --prerelease=allow 'pyiec61850>=1.5.2a1,<2'
+
+      # taospy's native `taos` module dlopen()s libtaos at IMPORT time, so without
+      # the C client the binding test skips and the TDengine sink's assumption
+      # (`taos.connect` exists) is never checked against anything real. The client
+      # is not on PyPI — it ships only as a vendor tarball.
+      #
+      # We extract the driver rather than run the vendor's install_client.sh: the
+      # script wants root and does more than we need, and the only thing the test
+      # requires is libtaos.so on the loader path. Pinned by version AND sha256 —
+      # this is a third-party binary entering the build, so it may not float.
+      - name: Install the TDengine C client (libtaos)
+        run: |
+          set -euo pipefail
+          ver=3.3.5.0
+          sha=b4f8fe356d202022c9bc0c662c0a92db6c9463423eeb23cbbe5ef502f6c6d2be
+          curl -sSL -o /tmp/td.tar.gz \
+            "https://www.taosdata.com/assets-download/3.0/TDengine-client-${ver}-Linux-x64.tar.gz"
+          echo "${sha}  /tmp/td.tar.gz" | sha256sum -c -
+          tar xzf /tmp/td.tar.gz -C /tmp "TDengine-client-${ver}/driver/libtaos.so.${ver}"
+          sudo install -m 0755 "/tmp/TDengine-client-${ver}/driver/libtaos.so.${ver}" /usr/lib/
+          sudo ln -sf "/usr/lib/libtaos.so.${ver}" /usr/lib/libtaos.so.1
+          sudo ln -sf /usr/lib/libtaos.so.1 /usr/lib/libtaos.so
+          sudo ldconfig
 
       # --no-sync: keep the ad-hoc `uv pip install` env above; don't re-sync from
       # the lockfile (which has no energy/TSDB/HART extras).

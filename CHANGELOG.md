@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Changed
+- **Three binding-contract tests stopped skipping.** The IoTDB `Session` surface and the
+  Parquet export path skipped on every gate run because `iotdb` and `export` were not in
+  the synced extras — both are pure wheels costing seconds, and both cover code this repo
+  ships, so the skip was coverage we claimed and did not have. The gate now syncs them.
+
+  The third, `taospy`'s native `taos`, dlopen()s **libtaos** at import time and skipped
+  even in the integration-contracts job, which had `tdengine` installed — the Python
+  package alone proves nothing without the C client, and the client is not on PyPI. That
+  job now installs it from the vendor tarball, pinned by version **and sha256** (a
+  third-party binary entering the build may not float), extracting just the driver rather
+  than running the vendor's root-level install script.
+
+  Verified on a Linux host with all three present: `1726 passed, 2 skipped`, the two
+  remaining being the in-suite BACnet test (covered by the separate two-IP harness step)
+  and an inverse skip that is correct when pyarrow *is* installed.
 ### Fixed
 - **The runaway guard could not see the most likely runaway: a retried denial.** The
   budget does two different jobs, and a policy denial separates them — the **ceilings**
