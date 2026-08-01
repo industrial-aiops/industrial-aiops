@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.20.3 — 2026-08-01
+
+> **Two governance invariants that reported the wrong thing, and three tests that had
+> quietly stopped covering anything.** A call that failed was audited as a success — and
+> the pattern circuit breaker was told the same, so an armed pattern that failed every
+> time could never trip. And the runaway guard, whose job is catching stuck loops, was
+> blind to the most likely loop of all: a caller retrying a denial forever. Both are now
+> enforced by contract tests over the real tool surface rather than by comment.
+
 ### Changed
 - **Three binding-contract tests stopped skipping.** The IoTDB `Session` surface and the
   Parquet export path skipped on every gate run because `iotdb` and `export` were not in

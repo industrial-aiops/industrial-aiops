@@ -268,7 +268,7 @@ OT is exactly where you want an agent on a tight leash: read first, never blind-
 - **Versions/variants**: `paho-mqtt` — **MQTT 3.1.1 & 5**. Sparkplug B topic convention `spBv1.0/{group}/{type}/{edge}/[device]` (NBIRTH/DBIRTH/NDATA/DDATA/NDEATH/DDEATH/STATE). TLS + username/password supported.
 - **Full Sparkplug B decode** (no optional extra): payloads are protobuf-decoded with a *vendored, byte-for-byte* copy of the official **Eclipse Tahu** `sparkplug_b.proto` generated module (depends only on `protobuf`). Per metric you get **name, alias** (resolved to its name via the BIRTH model), **datatype** (Int8…Int64/UInt…/Float/Double/Boolean/String/DateTime/Text/UUID/**DataSet**/Bytes/File/**Template**/PropertySet…), **value**, **timestamp**, and the **`is_historical` / `is_null`** flags. A **birth/death + seq model** tracks node/device **online** state (NBIRTH/DBIRTH ↔ NDEATH/DDEATH), builds the alias→name map from BIRTH, applies NDATA/DDATA by alias, and flags **`seq` gaps / out-of-order**. **Primary-host** awareness: `STATE/<host_id>` topics surface in `sparkplug_node_list`. `sparkplug_decode_payload` decodes a single raw payload (base64/hex) offline.
 - **Connection params**: `host`/`broker`, `port` (1883 / 8883 TLS), `topic`, `use_tls`, `username` (password encrypted).
-- **Command**: `mqtt_publish` = **high/MOC/dry-run default**; a published command has **no automatic inverse**.
+- **Command**: `mqtt_publish` = **high/MOC/dry-run default**. A *transient* publish has **no automatic inverse** (delivered is delivered); a **retained** one overwrites durable broker state, so it captures the prior retained payload and records an inverse.
 
 ### EtherNet/IP (Rockwell / Allen-Bradley)
 - **Supported**: **ControlLogix / CompactLogix** (and GuardLogix) via **CIP / EtherNet-IP** using **`pycomm3`** (pure-Python — no native deps). **Tag-based**, symbolic access: read/write tags by name (`Conveyor.Speed`, `Array[3]`, `Program:Main.X`) and **discover the controller's tag list** at runtime (`eip_list_tags`, the headline feature). `eip_controller_info` reads the controller identity.
@@ -775,6 +775,17 @@ additionally HIGH `risk_tier` and MOC-gated (dry-run + double confirmation + und
 capture + a recorded approver). `protocols_supported` reports this posture so the
 model is *told* the rules rather than left to infer them.
 
+Since **0.20.3** that promise is held by contract tests over the **real** tool
+surface rather than by synthetic stand-ins: every one of the ten high-risk writes
+is driven end to end and must be *denied without an approver with the connector
+never reached* — "it raised" only proves an exception, not that nothing reached the
+device. Two things those tests exposed on the way in: a call that **failed** was
+audited as `ok` (tools return the canonical `{error, hint}` envelope rather than
+raising, so the governance wrapper saw an ordinary return), which also told the
+pattern circuit breaker "success" on every failure; and the runaway guard, blind to
+a caller retrying a **denial** forever, let 500 identical denied writes through a
+ceiling of 10. Both are fixed and pinned.
+
 **Sealed sites — make the data-shipping tools cease to exist.**
 `IAIOPS_NO_EGRESS=1` removes every tool whose job is to transmit local or plant
 data to a destination the *caller* names, at registration time so a weak or
@@ -826,7 +837,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 ## Safety & governance
 
-- **Read-first.** 156 of 166 tools are read-only. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. 9 of the 10 **capture the BEFORE value/state and register an undo descriptor**; the exceptions are `mqtt_publish` (a fire-and-forget MQTT/Sparkplug command has no automatic inverse) and `ethercat_set_state` (a state transition has no clean inverse) — both have **no automatic undo**. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-first.** 156 of 166 tools are read-only. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Read/write authorisation is the caller's, not the tap's.** iaiops does not encode "this server may not write" by hiding tools — that decision belongs to the agent's judgement or account/permission management. The tap's guarantee is **un-bypassable audit on both front-ends**: every call, read or write, via an MCP tool **or** the `iaiops` CLI, runs through `@governed_tool` and leaves a row in `~/.iaiops/audit.db`. Writes are additionally high `risk_tier`, MOC-gated, and undo-captured (see above). High/critical calls **fail closed** when the audit DB cannot be written.
 - **No-egress mode is enforced at registration.** `IAIOPS_NO_EGRESS=1` withholds the 5 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `historian_push`, `mqtt_publish`, `rca_narrate`), fail-closed, for airgap/sealed-box deployments. This is a **data-exfiltration axis, not authorisation** — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so this switch withholds it. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
