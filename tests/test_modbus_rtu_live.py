@@ -23,9 +23,10 @@ Run it where socat exists (Linux / Docker)::
 
     pytest -m integration tests/test_modbus_rtu_live.py
 
-待核实 → verified: exercised locally in a python:3.12-slim container (socat PTY
-pair + pymodbus RTU server); not run in CI (no socat) and not validated against a
-specific physical RTU device / RS-485 bus.
+待核实 → verified: a socat PTY pair + a real pymodbus RTU server, run on **every CI
+build** since the gate started installing socat. Not validated against a specific
+physical RTU device / RS-485 bus. The TCP transport — different framing entirely
+(MBAP, not CRC) — is covered separately by ``test_modbus_tcp_live.py``.
 """
 
 from __future__ import annotations
