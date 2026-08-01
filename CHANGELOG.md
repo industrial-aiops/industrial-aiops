@@ -2,7 +2,49 @@
 
 ## Unreleased
 
+### Fixed
+- **SECS/GEM presented raw protocol bytes as data when a tool did not implement a
+  function.** Found by giving SECS/GEM a real equipment to talk to (below).
+  `GemEquipmentHandler` does not implement **S7F19** — process-program transfer is an
+  *optional* GEM capability that many real fab tools omit — and secsgem answers such a
+  request by handing back the **undecoded message bytes**. Those flowed into `_plain`,
+  which hex-encodes bytes, and the connector labelled the result `process_programs`:
+
+  ```json
+  {"count": null, "process_programs": "0000871300009e036f8a"}
+  ```
+
+  That blob is the echoed S7F19 request header (session `0000`, stream 7, function 19).
+  Not a fabricated *value*, but non-data under a data label, with `count: null` as the
+  only hint — an operator, or a model reading the tool result, would reasonably report
+  that the equipment has process programs.
+
+  All six read paths (`S1F11`, `S1F3`, `S2F29`, `S2F13`, `S5F5`, `S7F19`) now detect a
+  raw-bytes reply and return a teaching error naming the stream/function and the likely
+  cause. Any of them can hit this: an unsupported function is normal on real equipment,
+  and only S7F19 happened to be the one secsgem's own equipment lacks.
+
 ### Added
+- **SECS/GEM now has a real equipment** (`tests/test_secsgem_live.py` +
+  `tests/secsgem_equipment_harness.py`). `test_secsgem.py` monkeypatches the host
+  handler, so the HSMS connect/select handshake, the SECS-II encoding of each request
+  and the decoding of each reply were all assumed. A real `GemEquipmentHandler` now
+  listens in HSMS **PASSIVE** mode and the connector's real `GemHostHandler` connects
+  ACTIVE, over a socket, through both libraries' codecs — S1F1/F2, S1F11/F12, S1F3/F4,
+  S2F29/F30, S2F13/F14, S5F5/F6. The equipment is seeded with custom SVs / ECs / alarms
+  so an assertion cannot pass on secsgem's built-ins alone.
+
+  **Two harness findings, recorded rather than papered over.** `GemEquipmentHandler`
+  does not survive repeated lifecycle in one interpreter: sharing one across tests failed
+  non-deterministically (`WrongSourceStateError: Invalid source state for transition
+  'select': COMMUNICATING (expected NOT_COMMUNICATING)` — it had not returned to
+  NOT_COMMUNICATING before the next ACTIVE connect landed), and building a fresh one per
+  test *hung the interpreter* on teardown. The equipment therefore gets its own process,
+  the same shape the energy repo's DNP3 live test uses for the same class of reason.
+  Whether real fab equipment shows the reconnect behaviour is **待核实** — HSMS has a T7
+  "not-selected" timer precisely because a tool needs time to clean up a dropped
+  selection, so it is plausible, and equally plausible that it is specific to secsgem.
+  Nothing is asserted either way.
 - **MTConnect now has a real HTTP agent** (`tests/test_mtconnect_live.py`).
   `test_mtconnect.py` monkeypatches `_http_get`, so the XML parsing was genuinely
   exercised but **the HTTP layer never ran**: the agent URL composed from host/port, the
