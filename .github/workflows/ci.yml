@@ -231,14 +231,36 @@ jobs:
       # script wants root and does more than we need, and the only thing the test
       # requires is libtaos.so on the loader path. Pinned by version AND sha256 —
       # this is a third-party binary entering the build, so it may not float.
+      #
+      # Cached, bounded and non-fatal, because the first version of this step was a
+      # reliability regression I put in myself: it worked once, then a later run
+      # spent 300s hanging on `www.taosdata.com` and failed the whole build. Making
+      # every build depend on a vendor CDN being reachable is the wrong trade for
+      # one symbol check. So: cache it (the usual path never touches the network),
+      # bound the fetch, and on a definitive failure warn LOUDLY and carry on — the
+      # binding test then skips with its own honest reason. An announced degradation,
+      # not a silent one.
+      - name: Cache the TDengine client tarball
+        uses: actions/cache@v4
+        with:
+          path: /tmp/td.tar.gz
+          key: tdengine-client-3.3.5.0-b4f8fe35
+
       - name: Install the TDengine C client (libtaos)
         run: |
-          set -euo pipefail
+          set -uo pipefail
           ver=3.3.5.0
           sha=b4f8fe356d202022c9bc0c662c0a92db6c9463423eeb23cbbe5ef502f6c6d2be
-          curl -sSL -o /tmp/td.tar.gz \
-            "https://www.taosdata.com/assets-download/3.0/TDengine-client-${ver}-Linux-x64.tar.gz"
-          echo "${sha}  /tmp/td.tar.gz" | sha256sum -c -
+          if ! echo "${sha}  /tmp/td.tar.gz" | sha256sum -c - >/dev/null 2>&1; then
+            curl -sSL --connect-timeout 20 --max-time 240 --retry 2 --retry-delay 5 \
+              -o /tmp/td.tar.gz \
+              "https://www.taosdata.com/assets-download/3.0/TDengine-client-${ver}-Linux-x64.tar.gz" || true
+          fi
+          if ! echo "${sha}  /tmp/td.tar.gz" | sha256sum -c - >/dev/null 2>&1; then
+            echo "::warning title=libtaos unavailable::Could not fetch the TDengine client from the vendor CDN. test_tdengine_taos_surface will SKIP — this build does not check the TDengine sink's binding against the real client."
+            exit 0
+          fi
+          set -e
           tar xzf /tmp/td.tar.gz -C /tmp "TDengine-client-${ver}/driver/libtaos.so.${ver}"
           sudo install -m 0755 "/tmp/TDengine-client-${ver}/driver/libtaos.so.${ver}" /usr/lib/
           sudo ln -sf "/usr/lib/libtaos.so.${ver}" /usr/lib/libtaos.so.1
