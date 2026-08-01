@@ -40,26 +40,29 @@ from iaiops.core.runtime.config import TargetConfig  # noqa: E402
 
 pytestmark = [pytest.mark.integration]
 
-# One source of truth for what the harness seeded.
-from tests.secsgem_equipment_harness import (  # noqa: E402
+# One source of truth for what the harness seeded. Imported by BARE module name,
+# not ``tests.``: pytest puts this directory on sys.path, whereas the repo root is
+# only there under ``python -m pytest`` (which inserts CWD). CI runs plain
+# ``pytest``, where the dotted form raises ModuleNotFoundError.
+from secsgem_equipment_harness import (  # noqa: E402
     ALARM_CODE as _ALARM_CODE,
 )
-from tests.secsgem_equipment_harness import (  # noqa: E402
+from secsgem_equipment_harness import (  # noqa: E402
     ALARM_TEXT as _ALARM_TEXT,
 )
-from tests.secsgem_equipment_harness import (  # noqa: E402
+from secsgem_equipment_harness import (  # noqa: E402
     ALID as _ALID,
 )
-from tests.secsgem_equipment_harness import (  # noqa: E402
+from secsgem_equipment_harness import (  # noqa: E402
     EC_VALUE as _EC_VALUE,
 )
-from tests.secsgem_equipment_harness import (  # noqa: E402
+from secsgem_equipment_harness import (  # noqa: E402
     ECID as _ECID,
 )
-from tests.secsgem_equipment_harness import (  # noqa: E402
+from secsgem_equipment_harness import (  # noqa: E402
     SV_VALUE as _SV_VALUE,
 )
-from tests.secsgem_equipment_harness import (  # noqa: E402
+from secsgem_equipment_harness import (  # noqa: E402
     SVID as _SVID,
 )
 

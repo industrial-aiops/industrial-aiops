@@ -24,6 +24,16 @@
   cause. Any of them can hit this: an unsupported function is normal on real equipment,
   and only S7F19 happened to be the one secsgem's own equipment lacks.
 
+### Changed
+- **The libtaos install step no longer makes every build depend on a vendor CDN.** The
+  version added a day earlier worked once, then a later run spent 300s hanging on
+  `www.taosdata.com` and failed the build — a reliability regression introduced with that
+  step. It is now cached (the usual path never touches the network), bounded
+  (`--connect-timeout 20 --max-time 240 --retry 2`), and non-fatal: on a definitive
+  failure it emits a loud `::warning::` and the binding test skips with its own honest
+  reason. An **announced** degradation, not a silent one — making the whole build depend
+  on a third-party CDN being reachable is the wrong trade for one symbol check.
+
 ### Added
 - **SECS/GEM now has a real equipment** (`tests/test_secsgem_live.py` +
   `tests/secsgem_equipment_harness.py`). `test_secsgem.py` monkeypatches the host
