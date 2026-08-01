@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Added
+- **Mitsubishi MC now runs over a real socket** (`tests/test_mc_live.py` +
+  `tests/mc_plc_harness.py`). `test_mc.py` monkeypatches `_build_mc_client`, so
+  `pymcprotocol` never ran: 3E frame assembly, device encoding, signed-word decode and
+  bit unpacking were all assumed. Nine tests now drive the genuine `Type3E` client over
+  TCP, including `mc_write_words`'s **BEFORE capture verified against the device** — the
+  value the connector reports as `before` is read back from the PLC, because that is what
+  an operator would replay to roll back.
+
+  **Evidence level, stated in the module docstring rather than left to inference.**
+  `pymcprotocol` ships no server, so the far end is written by us from the frame spec,
+  unlike the protocols that face a real third-party counterparty (pymodbus, bacpypes3,
+  opendnp3, mosquitto, …). If we misread the 3E spec, harness and expectations are wrong
+  together. It is still far more than a mock — the real client parses every byte, so a
+  wrong subheader / length / status offset fails against the library rather than against a
+  stub that agrees with us, and the harness *decodes* the request, so D100 / M0 / a wrong
+  offset return different data. **Weaker than a third-party round-trip; a physical MELSEC
+  CPU stays 待核实.**
+
+  Mutation-verified: flipping the harness's bit-nibble order, reading one register too
+  many in the BEFORE capture, and dropping the BEFORE capture each turn it red.
+
 ### Fixed
 - **SECS/GEM presented raw protocol bytes as data when a tool did not implement a
   function.** Found by giving SECS/GEM a real equipment to talk to (below).

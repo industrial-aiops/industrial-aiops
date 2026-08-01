@@ -9,6 +9,17 @@ library (1E/4E are not supported here).
 READ tools are non-destructive. ``mc_write_words`` is an OT-DANGEROUS write: it
 is governed (high risk_tier), captures the BEFORE values for undo, and must run
 through dry-run + double-confirm. 未经授权勿对生产控制系统写入.
+
+**Verification level (read this before quoting it).** Exercised over a real socket
+with the genuine ``pymcprotocol`` client in ``tests/test_mc_live.py`` — 3E frame
+assembly, device encoding, signed-word decode, bit unpacking, and the write's
+BEFORE capture all run for real. But ``pymcprotocol`` ships **no server**, so the
+far end (``tests/mc_plc_harness.py``) is written by us from the frame spec, unlike
+the protocols that face a real third-party counterparty (pymodbus, bacpypes3,
+opendnp3, …). If we misread the 3E spec, harness and expectations are wrong
+together. Stronger than a mock — the real client parses every byte, and the
+harness decodes the request rather than ignoring it — but **weaker than a
+third-party round-trip, and a physical MELSEC CPU stays 待核实.**
 """
 
 from __future__ import annotations
