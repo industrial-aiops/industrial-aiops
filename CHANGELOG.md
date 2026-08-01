@@ -3,6 +3,27 @@
 ## Unreleased
 
 ### Fixed
+- **The runaway guard could not see the most likely runaway: a retried denial.** The
+  budget does two different jobs, and a policy denial separates them — the **ceilings**
+  (calls, wall-time) price work, while the **runaway guard** detects a stuck loop. A
+  denied call is deliberately free of the ceilings: it did no work, and charging it would
+  let a misconfigured deny rule exhaust an operator's budget without a single operation
+  running. But the runaway fingerprint was recorded on that same allowed-only path, so a
+  caller that does not understand a denial and retries it forever — the archetypal stuck
+  loop, and the one an LLM agent is most likely to produce — could repeat without limit.
+
+  Measured before the fix: **500 identical denied high-risk writes against a call ceiling
+  of 10 produced zero stops**, and 500 audit rows.
+
+  A denial is now charged to the runaway window, and only to the window. Once it fills,
+  the guard's `BudgetExceeded` replaces the denial — the more actionable of the two, since
+  at that point the caller needs "stop re-calling", not a 26th "denied" — and audits as
+  `budget_exceeded`, so an operator can tell *"you were denied"* from *"you were denied
+  and would not stop asking"*. A single denial stays free, and the ceilings still ignore
+  denials entirely; both are pinned by tests.
+
+  Hooked around `_pre_check` rather than at each `raise PolicyDenied`, so the three
+  existing denial paths — and any future one — are covered by construction.
 - **A failed call was audited as a successful one — and the circuit breaker was told the
   same.** Tools do not raise: `tool_errors` sits *inside* `@governed_tool` and converts
   every exception into the canonical `{error, hint}` envelope, so the governance wrapper

@@ -110,15 +110,38 @@ class BudgetTracker:
 
     # ── Enforcement ───────────────────────────────────────────────────
 
+    def check_runaway(self, tool: str, params: dict | None) -> None:
+        """Enforce ONLY the loop detector, and record the attempt in its window.
+
+        The two things this class does are on different axes, and a policy denial
+        separates them:
+
+        * the **ceilings** (calls, wall-time) price work. A denied call did none,
+          so charging it would let a misconfigured rule exhaust an operator's
+          budget — hence ``check_and_record`` runs only for allowed calls.
+        * the **runaway guard** detects a stuck loop. A caller that does not
+          understand a denial and retries it forever is the archetypal loop, and
+          it was the one loop this guard could never see: the fingerprint was
+          only ever recorded on the allowed path, so 500 identical denied writes
+          tripped nothing.
+
+        Called on the denial path, so a retry storm stops being free while a
+        single denial stays free. Raises :class:`BudgetExceeded` once the window
+        is full — deliberately in place of repeating the denial, because "stop
+        re-calling" is the actionable message at that point, not a 26th "denied".
+        """
+        with self._lock:
+            self._runaway_locked(tool, params, time.time())
+
     def check_and_record(self, tool: str, params: dict | None) -> None:
         """Enforce ceilings + runaway guard, then record this call.
 
         Raises :class:`BudgetExceeded` before the call proceeds when a limit
         would be crossed. Only called for operations the policy engine already
-        allowed, so denied calls do not count against the budget.
+        allowed, so denied calls do not count against the **ceilings** — they are
+        charged to the runaway window only, via :meth:`check_runaway`.
         """
         now = time.time()
-        fp = _fingerprint(tool, params)
         with self._lock:
             # 1. Hard call ceiling
             max_calls = self._max_calls()
@@ -143,28 +166,40 @@ class BudgetTracker:
                 )
 
             # 3. Runaway breaker — same (tool, params) hammered in a short window
-            runaway_max = self._runaway_max()
-            window = self._runaway_window()
-            if runaway_max > 0 and window > 0:
-                dq = self._state.windows.get(fp)
-                if dq is None:
-                    dq = deque()
-                    self._state.windows[fp] = dq
-                cutoff = now - window
-                while dq and dq[0] < cutoff:
-                    dq.popleft()
-                if len(dq) >= runaway_max:
-                    raise BudgetExceeded(
-                        f"Runaway guard tripped: '{tool}' called {len(dq)} times "
-                        f"with identical arguments in {window}s. This usually means "
-                        f"a poll/retry loop is stuck. Stop re-calling — check the "
-                        f"operation's status once, or wait, instead of looping. "
-                        f"(Raise OPCUA_RUNAWAY_MAX if this is genuinely intended.)",
-                        rule="budget_runaway",
-                    )
-                dq.append(now)
+            self._runaway_locked(tool, params, now)
 
             self._state.total_calls += 1
+
+    def _runaway_locked(self, tool: str, params: dict | None, now: float) -> None:
+        """Trip if this (tool, params) has already filled its window; else record it.
+
+        **Caller must hold ``self._lock``.** Kept lock-free so ``check_and_record``
+        can still do check-then-increment atomically — splitting it into its own
+        acquisition would let two concurrent calls both pass the ceiling check and
+        both increment past it.
+        """
+        runaway_max = self._runaway_max()
+        window = self._runaway_window()
+        if runaway_max <= 0 or window <= 0:
+            return
+        fp = _fingerprint(tool, params)
+        dq = self._state.windows.get(fp)
+        if dq is None:
+            dq = deque()
+            self._state.windows[fp] = dq
+        cutoff = now - window
+        while dq and dq[0] < cutoff:
+            dq.popleft()
+        if len(dq) >= runaway_max:
+            raise BudgetExceeded(
+                f"Runaway guard tripped: '{tool}' called {len(dq)} times "
+                f"with identical arguments in {window}s. This usually means "
+                f"a poll/retry loop is stuck. Stop re-calling — check the "
+                f"operation's status once, or wait, instead of looping. "
+                f"(Raise OPCUA_RUNAWAY_MAX if this is genuinely intended.)",
+                rule="budget_runaway",
+            )
+        dq.append(now)
 
     def add_duration(self, seconds: float) -> None:
         """Accumulate a completed call's wall-time toward the time ceiling."""
