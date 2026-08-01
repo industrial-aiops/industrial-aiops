@@ -3,6 +3,31 @@
 ## Unreleased
 
 ### Added
+- **MTConnect now has a real HTTP agent** (`tests/test_mtconnect_live.py`).
+  `test_mtconnect.py` monkeypatches `_http_get`, so the XML parsing was genuinely
+  exercised but **the HTTP layer never ran**: the agent URL composed from host/port, the
+  `/sample?from=&count=` query string, the streamed body read, and — the part that matters
+  — two controls that exist *only* in the transport:
+
+  - the **DTD/entity guard** (XXE / billion-laughs defense), applied to the FIRST streamed
+    chunk so a hostile agent cannot make us read megabytes before we notice the `DOCTYPE`;
+  - the **response size cap**, which refuses a body over `MAX_RESPONSE_BYTES` *while
+    reading* rather than buffering it whole first.
+
+  A mock handing back a finished string can demonstrate neither. Also covers
+  `mtconnect_stream`'s long-poll against a server with a real sequence cursor, including
+  the `instance_changed` stop — an agent restart renumbers sequences, so a held `from`
+  cursor would otherwise attribute someone else's observations to this run.
+
+  Needs only `requests`: no container, no root, no external agent.
+
+  Mutation-verified, and the first version of the DTD test **failed that check**: it
+  passed with either guard removed, because `_fetch_xml` re-checks the full body. It
+  proved the defense existed *somewhere*, not that the early one worked. The replacement
+  serves a `DOCTYPE` followed by an oversized body — only a guard that runs before the
+  body is consumed can report the DTD, since otherwise the size cap trips first. That one
+  does fail when the first-chunk guard is removed. *A control asserted only against a stub
+  is a control you have not tested* — including when the stub is your own test server.
 - **Modbus TCP now has a real wire** (`tests/test_modbus_tcp_live.py`). Modbus **RTU** has
   had one since the socat/PTY test; Modbus **TCP** — by far the more common transport in
   the field — had none. Every TCP test monkeypatched `_build_modbus_client`, so the code
