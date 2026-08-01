@@ -21,6 +21,17 @@ PCCC and Micro800 paths are exercised against mocked pycomm3 drivers only.
 READ tools are non-destructive. ``eip_write_tag`` is an OT-DANGEROUS write — it
 is governed (high risk_tier), captures the BEFORE value for undo, and must run
 through dry-run + double-confirm. 未经授权勿对生产控制系统写入.
+
+**Verification level (read before quoting it).** Exercised over a real CIP session
+with the genuine ``pycomm3`` driver in ``tests/test_eip_live.py`` — RegisterSession,
+ListIdentity, Forward Open, connected messaging, the controller tag-list upload,
+Multiple Service Packet reads and the write's BEFORE capture all run for real. But
+``pycomm3`` ships **no server**, so the far end (``tests/eip_plc_harness.py``) is
+written by us from the EtherNet/IP + CIP layouts, unlike the protocols facing a
+real third-party counterparty. If we misread CIP, harness and expectations are
+wrong together. Stronger than a mock — the real driver runs the whole session and
+parses every reply, and the harness decodes the ANSI symbolic segment — but
+**weaker than a third-party round-trip, and a physical ControlLogix stays 待核实.**
 """
 
 from __future__ import annotations

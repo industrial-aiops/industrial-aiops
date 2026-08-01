@@ -3,6 +3,28 @@
 ## Unreleased
 
 ### Added
+- **EtherNet/IP now runs over a real CIP session** (`tests/test_eip_live.py` +
+  `tests/eip_plc_harness.py`) — the largest of these gaps, because
+  `LogixDriver.open()` performs a five-step dance before a single tag is read:
+  RegisterSession, ListIdentity, Forward Open, controller info, and a full **tag-list
+  enumeration** off the Symbol object. `test_eip.py` monkeypatches the driver, so none
+  of it ran. Nine tests now cover the session, the tag-list upload, single and
+  Multiple-Service-Packet reads, and `eip_write_tag`'s **BEFORE capture verified by
+  reading the tag back**.
+
+  Same evidence caveat, recorded in the module docstring: `pycomm3` ships no server, so
+  the far end is ours. **A physical ControlLogix stays 待核实.**
+
+  Three requirements the real driver imposed that a mock cannot, each found by it
+  rejecting the previous answer: a CPF reply missing its **item-count** field shifted
+  everything two bytes and surfaced as `Error packing -128 as USINT` (the service byte
+  read from the wrong offset); refusing **Forward Open** is not a shortcut, since the
+  driver retries with a standard Forward Open and then fails, so connected messaging
+  had to be served too; and a multi-tag read is not N reads but one **Multiple Service
+  Packet** with N embedded requests.
+
+  Mutation-verified: ignoring the symbolic tag name (4 failures), dropping the CPF item
+  count (8), and dropping the connector's BEFORE capture (1).
 - **S7comm now runs over a real ISO-TSAP socket** (`tests/test_s7_live.py` +
   `tests/s7_plc_harness.py`). `test_s7.py` monkeypatches `_build_s7_client`, so `pyS7`
   never ran — the COTP connection request, the PDU-size negotiation, the S7ANY address
