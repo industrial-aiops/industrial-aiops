@@ -6,7 +6,11 @@
 > If a claim here cannot be reproduced by running the named test, the claim is wrong
 > and should be deleted rather than softened.
 >
-> Last updated **2026-08-01**, after a code review of the day's changes found a
+> Last updated **2026-08-02**. The follow-up register at the bottom is the durable
+> list of what is still worth testing, what is not, and the open questions — it is
+> there rather than in a chat log so it survives the session that produced it.
+>
+> Previously updated 2026-08-01, after a code review of the day's changes found a
 > harness bug that made this file's S7 row overstate (WORD reads returned silently
 > wrong data), a test whose docstring described a wire path that never runs, and a
 > protocol classified one rung too high. All three are corrected below and the
@@ -33,7 +37,7 @@ for every protocol in both repos.** Nothing below changes that.
 | **Modbus TCP** | 2a | `test_modbus_tcp_live.py` | Real `pymodbus` `ModbusTcpServer` over loopback: FC03/FC04/FC01/FC02, float32 decode, non-zero start address, `apply_template` picking the declared register file (both banks exercised), `health_summary`'s per-address session, out-of-range → teaching error | Physical Modbus-TCP device; RTU-over-TCP gateways |
 | **Modbus RTU** | 2a | `test_modbus_rtu_live.py` | Real `pymodbus` `ModbusSerialServer` over a socat PTY pair — actual RTU/CRC framing, all four function codes, float32 | Physical RS-485 bus / USB adapter; multi-drop addressing; baud/parity mismatch behaviour |
 | **MQTT / Sparkplug B** | 2a | `test_uns_live_integration.py`, `test_mqtt_retained_undo.py` | Real **mosquitto** broker through the full paho loop: UNS audit, Sparkplug schema from NBIRTH, retained-publish BEFORE capture and inverse round-trip | Production EoN node / Sparkplug host application; broker auth/TLS |
-| **BACnet/IP** | 2a | `test_bacnet_live.py` + `scripts/bacnet_live_harness.sh` | Real `bacpypes3` virtual device, **two IPs on one subnet**, real UDP broadcast Who-Is/I-Am round-trip | Physical HVAC/BMS controller; write, COV subscription, trend logs |
+| **BACnet/IP** | 2a | `test_bacnet_live.py` + `scripts/bacnet_live_harness.sh` | Real `bacpypes3` virtual device, **two IPs on one subnet**, real UDP broadcast Who-Is/I-Am round-trip; **the write path** — dry-run verified by reading back, BEFORE capture checked against what the device held, and the read-back `after`/`verified` reporting | Physical HVAC/BMS controller; COV subscription; trend logs; **whether a real controller accepts the write** — this virtual device does not, which is how the unverified `applied: true` was found (note ⁵) |
 | **MTConnect** | **2b**¹ | `test_mtconnect_live.py` | Real HTTP agent: URL from host/port, `/sample?from=&count=` query, streamed body, **DTD/XXE guard on the first chunk** (discriminated from the full-body guard), size cap while reading, long-poll cursor advance + `instance_changed` stop | Real machine-tool agent (Mazak/Okuma/…); Assets; MTConnect ≥2.0 schema |
 | **SECS/GEM** | 2a⁴ | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
 | **Mitsubishi MC** | **2b** | `test_mc_live.py` + `mc_plc_harness.py` | Real `pymcprotocol` `Type3E` client vs **our** SLMP-3E server: CPU identity, batch word/bit read, signed-word decode, offsets, random read of words+dwords, write BEFORE capture verified by read-back | Physical MELSEC CPU; 1E/4E frames; ASCII mode; iQ-R addressing |
@@ -66,6 +70,13 @@ from `secsgem`, so a misreading *inside that library* would satisfy both ends. T
 rung holds for our connector code — an independent implementation of the GEM state
 machine judges it — but not for the SECS-II codec layer beneath.
 
+⁵ **The BACnet write's `applied: true` was an unverified claim, found by this test.**
+BAC0's `write()` returns `None` and raises nothing whether the device honoured the
+request or silently dropped it. The connector now reads back and reports
+(`after` / `verified`) rather than asserting success, and deliberately does **not**
+judge a mismatch as failure — on a commandable object a higher priority legitimately
+holds the value, and only the operator knows the priority scheme.
+
 ³ **The S7 bit test does not cover our bit handling.** Mutation testing showed pyS7
 *coalesces* neighbouring bit tags into one byte read and extracts the bits itself.
 The test pins the connector's address construction plus pyS7's extraction; the
@@ -81,6 +92,26 @@ harness's single-bit branch is dead on that path and says so.
 
 All three run on **every CI build**, and a skipped live test **fails** the build.
 
+## The MCP interface itself
+
+| Area | Rung | Test | What actually runs | Not covered |
+|---|---|---|---|---|
+| **MCP over stdio** | 2a | `test_mcp_stdio_live.py` | The SDK's own `stdio_client` + `ClientSession` against the real `mcp_server.server:main` entrypoint as a subprocess: initialize handshake, `list_tools()`, a JSON-RPC tool call, a connector failure arriving as readable content rather than a session-killing protocol error, **the `ToolAnnotations` a client receives**, **what `IAIOPS_NO_EGRESS=1` withholds as seen from outside**, and `IAIOPS_MCP` profile selection | The opt-in HTTP/SSE transport (`IAIOPS_MCP_TRANSPORT`); any client other than the reference SDK; Claude Desktop / IDE hosts |
+
+Until 2026-08-01 nothing drove this at all — every test called tool functions
+in-process, so the product's **primary interface** was unexercised. Two of the
+assertions above had previously been checked against our own registry, which is not
+where a client looks.
+
+## Egress — the paths that ship data off-box
+
+| Sink | Rung | Test | What actually runs | Not covered |
+|---|---|---|---|---|
+| **NATS** | 2a | `test_egress_live.py` | A **real NATS broker**; published messages are read back off it by a real subscriber (subjects and payloads), plus a bounded-failure assertion against an unreachable broker | Auth/TLS; JetStream; a real plant bus under load |
+| **InfluxDB** | 2b | `test_egress_live.py` | A real HTTP endpoint recording exactly what the sink emits: measurement, value, bucket/org query, `Authorization` header, and that five points become **one** request | A real InfluxDB server accepting the line protocol; v1 vs v2 differences beyond the endpoint shape |
+| **IoTDB / TDengine** | 1 | `test_binding_contracts.py` | Client-library symbol surface only (taospy against real **libtaos**) | Any write round-trip to a real server |
+| **SQLite / Parquet** | local | `test_sink_sqlite_local.py`, `test_export.py` | Real local files — no network counterparty exists to be wrong about | — |
+
 ## Cross-cutting (not protocol-specific)
 
 | Area | Test | What it pins |
@@ -94,22 +125,55 @@ All three run on **every CI build**, and a skipped live test **fails** the build
 | Audit hash chain | `test_audit_integrity.py` | Tamper detection over the chain |
 | Library binding contracts | `test_binding_contracts.py` | BAC0, IoTDB `Session`, taospy against **real libtaos** — the assumptions our sinks make |
 
-## Still testable (honest)
+## Still testable — the follow-up register
 
-**One candidate remains, and it is not EtherCAT.**
+Kept here rather than in a chat log so it survives. Ordered by what a reader should
+pick up first. Everything above the line is *doable*; everything below it is not, and
+saying so is the point.
 
-- **PROFINET-DCP — plausible, not attempted.** `pnio-dcp` binds an L2 raw socket to a
-  local interface and broadcasts DCP Identify. On Linux with `CAP_NET_RAW`, a **veth
-  pair** plus a raw-socket responder on the peer could answer with DCP Identify-Ok
-  frames, which would make this a genuine **2b** (pnio-dcp's own parser judging our
-  frames). It needs root, so it cannot run in the ordinary gate job, but the Linux box
-  at `192.168.60.236` can do it. Earlier notes lumped this with EtherCAT as
-  "impossible"; that was too quick, and this row exists so the mistake is not repeated.
-- **EtherCAT — structurally untestable.** `pysoem`/SOEM drives a real NIC with
-  distributed-clock cyclic exchange against real slaves. There is no software
-  simulator. Do not keep proposing live tests for it.
-- **2c → 2a is not reachable by more work here.** FINS, HART-IP's transport and
-  IO-Link have no third-party counterpart to test against; only real gear (rung 3)
-  can lift them.
-- **BAS / Ignition** are vendor REST APIs; only a real supervisory controller or
-  gateway moves them.
+### Doable, not done
+
+1. **PROFINET-DCP — the only mock-only protocol that is not hopeless.** `pnio-dcp`
+   binds an L2 raw socket, so a **veth pair** plus a raw-socket responder answering
+   DCP Identify-Ok would make it a genuine **2b** (pnio-dcp's own parser judging our
+   frames). Needs `CAP_NET_RAW`, so it cannot run in the ordinary gate job — the Linux
+   box at `192.168.60.236` can. An earlier note lumped this with EtherCAT as
+   impossible; that was wrong, and this entry exists so the mistake is not repeated.
+2. **EtherNet/IP's PCCC (`slc`) and Micro800 paths are still mock-only.** The Logix
+   path is 2b; these two would need PCCC-over-EtherNet-IP added to
+   `tests/eip_plc_harness.py`. Medium effort, same rung as the rest of that connector.
+3. **IoTDB / TDengine write round-trips.** Only the client-library symbol surface is
+   checked. Both ship Docker images; a real write would lift them from rung 1 to 2a,
+   the same move NATS just made.
+4. **MTConnect Assets** (`/assets`) is not covered by the live agent.
+5. **The HTTP/SSE MCP transport** (`IAIOPS_MCP_TRANSPORT`) — the stdio path is now 2a,
+   this one is untested. Note HLD decision **D7** deliberately treats stdio as the
+   first-class transport, so this is lower value than its absence suggests.
+6. **OPC-UA against a third-party server** (KEPServerEX / Prosys / a real PLC) — the
+   in-process `asyncua` server is 2a for the client, but vendor interop, the other
+   security policies and certificate-trust enforcement all remain `待核实`.
+
+### Not doable, and why
+
+- **EtherCAT.** `pysoem`/SOEM drives a real NIC with distributed-clock cyclic exchange
+  against real slaves. **No software simulator exists.** Do not keep proposing live
+  tests for it.
+- **2c → 2a for FINS, HART-IP's transport, and IO-Link.** There is no third-party
+  counterpart to test against; only real gear (rung 3) can lift them.
+- **BAS (Metasys/Niagara) and Ignition.** Vendor REST APIs — only a real supervisory
+  controller or gateway moves them.
+- **Rung 3, everywhere.** Hardware-gated by definition. See
+  [issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28).
+
+### Open questions carried forward
+
+- **Does real fab equipment reconnect the way secsgem does?** Repeated short-lived HSMS
+  sessions fail against `GemEquipmentHandler`; HSMS's T7 timer makes it plausible for
+  real tools, and equally plausible that it is specific to secsgem. **Not asserted
+  either way** — the harness sidesteps it with a process per test.
+- **Does a real BACnet controller accept `bacnet_write_property`?** The virtual device
+  does not, at any priority. Untested in both directions.
+- **`bacpypes3` and `secsgem` both keep module-level state** that makes a second
+  device/handler in one interpreter unreliable. Worked around (one session sequence,
+  one process); not diagnosed upstream.
+
