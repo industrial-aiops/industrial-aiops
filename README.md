@@ -13,6 +13,13 @@ Industrial-AIOps is the OT member of the [industrial-aiops](https://github.com/i
 > the difference is what an evaluator needs. Every `待核实` below is hardware-gated, not
 > forgotten — see [issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28).
 >
+> **Per-protocol evidence, including what each test does *not* cover, is in
+> [docs/VERIFICATION-RECORD.md](docs/VERIFICATION-RECORD.md)** — one row per protocol,
+> naming the test that produced the claim. It distinguishes a real wire to a
+> *third-party* server (2a) from one to a server *we* wrote (2b) from one where both
+> ends are ours (2c), because those are not the same evidence. **Real gear (rung 3) is
+> zero for every protocol**, and nothing in that file changes it.
+>
 > **Verified against real libraries / containers / in-process servers.** Pure analysis and
 > the **OPC-UA** path run against a real in-process `asyncua` server — including
 > **certificate message security** (a `Sign` / `SignAndEncrypt` matrix) and **Alarms &
