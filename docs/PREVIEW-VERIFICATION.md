@@ -11,12 +11,31 @@
 
 1. **codec / surface verified** — the driver's symbols + our encode/decode run
    against the real library (already true for most; done in CI).
-2. **loopback / in-process verified** — real wire against an in-process server on
-   localhost (e.g. IEC-104 `c104` loopback; OPC-UA asyncua; HART-IP TCP loopback).
+2. **loopback / in-process verified** — a real wire to a server on localhost. This
+   splits in two, and the difference is not cosmetic:
+   - **2a — third-party counterparty.** The far end is somebody else's
+     implementation of the spec: pymodbus, bacpypes3, mosquitto, opendnp3,
+     libiec61850, `c104`, asyncua, secsgem's equipment. An independent
+     implementation judges our frames, so a shared misreading is unlikely.
+   - **2b — our own server.** The client library ships no server, so the far end is
+     written by us from the frame layout (`tests/mc_plc_harness.py`,
+     `s7_plc_harness.py`, `eip_plc_harness.py`). **If we misread the spec, harness
+     and expectations are wrong together.** It is still far stronger than a mock —
+     the real client parses every byte and rejects malformed frames, and the harness
+     decodes the request so the wrong device/tag/offset returns different data — but
+     it is *not* independent confirmation. Say "2b" when reporting it; do not let it
+     be quoted as if it were 2a.
 3. **live-gear verified** ← *this runbook* — real physical/virtual device on the
    bench, read end-to-end through the connector.
 
-Only (3) flips the README banner from `待核实` to verified.
+Only (3) flips the README banner from `待核实` to verified. Neither 2a nor 2b does,
+and no amount of 2b adds up to 2a.
+
+**Current standing (2026-08-01).** 2a: OPC-UA · Modbus-RTU · Modbus-TCP · MQTT/
+Sparkplug · BACnet · MTConnect · SECS/GEM · IEC-104 · DNP3 · IEC-61850.
+2b: Mitsubishi MC · S7comm · EtherNet/IP. Mock only: EtherCAT · PROFINET-DCP —
+both need hardware or raw-socket privileges no runner has, and neither has a
+software simulator. **Level 3 is zero for every protocol.**
 
 ## Preview inventory (source of truth: `README.md` validation banner)
 
