@@ -162,7 +162,7 @@ def virtual_device() -> Any:
 
 @_requires_two_ips
 @pytest.mark.integration
-def test_bacnet_discover_read_round_trip(virtual_device: _VirtualDevice) -> None:
+def test_bacnet_discover_read_and_write_round_trip(virtual_device: _VirtualDevice) -> None:
     """Real Who-Is discover + present-value read round-trip through the connector.
 
     The connector binds its own BAC0/bacpypes3 stack on ``CLIENT_IP`` and
@@ -192,3 +192,59 @@ def test_bacnet_discover_read_round_trip(virtual_device: _VirtualDevice) -> None
         (p["object_type"], p["instance"]): p.get("present_value") for p in points.get("points", [])
     }
     assert present.get(("analogValue", AV_INSTANCE)) == pytest.approx(AV_VALUE)
+
+    # ── the WRITE path, in the same session sequence ─────────────────────────
+    #
+    # Folded in here rather than given its own test, and that is a library limit
+    # rather than a style choice: standing up a SECOND virtual device in the same
+    # interpreter made the second test fail on CI runners ("Trouble with Iam...
+    # Response received = []") while passing locally. bacpypes3 keeps module-level
+    # vendor registrations — the same class of problem that put the secsgem
+    # equipment in its own process. One device, one sequence, no flake.
+    #
+    # What this covers, and why it matters: driving the write live is what showed
+    # that ``applied: True`` was an UNVERIFIED claim. BAC0's ``write()`` returns
+    # None and raises nothing whether the device honoured the request or silently
+    # dropped it — against this device the present-value never moves — so the
+    # connector now reads back and REPORTS (``after`` / ``verified``) instead of
+    # asserting success.
+    preview = ops.bacnet_write_property(
+        target,
+        address=address,
+        object_type="analogValue",
+        instance=AV_INSTANCE,
+        value=99.0,
+        dry_run=True,
+    )
+    assert preview.get("dry_run") is True
+    assert "after" not in preview, "a dry run performed a read-back verification"
+
+    applied = ops.bacnet_write_property(
+        target,
+        address=address,
+        object_type="analogValue",
+        instance=AV_INSTANCE,
+        value=99.0,
+        dry_run=False,
+    )
+
+    # The BEFORE capture is what an operator writes back to undo, so it must be what
+    # the device actually held.
+    assert applied.get("before") == pytest.approx(AV_VALUE), (
+        f"the captured BEFORE ({applied.get('before')}) is not what the device held "
+        f"({AV_VALUE}) — an undo built from it would restore the wrong value"
+    )
+
+    # The read-back is reported, whatever it says. Deliberately not judged as
+    # pass/fail: on a commandable object a higher priority legitimately holds the
+    # value, and only the operator knows the priority scheme.
+    assert "after" in applied, "the write did not report a read-back"
+    assert "verified" in applied
+    if applied["after"] == pytest.approx(99.0):
+        assert applied["verified"] is True
+    else:
+        # This device does not take the write. The point of the fix is that the
+        # caller is TOLD, instead of reading applied:true and believing it.
+        assert applied["verified"] is False
+        assert applied.get("verify_note"), "an unverified write carried no explanation"
+        assert "priority" in applied["verify_note"].lower()

@@ -484,7 +484,27 @@ def bacnet_write_property(
                 "recorded approver to apply. 未经授权勿对生产控制系统写入.",
             }
         net.write(request)
-    return {
+        # Read the value back and REPORT it. BAC0's ``write()`` returns None and
+        # raises nothing whether the device honoured the request or silently dropped
+        # it — measured against a live bacpypes3 device, where the write left the
+        # present-value untouched and nothing in the return value said so. Claiming
+        # ``applied: True`` on the strength of "it did not raise" is therefore an
+        # unverified claim, and on a BACnet write that is the wrong kind of claim to
+        # make: the caller is deciding whether a building setpoint moved.
+        after: Any = None
+        verify_error = ""
+        try:
+            raw_after = net.read(f"{addr} {otype} {inst} {prop}")
+            after = num(raw_after) if num(raw_after) is not None else s(raw_after, 200)
+        except Exception as exc:  # noqa: BLE001 — a failed read-back is not a failed write
+            verify_error = s(str(exc), 160)
+
+    # Deliberately NOT judged as pass/fail. A commandable object legitimately keeps a
+    # different present-value when a HIGHER priority holds it, so "after != written"
+    # is not proof the write was refused. Report both and let the operator — who knows
+    # the priority scheme — read it, with a note that names the two usual causes.
+    verified = verify_error == "" and after == shown
+    result = {
         "endpoint": s(getattr(target, "name", ""), 64),
         "address": s(addr, 64),
         "object_type": s(otype, 32),
@@ -496,7 +516,21 @@ def bacnet_write_property(
         "before": before,
         "written": shown,
         "applied": True,
+        "after": after,
+        "verified": verified,
     }
+    if verify_error:
+        result["verify_error"] = verify_error
+    elif not verified:
+        result["verify_note"] = (
+            f"The write was issued but {prop} still reads {after!r}, not {shown!r}. "
+            f"On a commandable object this is normal when a HIGHER priority holds the "
+            f"value — write at that priority, or relinquish it. Otherwise the object "
+            f"may not be commandable, or the controller refused the write: BACnet's "
+            f"acknowledgement is not surfaced by the client library, so this read-back "
+            f"is the only evidence either way."
+        )
+    return result
 
 
 __all__ = [

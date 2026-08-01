@@ -2,6 +2,64 @@
 
 ## Unreleased
 
+### Fixed
+- **NATS egress took 120 seconds to fail against an unreachable broker**, despite
+  `timeout_s`. `connect_timeout` does not bound the attempt — nats-py works through its
+  server pool on its own cadence, and neither `allow_reconnect=False` nor
+  `max_reconnect_attempts=0` changed it (measured, not assumed). `stream_publish` is an
+  MCP tool, so that was a **two-minute hang on a typo'd address or a sealed site**, and
+  `@governed_tool`'s `timeout_seconds` is advisory — it warns, it does not cancel. A hard
+  `asyncio.wait_for` now bounds the whole connect-publish-drain at `max(2 x timeout_s, 5s)`
+  and raises a teaching error. **120s → 5s.** Found by timing a test, not by reading code.
+- **`bacnet_write_property` reported `applied: true` without any evidence.** BAC0's
+  `write()` returns `None` and raises nothing **whether the device honoured the request or
+  silently dropped it** — verified against a live bacpypes3 device, where the present-value
+  never moved and nothing in the result said so. On a write that moves a building setpoint,
+  "it did not raise" is the wrong basis for claiming success.
+
+  The write now reads the value back and reports it (`after`, `verified`), and
+  deliberately does **not** judge a mismatch as failure: on a commandable object a higher
+  priority legitimately holds the value, and only the operator knows the priority scheme.
+  When `after` differs it carries a `verify_note` naming the two usual causes. Reporting
+  is the honest primitive here; asserting was not.
+- **`test_deliver_without_nats_raises_teaching_error` was environment-dependent and
+  misnamed.** `nats-py` *is* installed, so the ImportError branch it claimed to cover can
+  never run; what it exercised was a failed connection to `localhost:4222`, and only while
+  nothing happened to be listening. Running a local broker turned it red — as it would on
+  any developer machine with NATS running. Renamed and aimed at a closed port.
+
+### Added
+- **The MCP server is now driven by a real MCP client over stdio**
+  (`tests/test_mcp_stdio_live.py`). Every other test calls tool functions in-process,
+  leaving the product's **primary interface** unexercised. Seven tests launch the real
+  `mcp_server.server:main` entrypoint as a subprocess and drive it with the SDK's own
+  `stdio_client` + `ClientSession` — rung **2a**. Two of them carry product promises that
+  were previously only checked against our own registry, which is not where a client looks:
+
+  - **the `ToolAnnotations` a client actually receives.** 0.20.1's point is that a client
+    can tell a plant write from a browse programmatically; now verified where it is
+    consumed. Every tool must arrive annotated, and `mqtt_publish` must arrive
+    `destructiveHint=True`;
+  - **what `IAIOPS_NO_EGRESS=1` withholds, as seen from outside.** The airgap promise is
+    about what a *client* can see; asserting it against our own registry assumed the thing
+    under test. Now the client is asked, and the reads must survive the gate.
+
+  Also: the JSON-RPC round trip, a connector failure arriving as readable content rather
+  than a session-killing protocol error, and `IAIOPS_MCP` profile selection through the
+  real entrypoint. Mutation-verified — disabling the annotation derivation fails two
+  tests, neutering the egress gate fails one.
+- **Egress sinks against real servers** (`tests/test_egress_live.py`). `test_egress_nats.py`
+  monkeypatched `_deliver` and `test_influxdb_sink.py` replaced the whole `requests` module,
+  so the two things that actually leave the building — the NATS wire format and the InfluxDB
+  line protocol — were only ever checked against our own idea of them. Now a **real NATS
+  broker** (published messages are read back off it by a real subscriber, because "did not
+  raise" would prove nothing) and a **real HTTP endpoint** recording exactly what the
+  InfluxDB sink puts on the wire: measurement, value, bucket/org query, `Authorization`
+  header, and that five points become **one** request rather than five.
+- **The BACnet write path is live** (`tests/test_bacnet_live.py`) — dry-run verified by
+  reading back rather than by trusting the returned dict, and the BEFORE capture checked
+  against what the device actually held.
+
 ### Added
 - **EtherNet/IP now runs over a real CIP session** (`tests/test_eip_live.py` +
   `tests/eip_plc_harness.py`) — the largest of these gaps, because

@@ -58,7 +58,14 @@ class NATSPublisher:
 
         async def _run() -> None:
             servers = [srv.strip() for srv in self._servers.split(",") if srv.strip()]
-            opts: dict = {"servers": servers, "connect_timeout": self._timeout}
+            # ``allow_reconnect=False``: reconnection is meaningless for this
+            # publisher, which connects, publishes the batch and drains (see the note
+            # on ``close()``). There is no long-lived connection for a retry to save.
+            opts: dict = {
+                "servers": servers,
+                "connect_timeout": self._timeout,
+                "allow_reconnect": False,
+            }
             if self._token:
                 opts["token"] = self._token
             if self._tls:
@@ -71,8 +78,27 @@ class NATSPublisher:
             finally:
                 await nc.drain()
 
+        # HARD outer bound, and it has to be ours. ``connect_timeout`` alone does not
+        # bound the attempt: an unreachable broker took **120 seconds** to surface an
+        # error, because nats-py works through its server pool with its own retry
+        # cadence. Neither ``allow_reconnect=False`` nor ``max_reconnect_attempts=0``
+        # changed that — measured, not assumed.
+        #
+        # ``stream_publish`` is an MCP tool, so that was a two-minute hang on a
+        # typo'd address or a sealed site, and ``@governed_tool``'s
+        # ``timeout_seconds`` is advisory (it warns; it does not cancel). A bounded
+        # failure the caller can act on beats an accurate one it never sees.
+        async def _bounded() -> None:
+            await asyncio.wait_for(_run(), timeout=max(self._timeout * 2, 5.0))
+
         try:
-            asyncio.run(_run())
+            asyncio.run(_bounded())
+        except TimeoutError as exc:
+            raise EgressError(
+                f"NATS publish to {self._servers} timed out after "
+                f"{max(self._timeout * 2, 5.0):.0f}s. Check the address and that the "
+                f"broker is reachable from this host."
+            ) from exc
         except EgressError:
             raise
         except Exception as exc:  # noqa: BLE001 — surface any bus/loop failure as a teaching error
