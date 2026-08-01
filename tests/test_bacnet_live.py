@@ -192,3 +192,96 @@ def test_bacnet_discover_read_round_trip(virtual_device: _VirtualDevice) -> None
         (p["object_type"], p["instance"]): p.get("present_value") for p in points.get("points", [])
     }
     assert present.get(("analogValue", AV_INSTANCE)) == pytest.approx(AV_VALUE)
+
+
+@_requires_two_ips
+@pytest.mark.integration
+def test_bacnet_write_reports_what_the_device_actually_did(
+    virtual_device: _VirtualDevice,
+) -> None:
+    """The WRITE path over a real BACnet/IP wire — previously mock-only, and it
+    found that ``applied: True`` was an unverified claim.
+
+    ``bacnet_write_property`` is a **high-risk** governed write on a building
+    controller. Driving it live showed that BAC0's ``write()`` returns ``None`` and
+    raises nothing **whether the device honoured the request or silently dropped
+    it** — against this live bacpypes3 device the present-value never moved, and
+    nothing in the connector's return said so.
+
+    So the connector now reads the value back and reports it (``after`` /
+    ``verified``) instead of asserting success. It deliberately does **not** judge a
+    mismatch as failure: on a commandable object a higher priority legitimately
+    holds the value. Reporting is the honest primitive; judging would need the
+    priority scheme, which only the operator has.
+
+    What this test pins is therefore the *reporting*, not a value change — the
+    virtual device does not accept the write, which is precisely the case where an
+    unverified ``applied: True`` would mislead someone.
+    """
+    target = TargetConfig(name="virt-ahu", protocol="bacnet", host=CLIENT_IP)
+
+    try:
+        discovered = ops.bacnet_discover(target)
+    except OTConnectionError as exc:  # pragma: no cover — env, reported not asserted
+        pytest.skip(f"connector could not open a live BACnet session: {exc}")
+    match = next(
+        (d for d in discovered.get("devices", []) if d.get("device_id") == DEVICE_ID), None
+    )
+    assert match is not None, f"virtual device {DEVICE_ID} not discovered"
+    address = match["address"]
+
+    def _present() -> float:
+        return ops.bacnet_read_property(
+            target, address=address, object_type="analogValue", instance=AV_INSTANCE
+        )["value"]
+
+    original = _present()
+    assert original == pytest.approx(AV_VALUE)
+
+    # A dry run must not reach the device — checked by reading back, not by trusting
+    # the returned dict.
+    preview = ops.bacnet_write_property(
+        target,
+        address=address,
+        object_type="analogValue",
+        instance=AV_INSTANCE,
+        value=99.0,
+        dry_run=True,
+    )
+    assert preview.get("dry_run") is True
+    assert "after" not in preview, "a dry run performed a read-back verification"
+    assert _present() == pytest.approx(original), "a dry run reached the device"
+
+    applied = ops.bacnet_write_property(
+        target,
+        address=address,
+        object_type="analogValue",
+        instance=AV_INSTANCE,
+        value=99.0,
+        dry_run=False,
+    )
+
+    # The BEFORE capture is what an operator would write back to undo, so it must be
+    # what the device actually held.
+    assert applied.get("before") == pytest.approx(original), (
+        f"the captured BEFORE ({applied.get('before')}) is not what the device held "
+        f"({original}) — an undo built from it would restore the wrong value"
+    )
+
+    # The read-back is reported, whatever it says.
+    assert "after" in applied, "the write did not report a read-back"
+    assert "verified" in applied
+
+    observed = _present()
+    assert applied["after"] == pytest.approx(observed), (
+        "the reported 'after' is not what the device holds"
+    )
+
+    if observed == pytest.approx(99.0):
+        assert applied["verified"] is True
+    else:
+        # This device does not take the write. The point of the fix is that the
+        # caller is TOLD, instead of reading applied:true and believing it.
+        assert applied["verified"] is False
+        assert applied.get("verify_note"), "an unverified write carried no explanation"
+        assert "priority" in applied["verify_note"].lower()

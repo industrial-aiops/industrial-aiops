@@ -41,9 +41,22 @@ def test_publish_event_subject(monkeypatch):
 
 
 @pytest.mark.unit
-def test_deliver_without_nats_raises_teaching_error():
+def test_deliver_to_an_unreachable_broker_raises_teaching_error():
+    """Renamed and pinned after it turned out to be environment-dependent.
+
+    It was ``test_deliver_without_nats_raises_teaching_error`` and used the default
+    publisher — i.e. ``localhost:4222``. But ``nats-py`` **is** installed, so the
+    ImportError branch it claims to cover can never run; what it actually exercised
+    was a failed connection, and only while nothing happened to be listening on
+    4222. Running a local broker (as ``test_egress_live.py`` now does) turned it
+    red — it would have done the same on any developer machine with NATS running.
+
+    Now aimed at a port nothing can be on, with a short timeout, so it is
+    deterministic and fast regardless of what else is running.
+    """
+    publisher = NATSPublisher(servers="nats://127.0.0.1:1", timeout_s=1)
     with pytest.raises(EgressError):
-        NATSPublisher()._deliver([("s", b"{}")])
+        publisher._deliver([("s", b"{}")])
 
 
 @pytest.mark.unit
