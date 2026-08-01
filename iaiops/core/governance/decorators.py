@@ -173,7 +173,7 @@ def governed_tool(
                     preview_truthy,
                 )
                 try:
-                    _pre_check(state)
+                    _pre_check_with_loop_guard(state)
                     return _annotate_result(state, await func(*args, **kwargs))
                 except (PolicyDenied, BudgetExceeded):
                     raise
@@ -199,7 +199,7 @@ def governed_tool(
                     preview_truthy,
                 )
                 try:
-                    _pre_check(state)
+                    _pre_check_with_loop_guard(state)
                     return _annotate_result(state, func(*args, **kwargs))
                 except (PolicyDenied, BudgetExceeded):
                     raise
@@ -338,6 +338,36 @@ def _bind_params(
         else:
             params[name] = value
     return params
+
+
+def _pre_check_with_loop_guard(state: _CallState) -> None:
+    """Run the pre-check, charging a denial to the runaway window.
+
+    A denied call is free of the budget *ceilings* on purpose — it did no work,
+    and a misconfigured rule must not be able to exhaust an operator's budget.
+    But a caller that does not understand a denial and retries it forever is the
+    archetypal stuck loop, and it was the one loop the runaway guard could never
+    see: the fingerprint was recorded only on the allowed path, so identical
+    denied writes could repeat without limit.
+
+    Charging the denial to the window (and only the window) closes that without
+    reopening the other. Once the window is full the guard's ``BudgetExceeded``
+    replaces the denial, which is the more actionable of the two: at that point
+    the caller needs "stop re-calling", not a 26th "denied".
+
+    Wrapping here rather than at each ``raise PolicyDenied`` keeps the three
+    existing denial paths — and any future one — covered by construction.
+    """
+    try:
+        _pre_check(state)
+    except PolicyDenied:
+        try:
+            get_budget().check_runaway(state.tool_name, state.safe_params)
+        except BudgetExceeded as exc:
+            state.status = "budget_exceeded"
+            state.result = {"error": exc.reason, "rule": exc.rule}
+            raise
+        raise
 
 
 def _pre_check(state: _CallState) -> None:
