@@ -12,6 +12,17 @@ Addresses follow the pyS7 syntax (e.g. ``DB1,REAL4``, ``DB1,X0.0``, ``MW10``,
 READ tools are non-destructive. ``s7_write_db`` is an OT-DANGEROUS write — it is
 governed (high risk_tier), captures the BEFORE value for undo, and must run
 through dry-run + double-confirm. 未经授权勿对生产控制系统写入.
+
+**Verification level (read before quoting it).** Exercised over a real ISO-TSAP
+socket with the genuine ``pyS7`` client in ``tests/test_s7_live.py`` — COTP
+connect, PDU negotiation, S7ANY address encoding, per-item response parsing, and
+the write's BEFORE capture all run for real. But ``pyS7`` ships **no server**, so
+the far end (``tests/s7_plc_harness.py``) is written by us from the frame layout,
+unlike the protocols facing a real third-party counterparty (pymodbus, bacpypes3,
+opendnp3, …). If we misread S7comm, harness and expectations are wrong together.
+Stronger than a mock — the real client validates every response and the harness
+decodes the request — but **weaker than a third-party round-trip, and a physical
+S7 CPU stays 待核实.**
 """
 
 from __future__ import annotations

@@ -3,6 +3,29 @@
 ## Unreleased
 
 ### Added
+- **S7comm now runs over a real ISO-TSAP socket** (`tests/test_s7_live.py` +
+  `tests/s7_plc_harness.py`). `test_s7.py` monkeypatches `_build_s7_client`, so `pyS7`
+  never ran — the COTP connection request, the PDU-size negotiation, the S7ANY address
+  encoding (S7 addresses go on the wire in **bits**, `start * 8 + bit_offset`) and the
+  per-item response parsing with its return codes and fill bytes were all assumed.
+  Eleven tests now drive the genuine client, including `s7_write_db`'s **BEFORE capture
+  verified by reading the data block back**.
+
+  Same evidence caveat as MC and recorded in the module docstring: `pyS7` ships no
+  server, so the far end is ours. **A physical S7 CPU stays 待核实.**
+
+  Three things this asymmetry caught that a mock could not:
+
+  - the harness first read a *request's* parameter at the **response** offset (19 vs 17
+    — an ACK_DATA header carries an error class/code that a job header does not), then
+    mis-indexed the 12-byte item spec by one. Both surfaced as pyS7 rejecting the answer;
+  - mutation testing showed `test_bit_addresses_select_the_right_bit` does **not** prove
+    what its first docstring claimed. pyS7 **coalesces** neighbouring bit tags into one
+    byte read and extracts the bits client-side, so the harness's single-bit branch is
+    dead on that path — deleting it fails nothing. The test still discriminates the
+    failure that matters (returning the byte whole would make bit 1 read `True`), but it
+    pins the connector's *address* construction plus pyS7's extraction, not our bit
+    handling. Both the test and the harness now say so rather than looking covered.
 - **Mitsubishi MC now runs over a real socket** (`tests/test_mc_live.py` +
   `tests/mc_plc_harness.py`). `test_mc.py` monkeypatches `_build_mc_client`, so
   `pymcprotocol` never ran: 3E frame assembly, device encoding, signed-word decode and
