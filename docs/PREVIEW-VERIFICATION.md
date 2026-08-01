@@ -163,9 +163,17 @@ same standard used for Modbus-RTU and BACnet above. Steps (IEC-104 / `c104` is t
    (it prints e.g. `expected: (client:c104.Client,connection:c104.Connection,common_address:int)->None`).
 5. **Pass criteria** (as above): real values with quality/timestamp; a bad address → teaching error,
    no fabricated value; monitor-only paths issue no control frames (assert via server-side capture).
-6. **Make CI run it durably:** install the extra **non-best-effort** in the CI gate (unlike
-   `pydnp3`/`pyiec61850`, which have no CI-buildable binding and stay best-effort + skip). If the
-   binding builds on the runner, the `@pytest.mark.integration` live test then runs every push.
+6. **Make CI run it durably:** install the extra **non-best-effort** in the CI gate, so the
+   `@pytest.mark.integration` live test runs every push, and make a **skip fail the build** —
+   a skipped live test is indistinguishable from a passing one in a green badge, which is how
+   gaps survive.
+
+   > This step used to exempt `pydnp3` and `pyiec61850` as having "no CI-buildable binding".
+   > Both now build and run on hosted runners (energy repo, 2026-08-01). `pyiec61850` had
+   > quietly started working some time earlier and nobody rechecked; `pydnp3` needed three
+   > mechanical fixes to a 2019 binding layer (`scripts/build_pydnp3.sh` in the energy repo).
+   > **"Not CI-buildable" is a measurement with an expiry date, not a property.** Re-test it
+   > before repeating it — that sentence had been copied forward for months.
 7. **Flip status in one PR** (per the sync list above): README (+zh) matrix + validation banner,
    the edition SKILL support matrix, CHANGELOG, and any deck/PPT — and **only** after a real pass.
    Never relabel from a compile-success alone.
