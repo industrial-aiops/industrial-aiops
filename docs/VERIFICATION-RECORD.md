@@ -44,7 +44,7 @@ for every protocol in both repos.** Nothing below changes that.
 | **Modbus RTU** | 2a | `test_modbus_rtu_live.py` | Real `pymodbus` `ModbusSerialServer` over a socat PTY pair — actual RTU/CRC framing, all four function codes, float32 | Physical RS-485 bus / USB adapter; multi-drop addressing; baud/parity mismatch behaviour |
 | **MQTT / Sparkplug B** | 2a | `test_uns_live_integration.py`, `test_mqtt_retained_undo.py` | Real **mosquitto** broker through the full paho loop: UNS audit, Sparkplug schema from NBIRTH, retained-publish BEFORE capture and inverse round-trip | Production EoN node / Sparkplug host application; broker auth/TLS |
 | **BACnet/IP** | 2a | `test_bacnet_live.py` + `scripts/bacnet_live_harness.sh` | Real `bacpypes3` virtual device, **two IPs on one subnet**, real UDP broadcast Who-Is/I-Am round-trip; **the write path** — dry-run verified by reading back, BEFORE capture checked against what the device held, and the read-back `after`/`verified` reporting | Physical HVAC/BMS controller; COV subscription; trend logs; **whether a real controller accepts the write** — this virtual device does not, which is how the unverified `applied: true` was found (note ⁵) |
-| **MTConnect** | **2b**¹ | `test_mtconnect_live.py` | Real HTTP agent: URL from host/port, `/sample?from=&count=` query, streamed body, **DTD/XXE guard on the first chunk** (discriminated from the full-body guard), size cap while reading, long-poll cursor advance + `instance_changed` stop | Real machine-tool agent (Mazak/Okuma/…); Assets; MTConnect ≥2.0 schema |
+| **MTConnect** | **2b**¹ | `test_mtconnect_live.py` | Real HTTP agent: URL from host/port, `/sample?from=&count=` query, streamed body, **DTD/XXE guard on the first chunk** (discriminated from the full-body guard), size cap while reading, long-poll cursor advance + `instance_changed` stop, **`/assets` fetched and parsed** | Real machine-tool agent (Mazak/Okuma/…); MTConnect ≥2.0 schema |
 | **SECS/GEM** | 2a⁴ | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
 | **Mitsubishi MC** | **2b** | `test_mc_live.py` + `mc_plc_harness.py` | Real `pymcprotocol` `Type3E` client vs **our** SLMP-3E server: CPU identity, batch word/bit read, signed-word decode, offsets, random read of words+dwords, write BEFORE capture verified by read-back | Physical MELSEC CPU; 1E/4E frames; ASCII mode; iQ-R addressing |
 | **S7comm** | **2b** | `test_s7_live.py` + `s7_plc_harness.py` | Real `pyS7` client vs **our** ISO-TSAP server: COTP connect, PDU negotiation, DB/merker reads, signed INT, big-endian REAL, **WORD/DWORD/DINT/LREAL widths**, offsets, write BEFORE capture verified by read-back | Physical S7 CPU; PUT/GET access control; optimized-DB blocks; STRING/WSTRING; **our own bit handling** (see note ³) |
@@ -115,12 +115,16 @@ All three run on **every CI build**, and a skipped live test **fails** the build
 
 | Area | Rung | Test | What actually runs | Not covered |
 |---|---|---|---|---|
-| **MCP over stdio** | 2a | `test_mcp_stdio_live.py` | The SDK's own `stdio_client` + `ClientSession` against the real `mcp_server.server:main` entrypoint as a subprocess: initialize handshake, `list_tools()`, a JSON-RPC tool call, a connector failure arriving as readable content rather than a session-killing protocol error, **the `ToolAnnotations` a client receives**, **what `IAIOPS_NO_EGRESS=1` withholds as seen from outside**, and `IAIOPS_MCP` profile selection | The opt-in HTTP/SSE transport (`IAIOPS_MCP_TRANSPORT`); any client other than the reference SDK; Claude Desktop / IDE hosts |
+| **MCP over stdio** | 2a | `test_mcp_stdio_live.py` | The SDK's own `stdio_client` + `ClientSession` against the real `mcp_server.server:main` entrypoint as a subprocess: initialize handshake, `list_tools()`, a JSON-RPC tool call, a connector failure arriving as readable content rather than a session-killing protocol error, **the `ToolAnnotations` a client receives**, **what `IAIOPS_NO_EGRESS=1` withholds as seen from outside**, and `IAIOPS_MCP` profile selection | Any client other than the reference SDK; Claude Desktop / IDE hosts; TLS termination and an authenticating gateway in front of the HTTP transports |
+
+| **MCP over HTTP/SSE** | 2a | `test_mcp_http_live.py` | The SDK's `streamablehttp_client` and `sse_client` against the real entrypoint run as a subprocess under uvicorn: initialize, `list_tools()`, a tool call whose connector failure arrives as content, and **the IP-allowlist middleware 403ing a client outside `IAIOPS_ALLOWLIST_IPS`** — a control that exists on no other transport — with an unconfigured server proving it is off by default | TLS; a real gateway in front; clients other than the reference SDK |
 
 Until 2026-08-01 nothing drove this at all — every test called tool functions
 in-process, so the product's **primary interface** was unexercised. Two of the
 assertions above had previously been checked against our own registry, which is not
-where a client looks.
+where a client looks. The network transports followed on 2026-08-02: they are what
+`deploy/margo` and the IGEL submission actually expose, and the allowlist middleware
+had never answered a request from a client that was not on the list.
 
 ## Egress — the paths that ship data off-box
 
@@ -191,10 +195,12 @@ saying so is the point.
    reader defects in note ⁶. What remains is the **HTTP/WebSocket TDengine
    connectors** (`taosrest` / `taos-ws-py`), which would remove the native-libtaos
    dependency that keeps this lane on a vendor tarball.
-4. **MTConnect Assets** (`/assets`) is not covered by the live agent.
-5. **The HTTP/SSE MCP transport** (`IAIOPS_MCP_TRANSPORT`) — the stdio path is now 2a,
-   this one is untested. Note HLD decision **D7** deliberately treats stdio as the
-   first-class transport, so this is lower value than its absence suggests.
+4. ~~**MTConnect Assets** (`/assets`) is not covered by the live agent.~~ **Done 2026-08-02** — the live agent serves an `MTConnectAssets` document and `test_mtconnect_live.py` asserts the parse (element name as the asset type, nested life-cycle children not counted as assets).
+5. ~~**The HTTP/SSE MCP transport** (`IAIOPS_MCP_TRANSPORT`).~~ **Done 2026-08-02** —
+   both `streamable-http` and `sse` are 2a (`test_mcp_http_live.py`), including the IP
+   allowlist that only exists on those transports. What is left is TLS and a real
+   authenticating gateway in front, which HLD decision **D7** puts outside this
+   process on purpose.
 6. **OPC-UA against a third-party server** (KEPServerEX / Prosys / a real PLC) — the
    in-process `asyncua` server is 2a for the client, but vendor interop, the other
    security policies and certificate-trust enforcement all remain `待核实`.

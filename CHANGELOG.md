@@ -19,6 +19,18 @@
   the limit and the live test asserts it, so a pnio-dcp that fixes it turns red.
 
 ### Testing
+- **`tests/test_mcp_http_live.py`** — the MCP server's **network transports** reach
+  **2a**, next to stdio. The SDK's `streamablehttp_client` and `sse_client` drive the
+  real entrypoint running under uvicorn: initialize, `list_tools()`, and a tool call
+  whose connector failure comes back as content rather than killing the session. It
+  also covers **the IP-allowlist middleware, which exists on no other transport** — a
+  client outside `IAIOPS_ALLOWLIST_IPS` gets a 403 before any MCP conversation starts,
+  with an unconfigured server proving the control is off by default. These transports
+  are what `deploy/margo` and the IGEL submission expose, and nothing had ever made a
+  request to one.
+- **MTConnect `/assets`** is now part of the live-agent round-trip: a third document
+  type with its own namespace, where the asset *type* is the child element's name and
+  the nested cutting-tool life-cycle elements must not be counted as assets.
 - **`tests/test_eip_pccc_live.py` + `tests/eip_pccc_plc.py`** — EtherNet/IP's other two
   driver routes reach **2b**, next to the Logix one. `slc` needed a second protocol in
   the harness rather than a second tag: CIP service 0x4B carrying DF1/PCCC, numbered
