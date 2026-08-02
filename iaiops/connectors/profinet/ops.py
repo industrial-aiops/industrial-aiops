@@ -52,9 +52,18 @@ def _decode_roles(value: Any) -> list[str]:
 def _device_brief(dev: Any) -> dict:
     """Normalize one pnio-dcp device descriptor to a JSON-safe identity dict.
 
-    pnio-dcp's device object exposes name_of_station / MAC / IP / netmask /
-    gateway; vendor/device id and role are surfaced best-effort (their presence
-    depends on what the station returned in its IdentifyAll response).
+    **``vendor_id`` / ``device_id`` / ``device_roles`` are empty in practice.**
+    ``pnio_dcp.Device`` (1.2.0, the pinned range) carries name_of_station / MAC /
+    IP / netmask / gateway / family and nothing else, so those three stay
+    ``None`` / ``[]`` even when the station DID return DeviceID and DeviceRole
+    blocks — verified on a real wire by ``tests/test_profinet_live.py``, which
+    sends both and watches them disappear. The earlier wording ("depends on what
+    the station returned") put the limit in the wrong place: it is the client
+    library, not the device.
+
+    The getattr probes and :func:`_decode_roles` stay because they cost nothing
+    and a later pnio-dcp may expose the fields; the live test asserts the current
+    emptiness, so the day that changes, it says so.
     """
     role_raw = _first_attr(dev, "device_role", "role")
     return {
@@ -105,8 +114,9 @@ def profinet_discover(target: Any) -> dict:
         "station_count": len(stations),
         "stations": stations,
         "note": "DCP IdentifyAll broadcast on the local layer-2 segment. Read-only "
-        "discovery — no connection per device, no RT cyclic data. Fields present "
-        "depend on each station's IdentifyAll response.",
+        "discovery — no connection per device, no RT cyclic data. vendor_id, "
+        "device_id and device_roles are always empty: pnio-dcp does not expose "
+        "them even when the station returns them.",
     }
 
 
@@ -213,8 +223,10 @@ def profinet_asset_inventory(target: Any) -> dict:
         "assets": assets,
         "method": "dcp_identify_all",
         "note": "PROFINET asset register via DCP IdentifyAll (layer-2 broadcast). "
-        "Read-only; no per-device connection. Roles decoded from the DCP "
-        "device-role bitmask.",
+        "Read-only; no per-device connection. Roles are decoded from the DCP "
+        "device-role bitmask WHEN the client exposes it — pnio-dcp does not, so "
+        "roles/vendor_id/device_id are empty and the controller/device counts "
+        "are 0 against it. Station name, MAC and IP suite are unaffected.",
     }
 
 

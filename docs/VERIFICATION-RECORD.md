@@ -7,8 +7,10 @@
 > and should be deleted rather than softened.
 >
 > Last updated **2026-08-02** (second pass the same day: the two historian TSDBs
-> went from rung 1 to 2a, which cost two product fixes — see note ⁶ — and the NATS
-> live tests now have a broker on every CI build instead of skipping). The
+> went from rung 1 to 2a, which cost two product fixes — see note ⁶ —
+> **PROFINET-DCP went from mock-only to 2b** on a veth pair, which cost a
+> documentation fix — see note ⁷ — and the NATS live tests now have a broker on
+> every CI build instead of skipping). The
 > follow-up register at the bottom is the durable list of what is still worth
 > testing, what is not, and the open questions — it is there rather than in a chat
 > log so it survives the session that produced it.
@@ -49,7 +51,7 @@ for every protocol in both repos.** Nothing below changes that.
 | **Omron FINS** | **2c** | `test_fins.py` | Real UDP/TCP sockets — but the client is **in-repo** (stdlib) *and* the server is ours, so no independent implementation is involved | Physical Omron CPU; everything about the wire format is our reading of it |
 | **HART-IP** | 1 + **2c** | `test_hart.py` | Command codec against the third-party `hart_protocol` (rung 1); the HART-IP UDP/TCP **transport is in-tree** and exercised against our own socket server (rung 2c) | Physical HART-IP gateway / multiplexer; burst mode against real devices |
 | **IO-Link** | **2c** | `test_iolink.py` | Real HTTP against our mock master — **the vendor JSON API shape is our assumption** | Any real IO-Link master (ifm/Balluff/…); JSON schema drift |
-| **PROFINET-DCP** | mock only | `test_profinet.py` | Nothing on a wire | **Everything.** See "still testable" below — this one is *not* hopeless |
+| **PROFINET-DCP** | **2b**⁷ | `test_profinet_live.py` + `profinet_dcp_station.py` + `scripts/profinet_dcp_harness.sh` | Real `pnio-dcp` over a **veth pair** — raw layer-2 frames, ether-type 0x8892: IdentifyAll discovery (MAC read off the reply's Ethernet header), identify-by-name hit and miss, a **unicast DCP Get** (proven by what the station received, not by the answer), the governed **DCP Set** applied and reversed via the captured BEFORE, and the dry run proven to put no Set on the wire | A real ERTEC/Siemens station; RT cyclic data (out of scope); Blink / factory reset (out of scope); a real segment's timing and vendor quirks |
 | **EtherCAT** | mock only | `test_ethercat.py` | Nothing on a wire | **Everything.** Structurally untestable without hardware — no software simulator exists |
 | **BAS (Metasys/Niagara)** | mock only | `test_bas_tools.py` | Vendor REST mocked | Real supervisory controller; vendor API drift |
 | **Ignition gateway** | mock only | `test_ignition_tools.py` | Vendor REST mocked | Real Ignition gateway; API version drift |
@@ -79,6 +81,19 @@ request or silently dropped it. The connector now reads back and reports
 (`after` / `verified`) rather than asserting success, and deliberately does **not**
 judge a mismatch as failure — on a commandable object a higher priority legitimately
 holds the value, and only the operator knows the priority scheme.
+
+⁷ **PROFINET stopped being mock-only without any new hardware — and the move
+found a documentation defect.** A veth pair plus a raw-socket responder was all it
+took; the earlier note that lumped this with EtherCAT was wrong because DCP is
+request-response over Ethernet, so the missing half was a *responder*, not a
+device. What the round-trip showed: `pnio_dcp.Device` (1.2.0) exposes only
+name_of_station / MAC / IP / netmask / gateway / family, so **`vendor_id`,
+`device_id` and `device_roles` are always empty** — the station sends DeviceID and
+DeviceRole blocks and the client drops them. `profinet_asset_inventory`'s
+`io_controller_count` is therefore structurally 0, which the tool documentation had
+promised otherwise. The mocked tests could not see it: their fake device had the
+attributes invented for it. The connector and tool docs now say so, and the live
+test asserts the emptiness so a future pnio-dcp that fixes it turns red.
 
 ³ **The S7 bit test does not cover our bit handling.** Mutation testing showed pyS7
 *coalesces* neighbouring bit tags into one byte read and extracts the bits itself.
@@ -156,12 +171,12 @@ saying so is the point.
 
 ### Doable, not done
 
-1. **PROFINET-DCP — the only mock-only protocol that is not hopeless.** `pnio-dcp`
-   binds an L2 raw socket, so a **veth pair** plus a raw-socket responder answering
-   DCP Identify-Ok would make it a genuine **2b** (pnio-dcp's own parser judging our
-   frames). Needs `CAP_NET_RAW`, so it cannot run in the ordinary gate job — the Linux
-   box at `192.168.60.236` can. An earlier note lumped this with EtherCAT as
-   impossible; that was wrong, and this entry exists so the mistake is not repeated.
+1. ~~**PROFINET-DCP — the only mock-only protocol that is not hopeless.**~~ **Done
+   2026-08-02** — rung **2b** via a veth pair and a raw-socket station
+   (`scripts/profinet_dcp_harness.sh`, run under `sudo` by the gate job; hosted
+   runners have passwordless root, so the Linux box was not needed after all).
+   Found the empty vendor/role fields in note ⁷. What remains is a real station
+   (rung 3) and the deliberately-out-of-scope services (RT cyclic, Blink, reset).
 2. **EtherNet/IP's PCCC (`slc`) and Micro800 paths are still mock-only.** The Logix
    path is 2b; these two would need PCCC-over-EtherNet-IP added to
    `tests/eip_plc_harness.py`. Medium effort, same rung as the rest of that connector.
@@ -182,7 +197,10 @@ saying so is the point.
 
 - **EtherCAT.** `pysoem`/SOEM drives a real NIC with distributed-clock cyclic exchange
   against real slaves. **No software simulator exists.** Do not keep proposing live
-  tests for it.
+  tests for it. (PROFINET was in this list once — see note ⁷ for why it did not
+  belong. The difference is real: DCP is request-response, so a responder suffices;
+  EtherCAT is a cyclic frame passed slave-to-slave in hardware, and a responder is
+  not what is missing.)
 - **2c → 2a for FINS, HART-IP's transport, and IO-Link.** There is no third-party
   counterpart to test against; only real gear (rung 3) can lift them.
 - **BAS (Metasys/Niagara) and Ignition.** Vendor REST APIs — only a real supervisory

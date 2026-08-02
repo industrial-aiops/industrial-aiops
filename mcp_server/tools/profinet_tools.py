@@ -31,7 +31,8 @@ def profinet_discover(endpoint: Optional[str] = None) -> dict:
 
     Returns dict: {endpoint, local_ip, station_count, stations:[{name_of_station,
         mac, ip, netmask, gateway, vendor_id, device_id, device_role_raw,
-        device_roles[], device_family}]}.
+        device_roles[], device_family}]}. vendor_id/device_id/device_role* are
+        always empty — pnio-dcp does not expose them (see the connector note).
 
     Example: profinet_discover(endpoint="cell1").
     """
@@ -79,8 +80,10 @@ def profinet_station_params(mac: str, endpoint: Optional[str] = None) -> dict:
 def profinet_asset_inventory(endpoint: Optional[str] = None) -> dict:
     """[READ][risk=low] PROFINET asset register from a DCP IdentifyAll sweep.
 
-    Segment-wide, read-only — no per-device connection. Decodes the DCP device-role
-    bitmask so IO-controllers vs IO-devices are distinguished.
+    Segment-wide, read-only — no per-device connection. The DCP device-role bitmask
+    is decoded when the client exposes it; pnio-dcp does not, so roles and the
+    controller/device counts come back empty and 0. Names, MACs and IP suites are
+    unaffected — those are what the register is for.
 
     Args:
         endpoint: Endpoint name from config (protocol 'profinet').
