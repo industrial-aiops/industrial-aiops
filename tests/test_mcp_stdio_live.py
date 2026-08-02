@@ -18,8 +18,8 @@ the real `mcp_server.server:main` entrypoint as a subprocess with the same env v
 an operator would set. Rung **2a**: a third-party implementation of the protocol
 judges our server.
 
-Not covered: the opt-in HTTP/SSE transport (`IAIOPS_MCP_TRANSPORT`), and any client
-other than the reference SDK.
+Not covered here: any client other than the reference SDK. The opt-in HTTP/SSE
+transports (`IAIOPS_MCP_TRANSPORT`) have their own file — `test_mcp_http_live.py`.
 """
 
 from __future__ import annotations

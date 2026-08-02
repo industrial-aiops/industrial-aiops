@@ -41,6 +41,21 @@ pytestmark = [pytest.mark.integration]
 
 _NS_DEV = "urn:mtconnect.org:MTConnectDevices:1.7"
 _NS_STREAMS = "urn:mtconnect.org:MTConnectStreams:1.7"
+_NS_ASSETS = "urn:mtconnect.org:MTConnectAssets:1.7"
+
+_ASSETS = f"""<?xml version="1.0"?>
+<MTConnectAssets xmlns="{_NS_ASSETS}">
+  <Header creationTime="2026-08-01T10:00:00Z" instanceId="1" sender="agent"
+          assetCount="2"/>
+  <Assets>
+    <CuttingTool assetId="T-4711" timestamp="2026-08-01T09:30:00Z" toolId="4711">
+      <CuttingToolLifeCycle>
+        <ToolLife type="MINUTES" countDirection="UP" limit="120">73</ToolLife>
+      </CuttingToolLifeCycle>
+    </CuttingTool>
+    <Fixture assetId="FIX-2" timestamp="2026-08-01T08:00:00Z"/>
+  </Assets>
+</MTConnectAssets>"""
 
 _PROBE = f"""<?xml version="1.0"?>
 <MTConnectDevices xmlns="{_NS_DEV}">
@@ -146,6 +161,10 @@ class _Handler(BaseHTTPRequestHandler):
 
         if parsed.path.endswith("/probe"):
             self._send(_PROBE.encode())
+            return
+
+        if parsed.path.endswith("/assets"):
+            self._send(_ASSETS.encode())
             return
 
         if parsed.path.endswith("/sample"):
@@ -347,3 +366,34 @@ def test_stream_stops_when_the_agent_restarts_mid_stream(
     assert out["observation_count"] == 10, (
         "observations from after the renumbering were attributed to this run"
     )
+
+
+def test_assets_are_fetched_from_the_assets_endpoint_and_parsed(
+    agent: tuple[TargetConfig, _AgentState],
+) -> None:
+    """`/assets` is a third document type with its own namespace and shape.
+
+    The connector's other reads all target Streams or Devices documents; assets
+    are neither, and the parse walks for an ``Assets`` container and reads
+    attributes off its children rather than off data items. Nothing about that
+    was exercised against a real HTTP round-trip — which is also what proves the
+    request goes to ``/assets`` rather than to ``/current`` with a query.
+    """
+    target, state = agent
+
+    out = ops.mtconnect_assets(target)
+
+    assert [request for request in state.requests if request.endswith("/assets")], state.requests
+    assert out["asset_count"] == 2, out
+    by_id = {asset["asset_id"]: asset for asset in out["assets"]}
+    assert set(by_id) == {"T-4711", "FIX-2"}, out
+    # The type is the child ELEMENT name, not an attribute — a parse that read
+    # some `type=` attribute instead would come back empty here.
+    assert by_id["T-4711"]["asset_type"] == "CuttingTool", out
+    assert by_id["FIX-2"]["asset_type"] == "Fixture", out
+    assert by_id["T-4711"]["timestamp"] == "2026-08-01T09:30:00Z", out
+    # The CuttingTool carries nested life-cycle elements. They are children of an
+    # asset, not assets, and a walk that recursed into them would surface a
+    # `CuttingToolLifeCycle` with no assetId — which is why the id set above is
+    # asserted as an equality rather than a subset.
+    assert "CuttingToolLifeCycle" not in {asset["asset_type"] for asset in out["assets"]}
