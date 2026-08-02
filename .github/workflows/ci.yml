@@ -103,6 +103,25 @@ jobs:
           docker logs iaiops-mosquitto || true
           exit 1
 
+      # The NATS egress tests are the only ones that put plant data on a real bus
+      # and read it back off — and they had been skipping on every CI run for want
+      # of a broker, which is exactly the "verified only when convenient" state the
+      # MQTT step above was added to end. `docs/VERIFICATION-RECORD.md` called NATS
+      # rung 2a on the strength of local runs; this makes that true continuously.
+      - name: Start NATS broker (egress live scaffolding)
+        if: runner.os == 'Linux'
+        run: |
+          docker run -d --rm --name iaiops-nats -p 4222:4222 nats:alpine
+          for i in $(seq 1 20); do
+            if (echo > /dev/tcp/127.0.0.1/4222) 2>/dev/null; then
+              echo "broker accepting connections (attempt $i)"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error title=NATS broker::nats did not accept connections within 20s"
+          docker logs iaiops-nats || true
+          exit 1
+
       # BACnet/IP discovery is a UDP broadcast and loopback does not carry it, so
       # the virtual device and the connector need two addresses on one subnet. The
       # harness adds the second one; see scripts/bacnet_live_harness.sh.
@@ -267,9 +286,40 @@ jobs:
           sudo ln -sf /usr/lib/libtaos.so.1 /usr/lib/libtaos.so
           sudo ldconfig
 
+      # The two historian TSDBs had never been checked against a server — only
+      # against their client libraries' symbol surface (rung 1). That is blind to
+      # everything the round-trip found on 2026-08-02: an IoTDB wildcard select
+      # whose fields do not line up with its declared columns under a WHERE clause
+      # (the reader attributed one machine's value to another tag), and a TDengine
+      # coverage query using MIN/MAX on a TIMESTAMP column, which taosd rejects
+      # outright. Both ship as Docker images, so this is a container each.
+      #
+      # Started here rather than in the gate job because this lane is the one that
+      # installs the `iotdb`/`tdengine` extras and the native libtaos client.
+      - name: Start IoTDB and TDengine (real historian round-trips)
+        run: |
+          docker run -d --rm --name iaiops-iotdb -p 6667:6667 apache/iotdb:1.3.2-standalone
+          docker run -d --rm --name iaiops-taos -p 6030:6030 tdengine/tdengine:3.3.5.0
+          # An open port is not readiness for either of these: IoTDB accepts TCP
+          # while the DataNode is still starting, and taosd answers only once its
+          # dnode is up. Wait for what each one says about itself.
+          for i in $(seq 1 60); do
+            if docker logs iaiops-iotdb 2>&1 | grep -q "DataNode is set up successfully"; then
+              echo "IoTDB ready (attempt $i)"; break
+            fi
+            sleep 2
+          done
+          for i in $(seq 1 60); do
+            if docker exec iaiops-taos taos -s "SHOW DATABASES" >/dev/null 2>&1; then
+              echo "TDengine ready (attempt $i)"; break
+            fi
+            sleep 2
+          done
+
       # --no-sync: keep the ad-hoc `uv pip install` env above; don't re-sync from
       # the lockfile (which has no energy/TSDB/HART extras).
       - name: Integration contract tests (real library APIs)
         run: >-
           uv run --no-sync pytest -q -rs -m integration
           tests/test_binding_contracts.py tests/test_opcua_discovery.py
+          tests/test_tsdb_live.py

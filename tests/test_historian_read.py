@@ -179,8 +179,12 @@ def test_tdengine_reader_coverage_and_validation(fake_taos):
     fake_taos.rows = [("line1.temp", 42, "2026-07-01", "2026-07-02")]
     reader = TDengineReader()
     cov = reader.coverage(limit=10)
+    # FIRST/LAST, not MIN/MAX: TDengine 3.x rejects MIN()/MAX() on a TIMESTAMP
+    # column, which this mocked cursor cannot notice — tests/test_tsdb_live.py
+    # is what does. Pinned here so the dialect choice is not silently reverted.
     assert fake_taos.executed[-1] == (
-        "SELECT metric, COUNT(*), MIN(ts), MAX(ts) FROM iaiops.ot_metric GROUP BY metric LIMIT 10"
+        "SELECT metric, COUNT(*), FIRST(ts), LAST(ts)"
+        " FROM iaiops.ot_metric GROUP BY metric LIMIT 10"
     )
     assert cov == [
         {"tag": "line1.temp", "rows": 42, "first_ts": "2026-07-01", "last_ts": "2026-07-02"}
@@ -253,9 +257,14 @@ def fake_iotdb(monkeypatch):
 
 @pytest.mark.unit
 def test_iotdb_reader_query_sql_and_shape(fake_iotdb):
+    # The ALIGN BY DEVICE shape a real IoTDB 1.3 returns: Time | Device | value,
+    # with the series path as a FIELD of the row. The earlier version of this fake
+    # returned one column per series and let the reader zip the header against the
+    # fields — a real server compacts those fields under a WHERE clause, so the zip
+    # mislabels rows. The fake now reproduces the server instead of the parser.
     fake_iotdb.dataset = _FakeDataSet(
-        ["Time", "root.iaiops.line1_temp.value"],
-        [_FakeRecord(1_782_984_600_000, [21.5])],
+        ["Time", "Device", "value"],
+        [_FakeRecord(1_782_984_600_000, ["root.iaiops.line1_temp", 21.5])],
     )
     reader = IoTDBReader()
     rows = reader.query(
@@ -270,7 +279,7 @@ def test_iotdb_reader_query_sql_and_shape(fake_iotdb):
     assert fake_iotdb.executed[-1] == (
         "SELECT value FROM root.iaiops.line1_temp"
         " WHERE time >= 1782979200000 AND time <= 1782986400000"
-        " ORDER BY time ASC LIMIT 50"
+        " ORDER BY time ASC LIMIT 50 ALIGN BY DEVICE"
     )
     assert len(rows) == 1
     assert rows[0]["tag"] == "line1_temp"
@@ -280,17 +289,16 @@ def test_iotdb_reader_query_sql_and_shape(fake_iotdb):
 
 @pytest.mark.unit
 def test_iotdb_reader_coverage_parses_aggregates(fake_iotdb):
+    # Aligned aggregate shape: one row per device, header fixed — not the
+    # per-series `COUNT(root.iaiops.t1.value)` columns the reader used to take
+    # apart with string surgery.
     fake_iotdb.dataset = _FakeDataSet(
-        [
-            "count(root.iaiops.t1.value)",
-            "min_time(root.iaiops.t1.value)",
-            "max_time(root.iaiops.t1.value)",
-        ],
-        [_FakeRecord(0, [7, 1_782_979_200_000, 1_782_986_400_000])],
+        ["Device", "COUNT(value)", "MIN_TIME(value)", "MAX_TIME(value)"],
+        [_FakeRecord(0, ["root.iaiops.t1", 7, 1_782_979_200_000, 1_782_986_400_000])],
     )
     cov = IoTDBReader().coverage(limit=10)
     assert fake_iotdb.executed[-1] == (
-        "SELECT COUNT(value), MIN_TIME(value), MAX_TIME(value) FROM root.iaiops.*"
+        "SELECT COUNT(value), MIN_TIME(value), MAX_TIME(value) FROM root.iaiops.* ALIGN BY DEVICE"
     )
     assert len(cov) == 1
     assert cov[0]["tag"] == "t1"
