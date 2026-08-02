@@ -59,8 +59,8 @@ def _build_opcua_client(target: TargetConfig) -> Any:
     # raises below — a locked secret store behind target.password(), an
     # unparseable security string, a target object missing a field — would leak
     # that thread and hang the process at exit, with no client for the caller to
-    # release because the builder never returned one. `iaiops opcua diagnose`
-    # against a malformed endpoint hung exactly this way (2026-08-02).
+    # release because the builder never returned one. `iaiops doctor` against a
+    # malformed OPC-UA endpoint hung exactly this way (2026-08-02).
     try:
         username = target.username
         password = target.password()

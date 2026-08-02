@@ -450,3 +450,21 @@ def test_historian_tools_missing_store_teaches(home, monkeypatch):
     _no_site_config(monkeypatch)
     assert "No local store" in historian_query(tag="t")["error"]
     assert "No local store" in historian_coverage()["error"]
+
+
+@pytest.mark.unit
+def test_iotdb_reader_refuses_a_result_shape_it_cannot_map(fake_iotdb):
+    """A header/field mismatch must raise, not silently mis-attribute.
+
+    This is the shape of the bug that made a time-bounded query return the right
+    numbers under the wrong tags: `zip` truncates to the shorter side and says
+    nothing. If a future IoTDB returns a layout this reader does not know, the
+    caller gets an error dict (the historian tools wrap exceptions) rather than
+    another machine's reading under their tag name.
+    """
+    fake_iotdb.dataset = _FakeDataSet(
+        ["Time", "Device", "value", "quality"],  # one more column than fields
+        [_FakeRecord(1_782_984_600_000, ["root.iaiops.line1_temp", 21.5])],
+    )
+    with pytest.raises(ValueError, match="cannot attribute values"):
+        IoTDBReader().query(SampleFilter(limit=10))

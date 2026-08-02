@@ -117,7 +117,7 @@ def _close_quietly(client: Any) -> None:
     ``asyncua.sync.Client`` runs a **non-daemon** thread loop that only stops on
     ``disconnect()``. Returning a verdict without calling it left that thread
     alive for the life of the process: an MCP server accumulated one per failed
-    diagnosis, and the CLI command never returned to the prompt — this tool's
+    diagnosis, and `iaiops doctor` never returned to the prompt — this tool's
     whole reason to exist is being called when a connection is failing, so the
     leak happened on exactly the path that matters. Found 2026-08-02 by watching
     a diagnose against a closed port never exit.

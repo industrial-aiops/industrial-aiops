@@ -427,9 +427,22 @@ def _named_cells(columns: list[str], record: Any) -> dict[str, Any]:
     (``Device``, ``value`` / the three aggregates). It is NOT safe for a
     wildcard select, where the header is one entry per series and the fields
     come back compacted; that is the bug this helper replaced.
+
+    So the arity is checked rather than assumed: a mismatch is exactly the
+    condition that produced wrong labels last time, and ``zip`` would silently
+    truncate to the shorter side. Failing loudly hands the caller an error dict
+    (every historian tool wraps exceptions); guessing hands them someone else's
+    reading under their tag name.
     """
     names = [c for c in columns if c.lower() != "time"]
-    return {name.lower(): _field_value(field) for name, field in zip(names, record.get_fields())}
+    fields = list(record.get_fields())
+    if len(names) != len(fields):
+        raise ValueError(
+            f"IoTDB returned {len(fields)} field(s) for {len(names)} column(s) "
+            f"({columns}) — the reader cannot attribute values to tags safely. "
+            f"This is a result shape it does not know; report it with the query."
+        )
+    return {name.lower(): _field_value(field) for name, field in zip(names, fields)}
 
 
 def _field_value(field: Any) -> Any:
