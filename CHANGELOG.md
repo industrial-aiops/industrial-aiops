@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **`asyncua` 2.x is now required** (`asyncua>=2.0,<3`). On 1.x a session against an
+  OPC Foundation .NET-stack server was impossible — it sent a `ServerUri` that OPC UA
+  Part 4 §5.6.2 says must be empty unless the endpoint has a `gatewayServerUri`, and
+  that stack enforces the rule. 2.x makes the field opt-in. The migration was the pin
+  and the version strings the skills quote: **all 64 existing OPC-UA tests passed
+  unchanged.** The `client_interop` verdict stays, with remediation rewritten for a
+  world where the pin already excludes 1.x.
+
+### Testing
+- **OPC-UA reaches a real 2a.** `test_opcua_thirdparty_live.py` no longer asserts that
+  sessions are impossible; it drives Microsoft's opc-plc — an independent
+  implementation — through a session, a browse of the SERVER's own address space,
+  typed reads carrying its status codes and timestamps, and its own `BadNodeIdUnknown`.
+- **Certificate trust is enforced, not merely offered**
+  (`test_opcua_cert_trust_live.py` + `scripts/opcua_cert_harness.sh`). Against a strict
+  opc-plc: an unknown client certificate is refused and filed under `pki/rejected`,
+  promoting it opens the encrypted Basic256Sha256 session, and — the finding no
+  in-process test could produce — **a trusted certificate whose SAN URI does not match
+  the client's ApplicationUri stays refused**. `asyncua`'s own server runs a permissive
+  validator, so the connector's whole `certificate` verdict class had never been
+  produced by something that enforces it.
+
 ## 0.21.1 — 2026-08-02
 
 > **Four independent reviews of 0.21.0, and three more product defects.** The

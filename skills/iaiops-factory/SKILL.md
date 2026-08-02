@@ -143,7 +143,7 @@ server，但那已由 `opcua` connector 处理，本读层**不碰 OPC-UA**。�
 
 | 协议 | 库(pin) | 规范/版本 | 覆盖 | 传输 | 自测 |
 |---|---|---|---|---|---|
-| OPC-UA | `asyncua>=1.0,<2` | OPC UA 1.0x（DA+HA+AC 子集） | 任意合规 Server | opc.tcp | ✅ mock+HDA |
+| OPC-UA | `asyncua>=2.0,<3` | OPC UA 1.0x（DA+HA+AC 子集） | 任意合规 Server | opc.tcp | ✅ mock+HDA |
 | Modbus-TCP | `pymodbus>=3.5,<4` | App 1.1b3；FC 1/2/3/4（读）；写 FC05/06/15/16 未实现（read-only）；字节序探测+厂商模板 | 任意 TCP 从站 | TCP/502 | ✅ |
 | Modbus-RTU | `pymodbus>=3.5,<4` + `pyserial>=3.5` | Modbus serial (RTU) | 串口从站 | RS-485/serial | ✅ socat PTY 真串口链路 verified 2026-07-02；物理 RS-485 待核实 |
 | S7comm | `pyS7>=2.8,<3` | ISO-on-TCP (RFC1006) | S7-300/400/1200/1500（后者需开 PUT/GET、关 optimized DB） | TCP/102 | ✅ |
