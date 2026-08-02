@@ -264,3 +264,39 @@ def test_slc_bit_write_on_a_wide_element_is_not_refused(slc: TargetConfig) -> No
     assert "Illegal Command" not in str(flags), flags
     # The accumulator, two words further into the same element, is untouched.
     assert ops.eip_read_tag(slc, "T4:0.ACC")["value"] == 137
+
+
+def test_slc_string_files_decode_with_their_swapped_words(slc: TargetConfig) -> None:
+    """`ST` is a two-letter file type storing byte-swapped words — two traps.
+
+    An SLC string element is a UINT length followed by 82 bytes in which each
+    16-bit word holds its two characters BACKWARDS ('AB' is stored 0x4241), and
+    `ST` is one of the file types whose name is two letters. Both are invisible
+    until a string is actually read: element sizing keyed on the first character
+    alone turns `ST` into `S` (2 bytes instead of 84), which returns a string
+    from four bytes into the previous element — text that looks almost right.
+    """
+    assert ops.eip_read_tag(slc, "ST18:0")["value"] == "LINE 1 READY"
+    # The second element proves the sizing, not just the swap: with the wrong
+    # element width this returns a shifted slice of the first one.
+    assert ops.eip_read_tag(slc, "ST18:1")["value"] == "BATCH 42"
+
+    files = {entry["file"]: entry for entry in ops.eip_list_tags(slc)["files"]}
+    assert "ST18" in files, files
+    assert files["ST18"]["elements"] == 4, files
+    # 4 x 84 — a directory that sized ST as 2 bytes would say 336 elements.
+    assert files["ST18"]["length"] == 336, files
+
+
+def test_the_data_file_directory_numbers_files_positionally(slc: TargetConfig) -> None:
+    """File numbers come from POSITION in File 0, not from a field.
+
+    `ST18` sits at row 18 with rows 9-17 unused; a File 0 that leaves those rows
+    empty makes every later file report under the wrong number (ST18 arrived as
+    ST9). Real controllers fill unused slots with a reserved marker, and so does
+    the harness now — this asserts the numbering that depends on it.
+    """
+    files = {entry["file"] for entry in ops.eip_list_tags(slc)["files"]}
+
+    assert {"N7", "F8", "ST18"} <= files, sorted(files)
+    assert "ST9" not in files, "the positional numbering slipped — check File 0's gaps"

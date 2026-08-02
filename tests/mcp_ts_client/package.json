@@ -1,0 +1,10 @@
+{
+  "name": "iaiops-mcp-ts-client",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A SECOND MCP implementation for tests/test_mcp_second_impl_live.py — the TypeScript SDK, in another language and another codebase, driving the Python server.",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0"
+  }
+}

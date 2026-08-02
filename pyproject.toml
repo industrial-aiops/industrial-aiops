@@ -80,6 +80,12 @@ hart = ["hart-protocol>=2023.6,<2025"]
 fins = []
 # 信创 / national time-series DB historian sinks (data egress to a domestic TSDB).
 tdengine = ["taospy>=2.7,<3"]
+# The native client above needs libtaos, a VENDOR DOWNLOAD that is not on PyPI —
+# which is why CI fetches a sha256-pinned tarball and why the sink is unusable on
+# a machine without it. These two transports need no native library at all and
+# talk to taosAdapter on 6041 instead; `taosrest` ships inside taospy.
+tdengine-rest = ["taospy>=2.7,<3"]
+tdengine-ws = ["taos-ws-py>=0.3,<1"]
 iotdb = ["apache-iotdb>=1.0,<3"]
 # Adapter belt — egress to a general-market TSDB / message bus / on-box LLM. All lightweight:
 # influxdb + ollama reuse the same `requests` pin as MTConnect (line protocol / HTTP, no heavy SDK).

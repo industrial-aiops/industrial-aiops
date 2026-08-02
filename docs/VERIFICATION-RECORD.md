@@ -58,7 +58,7 @@ for every protocol in both repos.** Nothing below changes that.
 | **SECS/GEM** | 2a⁴ | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
 | **Mitsubishi MC** | **2b** | `test_mc_live.py` + `mc_plc_harness.py` | Real `pymcprotocol` `Type3E` client vs **our** SLMP-3E server: CPU identity, batch word/bit read, signed-word decode, offsets, random read of words+dwords, write BEFORE capture verified by read-back | Physical MELSEC CPU; 1E/4E frames; ASCII mode; iQ-R addressing |
 | **S7comm** | **2b** | `test_s7_live.py` + `s7_plc_harness.py` | Real `pyS7` client vs **our** ISO-TSAP server: COTP connect, PDU negotiation, DB/merker reads, signed INT, big-endian REAL, **WORD/DWORD/DINT/LREAL widths**, offsets, write BEFORE capture verified by read-back | Physical S7 CPU; PUT/GET access control; optimized-DB blocks; STRING/WSTRING; **our own bit handling** (see note ³) |
-| **EtherNet/IP** | **2b** | `test_eip_live.py`, `test_eip_pccc_live.py` + `eip_plc_harness.py` + `eip_pccc_plc.py` | Real `pycomm3` vs **our** CIP PLC, on all three driver routes. **Logix** (`LogixDriver`): RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back. **PCCC/`slc`** (`SLCDriver`, CIP service 0x4B carrying DF1): processor-type diagnostic, the File-0 directory sequence behind `eip_list_tags`, typed reads of N/F/B/T elements, a masked bit write that leaves its neighbour alone, and **a device-side refusal of a bad address**. **Micro800**: pycomm3's own catalog-number detection, asserted by the batching that does NOT happen on the wire | Physical ControlLogix/CompactLogix/SLC-5-05/MicroLogix/Micro8xx; UDT/structured tags; program-scoped tags; PLC-5 addressing; ST/A files; a PCCC route bridged through a ControlLogix backplane |
+| **EtherNet/IP** | **2b** | `test_eip_live.py`, `test_eip_pccc_live.py` + `eip_plc_harness.py` + `eip_pccc_plc.py` | Real `pycomm3` vs **our** CIP PLC, on all three driver routes. **Logix** (`LogixDriver`): RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back. **PCCC/`slc`** (`SLCDriver`, CIP service 0x4B carrying DF1): processor-type diagnostic, the File-0 directory sequence behind `eip_list_tags` (including its POSITIONAL file numbering), typed reads of N/F/B/T elements, **ST string files** with their swapped words, a masked bit write that leaves its neighbour alone — on a wide element as well as a 2-byte one — and **a device-side refusal of a bad address**. **Program-scoped tags** are listed, read and written on the Logix route. **Micro800**: pycomm3's own catalog-number detection, asserted by the batching that does NOT happen on the wire | Physical ControlLogix/CompactLogix/SLC-5-05/MicroLogix/Micro8xx; UDT/structured tags; program-scoped tags; PLC-5 addressing; ST/A files; a PCCC route bridged through a ControlLogix backplane |
 | **Omron FINS** | **2c** | `test_fins.py` | Real UDP/TCP sockets — but the client is **in-repo** (stdlib) *and* the server is ours, so no independent implementation is involved | Physical Omron CPU; everything about the wire format is our reading of it |
 | **HART-IP** | 1 + **2c** | `test_hart.py` | Command codec against the third-party `hart_protocol` (rung 1); the HART-IP UDP/TCP **transport is in-tree** and exercised against our own socket server (rung 2c) | Physical HART-IP gateway / multiplexer; burst mode against real devices |
 | **IO-Link** | **2c** | `test_iolink.py` | Real HTTP against our mock master — **the vendor JSON API shape is our assumption** | Any real IO-Link master (ifm/Balluff/…); JSON schema drift |
@@ -177,9 +177,14 @@ The server under test is ours, and the frames on both sides are produced by ONE
 third-party library — `FastMCP` from the `mcp` SDK on the server, the same SDK's
 client in the test. That earns 2a for *our* code (the SDK's own client parses
 what our server emits, and a wrong tool schema or a broken profile gate shows up
-immediately), but a misreading INSIDE the SDK would satisfy both ends. A second
-implementation of MCP — a different client, or Claude Desktop — is what would
-close that, and neither has been run against this server.
+immediately), but a misreading INSIDE the SDK would satisfy both ends. **Partly closed 2026-08-02:** the TypeScript SDK now drives the same server
+(`test_mcp_second_impl_live.py`) — another language, another codebase — and the
+annotations promise is asserted through its parser rather than the Python one's.
+It immediately found `serverInfo.version` reporting the MCP SDK's version rather
+than this package's. What is still open is a real HOST (Claude Desktop, an IDE),
+which exercises rendering and consent flows a bare client does not.
+
+| **MCP, second implementation** | **2a** | `test_mcp_second_impl_live.py` + `tests/mcp_ts_client/` | The **TypeScript** SDK (`@modelcontextprotocol/sdk`) spawning the real entrypoint over stdio: initialize, `list_tools()`, a tool call whose connector failure arrives as content, the session surviving it, `serverInfo`, and **the tool annotations read by a parser nobody here wrote** | A real HOST (Claude Desktop / an IDE) — rendering and consent flows a bare client does not exercise |
 
 Until 2026-08-01 nothing drove this at all — every test called tool functions
 in-process, so the product's **primary interface** was unexercised. Two of the
@@ -195,7 +200,7 @@ had never answered a request from a client that was not on the list.
 | **NATS** | 2a | `test_egress_live.py` | A **real NATS broker**; published messages are read back off it by a real subscriber (subjects and payloads), plus a bounded-failure assertion against an unreachable broker. Runs on every CI build since 2026-08-02 — before that the gate started no broker, so this row was true of local runs only | Auth/TLS; JetStream; a real plant bus under load |
 | **InfluxDB** | 2b | `test_egress_live.py` | A real HTTP endpoint recording exactly what the sink emits: measurement, value, bucket/org query, `Authorization` header, and that five points become **one** request | A real InfluxDB server accepting the line protocol; v1 vs v2 differences beyond the endpoint shape |
 | **IoTDB** | **2a**⁶ | `test_tsdb_live.py` | A real **apache/iotdb 1.3.2**: sink write → reader read-back, time-bound and tag filters applied server-side, the `LAST` and aggregate result shapes parsed, non-numeric points skipped, endpoint filter refused | A vendor/clustered IoTDB; schema templates; IoTDB 2.x |
-| **TDengine** | **2a**⁶ | `test_tsdb_live.py` | A real **taosd 3.3.5**: the `value` reserved-word DDL, auto-sub-table INSERT…USING…TAGS, reader query/latest/coverage, time bounds applied server-side | A physical/clustered taosd; the REST + WebSocket connectors; retention/keep policies |
+| **TDengine** | **2a**⁶ | `test_tsdb_live.py` | A real **taosd 3.3.5** over **all three transports** — native (libtaos), REST and WebSocket (taosAdapter :6041, no vendor library): the `value` reserved-word DDL, auto-sub-table INSERT…USING…TAGS, reader query/latest/coverage, `newest_first`, time bounds applied server-side | A physical/clustered taosd; retention/keep policies; taosAdapter behind TLS or auth |
 | **SQLite / Parquet** | local | `test_sink_sqlite_local.py`, `test_export.py` | Real local files — no network counterparty exists to be wrong about | — |
 
 ⁶ **Both TSDBs moved from rung 1 to 2a on 2026-08-02, and the move cost two
@@ -245,26 +250,32 @@ same reason: so nobody has to reconstruct it.
 1. ~~**Migrate to `asyncua` 2.x**~~ **Done 2026-08-02** — `asyncua>=2.0,<3`; the 64
    existing OPC-UA tests passed unchanged, and `test_opcua_thirdparty_live.py` was
    rewritten from "sessions are impossible" to the reads themselves (note ⁸).
-2. **TDengine's HTTP / WebSocket connectors** (`taosrest`, `taos-ws-py`). The native
-   `libtaos` client is a vendor tarball fetched from a CDN in CI; the other connectors
-   would remove that dependency, and each is a different wire format from the one
-   `test_tsdb_live.py` covers today.
+2. ~~**TDengine's HTTP / WebSocket connectors**~~ **Done 2026-08-02** — `transport=`
+   selects native / rest / websocket; the last two need no vendor library and run the
+   same round-trip assertions in `test_tsdb_live.py`. They also found a defect the
+   native client hid: every statement relied on a sticky `USE`, which REST (stateless
+   per request) and WebSocket (database in the DSN) both refuse — the SQL now names the
+   database explicitly.
 3. ~~**Certificate-trust enforcement**~~ **Done 2026-08-02** — both directions against a
    strict opc-plc (`test_opcua_cert_trust_live.py`), including the SAN-URI rule in
    note ⁸. What is left of this entry: a **real PKI** — a CA-issued certificate, an
    issuer chain and a CRL, rather than self-signed peers — and GDS/push provisioning.
-4. **EtherNet/IP breadth on the routes that now exist**: UDT / structured tags,
-   program-scoped tags, PLC-5 addressing, ST/A files, and a PCCC route bridged through
-   a ControlLogix backplane.
+4. **EtherNet/IP breadth** — **partly done 2026-08-02**: program-scoped tags (list +
+   read + write, and the connector now actually *asks* for them — see the row) and PCCC
+   **ST** string files are live. Still open: **UDT / structured tags** (needs template
+   upload in the harness), **A** (ASCII) files, PLC-5-specific addressing, and a PCCC
+   route bridged through a ControlLogix backplane.
 5. **MTConnect ≥2.0 schema** — the live agent speaks 1.7.
 6. ~~**Truncation keeps the OLDEST samples, everywhere.**~~ **Done 2026-08-02** —
    `SampleFilter.newest_first` is pushed into all three readers' `ORDER BY` (not
    faked by reversing in Python; the live tests assert *which* samples came back),
    and the RCA pre-incident window sets it. Rows still return oldest→newest, so no
    caller changed. Default stays oldest-first for the general query API.
-7. **A second MCP implementation.** Both MCP rows are 2a with note ⁹: the client
-   and the server come from the same SDK. Driving the server from a different
-   client — or from Claude Desktop — is what would close that.
+7. ~~**A second MCP implementation.**~~ **Done 2026-08-02** — the **TypeScript**
+   SDK drives the real entrypoint (`test_mcp_second_impl_live.py` +
+   `tests/mcp_ts_client/`), which found `serverInfo.version` reporting the MCP
+   SDK's version instead of this package's. What remains of note ⁹ is a real HOST
+   (Claude Desktop / an IDE), which is a different question from a second client.
 
 ### Cleared on 2026-08-02
 

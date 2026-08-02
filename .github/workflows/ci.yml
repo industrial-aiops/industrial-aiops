@@ -161,6 +161,15 @@ jobs:
           sudo -E env "PATH=$PATH" IAIOPS_REQUIRE_LIVE=1 scripts/profinet_dcp_harness.sh \
             uv run --no-sync pytest tests/test_profinet_live.py -q -rs
 
+      # A SECOND MCP implementation. Every other MCP test here runs the Python
+      # SDK's client against a server built on that same SDK, which cannot rule
+      # out a misreading inside it (VERIFICATION-RECORD note 9). The TypeScript
+      # SDK is another language and another codebase; it is also what found the
+      # handshake reporting the SDK's version as the server's.
+      - name: Install the TypeScript MCP client (second implementation)
+        if: runner.os == 'Linux'
+        run: npm install --prefix tests/mcp_ts_client --no-audit --no-fund
+
       - name: pytest (base suite)
         # -rs prints the reason for every skip. Without it the log says "10 skipped"
         # and nothing else, so a test that quietly stops running — a missing optional
@@ -287,7 +296,7 @@ jobs:
       - name: Install all + pure-python energy/TSDB/HART extras (linux wheels)
         run: |
           uv venv --python 3.12
-          uv pip install -e '.[all,iec104,iotdb,tdengine,hart]' pytest
+          uv pip install -e '.[all,iec104,iotdb,tdengine,tdengine-ws,hart]' pytest
           uv pip install --prerelease=allow 'pyiec61850>=1.5.2a1,<2'
 
       # taospy's native `taos` module dlopen()s libtaos at IMPORT time, so without
@@ -369,8 +378,10 @@ jobs:
           # that is the container id, which resolves inside the container network
           # and nowhere else — so a client on the runner would connect once and
           # then fail to find the node it was just talking to.
+          # 6041 is taosAdapter: the REST and WebSocket transports both use it, and
+          # neither needs the vendor libtaos the native client on 6030 does.
           docker run -d --rm --name iaiops-taos --hostname localhost \
-            -e TAOS_FQDN=localhost -p 6030:6030 tdengine/tdengine:3.3.5.0
+            -e TAOS_FQDN=localhost -p 6030:6030 -p 6041:6041 tdengine/tdengine:3.3.5.0
           # An open port is not readiness for any of these: IoTDB accepts TCP while
           # the DataNode is still starting, taosd answers only once its dnode is up,
           # and opc-plc binds before it has built its address space. Wait for what

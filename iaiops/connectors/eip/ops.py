@@ -191,7 +191,13 @@ def eip_list_tags(target: Any, plctype: str | None = None) -> dict:
     if kind == "slc":
         return _slc_file_directory(tgt)
     with eip_session(tgt) as plc:
-        raw = plc.get_tag_list() or []
+        # `program="*"` asks for the controller scope AND every program's own
+        # tags; a bare get_tag_list() returns controller scope only. This note
+        # has always promised that program-scoped tags appear as
+        # `Program:<prog>.<tag>` — they did not, because they were never
+        # requested. Micro800 has no program scope, so it keeps the plain call
+        # (pycomm3 raises there rather than returning nothing).
+        raw = (plc.get_tag_list(program="*") if kind == "logix" else plc.get_tag_list()) or []
     tags: list[dict] = []
     for t in list(raw)[:MAX_TAGS]:
         if not isinstance(t, dict):

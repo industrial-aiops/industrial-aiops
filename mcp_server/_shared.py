@@ -21,6 +21,7 @@ from typing import Any, Optional
 from mcp.server.fastmcp import FastMCP
 from mcp.types import Icon, ToolAnnotations
 
+from iaiops import __version__
 from iaiops.core.governance import sanitize
 from iaiops.core.runtime.config import load_config
 from iaiops.core.runtime.connection import ConnectionManager, OTConnectionError
@@ -92,6 +93,16 @@ class _GovernedFastMCP(FastMCP):
     stop raising and start registering nothing at all, so the tool would vanish
     from the surface with no error to notice.
     """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        # FastMCP takes no `version`, and the low-level server it builds defaults
+        # to None — which makes the initialize handshake report the MCP SDK's own
+        # version as the SERVER's. A client asking "which iaiops am I talking
+        # to?" was told `1.28.1`. Found 2026-08-02 by driving this server from the
+        # TypeScript SDK, whose client surfaces serverInfo where the Python one
+        # keeps it to itself.
+        self._mcp_server.version = __version__
 
     def tool(
         self,

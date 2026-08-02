@@ -20,7 +20,11 @@ from __future__ import annotations
 from typing import Any
 
 from iaiops.core.brain._shared import s
-from iaiops.core.sink.base import SinkError
+from iaiops.core.sink.tdengine_transport import (
+    default_port,
+    open_connection,
+    resolve_transport,
+)
 
 
 class TDengineSink:
@@ -29,14 +33,19 @@ class TDengineSink:
     def __init__(
         self,
         host: str = "localhost",
-        port: int = 6030,
+        port: int = 0,
         user: str = "root",
         password: str = "taosdata",
         database: str = "iaiops",
         stable: str = "ot_metric",
+        transport: str = "native",
     ) -> None:
         self._host = host
-        self._port = int(port or 6030)
+        # The transport decides the default port (6030 native, 6041 adapter), so
+        # an unset port follows the transport instead of silently pointing the
+        # REST client at the native listener.
+        self._transport = resolve_transport(transport)
+        self._port = int(port or default_port(self._transport))
         self._user = user
         self._password = password
         # Sanitize SQL identifiers once at construction (alnum/underscore only) so
@@ -46,29 +55,23 @@ class TDengineSink:
         self._conn = None
 
     def connect(self) -> None:
-        try:
-            import taos
-        except ImportError as exc:  # pragma: no cover — only without taospy
-            raise SinkError(
-                "The 'taospy' package is not installed. Install the TDengine sink: "
-                "'pip install iaiops[tdengine]'."
-            ) from exc
-        self._conn = taos.connect(
-            host=self._host,
-            port=self._port,
-            user=self._user,
-            password=self._password,
+        self._conn = open_connection(
+            self._transport, self._host, self._port, self._user, self._password
         )
         cur = self._conn.cursor()
         cur.execute(f"CREATE DATABASE IF NOT EXISTS {self._database}")  # nosec B608 — ident sanitized
-        cur.execute(f"USE {self._database}")  # nosec B608 — ident sanitized
+        # Every statement below names the database explicitly instead of relying on
+        # `USE`. The native client keeps a `USE` for the life of the connection;
+        # the REST transport is stateless per request and the WebSocket one wants
+        # the database in its DSN, so both answered "Database not specified" for
+        # the very next statement. Qualifying is what all three agree on.
         # Super-table: ts + value + a metric tag (one sub-table per metric).
         # ``value`` is a TDengine RESERVED WORD — it must be back-quoted in DDL or
         # the CREATE STABLE fails with a syntax error (verified against a live
         # taosd 3.3, 2026-06-30). The INSERTs are positional (no column list) so
         # they need no quoting.
         cur.execute(  # nosec B608 — ident sanitized
-            f"CREATE STABLE IF NOT EXISTS {self._stable} "
+            f"CREATE STABLE IF NOT EXISTS {self._database}.{self._stable} "
             f"(ts TIMESTAMP, `value` DOUBLE) TAGS (metric BINARY(160))"
         )
 
@@ -88,7 +91,8 @@ class TDengineSink:
             # Python float. taospy's INSERT…USING…TAGS (auto sub-table) can't be
             # parameterized, so the string is built but every field is neutralized.
             sql = (
-                f"INSERT INTO {sub} USING {self._stable} TAGS ('{_esc(p['metric'])}') "  # nosec B608
+                f"INSERT INTO {self._database}.{sub} "  # nosec B608
+                f"USING {self._database}.{self._stable} TAGS ('{_esc(p['metric'])}') "
                 f"VALUES ({ts}, {float(p['value'])})"
             )
             cur.execute(sql)

@@ -42,6 +42,7 @@ pytestmark = [pytest.mark.integration]
 _HOST = "127.0.0.1"
 _IOTDB_PORT = 6667
 _TAOS_PORT = 6030
+_TAOS_ADAPTER_PORT = 6041  # taosAdapter: REST and WebSocket share this port
 
 
 def _reachable(port: int) -> bool:
@@ -458,3 +459,79 @@ def test_tdengine_newest_first_keeps_the_end_nearest_the_incident(
     assert [row["value"] for row in oldest] == [0.0, 1.0, 2.0, 3.0, 4.0], oldest
     assert [row["value"] for row in newest] == [15.0, 16.0, 17.0, 18.0, 19.0], newest
     assert [row["ts"] for row in newest] == sorted(row["ts"] for row in newest)
+
+
+# ─── TDengine transports: the same assertions over native / REST / WebSocket ──
+
+
+def _transport_available(transport: str) -> bool:
+    """Is this transport's client importable here?"""
+    try:
+        if transport == "native":
+            import taos  # noqa: F401
+        elif transport == "rest":
+            import taosrest  # noqa: F401
+        else:
+            import taosws  # noqa: F401
+    except Exception:  # noqa: BLE001 — the native one raises at import without libtaos
+        return False
+    return True
+
+
+@pytest.mark.parametrize("transport", ["rest", "websocket"])
+def test_tdengine_round_trip_over_a_libtaos_free_transport(transport: str, tmp_path) -> None:
+    """The whole write→read path, without the native client at all.
+
+    This is the point of the transports: `libtaos` is a vendor download that is
+    not on PyPI, so the native client is unusable on any machine that has not
+    installed it out of band — every macOS box here, and CI only manages it by
+    fetching a sha256-pinned tarball. REST and WebSocket need no native library,
+    and taosAdapter serves both on 6041.
+
+    The assertions are deliberately the same ones the native test makes: if a
+    transport is a real alternative, it has to answer identically, DDL and
+    reserved word and all.
+    """
+    if not _reachable(_TAOS_ADAPTER_PORT):
+        pytest.skip(f"no taosAdapter at {_HOST}:{_TAOS_ADAPTER_PORT} (publish -p 6041:6041)")
+    if not _transport_available(transport):
+        pytest.skip(f"the {transport} client is not installed")
+
+    from iaiops.core.sink.tdengine import TDengineSink
+
+    database = _unique("iaiops_tr_")
+    sink = TDengineSink(database=database, transport=transport)
+    written = sink.write(
+        [
+            {
+                "metric": "line1.temperature",
+                "value": 21.5,
+                "numeric": True,
+                "timestamp": "2026-08-02T00:00:00.000",
+            },
+            {
+                "metric": "line1.temperature",
+                "value": 23.75,
+                "numeric": True,
+                "timestamp": "2026-08-02T00:05:00.000",
+            },
+            {"metric": "line1.state", "value": "RUN", "numeric": False},
+        ]
+    )
+    sink.close()
+    assert written == 2, "the non-numeric point should not have been written"
+
+    reader = get_reader("tdengine", database=database, transport=transport)
+    try:
+        rows = reader.query(SampleFilter(limit=100))
+        newest = reader.query(SampleFilter(limit=1, newest_first=True))
+        coverage = reader.coverage(limit=10)
+    finally:
+        reader.close()
+
+    assert [row["tag"] for row in rows] == ["line1.temperature", "line1.temperature"], rows
+    assert rows[0]["value"] == pytest.approx(21.5)
+    # newest_first has to be pushed into this transport's SQL too.
+    assert newest[0]["value"] == pytest.approx(23.75), newest
+    by_tag = {row["tag"]: row for row in coverage}
+    assert by_tag["line1.temperature"]["rows"] == 2, coverage

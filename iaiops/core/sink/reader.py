@@ -41,6 +41,11 @@ from iaiops.core.sink.sqlite_local import (
     validate_filter,
 )
 from iaiops.core.sink.tdengine import _esc, _safe_ident
+from iaiops.core.sink.tdengine_transport import (
+    default_port,
+    open_connection,
+    resolve_transport,
+)
 
 SUPPORTED_READERS = ("sqlite", "tdengine", "iotdb")
 DEFAULT_COVERAGE_LIMIT = 500
@@ -143,15 +148,17 @@ class TDengineReader:
     def __init__(
         self,
         host: str = "localhost",
-        port: int = 6030,
+        port: int = 0,
         user: str = "root",
         password: str = "taosdata",
         database: str = "iaiops",
         stable: str = "ot_metric",
+        transport: str = "native",
         **_ignored: Any,
     ) -> None:
         self._host = host
-        self._port = int(port or 6030)
+        self._transport = resolve_transport(transport)
+        self._port = int(port or default_port(self._transport))
         self._user = user
         self._password = password
         self._database = _safe_ident(database, "iaiops")
@@ -159,19 +166,13 @@ class TDengineReader:
         self._conn: Any = None
 
     def connect(self) -> None:
-        try:
-            import taos
-        except ImportError as exc:  # pragma: no cover — only without taospy
-            raise SinkError(
-                "The 'taospy' package is not installed. Install the TDengine "
-                "reader (same extra as the sink): 'pip install iaiops[tdengine]'."
-            ) from exc
-        self._conn = taos.connect(
-            host=self._host,
-            port=self._port,
-            user=self._user,
-            password=self._password,
-            database=self._database,
+        self._conn = open_connection(
+            self._transport,
+            self._host,
+            self._port,
+            self._user,
+            self._password,
+            self._database,
         )
 
     def _cursor(self) -> Any:
