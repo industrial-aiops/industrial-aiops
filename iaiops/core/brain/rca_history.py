@@ -93,12 +93,17 @@ def _pull_tags(reader: Any, since: str, until: str, refs: list[str] | None) -> l
                     until=until,
                     tag=ref,
                     limit=MAX_SAMPLES_PER_TAG,
+                    # A pre-incident window that does not fit must keep the END
+                    # nearest the incident, not the beginning of the window.
+                    newest_first=True,
                 )
             )
             if rows:
                 out.append(_series(ref, rows))
         return out
-    rows = reader.query(SampleFilter(since=since, until=until, limit=MAX_WINDOW_ROWS))
+    rows = reader.query(
+        SampleFilter(since=since, until=until, limit=MAX_WINDOW_ROWS, newest_first=True)
+    )
     grouped: dict[str, list[dict]] = {}
     for row in rows:
         tag = s(str(row.get("tag", "")), 128)
@@ -152,7 +157,13 @@ def _topped_up(
         if len(rows) < MAX_SAMPLES_PER_TAG:
             rows = (
                 reader.query(
-                    SampleFilter(since=since, until=until, tag=tag, limit=MAX_SAMPLES_PER_TAG)
+                    SampleFilter(
+                        since=since,
+                        until=until,
+                        tag=tag,
+                        limit=MAX_SAMPLES_PER_TAG,
+                        newest_first=True,
+                    )
                 )
                 or rows
             )
