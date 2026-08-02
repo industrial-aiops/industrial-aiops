@@ -2,59 +2,65 @@
 
 ## Unreleased
 
-> **PROFINET stops being mock-only, and no hardware appeared.** It had been written
-> off alongside EtherCAT as hardware-gated. That was wrong: DCP Identify/Get/Set is
-> request-response over layer-2 Ethernet, so the missing half is a **responder**, not
-> a device — and a veth pair plus a raw-socket station gives `pnio-dcp` a real wire
-> to talk to. Rung **2b**: our station, a third-party client doing the parsing.
+> **A verification sweep, and what it cost.** Every remaining item on
+> `docs/VERIFICATION-RECORD.md`'s follow-up register was cleared by pointing code at a
+> real counterparty for the first time: two historian databases, a PROFINET wire, two
+> EtherNet/IP driver routes, the MCP network transports, and an OPC-UA server from a
+> stack nobody here wrote. **Five product defects came out of it** — including a reader
+> that returned one machine's values under another machine's tag name, and a query that
+> could never have run against any real server. Every one of them had passing unit
+> tests, because the mocks had been written to match the code rather than the server.
 
 ### Fixed
-- **`profinet_discover` / `profinet_asset_inventory` documented fields that are
-  always empty.** `pnio_dcp.Device` (1.2.0) exposes name_of_station / MAC / IP /
-  netmask / gateway / family and nothing else, so `vendor_id`, `device_id` and
-  `device_roles` never populate — the station returns DeviceID and DeviceRole blocks
-  and the client drops them, which makes `io_controller_count` structurally 0. The
-  connector and MCP tool docs said otherwise. Nothing about the mocked tests could
-  show this: their fake device had the attributes invented for it. The docs now name
-  the limit and the live test asserts it, so a pnio-dcp that fixes it turns red.
-
-### Fixed
+- **The IoTDB reader returned one tag's values under another tag's name.** A wildcard
+  `SELECT value FROM root.db.*` declares one column per series, and the reader zipped
+  that header against each record's fields. A real IoTDB 1.3.2 returns the fields
+  **compacted** when a `WHERE` clause is present — so a time-bounded query, which is
+  precisely what the RCA copilot asks for, came back with the right numbers under the
+  wrong labels. On a plant floor that is a wrong answer wearing the right shape. The
+  reader now uses `ALIGN BY DEVICE`, whose rows carry their own device label, and a
+  header/field arity mismatch raises instead of truncating silently.
+- **`historian_coverage` against TDengine raised for every caller.** The query used
+  `MIN(ts)` / `MAX(ts)`, and taosd 3.x rejects both on a TIMESTAMP column
+  (`[0x2802]: Invalid parameter data type : min`). Now `FIRST(ts)` / `LAST(ts)`, the
+  timestamp-ordered equivalents the dialect actually provides.
 - **`opcua_diagnose_connection` leaked a thread on every failed diagnosis — and hung
   the process.** `asyncua.sync.Client` starts a **non-daemon** thread loop in its
   constructor. Two paths abandoned a client without stopping it: the failed-connect
   branch returned its verdict without disconnecting, and `_build_opcua_client` left an
   already-constructed client behind if anything after the constructor raised (a locked
   secret store behind `password()`, an unparseable security string). The tool exists to
-  be called when connections are failing, so the leak was on exactly the path that
-  matters: `iaiops opcua diagnose` never returned to the prompt, and an MCP server
-  accumulated one thread per failed diagnosis. Both now release the client. Found by
-  pointing the connector at a third-party server and watching the process never exit —
-  mocked clients cannot show it, because a fake `disconnect()` is a no-op either way.
+  be called when connections are failing, so the leak sat on exactly the path that
+  matters: `iaiops doctor` (which classifies every unreachable OPC-UA endpoint) never
+  returned to the prompt, and an MCP server accumulated one thread per failed
+  diagnosis. Both now release the client.
 - **A `BadServerUriInvalid` connect failure was classified `unknown`** ("inspect the
   detail"), for a failure that is precise and entirely client-side. New verdict class
   **`client_interop`**, naming the cause and absolving the site: `asyncua` 1.x sends a
   `ServerUri` that OPC UA Part 4 §5.6.2 says must be empty unless the endpoint has a
-  `gatewayServerUri`, and OPC Foundation .NET-stack servers enforce it.
+  `gatewayServerUri`, and OPC Foundation .NET-stack servers enforce it — so **sessions
+  against that stack cannot open at all** until this package moves to `asyncua` 2.x.
+- **`profinet_discover` / `profinet_asset_inventory` documented fields that are always
+  empty.** `pnio_dcp.Device` (1.2.0) exposes name_of_station / MAC / IP / netmask /
+  gateway / family and nothing else, so `vendor_id`, `device_id` and `device_roles`
+  never populate — the station returns DeviceID and DeviceRole blocks and the client
+  drops them, which makes `io_controller_count` structurally 0. The connector and MCP
+  tool docs said otherwise; they now name the limit, and the live test asserts it so a
+  pnio-dcp that fixes it turns red.
 
 ### Testing
-- **`tests/test_opcua_thirdparty_live.py`** — OPC-UA meets a stack nobody here wrote:
-  Microsoft's opc-plc, built on the OPC Foundation .NET stack. Transport, secure
-  channel and endpoint discovery interoperate; **sessions do not**, for the ServerUri
-  reason above, which no site can fix and an `asyncua` 2.x migration would. Every other
-  OPC-UA test has `asyncua` on both ends, so none of this was visible. The test is
-  written to go **red** the day sessions start working.
-- **`tests/test_mcp_http_live.py`** — the MCP server's **network transports** reach
-  **2a**, next to stdio. The SDK's `streamablehttp_client` and `sse_client` drive the
-  real entrypoint running under uvicorn: initialize, `list_tools()`, and a tool call
-  whose connector failure comes back as content rather than killing the session. It
-  also covers **the IP-allowlist middleware, which exists on no other transport** — a
-  client outside `IAIOPS_ALLOWLIST_IPS` gets a 403 before any MCP conversation starts,
-  with an unconfigured server proving the control is off by default. These transports
-  are what `deploy/margo` and the IGEL submission expose, and nothing had ever made a
-  request to one.
-- **MTConnect `/assets`** is now part of the live-agent round-trip: a third document
-  type with its own namespace, where the asset *type* is the child element's name and
-  the nested cutting-tool life-cycle elements must not be counted as assets.
+- **`tests/test_tsdb_live.py`** — IoTDB and TDengine round-trips against real servers
+  (rung 1 → **2a**): sink write → reader read-back, server-side time and tag filters,
+  the `LAST` and aggregate result shapes, the `value` reserved-word DDL.
+- **`tests/test_profinet_live.py` + `tests/profinet_dcp_station.py` +
+  `scripts/profinet_dcp_harness.sh`** — real `pnio-dcp` over a **veth pair** (mock only
+  → **2b**). PROFINET had been written off as hardware-gated alongside EtherCAT; that
+  was wrong, because DCP is request-response over layer-2 Ethernet, so the missing half
+  is a *responder*, not a device. Covered: IdentifyAll with the MAC read off the reply's
+  Ethernet header, identify-by-name hit and miss, a unicast DCP Get proven by what the
+  station *received*, and the governed DCP Set applied, verified against the station's
+  own state and reversed through the captured BEFORE — with the dry run proven to put
+  no Set on the wire.
 - **`tests/test_eip_pccc_live.py` + `tests/eip_pccc_plc.py`** — EtherNet/IP's other two
   driver routes reach **2b**, next to the Logix one. `slc` needed a second protocol in
   the harness rather than a second tag: CIP service 0x4B carrying DF1/PCCC, numbered
@@ -65,53 +71,35 @@
   undo. `micro800` needed the harness to *identify* as one — pycomm3 switches on the
   catalog number in ListIdentity, not on anything the connector passes — asserted by
   the Multiple Service Packet that does **not** reach the wire, against a live Logix
-  control that does.
-
-  This also closes the EtherNet/IP row's standing gap: PCCC has no symbol table for
-  pycomm3 to validate against, so a bad address really does reach the controller and
-  really is refused. It is the only place in this connector where a device-side
-  rejection is exercised end to end.
-- **`tests/test_profinet_live.py` + `tests/profinet_dcp_station.py` +
-  `scripts/profinet_dcp_harness.sh`** — real `pnio-dcp` over a veth pair (mock only →
-  **2b**): IdentifyAll discovery with the MAC read off the reply's Ethernet header,
-  identify-by-name hit and miss, a unicast DCP Get proven by what the station
-  *received* rather than by the answer, and the governed DCP Set applied, verified
-  against the station's own state, then reversed through the captured BEFORE — with
-  the dry run proven to put no Set on the wire. Runs in the gate job under `sudo`.
-
-> **The two historian TSDBs had never met a server.** `apache-iotdb` and `taospy` were
-> checked for the methods we call and nothing else, so the readers behind
-> `historian_query` / `historian_coverage` — pages of hand-written SQL and result
-> parsing — had only ever been judged by mocks written to match them. Pointing both at
-> a real server (`tests/test_tsdb_live.py`, now on every CI build) turned up one wrong
-> answer and one query that could never have run.
-
-### Fixed
-- **The IoTDB reader returned one tag's values under another tag's name.** A wildcard
-  `SELECT value FROM root.db.*` declares one column per series, and the reader zipped
-  that header against each record's fields. A real IoTDB 1.3.2 returns the fields
-  **compacted** when a `WHERE` clause is present — so a time-bounded query, which is
-  precisely what the RCA copilot asks for, came back with the right numbers under the
-  wrong labels. On a plant floor that is a wrong answer wearing the right shape. The
-  reader now uses `ALIGN BY DEVICE`, whose rows carry their own device label, so
-  nothing depends on header position.
-- **`historian_coverage` against TDengine raised for every caller.** The query used
-  `MIN(ts)` / `MAX(ts)`, and taosd 3.x rejects both on a TIMESTAMP column
-  (`[0x2802]: Invalid parameter data type : min`). Now `FIRST(ts)` / `LAST(ts)`, the
-  timestamp-ordered equivalents the dialect actually provides.
-
-### Testing
-- **`tests/test_tsdb_live.py`** — IoTDB and TDengine round-trips against real servers
-  (rung 1 → **2a**): sink write → reader read-back, server-side time and tag filters,
-  the `LAST` and aggregate result shapes, the `value` reserved-word DDL. Run by the
-  `integration-contracts` CI lane, which starts both containers.
+  control that does. This also closes the connector's standing gap: PCCC has no symbol
+  table for pycomm3 to validate against, so a bad address really does reach the
+  controller and really is refused.
+- **`tests/test_mcp_http_live.py`** — the MCP server's **network transports** reach
+  **2a**, next to stdio. The SDK's `streamablehttp_client` and `sse_client` drive the
+  real entrypoint running under uvicorn: initialize, `list_tools()`, and a tool call
+  whose connector failure comes back as content rather than killing the session. It
+  also covers **the IP-allowlist middleware, which exists on no other transport** — a
+  client outside `IAIOPS_ALLOWLIST_IPS` gets a 403 before any MCP conversation starts,
+  with an unconfigured server proving the control is off by default. These transports
+  are what `deploy/margo` and the IGEL submission expose, and nothing had ever made a
+  request to one.
+- **`tests/test_opcua_thirdparty_live.py`** — OPC-UA meets a stack nobody here wrote:
+  Microsoft's opc-plc, on the OPC Foundation .NET stack. Transport, secure channel and
+  endpoint discovery interoperate; sessions do not, for the ServerUri reason above.
+  Every other OPC-UA test has `asyncua` on both ends, so none of this was visible. The
+  test is written to go **red** the day sessions start working.
+- **MTConnect `/assets`** is now part of the live-agent round-trip: a third document
+  type with its own namespace, where the asset *type* is the child element's name and
+  the nested cutting-tool life-cycle elements must not be counted as assets.
+- **CI runs all of it.** The gate job starts a NATS broker (the egress live tests had
+  been skipping on every run) and the PROFINET veth harness under `sudo`; the
+  integration lane starts IoTDB, taosd and opc-plc. Two container gotchas are recorded
+  in the workflow: `libtaos` needs a writable `/var/log/taos` or `taos_connect` reports
+  a bare "Permission denied", and a taosd container must advertise
+  `TAOS_FQDN=localhost` or the client reconnects to a name only it can resolve.
 - The mocked reader tests now reproduce the **shapes the servers returned** rather than
-  the shapes the parser expected — the old fakes agreed with the bugs above.
-- **CI starts a NATS broker for the gate job.** The egress live tests had been skipping
-  on every run for want of one, so `docs/VERIFICATION-RECORD.md`'s NATS row described
-  local runs only.
-- Both sinks' module docstrings claimed a live round-trip "verified 2026-06-30" — a
-  hand-run session nothing could reproduce. They now point at the test instead.
+  the shapes the parser expected, and both TSDB sinks' docstrings drop a "verified
+  2026-06-30" claim that no longer had anything behind it.
 
 ## 0.20.4 — 2026-08-02
 

@@ -149,8 +149,8 @@ def test_a_real_failed_diagnose_lets_the_process_exit(tmp_path, target_expr, exp
     A fake client's `disconnect()` is a no-op, so those tests pass whether or not
     the real thread loop is stopped. `asyncua.sync.Client` starts a **non-daemon**
     ThreadLoop in its CONSTRUCTOR, so any path that abandons a client keeps the
-    process alive forever — which is what an operator running `iaiops` at a
-    terminal actually saw, and what a long-lived MCP server would accumulate.
+    process alive forever — which is what an operator running `iaiops doctor` at
+    a terminal actually saw, and what a long-lived MCP server would accumulate.
 
     Both abandoning paths are covered: the failed connect, and the builder
     raising after the constructor ran.

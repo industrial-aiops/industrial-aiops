@@ -100,9 +100,9 @@ path, both of which hung the process rather than failing: the failed-connect
 branch returned its verdict without disconnecting, and `_build_opcua_client`
 abandoned an already-constructed client if anything after asyncua's constructor
 raised (a locked secret store, a bad security string). `asyncua.sync.Client`
-starts a **non-daemon** thread loop in that constructor, so `iaiops opcua
-diagnose` never returned to the prompt and an MCP server accumulated one thread
-per failed diagnosis. Both are fixed and pinned by a subprocess test — mocked
+starts a **non-daemon** thread loop in that constructor, so `iaiops doctor` never
+returned to the prompt and an MCP server accumulated one thread per failed
+diagnosis. Both are fixed and pinned by a subprocess test — mocked
 clients cannot see this, because a fake `disconnect()` is a no-op either way.
 
 ⁷ **PROFINET stopped being mock-only without any new hardware — and the move
