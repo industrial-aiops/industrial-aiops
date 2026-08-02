@@ -55,31 +55,44 @@ def _build_opcua_client(target: TargetConfig) -> Any:
     # asyncua's sync Client takes a per-request timeout in seconds; without it a
     # dead endpoint blocks on the OS TCP timeout (60-120s+) instead of failing fast.
     client = Client(target.endpoint_url, timeout=target.timeout_s)
-    username = target.username
-    password = target.password()
-    if username:
-        client.set_user(username)
-    if password:
-        client.set_password(password)
-    # Mutual-TLS / application-certificate security. When a client cert + key are
-    # configured, apply asyncua's security string
-    # "Policy,Mode,cert,key[,server_cert]". No cert configured → anonymous /
-    # username-password path is UNCHANGED (back-compat).
-    if target.client_cert and target.client_key:
-        policy = (
-            target.security_policy
-            if target.security_policy and target.security_policy != "None"
-            else "Basic256Sha256"
-        )
-        mode = (
-            target.security_mode
-            if target.security_mode and target.security_mode != "None"
-            else "SignAndEncrypt"
-        )
-        sec = f"{policy},{mode},{target.client_cert},{target.client_key}"
-        if target.server_cert:
-            sec += f",{target.server_cert}"
-        client.set_security_string(sec)
+    # From here on the ThreadLoop is RUNNING (see _connect_opcua). Anything that
+    # raises below — a locked secret store behind target.password(), an
+    # unparseable security string, a target object missing a field — would leak
+    # that thread and hang the process at exit, with no client for the caller to
+    # release because the builder never returned one. `iaiops opcua diagnose`
+    # against a malformed endpoint hung exactly this way (2026-08-02).
+    try:
+        username = target.username
+        password = target.password()
+        if username:
+            client.set_user(username)
+        if password:
+            client.set_password(password)
+        # Mutual-TLS / application-certificate security. When a client cert + key are
+        # configured, apply asyncua's security string
+        # "Policy,Mode,cert,key[,server_cert]". No cert configured → anonymous /
+        # username-password path is UNCHANGED (back-compat).
+        if target.client_cert and target.client_key:
+            policy = (
+                target.security_policy
+                if target.security_policy and target.security_policy != "None"
+                else "Basic256Sha256"
+            )
+            mode = (
+                target.security_mode
+                if target.security_mode and target.security_mode != "None"
+                else "SignAndEncrypt"
+            )
+            sec = f"{policy},{mode},{target.client_cert},{target.client_key}"
+            if target.server_cert:
+                sec += f",{target.server_cert}"
+            client.set_security_string(sec)
+    except Exception:
+        try:
+            client.disconnect()  # stops the constructor-started ThreadLoop
+        except Exception:  # noqa: BLE001 — cleanup must never mask the real error
+            pass
+        raise
     return client
 
 
