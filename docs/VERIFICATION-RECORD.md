@@ -198,38 +198,41 @@ saying so is the point.
 
 ### Doable, not done
 
-1. ~~**PROFINET-DCP — the only mock-only protocol that is not hopeless.**~~ **Done
-   2026-08-02** — rung **2b** via a veth pair and a raw-socket station
-   (`scripts/profinet_dcp_harness.sh`, run under `sudo` by the gate job; hosted
-   runners have passwordless root, so the Linux box was not needed after all).
-   Found the empty vendor/role fields in note ⁷. What remains is a real station
-   (rung 3) and the deliberately-out-of-scope services (RT cyclic, Blink, reset).
-2. ~~**EtherNet/IP's PCCC (`slc`) and Micro800 paths are still mock-only.**~~ **Done
-   2026-08-02** — both are 2b (`tests/test_eip_pccc_live.py`). PCCC needed a second
-   protocol in the harness (`eip_pccc_plc.py`: DF1 inside CIP service 0x4B), not a
-   second tag; Micro800 needed the harness to *identify* as one, because pycomm3
-   switches behaviour on the catalog number rather than on anything we pass it. This
-   also closed the EtherNet/IP row's "wire-level tag error is never reached" gap:
-   PCCC has no symbol table for pycomm3 to validate against, so a bad address really
-   does reach the controller and really is refused.
-3. ~~**IoTDB / TDengine write round-trips.**~~ **Done 2026-08-02** — both are rung 2a
-   (`test_tsdb_live.py`, run by the `integration-contracts` CI lane). Found the two
-   reader defects in note ⁶. What remains is the **HTTP/WebSocket TDengine
-   connectors** (`taosrest` / `taos-ws-py`), which would remove the native-libtaos
-   dependency that keeps this lane on a vendor tarball.
-4. ~~**MTConnect Assets** (`/assets`) is not covered by the live agent.~~ **Done 2026-08-02** — the live agent serves an `MTConnectAssets` document and `test_mtconnect_live.py` asserts the parse (element name as the asset type, nested life-cycle children not counted as assets).
-5. ~~**The HTTP/SSE MCP transport** (`IAIOPS_MCP_TRANSPORT`).~~ **Done 2026-08-02** —
-   both `streamable-http` and `sse` are 2a (`test_mcp_http_live.py`), including the IP
-   allowlist that only exists on those transports. What is left is TLS and a real
-   authenticating gateway in front, which HLD decision **D7** puts outside this
-   process on purpose.
-6. ~~**OPC-UA against a third-party server**~~ **Partly done 2026-08-02** — Microsoft's
-   opc-plc (OPC Foundation .NET stack) is now in `test_opcua_thirdparty_live.py`, and
-   it answered the interop question with a **no**: see note ⁸. What remains is real
-   follow-up work rather than a test — **migrate to asyncua 2.x** (a major upgrade;
-   needs its own pass over the connector) and then re-run this file, which is written
-   to go red the day sessions start working. Certificate-trust enforcement and the
-   other security policies against a vendor server are still `待核实`.
+**Every item this list opened with was cleared on 2026-08-02** (they are compressed
+below). What follows is what those six left behind — smaller, but named here for the
+same reason: so nobody has to reconstruct it.
+
+1. **Migrate to `asyncua` 2.x, then re-run `test_opcua_thirdparty_live.py`.** This is
+   the only entry with product impact rather than coverage impact: on 1.x, a session
+   against an OPC Foundation .NET-stack server is impossible (note ⁸). It is a major
+   upgrade and needs its own pass over the connector, not a test change.
+2. **TDengine's HTTP / WebSocket connectors** (`taosrest`, `taos-ws-py`). The native
+   `libtaos` client is a vendor tarball fetched from a CDN in CI; the other connectors
+   would remove that dependency, and each is a different wire format from the one
+   `test_tsdb_live.py` covers today.
+3. **Certificate-trust enforcement and the other OPC-UA security policies** against a
+   vendor server. `test_opcua_security.py` covers the policy *surface* against
+   `asyncua`; whether a real server's trust list behaves as the connector assumes is
+   still `待核实`, and the .NET-stack session wall (1) blocks the obvious way to find out.
+4. **EtherNet/IP breadth on the routes that now exist**: UDT / structured tags,
+   program-scoped tags, PLC-5 addressing, ST/A files, and a PCCC route bridged through
+   a ControlLogix backplane.
+5. **MTConnect ≥2.0 schema** — the live agent speaks 1.7.
+
+### Cleared on 2026-08-02
+
+Kept as one line each, because "this was tested and here is where" is the part worth
+carrying; the notes above hold the detail and the defects each one found.
+
+- **PROFINET-DCP** mock-only → **2b** on a veth pair (note ⁷).
+- **EtherNet/IP PCCC + Micro800** mock-only → **2b** (`test_eip_pccc_live.py`), which
+  also closed this connector's "wire-level error never reached" gap.
+- **IoTDB + TDengine** rung 1 → **2a** (note ⁶) — two reader defects fixed.
+- **MTConnect `/assets`** — now part of the live-agent round-trip.
+- **The MCP HTTP/SSE transports** → **2a**, including the IP allowlist (TLS and a real
+  gateway in front stay out of scope by HLD decision **D7**).
+- **OPC-UA vs a third-party stack** — answered, and the answer was no (note ⁸); two
+  thread leaks fixed on the way.
 
 ### Not doable, and why
 
