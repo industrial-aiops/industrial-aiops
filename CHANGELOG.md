@@ -18,7 +18,31 @@
   show this: their fake device had the attributes invented for it. The docs now name
   the limit and the live test asserts it, so a pnio-dcp that fixes it turns red.
 
+### Fixed
+- **`opcua_diagnose_connection` leaked a thread on every failed diagnosis — and hung
+  the process.** `asyncua.sync.Client` starts a **non-daemon** thread loop in its
+  constructor. Two paths abandoned a client without stopping it: the failed-connect
+  branch returned its verdict without disconnecting, and `_build_opcua_client` left an
+  already-constructed client behind if anything after the constructor raised (a locked
+  secret store behind `password()`, an unparseable security string). The tool exists to
+  be called when connections are failing, so the leak was on exactly the path that
+  matters: `iaiops opcua diagnose` never returned to the prompt, and an MCP server
+  accumulated one thread per failed diagnosis. Both now release the client. Found by
+  pointing the connector at a third-party server and watching the process never exit —
+  mocked clients cannot show it, because a fake `disconnect()` is a no-op either way.
+- **A `BadServerUriInvalid` connect failure was classified `unknown`** ("inspect the
+  detail"), for a failure that is precise and entirely client-side. New verdict class
+  **`client_interop`**, naming the cause and absolving the site: `asyncua` 1.x sends a
+  `ServerUri` that OPC UA Part 4 §5.6.2 says must be empty unless the endpoint has a
+  `gatewayServerUri`, and OPC Foundation .NET-stack servers enforce it.
+
 ### Testing
+- **`tests/test_opcua_thirdparty_live.py`** — OPC-UA meets a stack nobody here wrote:
+  Microsoft's opc-plc, built on the OPC Foundation .NET stack. Transport, secure
+  channel and endpoint discovery interoperate; **sessions do not**, for the ServerUri
+  reason above, which no site can fix and an `asyncua` 2.x migration would. Every other
+  OPC-UA test has `asyncua` on both ends, so none of this was visible. The test is
+  written to go **red** the day sessions start working.
 - **`tests/test_mcp_http_live.py`** — the MCP server's **network transports** reach
   **2a**, next to stdio. The SDK's `streamablehttp_client` and `sse_client` drive the
   real entrypoint running under uvicorn: initialize, `list_tools()`, and a tool call

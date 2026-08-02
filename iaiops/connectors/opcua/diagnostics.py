@@ -59,6 +59,19 @@ _RULES: list[tuple[Any, str, str, str]] = [
         "Basic256Sha256 Sign&Encrypt while the client offered None, or vice versa).",
     ),
     (
+        lambda n, d, e: "badserveruriinvalid" in d.replace(" ", "") or "serveruri" in d,
+        "client_interop",
+        "The server rejected the session's ServerUri — a client-library interop "
+        "problem, not a configuration or network one.",
+        "This is asyncua 1.x sending a ServerUri that OPC UA Part 4 §5.6.2 says "
+        "must be empty unless the endpoint has a gatewayServerUri; servers built "
+        "on the OPC Foundation .NET stack enforce that and refuse the session "
+        "(reproduced against Microsoft's opc-plc). The transport, security and "
+        "endpoint discovery are all fine — nothing at this site needs changing. "
+        "asyncua 2.x makes ServerUri opt-in; until this package moves to it, use "
+        "a server that does not enforce the rule.",
+    ),
+    (
         lambda n, d, e: isinstance(e, ConnectionRefusedError) or "refused" in d,
         "port_closed",
         "Connection refused — nothing is listening on that host:port.",
@@ -98,6 +111,23 @@ _RULES: list[tuple[Any, str, str, str]] = [
 ]
 
 
+def _close_quietly(client: Any) -> None:
+    """Release the client, whatever happened to it.
+
+    ``asyncua.sync.Client`` runs a **non-daemon** thread loop that only stops on
+    ``disconnect()``. Returning a verdict without calling it left that thread
+    alive for the life of the process: an MCP server accumulated one per failed
+    diagnosis, and the CLI command never returned to the prompt — this tool's
+    whole reason to exist is being called when a connection is failing, so the
+    leak happened on exactly the path that matters. Found 2026-08-02 by watching
+    a diagnose against a closed port never exit.
+    """
+    try:
+        client.disconnect()
+    except Exception:  # noqa: BLE001 — cleanup must never mask the verdict
+        pass
+
+
 def _verdict(cls: str, endpoint: str, diagnosis: str, remediation: str, detail: str = "") -> dict:
     return {
         "endpoint": sanitize(endpoint, 200),
@@ -129,8 +159,9 @@ def diagnose_connection(target: Any) -> dict:
     """Attempt an OPC-UA connect and return a classified verdict (never raises).
 
     Classes: ``ok`` · ``certificate`` · ``auth`` · ``security_policy`` ·
-    ``port_closed`` · ``dns`` · ``firewall_timeout`` · ``unreachable`` ·
-    ``config`` · ``unknown``. Each carries a ``diagnosis`` and a ``remediation``.
+    ``client_interop`` · ``port_closed`` · ``dns`` · ``firewall_timeout`` ·
+    ``unreachable`` · ``config`` · ``unknown``. Each carries a ``diagnosis`` and a
+    ``remediation``.
     """
     endpoint = getattr(target, "endpoint_url", None) or getattr(target, "name", "?")
     try:
@@ -156,6 +187,7 @@ def diagnose_connection(target: Any) -> dict:
     try:
         client.connect()
     except Exception as exc:  # noqa: BLE001 — classify any connect failure
+        _close_quietly(client)  # the failure path leaks the thread loop without this
         return _classify(exc, endpoint)
     try:
         return _verdict(
@@ -165,7 +197,4 @@ def diagnose_connection(target: Any) -> dict:
             "No action needed.",
         )
     finally:
-        try:
-            client.disconnect()
-        except Exception:  # noqa: BLE001 — disconnect must not mask the verdict
-            pass
+        _close_quietly(client)

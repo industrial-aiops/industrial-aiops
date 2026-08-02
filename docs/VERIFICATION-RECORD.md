@@ -10,8 +10,10 @@
 > went from rung 1 to 2a, which cost two product fixes — see note ⁶ —
 > **PROFINET-DCP went from mock-only to 2b** on a veth pair, which cost a
 > documentation fix — see note ⁷ — **EtherNet/IP's PCCC and Micro800 routes joined
-> its Logix route at 2b**, and the NATS live tests now have a broker on every CI
-> build instead of skipping). The
+> its Logix route at 2b**, **the MCP network transports and MTConnect `/assets`
+> joined the live set**, **OPC-UA met a third-party stack for the first time** and
+> cost two thread-leak fixes plus a documented interop wall — see note ⁸ — and the
+> NATS live tests now have a broker on every CI build instead of skipping). The
 > follow-up register at the bottom is the durable list of what is still worth
 > testing, what is not, and the open questions — it is there rather than in a chat
 > log so it survives the session that produced it.
@@ -39,7 +41,7 @@ for every protocol in both repos.** Nothing below changes that.
 
 | Protocol | Rung | Test | What actually runs | Not covered |
 |---|---|---|---|---|
-| **OPC-UA** | 2a | `test_opcua_discovery.py`, `test_opcua_server.py`, `test_opcua_alarm_events.py`, `test_opcua_security.py` | Real `asyncua` server: browse/discovery, tag model, alarm events, security policy surface | Real vendor OPC-UA server (Siemens/Kepware/…); certificate trust against real PKI |
+| **OPC-UA** | 2a (asyncua) + **2a-partial** vs a third-party stack⁸ | `test_opcua_discovery.py`, `test_opcua_server.py`, `test_opcua_alarm_events.py`, `test_opcua_security.py`, `test_opcua_thirdparty_live.py` | Real `asyncua` server: browse/discovery, tag model, alarm events, security policy surface. Against **Microsoft opc-plc** (OPC Foundation .NET stack): Hello / OpenSecureChannel / GetEndpoints interoperate — **sessions do not**, see note ⁸ | Real vendor OPC-UA server (Siemens/Kepware/…); certificate trust against real PKI; **any session-level operation against a .NET-stack server** |
 | **Modbus TCP** | 2a | `test_modbus_tcp_live.py` | Real `pymodbus` `ModbusTcpServer` over loopback: FC03/FC04/FC01/FC02, float32 decode, non-zero start address, `apply_template` picking the declared register file (both banks exercised), `health_summary`'s per-address session, out-of-range → teaching error | Physical Modbus-TCP device; RTU-over-TCP gateways |
 | **Modbus RTU** | 2a | `test_modbus_rtu_live.py` | Real `pymodbus` `ModbusSerialServer` over a socat PTY pair — actual RTU/CRC framing, all four function codes, float32 | Physical RS-485 bus / USB adapter; multi-drop addressing; baud/parity mismatch behaviour |
 | **MQTT / Sparkplug B** | 2a | `test_uns_live_integration.py`, `test_mqtt_retained_undo.py` | Real **mosquitto** broker through the full paho loop: UNS audit, Sparkplug schema from NBIRTH, retained-publish BEFORE capture and inverse round-trip | Production EoN node / Sparkplug host application; broker auth/TLS |
@@ -82,6 +84,26 @@ request or silently dropped it. The connector now reads back and reports
 (`after` / `verified`) rather than asserting success, and deliberately does **not**
 judge a mismatch as failure — on a commandable object a higher priority legitimately
 holds the value, and only the operator knows the priority scheme.
+
+⁸ **asyncua 1.x cannot open a session on an OPC Foundation .NET-stack server.**
+It sends a `ServerUri` in CreateSession; OPC UA Part 4 §5.6.2 says that field is
+set only when the endpoint has a `gatewayServerUri`, and the .NET stack enforces
+it with `BadServerUriInvalid`. asyncua 2.x makes the field opt-in
+(`Client.server_uri`, default `None`); this package is pinned `asyncua<2`. Nothing
+at a site fixes this — it is a client-library migration, now on the register.
+Everything below the session (transport, secure channel, endpoint discovery) does
+interoperate, which is what `test_opcua_thirdparty_live.py` proves. The
+asyncua-on-both-ends tests could never have shown any of it.
+
+Pointing at that server also surfaced **two thread leaks** in the diagnostics
+path, both of which hung the process rather than failing: the failed-connect
+branch returned its verdict without disconnecting, and `_build_opcua_client`
+abandoned an already-constructed client if anything after asyncua's constructor
+raised (a locked secret store, a bad security string). `asyncua.sync.Client`
+starts a **non-daemon** thread loop in that constructor, so `iaiops opcua
+diagnose` never returned to the prompt and an MCP server accumulated one thread
+per failed diagnosis. Both are fixed and pinned by a subprocess test — mocked
+clients cannot see this, because a fake `disconnect()` is a no-op either way.
 
 ⁷ **PROFINET stopped being mock-only without any new hardware — and the move
 found a documentation defect.** A veth pair plus a raw-socket responder was all it
@@ -201,9 +223,13 @@ saying so is the point.
    allowlist that only exists on those transports. What is left is TLS and a real
    authenticating gateway in front, which HLD decision **D7** puts outside this
    process on purpose.
-6. **OPC-UA against a third-party server** (KEPServerEX / Prosys / a real PLC) — the
-   in-process `asyncua` server is 2a for the client, but vendor interop, the other
-   security policies and certificate-trust enforcement all remain `待核实`.
+6. ~~**OPC-UA against a third-party server**~~ **Partly done 2026-08-02** — Microsoft's
+   opc-plc (OPC Foundation .NET stack) is now in `test_opcua_thirdparty_live.py`, and
+   it answered the interop question with a **no**: see note ⁸. What remains is real
+   follow-up work rather than a test — **migrate to asyncua 2.x** (a major upgrade;
+   needs its own pass over the connector) and then re-run this file, which is written
+   to go red the day sessions start working. Certificate-trust enforcement and the
+   other security policies against a vendor server are still `待核实`.
 
 ### Not doable, and why
 
