@@ -138,6 +138,18 @@ jobs:
           sudo -E env "PATH=$PATH" scripts/bacnet_live_harness.sh \
             uv run --no-sync pytest tests/test_bacnet_live.py -q -rs
 
+      # PROFINET was the last mock-only protocol here that was not hardware-gated.
+      # DCP is layer-2 request-response, so the missing half is a RESPONDER, not a
+      # device: a veth pair gives pnio-dcp a real wire and tests/profinet_dcp_station.py
+      # answers on the other end. Needs CAP_NET_ADMIN (create the pair) and
+      # CAP_NET_RAW (the sockets), which is why it runs under sudo like the BACnet
+      # harness rather than in the ordinary pytest step.
+      - name: PROFINET-DCP veth harness (real layer-2 round-trip)
+        if: runner.os == 'Linux'
+        run: |
+          sudo -E env "PATH=$PATH" scripts/profinet_dcp_harness.sh \
+            uv run --no-sync pytest tests/test_profinet_live.py -q -rs
+
       - name: pytest (base suite)
         # -rs prints the reason for every skip. Without it the log says "10 skipped"
         # and nothing else, so a test that quietly stops running — a missing optional

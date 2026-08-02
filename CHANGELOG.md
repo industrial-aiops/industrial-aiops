@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+> **PROFINET stops being mock-only, and no hardware appeared.** It had been written
+> off alongside EtherCAT as hardware-gated. That was wrong: DCP Identify/Get/Set is
+> request-response over layer-2 Ethernet, so the missing half is a **responder**, not
+> a device — and a veth pair plus a raw-socket station gives `pnio-dcp` a real wire
+> to talk to. Rung **2b**: our station, a third-party client doing the parsing.
+
+### Fixed
+- **`profinet_discover` / `profinet_asset_inventory` documented fields that are
+  always empty.** `pnio_dcp.Device` (1.2.0) exposes name_of_station / MAC / IP /
+  netmask / gateway / family and nothing else, so `vendor_id`, `device_id` and
+  `device_roles` never populate — the station returns DeviceID and DeviceRole blocks
+  and the client drops them, which makes `io_controller_count` structurally 0. The
+  connector and MCP tool docs said otherwise. Nothing about the mocked tests could
+  show this: their fake device had the attributes invented for it. The docs now name
+  the limit and the live test asserts it, so a pnio-dcp that fixes it turns red.
+
+### Testing
+- **`tests/test_profinet_live.py` + `tests/profinet_dcp_station.py` +
+  `scripts/profinet_dcp_harness.sh`** — real `pnio-dcp` over a veth pair (mock only →
+  **2b**): IdentifyAll discovery with the MAC read off the reply's Ethernet header,
+  identify-by-name hit and miss, a unicast DCP Get proven by what the station
+  *received* rather than by the answer, and the governed DCP Set applied, verified
+  against the station's own state, then reversed through the captured BEFORE — with
+  the dry run proven to put no Set on the wire. Runs in the gate job under `sudo`.
+
 > **The two historian TSDBs had never met a server.** `apache-iotdb` and `taospy` were
 > checked for the methods we call and nothing else, so the readers behind
 > `historian_query` / `historian_coverage` — pages of hand-written SQL and result
