@@ -489,7 +489,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.21.1"
+version = "0.22.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -644,6 +644,13 @@ tdengine = [
     { name = "taospy", version = "2.8.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "taospy", version = "2.8.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
+tdengine-rest = [
+    { name = "taospy", version = "2.8.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "taospy", version = "2.8.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+tdengine-ws = [
+    { name = "taos-ws-py" },
+]
 warehouse = [
     { name = "asyncua" },
     { name = "paho-mqtt" },
@@ -761,10 +768,12 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0,<16.0" },
     { name = "secsgem", marker = "extra == 'all'", specifier = ">=0.3,<1" },
     { name = "secsgem", marker = "extra == 'secsgem'", specifier = ">=0.3,<1" },
+    { name = "taos-ws-py", marker = "extra == 'tdengine-ws'", specifier = ">=0.3,<1" },
     { name = "taospy", marker = "extra == 'tdengine'", specifier = ">=2.7,<3" },
+    { name = "taospy", marker = "extra == 'tdengine-rest'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "warehouse", "clinical", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "tdengine-rest", "tdengine-ws", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "warehouse", "clinical", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1975,6 +1984,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
+]
+
+[[package]]
+name = "taos-ws-py"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/a5/88bfb460f0089435b0438148d209a18b5d059a2bac392bd2436edb340c31/taos_ws_py-0.7.0-cp37-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:c989c6c66b8ee2f8c4180203a0eeb42a4c8eb3bfeb798bd8463f9456895a6bfb", size = 8144784, upload-time = "2026-07-08T07:56:57.262Z" },
+    { url = "https://files.pythonhosted.org/packages/48/ad/a4a0d68f00f5c3ca766f81f6d15744db129bb25470898eb887ecc6ca789e/taos_ws_py-0.7.0-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:196baa53682950f53a3e60db4e1a45efdb260cd3da6ddb16ec8b7d970d9fe4fe", size = 4156856, upload-time = "2026-07-08T07:56:58.943Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/aa/e845fe032c806f87e8b53a7ab117787059e21efccc2a8439fa0436c07052/taos_ws_py-0.7.0-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2ff9f5b9514a466ae25f777ff5ec6acaa0cb425e48eb652a4d904a949154811c", size = 4335859, upload-time = "2026-07-08T07:57:00.216Z" },
+    { url = "https://files.pythonhosted.org/packages/96/0a/3d13657299513cef684fac70a2898ba6e53b1bcea71e0bad9f61873bb9c8/taos_ws_py-0.7.0-cp37-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:9ad7d0bfcf9fbc3073835c986269f88b75c5922defdf238ad3a899f2973ed82f", size = 4047089, upload-time = "2026-07-08T07:57:01.524Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/fa/609ca52d32fe76d3533f3924dcf946a64cb39d02a17e44e10a34ac9e317d/taos_ws_py-0.7.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:724595be039f5f6974c6fd1a41aa68098ce9c338801560cfdcf6e7fd7268046b", size = 4525811, upload-time = "2026-07-08T07:57:02.818Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/3a/0798bc633a65c5bb09046f1d6fac18bd821129d3e1feed249a6368c648ad/taos_ws_py-0.7.0-cp37-abi3-manylinux_2_31_riscv64.whl", hash = "sha256:aea6e705d0601efaace35da81b582f4875f0b15000f020b10f595d62785f0eb6", size = 4271085, upload-time = "2026-07-08T07:57:04.09Z" },
+    { url = "https://files.pythonhosted.org/packages/71/5f/dd061aafe2d2439fa8aa203cb0a8f5d9fb3fa41b07d494bdf8632530b6aa/taos_ws_py-0.7.0-cp37-abi3-win_amd64.whl", hash = "sha256:57c304510102f09538ac92b0ba8d81fec300b01e5ea4583411cf8b09869eb843", size = 4814663, upload-time = "2026-07-08T07:57:05.648Z" },
 ]
 
 [[package]]

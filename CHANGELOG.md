@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.22.0 — 2026-08-02
+
+> **A minor version because the floor moved: `asyncua>=2.0`.** On 1.x a session against
+> an OPC Foundation .NET-stack server was impossible, so OPC-UA could only ever be
+> tested against `asyncua` on both ends. With that wall gone, the last register items
+> fell — a third-party OPC-UA stack, certificate trust enforced both ways, TDengine
+> without its vendor library, EtherNet/IP program scope, and a second MCP implementation
+> in another language. **Each one found something**, including a defect in every
+> published container image and an RCA window that kept the wrong half of its samples.
 
 ### Fixed
 - **`eip_list_tags` never returned program-scoped tags**, though its own note promised
