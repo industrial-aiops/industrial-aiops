@@ -195,7 +195,7 @@ had never answered a request from a client that was not on the list.
 | **NATS** | 2a | `test_egress_live.py` | A **real NATS broker**; published messages are read back off it by a real subscriber (subjects and payloads), plus a bounded-failure assertion against an unreachable broker. Runs on every CI build since 2026-08-02 — before that the gate started no broker, so this row was true of local runs only | Auth/TLS; JetStream; a real plant bus under load |
 | **InfluxDB** | 2b | `test_egress_live.py` | A real HTTP endpoint recording exactly what the sink emits: measurement, value, bucket/org query, `Authorization` header, and that five points become **one** request | A real InfluxDB server accepting the line protocol; v1 vs v2 differences beyond the endpoint shape |
 | **IoTDB** | **2a**⁶ | `test_tsdb_live.py` | A real **apache/iotdb 1.3.2**: sink write → reader read-back, time-bound and tag filters applied server-side, the `LAST` and aggregate result shapes parsed, non-numeric points skipped, endpoint filter refused | A vendor/clustered IoTDB; schema templates; IoTDB 2.x |
-| **TDengine** | **2a**⁶ | `test_tsdb_live.py` | A real **taosd 3.3.5**: the `value` reserved-word DDL, auto-sub-table INSERT…USING…TAGS, reader query/latest/coverage, time bounds applied server-side | A physical/clustered taosd; the REST + WebSocket connectors; retention/keep policies |
+| **TDengine** | **2a**⁶ | `test_tsdb_live.py` | A real **taosd 3.3.5** over **all three transports** — native (libtaos), REST and WebSocket (taosAdapter :6041, no vendor library): the `value` reserved-word DDL, auto-sub-table INSERT…USING…TAGS, reader query/latest/coverage, `newest_first`, time bounds applied server-side | A physical/clustered taosd; retention/keep policies; taosAdapter behind TLS or auth |
 | **SQLite / Parquet** | local | `test_sink_sqlite_local.py`, `test_export.py` | Real local files — no network counterparty exists to be wrong about | — |
 
 ⁶ **Both TSDBs moved from rung 1 to 2a on 2026-08-02, and the move cost two
@@ -245,10 +245,12 @@ same reason: so nobody has to reconstruct it.
 1. ~~**Migrate to `asyncua` 2.x**~~ **Done 2026-08-02** — `asyncua>=2.0,<3`; the 64
    existing OPC-UA tests passed unchanged, and `test_opcua_thirdparty_live.py` was
    rewritten from "sessions are impossible" to the reads themselves (note ⁸).
-2. **TDengine's HTTP / WebSocket connectors** (`taosrest`, `taos-ws-py`). The native
-   `libtaos` client is a vendor tarball fetched from a CDN in CI; the other connectors
-   would remove that dependency, and each is a different wire format from the one
-   `test_tsdb_live.py` covers today.
+2. ~~**TDengine's HTTP / WebSocket connectors**~~ **Done 2026-08-02** — `transport=`
+   selects native / rest / websocket; the last two need no vendor library and run the
+   same round-trip assertions in `test_tsdb_live.py`. They also found a defect the
+   native client hid: every statement relied on a sticky `USE`, which REST (stateless
+   per request) and WebSocket (database in the DSN) both refuse — the SQL now names the
+   database explicitly.
 3. ~~**Certificate-trust enforcement**~~ **Done 2026-08-02** — both directions against a
    strict opc-plc (`test_opcua_cert_trust_live.py`), including the SAN-URI rule in
    note ⁸. What is left of this entry: a **real PKI** — a CA-issued certificate, an
