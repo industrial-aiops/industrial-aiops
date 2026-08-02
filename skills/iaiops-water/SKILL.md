@@ -83,5 +83,5 @@ OPC-UA，pH/浊度/电导率/液位/流量变送器走 HART（经网关）。
 |---|---|---|---|---|---|
 | Modbus-TCP | `pymodbus>=3.5,<4` | App 1.1b3；FC 1/2/3/4/5/6/15/16 | 分析仪/加药撬/任意 TCP 从站 | TCP/502 | ✅ |
 | Modbus-RTU | `pymodbus>=3.5,<4` + `pyserial>=3.5` | Modbus serial (RTU) | 串口从站（泵站 RTU/表计） | RS-485/serial | ✅ socat PTY verified 2026-07-02；物理 RS-485 待核实 |
-| OPC-UA | `asyncua>=1.0,<2` | OPC UA 1.0x（DA+HA+AC 子集） | 任意合规 Server / SCADA | opc.tcp | ✅ mock+HDA |
+| OPC-UA | `asyncua>=2.0,<3` | OPC UA 1.0x（DA+HA+AC 子集） | 任意合规 Server / SCADA | opc.tcp | ✅ mock+HDA |
 | HART-IP | `hart-protocol>=2023.6,<2025`（extra） | HART-IP（经网关） | 水质/过程变送器 | UDP/TCP 5094 | ⚠️ codec CI 自测；真机网关 待核实 |

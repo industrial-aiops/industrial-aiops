@@ -371,6 +371,18 @@ jobs:
           ready iaiops-taos 'docker exec iaiops-taos taos -s "SHOW DATABASES" && (echo > /dev/tcp/127.0.0.1/6030)' TDengine
           ready iaiops-opcplc 'docker logs iaiops-opcplc 2>&1 | grep -q "PLC simulation started" && (echo > /dev/tcp/127.0.0.1/50000)' opc-plc
 
+      # Certificate TRUST needs a SECOND opc-plc — one WITHOUT --autoaccept, so it
+      # actually enforces its trust store. The harness owns that container's whole
+      # lifecycle (it also has to promote a certificate mid-test, which only works
+      # from inside the container), so it runs as its own step rather than joining
+      # the lane above.
+      - name: OPC-UA certificate trust (strict third-party server)
+        env:
+          IAIOPS_REQUIRE_LIVE: "1"
+        run: >-
+          scripts/opcua_cert_harness.sh
+          uv run --no-sync pytest tests/test_opcua_cert_trust_live.py -q -rs
+
       # --no-sync: keep the ad-hoc `uv pip install` env above; don't re-sync from
       # the lockfile (which has no energy/TSDB/HART extras).
       # IAIOPS_REQUIRE_LIVE=1 turns a skip into a failed run: every service this

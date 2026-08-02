@@ -63,13 +63,13 @@ _RULES: list[tuple[Any, str, str, str]] = [
         "client_interop",
         "The server rejected the session's ServerUri — a client-library interop "
         "problem, not a configuration or network one.",
-        "This is asyncua 1.x sending a ServerUri that OPC UA Part 4 §5.6.2 says "
-        "must be empty unless the endpoint has a gatewayServerUri; servers built "
-        "on the OPC Foundation .NET stack enforce that and refuse the session "
-        "(reproduced against Microsoft's opc-plc). The transport, security and "
-        "endpoint discovery are all fine — nothing at this site needs changing. "
-        "asyncua 2.x makes ServerUri opt-in; until this package moves to it, use "
-        "a server that does not enforce the rule.",
+        "OPC UA Part 4 §5.6.2 says ServerUri is set only when the endpoint has a "
+        "gatewayServerUri, and servers on the OPC Foundation .NET stack enforce "
+        "it. asyncua 1.x sent it unconditionally, which made sessions against "
+        "that stack impossible; this package now requires asyncua>=2.0, where the "
+        "field is opt-in, so seeing this verdict means either an older asyncua "
+        "was forced into the environment or a genuine gateway-routing mismatch. "
+        "Check the installed asyncua version first.",
     ),
     (
         lambda n, d, e: isinstance(e, ConnectionRefusedError) or "refused" in d,

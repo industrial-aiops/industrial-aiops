@@ -49,7 +49,7 @@ for every protocol in both repos.** Nothing below changes that.
 
 | Protocol | Rung | Test | What actually runs | Not covered |
 |---|---|---|---|---|
-| **OPC-UA** | 2a (asyncua) + **2a-partial** vs a third-party stack⁸ | `test_opcua_discovery.py`, `test_opcua_server.py`, `test_opcua_alarm_events.py`, `test_opcua_security.py`, `test_opcua_thirdparty_live.py` | Real `asyncua` server: browse/discovery, tag model, alarm events, security policy surface. Against **Microsoft opc-plc** (OPC Foundation .NET stack): Hello / OpenSecureChannel / GetEndpoints interoperate — **sessions do not**, see note ⁸ | Real vendor OPC-UA server (Siemens/Kepware/…); certificate trust against real PKI; **any session-level operation against a .NET-stack server** |
+| **OPC-UA** | **2a**⁸ | `test_opcua_discovery.py`, `test_opcua_server.py`, `test_opcua_alarm_events.py`, `test_opcua_security.py`, `test_opcua_thirdparty_live.py`, `test_opcua_cert_trust_live.py` + `scripts/opcua_cert_harness.sh` | Real `asyncua` server: browse/discovery, tag model, alarm events, security-policy surface. Against **Microsoft opc-plc** (OPC Foundation .NET stack — an independent implementation): endpoint discovery, a real session, browse of the SERVER's own address space, typed reads with its status codes and timestamps, and its own `BadNodeIdUnknown`. **Certificate trust enforced both ways** on a second, strict server: an unknown client certificate is refused (and filed under `pki/rejected`), promoting it opens the encrypted Basic256Sha256 session, and a certificate whose SAN URI does not match the client's ApplicationUri stays refused even once trusted | A real vendor server (Siemens/Kepware/…) and its address-space quirks; a real PKI with a CA and CRLs; GDS / push provisioning |
 | **Modbus TCP** | 2a | `test_modbus_tcp_live.py` | Real `pymodbus` `ModbusTcpServer` over loopback: FC03/FC04/FC01/FC02, float32 decode, non-zero start address, `apply_template` picking the declared register file (both banks exercised), `health_summary`'s per-address session, out-of-range → teaching error | Physical Modbus-TCP device; RTU-over-TCP gateways |
 | **Modbus RTU** | 2a | `test_modbus_rtu_live.py` | Real `pymodbus` `ModbusSerialServer` over a socat PTY pair — actual RTU/CRC framing, all four function codes, float32 | Physical RS-485 bus / USB adapter; multi-drop addressing; baud/parity mismatch behaviour |
 | **MQTT / Sparkplug B** | 2a | `test_uns_live_integration.py`, `test_mqtt_retained_undo.py` | Real **mosquitto** broker through the full paho loop: UNS audit, Sparkplug schema from NBIRTH, retained-publish BEFORE capture and inverse round-trip | Production EoN node / Sparkplug host application; broker auth/TLS |
@@ -102,15 +102,30 @@ request or silently dropped it. The connector now reads back and reports
 judge a mismatch as failure — on a commandable object a higher priority legitimately
 holds the value, and only the operator knows the priority scheme.
 
-⁸ **asyncua 1.x cannot open a session on an OPC Foundation .NET-stack server.**
-It sends a `ServerUri` in CreateSession; OPC UA Part 4 §5.6.2 says that field is
-set only when the endpoint has a `gatewayServerUri`, and the .NET stack enforces
-it with `BadServerUriInvalid`. asyncua 2.x makes the field opt-in
-(`Client.server_uri`, default `None`); this package is pinned `asyncua<2`. Nothing
-at a site fixes this — it is a client-library migration, now on the register.
-Everything below the session (transport, secure channel, endpoint discovery) does
-interoperate, which is what `test_opcua_thirdparty_live.py` proves. The
-asyncua-on-both-ends tests could never have shown any of it.
+⁸ **This row was "sessions are impossible" for one day, and the fix was a pin.**
+asyncua 1.x sent a `ServerUri` in CreateSession that OPC UA Part 4 §5.6.2 says is
+set only when the endpoint has a `gatewayServerUri`; the .NET stack enforces it
+with `BadServerUriInvalid`, so browse/read/subscribe could not run at all. asyncua
+2.x makes the field opt-in, and the package moved to `asyncua>=2.0,<3` on
+2026-08-02 — **64 existing OPC-UA tests passed unchanged**, so the migration was
+the pin plus the version strings the skills quote.
+
+Two things only a vendor stack could teach, both now pinned by tests:
+
+- **Certificate trust is enforced, and the connector's `certificate` verdict is
+  the one that gets produced.** The in-process `asyncua` server runs a permissive
+  validator that accepts any client certificate, so that whole verdict class had
+  never been produced by something that enforces it.
+- **A trusted certificate is still refused if its SAN URI does not match the
+  ApplicationUri the client announces** (`BadCertificateUriInvalid`). `asyncua`'s
+  server does not check this, so a certificate minted against an in-house test
+  server can be trusted by a vendor server and still fail — a site-visit-shaped
+  surprise, now a test.
+
+Harness caveat worth keeping: the promotion into the trusted store must be
+performed **inside the server's own filesystem**. The identical file written from
+the host across a macOS bind mount leaves the session refused (measured, 30s+),
+while `docker exec` copying it is honoured on the next connect.
 
 Pointing at that server also surfaced **two thread leaks** in the diagnostics
 path, both of which hung the process rather than failing: the failed-connect
@@ -227,18 +242,17 @@ saying so is the point.
 below). What follows is what those six left behind — smaller, but named here for the
 same reason: so nobody has to reconstruct it.
 
-1. **Migrate to `asyncua` 2.x, then re-run `test_opcua_thirdparty_live.py`.** This is
-   the only entry with product impact rather than coverage impact: on 1.x, a session
-   against an OPC Foundation .NET-stack server is impossible (note ⁸). It is a major
-   upgrade and needs its own pass over the connector, not a test change.
+1. ~~**Migrate to `asyncua` 2.x**~~ **Done 2026-08-02** — `asyncua>=2.0,<3`; the 64
+   existing OPC-UA tests passed unchanged, and `test_opcua_thirdparty_live.py` was
+   rewritten from "sessions are impossible" to the reads themselves (note ⁸).
 2. **TDengine's HTTP / WebSocket connectors** (`taosrest`, `taos-ws-py`). The native
    `libtaos` client is a vendor tarball fetched from a CDN in CI; the other connectors
    would remove that dependency, and each is a different wire format from the one
    `test_tsdb_live.py` covers today.
-3. **Certificate-trust enforcement and the other OPC-UA security policies** against a
-   vendor server. `test_opcua_security.py` covers the policy *surface* against
-   `asyncua`; whether a real server's trust list behaves as the connector assumes is
-   still `待核实`, and the .NET-stack session wall (1) blocks the obvious way to find out.
+3. ~~**Certificate-trust enforcement**~~ **Done 2026-08-02** — both directions against a
+   strict opc-plc (`test_opcua_cert_trust_live.py`), including the SAN-URI rule in
+   note ⁸. What is left of this entry: a **real PKI** — a CA-issued certificate, an
+   issuer chain and a CRL, rather than self-signed peers — and GDS/push provisioning.
 4. **EtherNet/IP breadth on the routes that now exist**: UDT / structured tags,
    program-scoped tags, PLC-5 addressing, ST/A files, and a PCCC route bridged through
    a ControlLogix backplane.

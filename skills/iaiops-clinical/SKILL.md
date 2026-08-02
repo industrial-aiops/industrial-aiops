@@ -93,4 +93,4 @@ description: >-
 | BACnet/IP | `BAC0>=2023.6,<2026`（extra,over bacpypes3） | BACnet/IP（read + 单点写） | BMS/暖通/压力/气体点 | UDP/47808 | ⚠️ mock;真 BMS 待核实 |
 | Modbus-TCP | `pymodbus>=3.5,<4` | App 1.1b3;FC 1/2/3/4/5/6/15/16 | 气体报警屏/表计/任意从站 | TCP/502 | ✅ |
 | Modbus-RTU | `pymodbus>=3.5,<4` + `pyserial>=3.5` | Modbus serial (RTU) | 串口从站/表计 | RS-485/serial | ✅ socat PTY;物理 RS-485 待核实 |
-| OPC-UA | `asyncua>=1.0,<2` | OPC UA 1.0x（DA+HA+AC 子集） | 全院 SCADA / PLC 网关 | opc.tcp | ✅ mock+HDA |
+| OPC-UA | `asyncua>=2.0,<3` | OPC UA 1.0x（DA+HA+AC 子集） | 全院 SCADA / PLC 网关 | opc.tcp | ✅ mock+HDA |
