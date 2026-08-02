@@ -177,6 +177,12 @@ class SampleFilter:
     endpoint: str | None = None
     tag: str | None = None
     limit: int = DEFAULT_QUERY_LIMIT
+    #: Which END of a too-large window to keep. Rows always come back
+    #: oldest→newest; this decides what `limit` DISCARDS when the window holds
+    #: more than that. Default False keeps the historical behaviour (drop the
+    #: newest). An incident investigation wants the opposite — the minutes just
+    #: before onset are the evidence — so `gather_pre_incident` sets it.
+    newest_first: bool = False
 
 
 def _parse_bound(name: str, raw: str | None) -> str | None:
@@ -207,6 +213,7 @@ def validate_filter(flt: SampleFilter) -> SampleFilter:
         endpoint=s(flt.endpoint, 64) if flt.endpoint else None,
         tag=s(flt.tag, 128) if flt.tag else None,
         limit=limit,
+        newest_first=bool(flt.newest_first),
     )
 
 
@@ -242,15 +249,21 @@ def query_samples(flt: SampleFilter, db_path: Path | str | None = None) -> list[
     where, params = _where(checked)
     # nosec-justification: ``where`` is built from a FIXED clause list; every
     # user-supplied value travels as a bound parameter, never interpolated.
+    # `newest_first` selects the NEWEST rows and the caller gets them re-ordered
+    # oldest→newest below, so the return contract never changes — only which end
+    # a truncated window keeps.
+    order = "DESC" if checked.newest_first else "ASC"
     sql = (
         f"SELECT ts, endpoint, protocol, tag, value, quality, unit FROM samples"
-        f"{where} ORDER BY ts, id LIMIT ?"  # nosec B608 — parameterized
+        f"{where} ORDER BY ts {order}, id {order} LIMIT ?"  # nosec B608 — parameterized
     )
     conn = _connect(path)
     try:
         rows = conn.execute(sql, [*params, checked.limit]).fetchall()
     finally:
         conn.close()
+    if checked.newest_first:
+        rows = list(reversed(rows))
     return [dict(zip(SAMPLE_COLUMNS, row)) for row in rows]
 
 

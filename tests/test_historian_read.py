@@ -159,7 +159,7 @@ def test_tdengine_reader_query_sql_and_shape(fake_taos):
         " WHERE ts >= '2026-07-02T08:00:00+00:00'"
         " AND ts <= '2026-07-02T10:00:00+00:00'"
         " AND metric = 'line1.temp'' OR ''1''=''1'"
-        " ORDER BY ts LIMIT 50"
+        " ORDER BY ts ASC LIMIT 50"
     )
     assert rows == [
         {
@@ -545,3 +545,49 @@ def test_iotdb_reader_refuses_a_header_it_does_not_recognise(fake_iotdb):
     )
     with pytest.raises(ValueError, match="expected"):
         IoTDBReader().query(SampleFilter(limit=10))
+
+
+@pytest.mark.unit
+def test_newest_first_keeps_the_end_nearest_the_incident(home):
+    """`limit` must be able to discard the OLD end, not only the new one.
+
+    Every reader returns rows oldest→newest and truncates at `LIMIT`, so a window
+    denser than the cap silently loses its most recent samples — for a
+    pre-incident window, the minutes closest to onset. `newest_first` flips which
+    end goes; the RETURN order is unchanged, so no caller has to care.
+    """
+    db = _seed(home, tag="line1.temp", n=20)  # values 0..19, oldest first
+
+    oldest = SQLiteReader(db_path=db).query(SampleFilter(tag="line1.temp", limit=5))
+    newest = SQLiteReader(db_path=db).query(
+        SampleFilter(tag="line1.temp", limit=5, newest_first=True)
+    )
+
+    assert [row["value"] for row in oldest] == [0.0, 1.0, 2.0, 3.0, 4.0]
+    assert [row["value"] for row in newest] == [15.0, 16.0, 17.0, 18.0, 19.0]
+    # Both come back oldest→newest: the flag changes what is DISCARDED, not the
+    # order of what survives.
+    assert [row["ts"] for row in newest] == sorted(row["ts"] for row in newest)
+
+
+@pytest.mark.unit
+def test_the_pre_incident_window_now_ends_at_the_incident(home, monkeypatch):
+    """The RCA window's samples must run UP TO the incident, not away from it."""
+    monkeypatch.setattr(rca_history, "MAX_SAMPLES_PER_TAG", 5)
+
+    db = home / "data.db"
+    points = [
+        {
+            "ref": "line1.temp",
+            "value": float(i),
+            "timestamp": f"2026-07-02T09:{10 + i:02d}:00+00:00",
+        }
+        for i in range(30)
+    ]
+    assert "error" not in historian_push(points, "sqlite", db_path=db)
+    cfg = AppConfig(historian=HistorianConfig(reader="sqlite", db_path=str(db)))
+
+    bundle = rca_history.gather_pre_incident(WINDOW, refs=["line1.temp"], config=cfg)
+
+    values = [sample["value"] for sample in bundle["tags"][0]["samples"]]
+    assert values == [25.0, 26.0, 27.0, 28.0, 29.0], values

@@ -192,13 +192,17 @@ class TDengineReader:
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
         # Injection-safe: idents sanitized at construction; bounds are validated
         # ISO text; the tag is quote-escaped; the limit is a validated int.
+        # ORDER direction decides which end a truncated window keeps; the rows are
+        # handed back oldest→newest either way (see SampleFilter.newest_first).
+        order = "DESC" if checked.newest_first else "ASC"
         sql = (
             f"SELECT ts, `value`, metric FROM {self._database}.{self._stable}"
-            f"{where} ORDER BY ts LIMIT {int(checked.limit)}"  # nosec B608
+            f"{where} ORDER BY ts {order} LIMIT {int(checked.limit)}"  # nosec B608
         )
         cur = self._cursor()
         cur.execute(sql)
-        return [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in cur.fetchall()]
+        rows = [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in cur.fetchall()]
+        return list(reversed(rows)) if checked.newest_first else rows
 
     def latest(self, limit: int = 5_000) -> list[dict]:
         capped = max(1, min(int(limit), MAX_QUERY_LIMIT))
@@ -307,12 +311,14 @@ class IoTDBReader:
         # bounds are epoch-millis ints, and the limit is a validated int.
         #
         # ALIGN BY DEVICE is not cosmetic — see _collect_device_rows.
+        order = "DESC" if checked.newest_first else "ASC"
         sql = (
             f"SELECT value FROM {self._device(checked.tag)}"
-            f"{where} ORDER BY time ASC LIMIT {int(checked.limit)}"  # nosec B608
+            f"{where} ORDER BY time {order} LIMIT {int(checked.limit)}"  # nosec B608
             " ALIGN BY DEVICE"
         )
-        return self._collect_device_rows(self._execute(sql))
+        rows = self._collect_device_rows(self._execute(sql))
+        return list(reversed(rows)) if checked.newest_first else rows
 
     def latest(self, limit: int = 5_000) -> list[dict]:
         capped = max(1, min(int(limit), MAX_QUERY_LIMIT))

@@ -387,3 +387,74 @@ def test_tdengine_time_bounds_narrow_on_the_server(tdengine_database: str) -> No
     assert {r["tag"] for r in after_march} == {"new"}, after_march
     assert {r["tag"] for r in before_march} == {"old"}, before_march
     assert {r["tag"] for r in just_old} == {"old"}, just_old
+
+
+@needs_iotdb
+def test_iotdb_newest_first_keeps_the_end_nearest_the_incident(iotdb_database: str) -> None:
+    """`newest_first` has to be pushed into the SERVER's ORDER BY, not faked here.
+
+    A reader that fetched the oldest rows and reversed them in Python would pass
+    any assertion about ORDER but return the wrong five samples. The values are
+    positional, so which five came back is the whole test.
+    """
+    from iaiops.core.sink.iotdb import IoTDBSink
+
+    sink = IoTDBSink(database=iotdb_database)
+    sink.write(
+        [
+            {
+                "metric": "t1",
+                "value": float(i),
+                "numeric": True,
+                "timestamp": f"2026-05-01T00:{i:02d}:00Z",
+            }
+            for i in range(20)
+        ]
+    )
+    sink.close()
+
+    reader = get_reader("iotdb", database=iotdb_database)
+    try:
+        oldest = reader.query(SampleFilter(tag="t1", limit=5))
+        newest = reader.query(SampleFilter(tag="t1", limit=5, newest_first=True))
+    finally:
+        reader.close()
+
+    assert [row["value"] for row in oldest] == [0.0, 1.0, 2.0, 3.0, 4.0], oldest
+    assert [row["value"] for row in newest] == [15.0, 16.0, 17.0, 18.0, 19.0], newest
+    assert [row["ts"] for row in newest] == sorted(row["ts"] for row in newest)
+
+
+@needs_tdengine
+@pytest.mark.optional_live
+def test_tdengine_newest_first_keeps_the_end_nearest_the_incident(
+    tdengine_database: str,
+) -> None:
+    """The same push-down, in the dialect where an unexercised clause already bit."""
+    _taos_or_skip()
+    from iaiops.core.sink.tdengine import TDengineSink
+
+    sink = TDengineSink(database=tdengine_database)
+    sink.write(
+        [
+            {
+                "metric": "t1",
+                "value": float(i),
+                "numeric": True,
+                "timestamp": f"2026-05-01T00:{i:02d}:00.000",
+            }
+            for i in range(20)
+        ]
+    )
+    sink.close()
+
+    reader = get_reader("tdengine", database=tdengine_database)
+    try:
+        oldest = reader.query(SampleFilter(tag="t1", limit=5))
+        newest = reader.query(SampleFilter(tag="t1", limit=5, newest_first=True))
+    finally:
+        reader.close()
+
+    assert [row["value"] for row in oldest] == [0.0, 1.0, 2.0, 3.0, 4.0], oldest
+    assert [row["value"] for row in newest] == [15.0, 16.0, 17.0, 18.0, 19.0], newest
+    assert [row["ts"] for row in newest] == sorted(row["ts"] for row in newest)

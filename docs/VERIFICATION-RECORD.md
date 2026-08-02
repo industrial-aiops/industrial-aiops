@@ -257,13 +257,11 @@ same reason: so nobody has to reconstruct it.
    program-scoped tags, PLC-5 addressing, ST/A files, and a PCCC route bridged through
    a ControlLogix backplane.
 5. **MTConnect ≥2.0 schema** — the live agent speaks 1.7.
-6. **Truncation keeps the OLDEST samples, everywhere.** Every reader returns
-   `ORDER BY ts ASC` and cuts at `LIMIT`, so a window denser than the cap loses its
-   most recent end — the minutes closest to an incident. `_pull_tags` no longer
-   *dilutes* across tags (2026-08-02), but a single tag with more samples than
-   `MAX_SAMPLES_PER_TAG` still keeps the wrong half. Fixing it means a
-   `newest_first` option through `SampleFilter` and all three readers, and it
-   changes what RCA reports — a deliberate change, not a review fix.
+6. ~~**Truncation keeps the OLDEST samples, everywhere.**~~ **Done 2026-08-02** —
+   `SampleFilter.newest_first` is pushed into all three readers' `ORDER BY` (not
+   faked by reversing in Python; the live tests assert *which* samples came back),
+   and the RCA pre-incident window sets it. Rows still return oldest→newest, so no
+   caller changed. Default stays oldest-first for the general query API.
 7. **A second MCP implementation.** Both MCP rows are 2a with note ⁹: the client
    and the server come from the same SDK. Driving the server from a different
    client — or from Claude Desktop — is what would close that.

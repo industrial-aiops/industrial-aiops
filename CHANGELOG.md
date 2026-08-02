@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fixed
+- **A truncated pre-incident window kept the wrong end.** Every reader returns rows
+  oldest→newest and cuts at `LIMIT`, so a window holding more samples than the cap lost
+  its most recent ones — for an incident investigation, the minutes closest to onset.
+  `SampleFilter.newest_first` now selects which end survives, pushed into the SQL of
+  all three readers (SQLite, TDengine, IoTDB) rather than faked by reversing in Python,
+  and `gather_pre_incident` sets it. Rows still come back oldest→newest and the default
+  is unchanged, so nothing else moves.
+
 ### Changed
 - **`asyncua` 2.x is now required** (`asyncua>=2.0,<3`). On 1.x a session against an
   OPC Foundation .NET-stack server was impossible — it sent a `ServerUri` that OPC UA
