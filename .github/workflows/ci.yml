@@ -129,9 +129,17 @@ jobs:
       # This ran as a continue-on-error experiment first: reproducing the recipe on
       # Docker Desktop / arm64 had discovered no device, and it was not worth
       # concluding anything about the product from a suspect substrate. ubuntu-latest
-      # passed it on both Python versions, which settled that the local failure was
-      # the macOS VM's bridge. Blocking from here on — a path that is verified only
-      # when convenient is the situation the last six rounds were about.
+      # passed it on both Python versions, so it became blocking — a path verified
+      # only when convenient is the situation those rounds were about.
+      #
+      # CORRECTION (2026-08-02): "the macOS VM's bridge" was the wrong conclusion.
+      # The same harness passes on that machine inside a PRIVILEGED Linux container,
+      # where it adds the second address to the container's own eth0:
+      #   docker run --rm --privileged -v "$PWD:/src:ro" -w /src <image> \
+      #     bash scripts/bacnet_live_harness.sh python -m pytest tests/test_bacnet_live.py
+      # What failed before was running it against the host's network, not the
+      # substrate being incapable. Recorded because the wrong version of this had
+      # already discouraged one retry.
       - name: BACnet two-IP harness (real broadcast round-trip)
         if: runner.os == 'Linux'
         run: |

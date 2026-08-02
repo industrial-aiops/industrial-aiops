@@ -86,7 +86,16 @@ from `secsgem`, so a misreading *inside that library* would satisfy both ends. T
 rung holds for our connector code — an independent implementation of the GEM state
 machine judges it — but not for the SECS-II codec layer beneath.
 
-⁵ **The BACnet write's `applied: true` was an unverified claim, found by this test.**
+⁵ **BACnet's two-IP harness also runs off CI, which was previously written off.**
+A privileged Linux container is enough — it adds the second address to its own
+`eth0`, so no host networking is involved and no second machine is needed
+(verified 2026-08-02 on macOS/arm64, where the earlier attempt against the host's
+network had failed and been blamed on "the VM's bridge"). The same shape works
+for PROFINET's veth pair and for the TDengine and energy protocol stacks, which
+means every non-hardware row in this file can be reproduced on a developer
+machine, not only on a runner.
+
+**The BACnet write's `applied: true` was an unverified claim, found by this test.**
 BAC0's `write()` returns `None` and raises nothing whether the device honoured the
 request or silently dropped it. The connector now reads back and reports
 (`after` / `verified`) rather than asserting success, and deliberately does **not**
