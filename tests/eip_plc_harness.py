@@ -60,6 +60,17 @@ TAGS: dict[str, tuple[int, object]] = {
     "Temperature": (CIP_REAL, 42.5),
 }
 
+#: Tags that live inside a PROGRAM rather than at controller scope. A real Logix
+#: controller lists `Program:<name>` in the controller tag list and hands out that
+#: program's own tags only when asked with an extended-symbol segment naming it —
+#: two different requests, which is why a controller-scope-only harness cannot
+#: show the difference.
+PROGRAM_NAME = "MainProgram"
+PROGRAM_TAGS: dict[str, tuple[int, object]] = {
+    "CycleCount": (CIP_DINT, 8842),
+    "LocalSetpoint": (CIP_REAL, 71.25),
+}
+
 VENDOR_ID = 0x0001  # Rockwell
 DEVICE_TYPE = 0x000E  # PLC
 PRODUCT_CODE = 0x005D
@@ -148,14 +159,38 @@ def _unwrap_unconnected_send(cip: bytes) -> bytes:
 
 
 def _parse_symbolic(cip: bytes) -> tuple[str | None, int]:
-    """Extract an ANSI-symbolic tag name from a CIP request; return (name, offset)."""
+    """Extract the ANSI-symbolic tag name from a CIP request; return (name, offset).
+
+    A program-scoped tag arrives as TWO segments — ``Program:MainProgram`` then
+    the tag — so the segments are walked and joined with a dot, which is the name
+    the caller used (``Program:MainProgram.CycleCount``). A controller-scope tag
+    is the same walk with one segment.
+    """
     path_words = cip[1]
     path = cip[2 : 2 + path_words * 2]
-    if len(path) < 2 or path[0] != 0x91:
+    parts: list[str] = []
+    cursor = 0
+    while cursor + 2 <= len(path) and path[cursor] == 0x91:
+        length = path[cursor + 1]
+        parts.append(path[cursor + 2 : cursor + 2 + length].decode("ascii", errors="replace"))
+        cursor += 2 + length + (length % 2)  # segments are word-aligned
+    if not parts:
         return None, 2 + path_words * 2
-    length = path[1]
-    name = path[2 : 2 + length].decode("ascii", errors="replace")
-    return name, 2 + path_words * 2
+    return ".".join(parts), 2 + path_words * 2
+
+
+def _bank_for(name: str | None) -> dict[str, tuple[int, object]] | None:
+    """Which tag bank a symbolic name addresses (controller or a program)."""
+    if not name:
+        return None
+    if name.startswith(f"Program:{PROGRAM_NAME}."):
+        return PROGRAM_TAGS
+    return TAGS if "." not in name else None
+
+
+def _leaf(name: str) -> str:
+    """`Program:MainProgram.CycleCount` → `CycleCount`; a plain name unchanged."""
+    return name.rsplit(".", 1)[-1]
 
 
 def _controller_info_reply() -> bytes:
@@ -184,7 +219,7 @@ def _handle_cip(cip: bytes) -> bytes:
         return _cip_reply(service, STATUS_OK, pccc_payload(cip))
 
     if service == 0x55:  # Get_Instance_Attribute_List on the Symbol object (0x6B)
-        return _tag_list_reply(service)
+        return _tag_list_reply(service, _requested_program(cip))
 
     if service in (0x54, 0x5B):  # Forward Open / Large Forward Open
         return _forward_open_reply(service, cip)
@@ -202,7 +237,8 @@ def _handle_cip(cip: bytes) -> bytes:
 
     if service == 0x4C:  # Read Tag
         name, _ = _parse_symbolic(cip)
-        entry = TAGS.get(name or "")
+        bank = _bank_for(name)
+        entry = bank.get(_leaf(name)) if bank and name else None
         if entry is None:
             return _cip_reply(service, STATUS_PATH_DESTINATION_UNKNOWN)
         cip_type, value = entry
@@ -210,11 +246,12 @@ def _handle_cip(cip: bytes) -> bytes:
 
     if service == 0x4D:  # Write Tag
         name, offset = _parse_symbolic(cip)
-        if name not in TAGS:
+        bank = _bank_for(name)
+        if not bank or not name or _leaf(name) not in bank:
             return _cip_reply(service, STATUS_PATH_DESTINATION_UNKNOWN)
         cip_type = struct.unpack_from("<H", cip, offset)[0]
         value = _unpack(cip_type, cip[offset + 4 :])
-        TAGS[name] = (cip_type, value)
+        bank[_leaf(name)] = (cip_type, value)
         return _cip_reply(service, STATUS_OK)
 
     return _cip_reply(service, STATUS_PATH_DESTINATION_UNKNOWN)
@@ -251,16 +288,37 @@ def _multiple_service_reply(service: int, cip: bytes) -> bytes:
     return _cip_reply(service, STATUS_OK, header + b"".join(replies))
 
 
-def _tag_list_reply(service: int) -> bytes:
-    """The controller tag list, as ``LogixDriver.open()`` uploads it.
+def _requested_program(cip: bytes) -> str | None:
+    """The program a tag-list request is scoped to, if any.
+
+    pycomm3 prefixes the class/instance segments with an extended-symbol DATA
+    segment (0x91) carrying `Program:<name>` when it wants that program's tags —
+    the same request otherwise. Missing this makes a harness answer every scope
+    with the controller list, which looks like program tags "working".
+    """
+    name, _ = _parse_symbolic(cip)
+    if name and name.startswith("Program:"):
+        return name.split(".", 1)[0].removeprefix("Program:")
+    return None
+
+
+def _tag_list_reply(service: int, program: str | None = None) -> bytes:
+    """The tag list, as ``LogixDriver.open()`` uploads it.
 
     Per instance, in the order pycomm3's ``_parse_instance_attribute_list`` reads:
     instance id (UDINT), name (UINT length + bytes), symbol type (UINT), symbol
     address, symbol object address, software control, then three array dimensions.
     Status 0 means "that was the last page" — 0x06 would mean "call me again".
+
+    The CONTROLLER list also advertises each program as a `Program:<name>` entry;
+    that is how a client learns which programs exist before asking for their tags.
     """
+    if program is not None:
+        entries = list(PROGRAM_TAGS.items()) if program == PROGRAM_NAME else []
+    else:
+        entries = [*TAGS.items(), (f"Program:{PROGRAM_NAME}", (CIP_DINT, 0))]
     payload = b""
-    for instance, (name, (cip_type, _value)) in enumerate(TAGS.items(), start=1):
+    for instance, (name, (cip_type, _value)) in enumerate(entries, start=1):
         encoded = name.encode("ascii")
         payload += struct.pack("<I", instance)
         payload += struct.pack("<H", len(encoded)) + encoded

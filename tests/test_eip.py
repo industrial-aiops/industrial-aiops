@@ -44,7 +44,7 @@ class _FakeLogixDriver:
             "name": "Cell5_Controller",
         }
 
-    def get_tag_list(self):
+    def get_tag_list(self, program=None):  # `program="*"` asks for program scope too
         return [
             {
                 "tag_name": "Speed",

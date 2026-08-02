@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Fixed
+- **`eip_list_tags` never returned program-scoped tags**, though its own note promised
+  they "appear as `Program:<prog>.<tag>`". It called `get_tag_list()`, which is
+  controller scope only; a program's tags are a *second* request carrying an
+  extended-symbol segment. Now `get_tag_list(program="*")` on the Logix route (Micro800
+  has no program scope and keeps the plain call).
+- **The MCP handshake reported the SDK's version as the server's.** FastMCP takes no
+  `version` and the low-level server defaults to `None`, so a client asking "which
+  iaiops am I talking to?" was told the `mcp` package's version. Found by driving the
+  server from the TypeScript SDK, whose client surfaces `serverInfo`.
 - **The published container images could not write their own audit chain.**
   `deploy/margo/Dockerfile` declared `VOLUME` *after* `USER`, so Docker created
   `/home/iaiops/.iaiops` as root:root 0755 while the app runs as uid 10001 — in every
@@ -30,6 +39,17 @@
   world where the pin already excludes 1.x.
 
 ### Testing
+- **A SECOND MCP implementation** (`tests/test_mcp_second_impl_live.py` +
+  `tests/mcp_ts_client/`). Every MCP test so far ran the Python SDK's client against a
+  server built on that same SDK — 2a for our code, but a misreading *inside* the SDK
+  would satisfy both ends. The TypeScript SDK is another language and another codebase;
+  the annotations promise is now asserted through its parser, and it is what caught the
+  version above.
+- **EtherNet/IP breadth**: program-scoped tags listed, read and written; PCCC **ST**
+  string files with their byte-swapped words. Both found harness defects that only a
+  two-letter file type or a second scope could expose — element sizing keyed on
+  `key[0]` turned `ST` into `S`, and File 0's POSITIONAL numbering reported `ST18` as
+  `ST9` when the unused rows were left empty.
 - **`immutable-host` CI job + `scripts/immutable_host_check.sh`** — Margo's device role
   is a hardened, centrally-managed host; validating on a specific one needs that vendor,
   but what an immutable host demands *of an application* does not. Every build now

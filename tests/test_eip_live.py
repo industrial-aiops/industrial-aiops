@@ -104,7 +104,11 @@ def test_tag_list_upload_returns_the_controller_tags(plc: TargetConfig) -> None:
     attribute list' while the session itself was already fine."""
     out = ops.eip_list_tags(plc)
     names = {tag["name"] for tag in out["tags"]}
-    assert names == set(TAGS)
+    # Controller scope plus every program's tags — the list a client gets is the
+    # union, with program tags carrying their `Program:<prog>.` prefix so the two
+    # scopes stay distinguishable (see the program-scope test below).
+    assert set(TAGS) <= names, names
+    assert {name for name in names if not name.startswith("Program:")} == set(TAGS)
     by_name = {tag["name"]: tag for tag in out["tags"]}
     assert by_name["MotorSpeed"]["data_type"] == "DINT"
     assert by_name["Temperature"]["data_type"] == "REAL"
@@ -201,3 +205,53 @@ def test_the_seeded_tags_differ_from_each_other() -> None:
     same value, 'read the right tag' and 'read the wrong tag' would agree."""
     values = [value for _cip_type, value in TAGS.values()]
     assert len(set(map(str, values))) == len(values)
+
+
+def test_program_scoped_tags_are_listed_and_read(plc: TargetConfig) -> None:
+    """A program's tags are a SECOND request, not a filter on the first.
+
+    A real Logix controller advertises each program as a `Program:<name>` entry
+    in the controller tag list, and hands out that program's own tags only when
+    asked with an extended-symbol segment naming it. Reads then carry two
+    symbolic segments (`Program:MainProgram` + the tag). A harness that answered
+    every scope with the controller list would make program tags look like they
+    worked while nothing scope-specific was ever exercised — which is why the
+    controller list is asserted NOT to contain the program's tags.
+    """
+    from eip_plc_harness import PROGRAM_NAME, PROGRAM_TAGS
+
+    listed = ops.eip_list_tags(plc)
+    names = {tag["name"] for tag in listed["tags"]}
+    # pycomm3 consumes the `Program:<name>` entries into `info["programs"]`
+    # rather than returning them as tags, and — with `init_program_tags` on by
+    # default — it then uploads each program's own tags under a dotted name.
+    assert not (names & set(PROGRAM_TAGS)), (
+        f"program tags appeared UNSCOPED, which would make them ambiguous with "
+        f"controller tags: {names & set(PROGRAM_TAGS)}"
+    )
+    scoped_names = {name for name in names if name.startswith("Program:")}
+    assert scoped_names, (
+        f"no program-scoped tag was uploaded at all — the second request never "
+        f"happened: {sorted(names)}"
+    )
+    assert f"Program:{PROGRAM_NAME}.CycleCount" in scoped_names, sorted(scoped_names)
+
+    scoped = f"Program:{PROGRAM_NAME}.CycleCount"
+    read = ops.eip_read_tag(plc, scoped)
+    assert read["good"] is True, read
+    assert read["value"] == 8842, read
+
+    # The same path round-trips a write, so the two-segment path is honoured in
+    # both directions rather than only on the read side.
+    applied = ops.eip_write_tag(plc, scoped, 9001, dry_run=False)
+    assert applied["applied"] is True, applied
+    assert applied["before"] == 8842
+    assert ops.eip_read_tag(plc, scoped)["value"] == 9001
+
+
+def test_a_program_tag_is_not_reachable_from_controller_scope(plc: TargetConfig) -> None:
+    """Asking for a program tag without its scope must fail, not silently work."""
+    result = ops.eip_read_tag(plc, "CycleCount")
+
+    assert result["good"] is False, result
+    assert result["value"] is None, result

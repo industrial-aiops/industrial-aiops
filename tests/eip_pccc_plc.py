@@ -58,9 +58,10 @@ _TYPE_CODES = {
     0x88: "R",
     0x89: "N",
     0x8A: "F",
+    0x8D: "ST",
 }
 _CODE_FOR = {letter: code for code, letter in _TYPE_CODES.items()}
-_ELEMENT_SIZE = {"O": 2, "I": 2, "S": 2, "B": 2, "T": 6, "C": 6, "R": 6, "N": 2, "F": 4}
+_ELEMENT_SIZE = {"O": 2, "I": 2, "S": 2, "B": 2, "T": 6, "C": 6, "R": 6, "N": 2, "F": 4, "ST": 84}
 
 #: The data-table layout this virtual SLC reports and serves: file number →
 #: (type letter, element count). Standard SLC numbering, so the directory a test
@@ -75,6 +76,7 @@ DATA_FILES: dict[int, tuple[str, int]] = {
     6: ("R", 10),
     7: ("N", 20),
     8: ("F", 10),
+    18: ("ST", 4),  # strings: 84-byte elements, a 2-byte length then the chars
 }
 
 STATUS_OK = 0x00
@@ -96,9 +98,14 @@ _FILE0_SIZE_ELEMENT = 0x23
 #: pycomm3 switches to a UINT offset after this marker once File 0 exceeds 512 bytes.
 _EXTENDED_OFFSET_MARKER = 0xFF
 _FILE0_SIZE_LEN = 0x04
-_FILE0_LENGTH = 200
+# 79 + <highest file number> * 10 + 3, rounded up: file 18 (ST18) pushes this
+# past the old 200. The rows are POSITIONAL by file number, so a short table
+# silently drops the higher files rather than failing.
+_FILE0_LENGTH = 300
 _FILE0_ROW_START = 79  # pycomm3's file_position for the 1747 family
 _FILE0_ROW_SIZE = 10
+#: 'this file number exists but has no data file' — keeps the positional count.
+_RESERVED_FILE_CODE = 0x81
 
 
 def _seed_values() -> dict[str, bytearray]:
@@ -123,7 +130,24 @@ def _seed_values() -> dict[str, bytearray]:
     struct.pack_into("<H", values["B3"], 0, 0b1001)
     # T4:0 — a timer element is EN/TT/DN flags (word 0), PRE (word 1), ACC (word 2).
     struct.pack_into("<HHH", values["T4"], 0, 0x8000, 500, 137)
+    # ST18: an SLC string element is a 2-byte length followed by the characters,
+    # stored in BYTE-SWAPPED word order — the detail a string read gets wrong
+    # first, and the reason a live test is worth more than a mock here.
+    _pack_string(values["ST18"], 0, "LINE 1 READY")
+    _pack_string(values["ST18"], 1, "BATCH 42")
     return values
+
+
+def _pack_string(table: bytearray, element: int, text: str) -> None:
+    """Write an SLC ST element: UINT length, then the chars in swapped word order."""
+    start = element * _ELEMENT_SIZE["ST"]
+    raw = text.encode("ascii")
+    struct.pack_into("<H", table, start, len(raw))
+    padded = raw + (b"\x00" if len(raw) % 2 else b"")
+    for i in range(0, len(padded), 2):
+        # PCCC packs the pair as a big-endian word inside a little-endian frame.
+        table[start + 2 + i] = padded[i + 1]
+        table[start + 2 + i + 1] = padded[i]
 
 
 VALUES: dict[str, bytearray] = _seed_values()
@@ -139,14 +163,35 @@ def _file0() -> bytes:
     data = bytearray(_FILE0_LENGTH)
     data[46] = 8  # ladder files (pycomm3 only prints this)
     data[52] = len(DATA_FILES)  # data files
-    for number, (letter, count) in sorted(DATA_FILES.items()):
+    # `_parse_file0` assigns file NUMBERS positionally, incrementing only for a
+    # recognised type code or the reserved 0x81 — so a gap left as zeros makes
+    # every later file come back under the wrong number (ST18 arrived as ST9).
+    # Unused slots are filled with 0x81, which is what a real File 0 carries.
+    highest = max(DATA_FILES)
+    for number in range(highest + 1):
         offset = _FILE0_ROW_START + number * _FILE0_ROW_SIZE
+        declared = DATA_FILES.get(number)
+        if declared is None:
+            data[offset] = _RESERVED_FILE_CODE
+            continue
+        letter, count = declared
         data[offset] = _CODE_FOR[letter]
         struct.pack_into("<H", data, offset + 1, _ELEMENT_SIZE[letter] * count)
     return bytes(data)
 
 
 FILE0 = _file0()
+
+
+def _letter_of(key: str) -> str:
+    """``"ST18"`` → ``"ST"``. NOT ``key[0]``.
+
+    PCCC file types are one OR two letters (ST, MG, PD, PLS), so slicing the
+    first character silently turned ST into S — element size 2 instead of 84,
+    which read a string from four bytes into the previous element. Invisible
+    until a two-letter type existed.
+    """
+    return key.rstrip("0123456789")
 
 
 def _file_key(file_number: int, type_code: int) -> str | None:
@@ -166,7 +211,7 @@ def _read(args: bytes) -> tuple[int, bytes]:
     key = _file_key(file_number, type_code)
     if key is None:
         return STATUS_ILLEGAL, b""
-    start = element * _ELEMENT_SIZE[key[0]]
+    start = element * _ELEMENT_SIZE[_letter_of(key)]
     table = VALUES[key]
     if start + size > len(table):
         # A real SLC refuses past the end of a data file rather than padding —
@@ -188,7 +233,7 @@ def _write(args: bytes) -> tuple[int, bytes]:
         return STATUS_ILLEGAL, b""
     mask = struct.unpack_from("<H", args, 5)[0]
     payload = args[7:]
-    start = element * _ELEMENT_SIZE[key[0]]
+    start = element * _ELEMENT_SIZE[_letter_of(key)]
     table = VALUES[key]
     if start >= len(table) or len(payload) < 2:
         return STATUS_ILLEGAL, b""
