@@ -12,7 +12,7 @@ FROM python:${PYTHON_VERSION}-slim AS build
 # Which edition profile to bake in. Matches an IAIOPS_MCP profile AND the same-named pip extra
 # (fab / factory / process / building / water). Pin the version for a reproducible image.
 ARG PROFILE=factory
-ARG IAIOPS_VERSION=0.21.1
+ARG IAIOPS_VERSION=0.22.0
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -27,7 +27,7 @@ ARG PROFILE=factory
 # The state directory is created HERE, owned by the app user and 0700 — not left
 # to the VOLUME instruction below, which runs as root and would leave a
 # root-owned 0755 directory the app cannot write. That was live in every
-# published image up to 0.21.1: `IAIOPS_HOME` was unwritable, so reads ran
+# published image up to 0.22.0: `IAIOPS_HOME` was unwritable, so reads ran
 # unaudited and every high-risk write was denied fail-closed (correct behaviour,
 # wrong cause). Found 2026-08-02 by running the published image under the
 # read-only-rootfs constraints an immutable edge host imposes.
