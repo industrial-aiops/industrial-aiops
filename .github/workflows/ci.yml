@@ -285,6 +285,14 @@ jobs:
           sudo ln -sf "/usr/lib/libtaos.so.${ver}" /usr/lib/libtaos.so.1
           sudo ln -sf /usr/lib/libtaos.so.1 /usr/lib/libtaos.so
           sudo ldconfig
+          # libtaos opens a CLIENT-side log in /var/log/taos before it does
+          # anything else, and a failure there does not surface as "cannot write
+          # a log" — `taos_connect` returns `[0x000d]: Permission denied`, which
+          # reads like a rejected password. The runner user cannot create that
+          # directory, so create it here. (Reproduced locally by running the
+          # client as a non-root user before believing the error message.)
+          sudo mkdir -p /var/log/taos
+          sudo chmod 1777 /var/log/taos
 
       # The two historian TSDBs had never been checked against a server — only
       # against their client libraries' symbol surface (rung 1). That is blind to
@@ -299,7 +307,13 @@ jobs:
       - name: Start IoTDB and TDengine (real historian round-trips)
         run: |
           docker run -d --rm --name iaiops-iotdb -p 6667:6667 apache/iotdb:1.3.2-standalone
-          docker run -d --rm --name iaiops-taos -p 6030:6030 tdengine/tdengine:3.3.5.0
+          # TAOS_FQDN/--hostname: a taosd dnode advertises its own FQDN, and the
+          # native client reconnects to whatever it is told. Left at the default
+          # that is the container id, which resolves inside the container network
+          # and nowhere else — so a client on the runner would connect once and
+          # then fail to find the node it was just talking to.
+          docker run -d --rm --name iaiops-taos --hostname localhost \
+            -e TAOS_FQDN=localhost -p 6030:6030 tdengine/tdengine:3.3.5.0
           # An open port is not readiness for either of these: IoTDB accepts TCP
           # while the DataNode is still starting, and taosd answers only once its
           # dnode is up. Wait for what each one says about itself.
