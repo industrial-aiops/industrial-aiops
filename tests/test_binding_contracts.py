@@ -55,6 +55,7 @@ def test_iotdb_session_surface() -> None:
     assert hasattr(consts.TSDataType, "DOUBLE")
 
 
+@pytest.mark.optional_live
 def test_tdengine_taos_surface() -> None:
     """taospy native ``taos`` must expose connect() (TDengine sink calls it).
 

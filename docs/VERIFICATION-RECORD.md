@@ -6,7 +6,15 @@
 > If a claim here cannot be reproduced by running the named test, the claim is wrong
 > and should be deleted rather than softened.
 >
-> Last updated **2026-08-02** (second pass the same day: the two historian TSDBs
+> Last updated **2026-08-02** (third pass: four independent reviews of the day's
+> work found three more product defects — an RCA pre-incident window diluted to
+> its oldest samples on any historian with many tags, an IoTDB header whose
+> unrecognised column names failed silently, and a malformed `endpoint_url` that
+> still leaked a thread — plus a CI gate that checked container banners instead
+> of the ports the tests actually connect to, and two rung labels that claimed
+> more than they had. All fixed; see the 0.21.1 CHANGELOG entry.)
+>
+> Previously updated **2026-08-02** (second pass the same day: the two historian TSDBs
 > went from rung 1 to 2a, which cost two product fixes — see note ⁶ —
 > **PROFINET-DCP went from mock-only to 2b** on a veth pair, which cost a
 > documentation fix — see note ⁷ — **EtherNet/IP's PCCC and Micro800 routes joined
@@ -137,9 +145,17 @@ All three run on **every CI build**, and a skipped live test **fails** the build
 
 | Area | Rung | Test | What actually runs | Not covered |
 |---|---|---|---|---|
-| **MCP over stdio** | 2a | `test_mcp_stdio_live.py` | The SDK's own `stdio_client` + `ClientSession` against the real `mcp_server.server:main` entrypoint as a subprocess: initialize handshake, `list_tools()`, a JSON-RPC tool call, a connector failure arriving as readable content rather than a session-killing protocol error, **the `ToolAnnotations` a client receives**, **what `IAIOPS_NO_EGRESS=1` withholds as seen from outside**, and `IAIOPS_MCP` profile selection | Any client other than the reference SDK; Claude Desktop / IDE hosts; TLS termination and an authenticating gateway in front of the HTTP transports |
+| **MCP over stdio** | 2a⁹ | `test_mcp_stdio_live.py` | The SDK's own `stdio_client` + `ClientSession` against the real `mcp_server.server:main` entrypoint as a subprocess: initialize handshake, `list_tools()`, a JSON-RPC tool call, a connector failure arriving as readable content rather than a session-killing protocol error, **the `ToolAnnotations` a client receives**, **what `IAIOPS_NO_EGRESS=1` withholds as seen from outside**, and `IAIOPS_MCP` profile selection | Any client other than the reference SDK; Claude Desktop / IDE hosts; TLS termination and an authenticating gateway in front of the HTTP transports |
+| **MCP over HTTP/SSE** | 2a⁹ | `test_mcp_http_live.py` | The SDK's `streamablehttp_client` and `sse_client` against the real entrypoint run as a subprocess under uvicorn: initialize, `list_tools()`, a tool call whose connector failure arrives as content, and **the IP-allowlist middleware 403ing a client outside `IAIOPS_ALLOWLIST_IPS`** — a control that exists on no other transport — with an unconfigured server proving it is off by default | TLS; a real gateway in front; clients other than the reference SDK |
 
-| **MCP over HTTP/SSE** | 2a | `test_mcp_http_live.py` | The SDK's `streamablehttp_client` and `sse_client` against the real entrypoint run as a subprocess under uvicorn: initialize, `list_tools()`, a tool call whose connector failure arrives as content, and **the IP-allowlist middleware 403ing a client outside `IAIOPS_ALLOWLIST_IPS`** — a control that exists on no other transport — with an unconfigured server proving it is off by default | TLS; a real gateway in front; clients other than the reference SDK |
+⁹ **Both MCP rows carry the SECS/GEM caveat (note ⁴), and for the same reason.**
+The server under test is ours, and the frames on both sides are produced by ONE
+third-party library — `FastMCP` from the `mcp` SDK on the server, the same SDK's
+client in the test. That earns 2a for *our* code (the SDK's own client parses
+what our server emits, and a wrong tool schema or a broken profile gate shows up
+immediately), but a misreading INSIDE the SDK would satisfy both ends. A second
+implementation of MCP — a different client, or Claude Desktop — is what would
+close that, and neither has been run against this server.
 
 Until 2026-08-01 nothing drove this at all — every test called tool functions
 in-process, so the product's **primary interface** was unexercised. Two of the
@@ -218,6 +234,16 @@ same reason: so nobody has to reconstruct it.
    program-scoped tags, PLC-5 addressing, ST/A files, and a PCCC route bridged through
    a ControlLogix backplane.
 5. **MTConnect ≥2.0 schema** — the live agent speaks 1.7.
+6. **Truncation keeps the OLDEST samples, everywhere.** Every reader returns
+   `ORDER BY ts ASC` and cuts at `LIMIT`, so a window denser than the cap loses its
+   most recent end — the minutes closest to an incident. `_pull_tags` no longer
+   *dilutes* across tags (2026-08-02), but a single tag with more samples than
+   `MAX_SAMPLES_PER_TAG` still keeps the wrong half. Fixing it means a
+   `newest_first` option through `SampleFilter` and all three readers, and it
+   changes what RCA reports — a deliberate change, not a review fix.
+7. **A second MCP implementation.** Both MCP rows are 2a with note ⁹: the client
+   and the server come from the same SDK. Driving the server from a different
+   client — or from Claude Desktop — is what would close that.
 
 ### Cleared on 2026-08-02
 

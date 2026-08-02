@@ -107,7 +107,57 @@ def _pull_tags(reader: Any, since: str, until: str, refs: list[str] | None) -> l
         bucket = grouped.setdefault(tag, [])
         if len(bucket) < MAX_SAMPLES_PER_TAG:
             bucket.append(row)
-    return [_series(tag, grouped[tag]) for tag in sorted(grouped)[:MAX_HISTORY_TAGS]]
+    selected = sorted(grouped)[:MAX_HISTORY_TAGS]
+    return [
+        _series(tag, rows)
+        for tag, rows in _topped_up(reader, since, until, selected, grouped, len(rows))
+    ]
+
+
+def _topped_up(
+    reader: Any,
+    since: str,
+    until: str,
+    selected: list[str],
+    grouped: dict[str, list[dict]],
+    fetched: int,
+) -> list[tuple[str, list[dict]]]:
+    """Re-query the selected tags when the window query was cut short.
+
+    **Why this exists.** The grouping query is one bounded read across every tag
+    (``limit=MAX_WINDOW_ROWS``), and every reader returns rows OLDEST FIRST. On a
+    historian with more tags than that budget divided by
+    ``MAX_SAMPLES_PER_TAG``, the cap lands long before the window ends, so each
+    tag keeps only its earliest handful of samples — 40 tags against a 100-row
+    budget gives 3 samples each, all from the start of the window. For a
+    *pre-incident* window that discards exactly the part an investigation needs:
+    the minutes just before onset.
+
+    Measured on IoTDB and on the local SQLite store alike (2026-08-02), so this
+    is not one dialect's quirk — it is what a shared row budget does to a
+    per-tag question. Nothing reported it either: ``sample_count`` counted the
+    diluted rows as though the window were complete.
+
+    The re-query is skipped entirely when the first read was NOT truncated
+    (``fetched < MAX_WINDOW_ROWS``), which is the common case — the whole window
+    fit, so nothing is missing. Otherwise it costs at most
+    ``MAX_HISTORY_TAGS`` bounded single-tag reads, the same ones the ``refs``
+    branch above already makes.
+    """
+    if fetched < MAX_WINDOW_ROWS:
+        return [(tag, grouped[tag]) for tag in selected]
+    out: list[tuple[str, list[dict]]] = []
+    for tag in selected:
+        rows = grouped[tag]
+        if len(rows) < MAX_SAMPLES_PER_TAG:
+            rows = (
+                reader.query(
+                    SampleFilter(since=since, until=until, tag=tag, limit=MAX_SAMPLES_PER_TAG)
+                )
+                or rows
+            )
+        out.append((tag, rows))
+    return out
 
 
 def _series(ref: str, rows: list[dict]) -> dict:

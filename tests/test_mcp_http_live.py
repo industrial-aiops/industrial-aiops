@@ -156,6 +156,16 @@ async def test_streamable_http_serves_a_real_mcp_session(http_server: _Server) -
             )
             assert result.content, result
             assert not result.isError, "a connector failure killed the JSON-RPC call"
+            # Read the payload. "Did not raise" would also be satisfied by a tool
+            # that INVENTED register values for a device it never contacted —
+            # which is the failure this connector family must never have.
+            text = " ".join(getattr(item, "text", "") for item in result.content).lower()
+            assert "nope" in text or "error" in text or "endpoint" in text, (
+                f"the failure came back as content, but says nothing about it: {text[:300]}"
+            )
+            assert '"values"' not in text and "'values'" not in text, (
+                f"an unreachable endpoint returned register data: {text[:300]}"
+            )
 
             # The session survives the failed call and can still be used.
             assert await _tool_names(session) == names
@@ -199,6 +209,29 @@ async def test_the_ip_allowlist_refuses_a_client_outside_it(blocked_server: _Ser
     assert "forbidden" in response.text.lower(), response.text[:200]
 
 
+@pytest.fixture
+def allowed_server(tmp_path) -> Iterator[_Server]:
+    """A server whose IP allowlist explicitly INCLUDES this client."""
+    yield from _start("streamable-http", tmp_path, IAIOPS_ALLOWLIST_IPS="127.0.0.1/32")
+
+
+async def test_an_allowlisted_client_completes_a_real_session(allowed_server: _Server) -> None:
+    """The positive half — without it, a middleware that 403s everyone passes.
+
+    The refusal test proves a non-allowed client is blocked; the default test
+    runs against a server where the middleware was never installed at all
+    (`transport.run_server` only wraps the app when `restricts_ips` is true). So
+    until this test existed, `Allowlist.ip_allowed` returning True had never been
+    exercised over HTTP, and an unconditional 403 satisfied the suite.
+    """
+    from mcp.client.streamable_http import streamablehttp_client
+
+    async with streamablehttp_client(allowed_server.url) as (read, write, _get_session_id):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            assert "modbus_read_holding" in await _tool_names(session)
+
+
 async def test_the_allowlist_is_off_by_default(http_server: _Server) -> None:
     """The control must not be load-bearing by accident.
 
@@ -214,4 +247,12 @@ async def test_the_allowlist_is_off_by_default(http_server: _Server) -> None:
         timeout=10,
     )
 
+    # `!= 403` alone would be satisfied by a 500, or by uvicorn rendering an
+    # unhandled exception — i.e. by a transport that is broken for everyone. So
+    # the absence of a server error is asserted too. (The MCP layer answers this
+    # request 200 with an SSE event rather than a 4xx — measured, not assumed,
+    # which is why the bound is 5xx and not "must be 4xx".)
     assert response.status_code != 403, response.text[:200]
+    assert response.status_code < 500, (
+        f"the transport is broken for everyone: {response.status_code} {response.text[:200]}"
+    )

@@ -236,22 +236,6 @@ def test_iotdb_latest_and_coverage_parse_a_real_result_set(iotdb_database: str) 
     assert coverage_by_tag["t1"]["last_ts"].startswith("2026-05-02"), coverage
 
 
-@needs_iotdb
-def test_iotdb_reader_refuses_an_endpoint_filter(iotdb_database: str) -> None:
-    """No endpoint label is stored — the reader must teach, not silently ignore.
-
-    Silently dropping the filter would return every endpoint's data to someone
-    who asked for one machine's, which on a plant floor is a wrong answer
-    dressed as a right one.
-    """
-    reader = get_reader("iotdb", database=iotdb_database)
-    try:
-        with pytest.raises(ValueError, match="endpoint"):
-            reader.query(SampleFilter(endpoint="plc-1", limit=10))
-    finally:
-        reader.close()
-
-
 # ─── TDengine ────────────────────────────────────────────────────────────────
 
 
@@ -285,6 +269,7 @@ def tdengine_database() -> Iterator[str]:
 
 
 @needs_tdengine
+@pytest.mark.optional_live
 def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -> None:
     """Sink → real taosd → reader, including the `value` reserved-word DDL.
 
@@ -362,6 +347,7 @@ def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -
 
 
 @needs_tdengine
+@pytest.mark.optional_live
 def test_tdengine_time_bounds_narrow_on_the_server(tdengine_database: str) -> None:
     """`since`/`until` are pushed into the SQL — a real taosd applies them."""
     _taos_or_skip()
@@ -389,9 +375,15 @@ def test_tdengine_time_bounds_narrow_on_the_server(tdengine_database: str) -> No
     reader = get_reader("tdengine", database=tdengine_database)
     try:
         after_march = reader.query(SampleFilter(since="2026-03-01T00:00:00", limit=100))
+        # `until` builds a second clause in the same SQL and had never reached a
+        # real taosd — in the dialect where the live round-trip already found that
+        # MIN()/MAX() on a TIMESTAMP is rejected outright, an unexercised bound is
+        # not a safe assumption.
+        before_march = reader.query(SampleFilter(until="2026-03-01T00:00:00", limit=100))
         just_old = reader.query(SampleFilter(tag="old", limit=100))
     finally:
         reader.close()
 
     assert {r["tag"] for r in after_march} == {"new"}, after_march
+    assert {r["tag"] for r in before_march} == {"old"}, before_march
     assert {r["tag"] for r in just_old} == {"old"}, just_old

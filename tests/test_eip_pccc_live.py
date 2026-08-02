@@ -238,3 +238,29 @@ def test_micro800_identity_is_what_the_connector_reports(micro800: TargetConfig)
 
     assert result["plctype"] == "micro800"
     assert result["controller"]["product_name"] == MICRO800_PRODUCT_NAME, result
+
+
+def test_slc_bit_write_on_a_wide_element_is_not_refused(slc: TargetConfig) -> None:
+    """A bit write to a 4- or 6-byte file must reach the data table.
+
+    pycomm3 encodes the size byte from the file's ELEMENT width (6 for a timer,
+    4 for a float) and only then sets its own `data_size = 2` for the masked
+    write — so the request arrives as "size 6, two bytes of data". A device that
+    compares the payload length against the declared size refuses it as
+    `Illegal Command`, which reads like a bad address for an address that is
+    fine. Only `B3` (2 bytes) was covered before, which is exactly the width
+    where the mistake is invisible.
+    """
+    before = ops.eip_read_tag(slc, "T4:0.ACC")["value"]
+    assert before == 137
+
+    applied = ops.eip_write_tag(slc, "F8:0", 3.5, dry_run=False)
+    assert applied["applied"] is True, applied
+    assert ops.eip_read_tag(slc, "F8:0")["value"] == pytest.approx(3.5)
+
+    # A timer's DN flag is a masked write on a 6-byte element (sub-element 13).
+    flags = ops.eip_write_tag(slc, "T4:0.DN", 1, dry_run=False)
+    assert flags["applied"] is True, flags
+    assert "Illegal Command" not in str(flags), flags
+    # The accumulator, two words further into the same element, is untouched.
+    assert ops.eip_read_tag(slc, "T4:0.ACC")["value"] == 137

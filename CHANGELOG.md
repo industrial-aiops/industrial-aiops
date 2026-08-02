@@ -1,5 +1,69 @@
 # Changelog
 
+## 0.21.1 — 2026-08-02
+
+> **Four independent reviews of 0.21.0, and three more product defects.** The
+> sweep that produced 0.21.0 was reviewed by one pair of eyes — its author's. Four
+> reviewers over the same diff found what that missed, including a wrong answer in
+> the RCA path that predates all of this work and had never been noticed.
+
+### Fixed
+- **The RCA pre-incident window kept each tag's OLDEST samples and reported them as
+  complete.** `gather_pre_incident` pulls the window with ONE bounded query across
+  every tag; every reader returns rows oldest-first. On a historian holding more tags
+  than `MAX_WINDOW_ROWS / MAX_SAMPLES_PER_TAG`, the cap lands long before the window
+  ends and each tag keeps only its earliest handful — measured at 3 samples per tag
+  out of 30 for a 40-tag store, on IoTDB **and** on the local SQLite store, so this
+  was never one dialect's quirk. For a *pre-incident* window that discards precisely
+  the minutes before onset, and `sample_count` counted the diluted rows as though the
+  window were whole. The selected tags are now re-queried individually when the first
+  read was truncated — at most `MAX_HISTORY_TAGS` bounded reads, and none at all when
+  the window fit.
+- **An IoTDB result whose columns are named something else returned "no data"
+  instead of an error.** 0.21.0 made the header/field *arity* loud but left the
+  *names* silently defaulted, so a header with the right shape and different labels
+  (a qualified `COUNT(root.db.t1.value)`, a `__device`) passed the check while every
+  lookup missed — `historian_query` returning `[]`, `historian_coverage` reporting
+  every tag as `rows: 0`. Both column sets are now required by name.
+- **A malformed `endpoint_url` still leaked a thread.** 0.21.0 guarded everything
+  *after* asyncua's constructor, but the constructor starts the ThreadLoop and only
+  then parses the URL — so `opc.tcp://[::1:4840` (an unclosed IPv6 bracket) raised
+  with the loop already running and no client for anyone to disconnect. The URL is
+  now parsed before the client is built, which is also where the error belongs.
+
+### Testing
+- **CI gates on the port the tests actually connect to.** The readiness probes added
+  in 0.21.0 checked container banners and in-container commands; every live test
+  gates on a TCP connect from the runner. A container that printed its banner and
+  died, or whose port never published, would have passed the gate and let the tests
+  skip on a green build — the exact hole the gate was added to close.
+- **A skipped live test now fails the build where the scaffolding was promised.**
+  `pytest -q -rs` prints "6 skipped" and exits 0, so a dropped `export`, a renamed
+  env var or a client library that stops importing silently converted a dedicated CI
+  step into a no-op. `IAIOPS_REQUIRE_LIVE=1` (set by the PROFINET, BACnet and
+  integration steps) turns any skip into a failed run, with one explicit escape
+  hatch — `@pytest.mark.optional_live` — for scaffolding the workflow itself declares
+  non-fatal, today only the vendor-CDN libtaos client.
+- **`opc-plc` and `nats` images are pinned**, like everything else in that lane; note
+  ⁸'s interop claim was anchored to whatever `latest` happened to be that day.
+- Test fixes: the PROFINET unicast-Get test could pass on the IdentifyAll fallback it
+  exists to exclude; the MCP allowlist had no positive case, so a middleware that
+  403'd everyone would have passed; a tool-failure assertion accepted invented
+  register data; TDengine's `until` bound had never reached a real taosd; a class-level
+  fake dataset leaked between tests.
+- Harness fixes: the PCCC File-0 read answered out-of-range with success and no data,
+  which spins pycomm3's directory loop forever with no timeout; masked writes to 4-
+  and 6-byte elements were refused as bad addresses; the DCP station swallowed
+  exceptions into silence (they are recorded and asserted now) and half-applied a
+  short Set; `harness_process` piped a child's stderr nowhere and could deadlock it at
+  64 KiB; the veth script armed its cleanup trap too late and reused half-built
+  interfaces.
+
+### Documentation
+- Both MCP rows in `docs/VERIFICATION-RECORD.md` carry note ⁹: client and server come
+  from the same SDK, which is the caveat SECS/GEM's note ⁴ already made for the same
+  situation. A blank line was also breaking that table's rendering.
+
 ## 0.21.0 — 2026-08-02
 
 > **A verification sweep, and what it cost.** Every remaining item on
