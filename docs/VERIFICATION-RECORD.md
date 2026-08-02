@@ -6,9 +6,12 @@
 > If a claim here cannot be reproduced by running the named test, the claim is wrong
 > and should be deleted rather than softened.
 >
-> Last updated **2026-08-02**. The follow-up register at the bottom is the durable
-> list of what is still worth testing, what is not, and the open questions — it is
-> there rather than in a chat log so it survives the session that produced it.
+> Last updated **2026-08-02** (second pass the same day: the two historian TSDBs
+> went from rung 1 to 2a, which cost two product fixes — see note ⁶ — and the NATS
+> live tests now have a broker on every CI build instead of skipping). The
+> follow-up register at the bottom is the durable list of what is still worth
+> testing, what is not, and the open questions — it is there rather than in a chat
+> log so it survives the session that produced it.
 >
 > Previously updated 2026-08-01, after a code review of the day's changes found a
 > harness bug that made this file's S7 row overstate (WORD reads returned silently
@@ -107,10 +110,30 @@ where a client looks.
 
 | Sink | Rung | Test | What actually runs | Not covered |
 |---|---|---|---|---|
-| **NATS** | 2a | `test_egress_live.py` | A **real NATS broker**; published messages are read back off it by a real subscriber (subjects and payloads), plus a bounded-failure assertion against an unreachable broker | Auth/TLS; JetStream; a real plant bus under load |
+| **NATS** | 2a | `test_egress_live.py` | A **real NATS broker**; published messages are read back off it by a real subscriber (subjects and payloads), plus a bounded-failure assertion against an unreachable broker. Runs on every CI build since 2026-08-02 — before that the gate started no broker, so this row was true of local runs only | Auth/TLS; JetStream; a real plant bus under load |
 | **InfluxDB** | 2b | `test_egress_live.py` | A real HTTP endpoint recording exactly what the sink emits: measurement, value, bucket/org query, `Authorization` header, and that five points become **one** request | A real InfluxDB server accepting the line protocol; v1 vs v2 differences beyond the endpoint shape |
-| **IoTDB / TDengine** | 1 | `test_binding_contracts.py` | Client-library symbol surface only (taospy against real **libtaos**) | Any write round-trip to a real server |
+| **IoTDB** | **2a**⁶ | `test_tsdb_live.py` | A real **apache/iotdb 1.3.2**: sink write → reader read-back, time-bound and tag filters applied server-side, the `LAST` and aggregate result shapes parsed, non-numeric points skipped, endpoint filter refused | A vendor/clustered IoTDB; schema templates; IoTDB 2.x |
+| **TDengine** | **2a**⁶ | `test_tsdb_live.py` | A real **taosd 3.3.5**: the `value` reserved-word DDL, auto-sub-table INSERT…USING…TAGS, reader query/latest/coverage, time bounds applied server-side | A physical/clustered taosd; the REST + WebSocket connectors; retention/keep policies |
 | **SQLite / Parquet** | local | `test_sink_sqlite_local.py`, `test_export.py` | Real local files — no network counterparty exists to be wrong about | — |
+
+⁶ **Both TSDBs moved from rung 1 to 2a on 2026-08-02, and the move cost two
+product fixes** — which is the argument for making it, since "the client library
+has the method we call" had been standing in for "the database answers us".
+
+- **The IoTDB reader attributed one tag's value to another tag.** A wildcard
+  `SELECT value FROM root.db.*` declares one column per series, and the reader
+  zipped that header against each record's fields. A real IoTDB 1.3.2 returns the
+  fields **compacted** under a `WHERE` clause — so a time-bounded query, i.e. the
+  RCA path this reader exists for, returned the right numbers under the wrong
+  names. Now `ALIGN BY DEVICE`, where every row carries its own device label.
+- **The TDengine coverage query could never have run.** `MIN(ts)` / `MAX(ts)` on a
+  TIMESTAMP column is rejected by taosd 3.x (`[0x2802]: Invalid parameter data
+  type : min`), so `historian_coverage` against TDengine raised for every caller.
+  Now `FIRST(ts)` / `LAST(ts)`.
+
+Both had passing unit tests. The mocks had been written to match the parser, so
+they agreed with it; the fakes now reproduce the shapes the servers actually
+returned, recorded from the live runs.
 
 ## Cross-cutting (not protocol-specific)
 
@@ -142,9 +165,11 @@ saying so is the point.
 2. **EtherNet/IP's PCCC (`slc`) and Micro800 paths are still mock-only.** The Logix
    path is 2b; these two would need PCCC-over-EtherNet-IP added to
    `tests/eip_plc_harness.py`. Medium effort, same rung as the rest of that connector.
-3. **IoTDB / TDengine write round-trips.** Only the client-library symbol surface is
-   checked. Both ship Docker images; a real write would lift them from rung 1 to 2a,
-   the same move NATS just made.
+3. ~~**IoTDB / TDengine write round-trips.**~~ **Done 2026-08-02** — both are rung 2a
+   (`test_tsdb_live.py`, run by the `integration-contracts` CI lane). Found the two
+   reader defects in note ⁶. What remains is the **HTTP/WebSocket TDengine
+   connectors** (`taosrest` / `taos-ws-py`), which would remove the native-libtaos
+   dependency that keeps this lane on a vendor tarball.
 4. **MTConnect Assets** (`/assets`) is not covered by the live agent.
 5. **The HTTP/SSE MCP transport** (`IAIOPS_MCP_TRANSPORT`) — the stdio path is now 2a,
    this one is untested. Note HLD decision **D7** deliberately treats stdio as the

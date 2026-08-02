@@ -2,10 +2,14 @@
 
 Apache IoTDB is an open, increasingly domestic-adopted time-series database for
 industrial/IoT historians. ``apache-iotdb`` is an OPTIONAL extra
-(``pip install iaiops[iotdb]``) imported LAZILY. The Session insert surface was
-verified against a live IoTDB server (write→read round-trip via this sink,
-2026-06-30) — isolated behind the uniform ``write(points) -> int`` interface
-(also mock-testable).
+(``pip install iaiops[iotdb]``) imported LAZILY, isolated behind the uniform
+``write(points) -> int`` interface (also mock-testable).
+
+The insert path is exercised against a **real IoTDB server** by
+``tests/test_tsdb_live.py`` — written, then read back through the matching
+reader. This docstring previously claimed a live round-trip "verified
+2026-06-30"; that was a hand-run session nothing could reproduce, so it said
+less than it appeared to. The test is the claim now.
 """
 
 from __future__ import annotations

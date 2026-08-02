@@ -214,8 +214,16 @@ class TDengineReader:
     def coverage(self, limit: int = DEFAULT_COVERAGE_LIMIT) -> list[dict]:
         capped = _cap_coverage_limit(limit)
         # Injection-safe: idents sanitized at construction, limit is a validated int.
+        #
+        # FIRST/LAST rather than MIN/MAX: TDengine 3.x rejects MIN() and MAX() on a
+        # TIMESTAMP column outright — `[0x2802]: Invalid parameter data type : min`
+        # — so the first version of this query could never have returned coverage
+        # from any real taosd. FIRST(ts)/LAST(ts) are the timestamp-ordered
+        # equivalents and are what the dialect provides. Found 2026-08-02 by
+        # tests/test_tsdb_live.py against a live server; the mocked cursor this was
+        # written against answered whatever it was asked.
         sql = (
-            f"SELECT metric, COUNT(*), MIN(ts), MAX(ts) "  # nosec B608
+            f"SELECT metric, COUNT(*), FIRST(ts), LAST(ts) "  # nosec B608
             f"FROM {self._database}.{self._stable} GROUP BY metric LIMIT {capped}"
         )
         cur = self._cursor()
@@ -297,70 +305,102 @@ class IoTDBReader:
         where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
         # Injection-safe: the device path is sanitized (alnum/underscore segment),
         # bounds are epoch-millis ints, and the limit is a validated int.
+        #
+        # ALIGN BY DEVICE is not cosmetic — see _collect_device_rows.
         sql = (
             f"SELECT value FROM {self._device(checked.tag)}"
             f"{where} ORDER BY time ASC LIMIT {int(checked.limit)}"  # nosec B608
+            " ALIGN BY DEVICE"
         )
-        return self._collect_rows(self._execute(sql))
+        return self._collect_device_rows(self._execute(sql))
 
     def latest(self, limit: int = 5_000) -> list[dict]:
         capped = max(1, min(int(limit), MAX_QUERY_LIMIT))
         # IoTDB "last" query: one latest row per timeseries.
         sql = f"SELECT LAST value FROM {self._database}.* LIMIT {capped}"  # nosec B608
-        return self._collect_rows(self._execute(sql), last_query=True)
+        return self._collect_last_rows(self._execute(sql))
 
     def coverage(self, limit: int = DEFAULT_COVERAGE_LIMIT) -> list[dict]:
         capped = _cap_coverage_limit(limit)
         # Injection-safe: the path prefix comes from validated config, no user input.
+        # Aligned by device for the reason given in _collect_device_rows: the
+        # unaligned form spreads one aggregate per SERIES across the header
+        # (``COUNT(root.db.t1.value)``, ``COUNT(root.db.t2.value)``, …) and the
+        # fields do not reliably line up with it. Aligned, each device gets its
+        # own row and the header is the fixed Device | COUNT | MIN_TIME | MAX_TIME.
         sql = (
             f"SELECT COUNT(value), MIN_TIME(value), MAX_TIME(value) "  # nosec B608
-            f"FROM {self._database}.*"
+            f"FROM {self._database}.* ALIGN BY DEVICE"
         )
         dataset = self._execute(sql)
         columns = [str(c) for c in dataset.get_column_names()]
         out: list[dict] = []
-        per_tag: dict[str, dict] = {}
         for record in _iter_records(dataset):
-            for col, field in zip(columns, record.get_fields()):
-                func, tag = _parse_aggregate_column(col, self._database)
-                if not func:
-                    continue
-                entry = per_tag.setdefault(tag, {"tag": tag})
-                value = _field_value(field)
-                if func == "count":
-                    entry["rows"] = int(value or 0)
-                elif func == "min_time":
-                    entry["first_ts"] = _millis_to_iso(value)
-                elif func == "max_time":
-                    entry["last_ts"] = _millis_to_iso(value)
-        for tag in sorted(per_tag)[:capped]:
-            entry = per_tag[tag]
+            cells = _named_cells(columns, record)
+            device = cells.get("device")
+            if device is None:
+                continue
             out.append(
                 {
-                    "tag": entry["tag"],
-                    "rows": entry.get("rows", 0),
-                    "first_ts": entry.get("first_ts", ""),
-                    "last_ts": entry.get("last_ts", ""),
+                    "tag": _tag_from_path(str(device), self._database),
+                    "rows": int(num(cells.get("count(value)")) or 0),
+                    "first_ts": _millis_to_iso(cells.get("min_time(value)")),
+                    "last_ts": _millis_to_iso(cells.get("max_time(value)")),
                 }
             )
-        return out
+        return sorted(out, key=lambda row: row["tag"])[:capped]
 
-    def _collect_rows(self, dataset: Any, last_query: bool = False) -> list[dict]:
+    def _collect_device_rows(self, dataset: Any) -> list[dict]:
+        """Rows of an ``ALIGN BY DEVICE`` result — Time | Device | value.
+
+        **Why aligned rather than the obvious wildcard select.** A plain
+        ``SELECT value FROM root.db.*`` declares one column per series, and the
+        first version of this reader zipped those declared columns against each
+        record's fields. Against a real IoTDB 1.3.2 that is wrong: under a WHERE
+        clause the server returns the fields COMPACTED (only the series that have
+        data at that timestamp) while ``get_column_names()`` still lists them all,
+        so the zip attributes one machine's reading to another machine's tag —
+        a wrong answer wearing the right shape. A time-bounded RCA query is
+        exactly when that happened. Found 2026-08-02 by ``test_tsdb_live.py``
+        against a live server; no mock had ever disagreed with us.
+
+        Aligned, every row carries its own device label, so nothing depends on
+        header position beyond the fixed three-column shape the server declares.
+        """
         columns = [str(c) for c in dataset.get_column_names()]
         rows: list[dict] = []
         for record in _iter_records(dataset):
-            ts = _millis_to_iso(record.get_timestamp())
-            fields = record.get_fields()
-            if last_query:
-                # LAST query shape: Time | timeseries | value | dataType.
-                tag = _tag_from_path(str(_field_value(fields[0])), self._database)
-                rows.append(_sample_row(ts, tag, num(_field_value(fields[1]))))
+            cells = _named_cells(columns, record)
+            device, value = cells.get("device"), num(cells.get("value"))
+            if device is None or value is None:
                 continue
-            for col, field in zip(_value_columns(columns), fields):
-                value = _field_value(field)
-                if value is None:
-                    continue
-                rows.append(_sample_row(ts, _tag_from_path(col, self._database), num(value)))
+            rows.append(
+                _sample_row(
+                    _millis_to_iso(record.get_timestamp()),
+                    _tag_from_path(str(device), self._database),
+                    value,
+                )
+            )
+        return rows
+
+    def _collect_last_rows(self, dataset: Any) -> list[dict]:
+        """Rows of a ``SELECT LAST`` result — Time | Timeseries | Value | DataType.
+
+        Self-labelling like the aligned shape above: the series path is a field
+        of the row, not a header position, which is why this query survived the
+        misalignment the wildcard select did not.
+        """
+        rows: list[dict] = []
+        for record in _iter_records(dataset):
+            fields = record.get_fields()
+            if len(fields) < 2:
+                continue
+            tag = _tag_from_path(str(_field_value(fields[0])), self._database)
+            rows.append(
+                _sample_row(
+                    _millis_to_iso(record.get_timestamp()), tag, num(_field_value(fields[1]))
+                )
+            )
         return rows
 
     def close(self) -> None:
@@ -376,9 +416,20 @@ def _iter_records(dataset: Any):
         yield dataset.next()
 
 
-def _value_columns(columns: list[str]) -> list[str]:
-    """Data columns of a SELECT result (everything after the Time column)."""
-    return [c for c in columns if c.lower() != "time"]
+def _named_cells(columns: list[str], record: Any) -> dict[str, Any]:
+    """Map one record's fields onto the result header, keyed by lower-cased name.
+
+    The ``Time`` column is not a field — the record carries the timestamp
+    separately — so it is dropped before zipping.
+
+    Positional zipping is only safe because every caller uses ``ALIGN BY
+    DEVICE``, whose header is a fixed short list the server declares
+    (``Device``, ``value`` / the three aggregates). It is NOT safe for a
+    wildcard select, where the header is one entry per series and the fields
+    come back compacted; that is the bug this helper replaced.
+    """
+    names = [c for c in columns if c.lower() != "time"]
+    return {name.lower(): _field_value(field) for name, field in zip(names, record.get_fields())}
 
 
 def _field_value(field: Any) -> Any:
@@ -406,18 +457,6 @@ def _tag_from_path(column: str, database: str) -> str:
     if text.endswith(".value"):
         text = text[: -len(".value")]
     return s(text, 128)
-
-
-def _parse_aggregate_column(column: str, database: str) -> tuple[str, str]:
-    """``COUNT(root.iaiops.t1.value)`` → ``("count", "t1")``; else ("", "")."""
-    text = str(column).strip()
-    if "(" not in text or not text.endswith(")"):
-        return "", ""
-    func, inner = text[:-1].split("(", 1)
-    func = func.strip().lower()
-    if func not in ("count", "min_time", "max_time"):
-        return "", ""
-    return func, _tag_from_path(inner.strip(), database)
 
 
 def _iso_to_millis(iso_text: str) -> int:

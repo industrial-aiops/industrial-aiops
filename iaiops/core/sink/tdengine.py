@@ -2,11 +2,17 @@
 
 TDengine is a domestic (国产) time-series database popular for industrial/IoT
 historians. ``taospy`` (the official Python connector) is an OPTIONAL extra
-(``pip install iaiops[tdengine]``) imported LAZILY. The connect/insert surface +
-SQL dialect were verified against a live taosd 3.3 (write→read round-trip,
-2026-06-30) — which is how the ``value`` reserved-word DDL bug was caught. The
-path is isolated behind the uniform ``write(points) -> int`` interface (also
-mock-testable). NB: ``value`` must be back-quoted in DDL (TDengine reserved word).
+(``pip install iaiops[tdengine]``) imported LAZILY, isolated behind the uniform
+``write(points) -> int`` interface (also mock-testable). NB: ``value`` must be
+back-quoted in DDL (TDengine reserved word) — a live server is what caught that,
+and a mocked cursor never would.
+
+The connect/DDL/insert path runs against a **real taosd 3.3** in
+``tests/test_tsdb_live.py``, which also reads the points back through the
+matching reader. The earlier "verified 2026-06-30" note in this docstring
+described a hand-run session that nothing could reproduce; re-running it as a
+test is what surfaced the reader's ``MIN(ts)``/``MAX(ts)`` coverage query, which
+taosd rejects outright.
 """
 
 from __future__ import annotations

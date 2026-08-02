@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+> **The two historian TSDBs had never met a server.** `apache-iotdb` and `taospy` were
+> checked for the methods we call and nothing else, so the readers behind
+> `historian_query` / `historian_coverage` — pages of hand-written SQL and result
+> parsing — had only ever been judged by mocks written to match them. Pointing both at
+> a real server (`tests/test_tsdb_live.py`, now on every CI build) turned up one wrong
+> answer and one query that could never have run.
+
+### Fixed
+- **The IoTDB reader returned one tag's values under another tag's name.** A wildcard
+  `SELECT value FROM root.db.*` declares one column per series, and the reader zipped
+  that header against each record's fields. A real IoTDB 1.3.2 returns the fields
+  **compacted** when a `WHERE` clause is present — so a time-bounded query, which is
+  precisely what the RCA copilot asks for, came back with the right numbers under the
+  wrong labels. On a plant floor that is a wrong answer wearing the right shape. The
+  reader now uses `ALIGN BY DEVICE`, whose rows carry their own device label, so
+  nothing depends on header position.
+- **`historian_coverage` against TDengine raised for every caller.** The query used
+  `MIN(ts)` / `MAX(ts)`, and taosd 3.x rejects both on a TIMESTAMP column
+  (`[0x2802]: Invalid parameter data type : min`). Now `FIRST(ts)` / `LAST(ts)`, the
+  timestamp-ordered equivalents the dialect actually provides.
+
+### Testing
+- **`tests/test_tsdb_live.py`** — IoTDB and TDengine round-trips against real servers
+  (rung 1 → **2a**): sink write → reader read-back, server-side time and tag filters,
+  the `LAST` and aggregate result shapes, the `value` reserved-word DDL. Run by the
+  `integration-contracts` CI lane, which starts both containers.
+- The mocked reader tests now reproduce the **shapes the servers returned** rather than
+  the shapes the parser expected — the old fakes agreed with the bugs above.
+- **CI starts a NATS broker for the gate job.** The egress live tests had been skipping
+  on every run for want of one, so `docs/VERIFICATION-RECORD.md`'s NATS row described
+  local runs only.
+- Both sinks' module docstrings claimed a live round-trip "verified 2026-06-30" — a
+  hand-run session nothing could reproduce. They now point at the test instead.
+
 ## 0.20.4 — 2026-08-02
 
 > **Two things that reported success without evidence.** NATS egress took two minutes
