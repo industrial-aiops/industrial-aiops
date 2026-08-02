@@ -161,6 +161,15 @@ jobs:
           sudo -E env "PATH=$PATH" IAIOPS_REQUIRE_LIVE=1 scripts/profinet_dcp_harness.sh \
             uv run --no-sync pytest tests/test_profinet_live.py -q -rs
 
+      # A SECOND MCP implementation. Every other MCP test here runs the Python
+      # SDK's client against a server built on that same SDK, which cannot rule
+      # out a misreading inside it (VERIFICATION-RECORD note 9). The TypeScript
+      # SDK is another language and another codebase; it is also what found the
+      # handshake reporting the SDK's version as the server's.
+      - name: Install the TypeScript MCP client (second implementation)
+        if: runner.os == 'Linux'
+        run: npm install --prefix tests/mcp_ts_client --no-audit --no-fund
+
       - name: pytest (base suite)
         # -rs prints the reason for every skip. Without it the log says "10 skipped"
         # and nothing else, so a test that quietly stops running — a missing optional

@@ -177,9 +177,14 @@ The server under test is ours, and the frames on both sides are produced by ONE
 third-party library — `FastMCP` from the `mcp` SDK on the server, the same SDK's
 client in the test. That earns 2a for *our* code (the SDK's own client parses
 what our server emits, and a wrong tool schema or a broken profile gate shows up
-immediately), but a misreading INSIDE the SDK would satisfy both ends. A second
-implementation of MCP — a different client, or Claude Desktop — is what would
-close that, and neither has been run against this server.
+immediately), but a misreading INSIDE the SDK would satisfy both ends. **Partly closed 2026-08-02:** the TypeScript SDK now drives the same server
+(`test_mcp_second_impl_live.py`) — another language, another codebase — and the
+annotations promise is asserted through its parser rather than the Python one's.
+It immediately found `serverInfo.version` reporting the MCP SDK's version rather
+than this package's. What is still open is a real HOST (Claude Desktop, an IDE),
+which exercises rendering and consent flows a bare client does not.
+
+| **MCP, second implementation** | **2a** | `test_mcp_second_impl_live.py` + `tests/mcp_ts_client/` | The **TypeScript** SDK (`@modelcontextprotocol/sdk`) spawning the real entrypoint over stdio: initialize, `list_tools()`, a tool call whose connector failure arrives as content, the session surviving it, `serverInfo`, and **the tool annotations read by a parser nobody here wrote** | A real HOST (Claude Desktop / an IDE) — rendering and consent flows a bare client does not exercise |
 
 Until 2026-08-01 nothing drove this at all — every test called tool functions
 in-process, so the product's **primary interface** was unexercised. Two of the
@@ -264,9 +269,11 @@ same reason: so nobody has to reconstruct it.
    faked by reversing in Python; the live tests assert *which* samples came back),
    and the RCA pre-incident window sets it. Rows still return oldest→newest, so no
    caller changed. Default stays oldest-first for the general query API.
-7. **A second MCP implementation.** Both MCP rows are 2a with note ⁹: the client
-   and the server come from the same SDK. Driving the server from a different
-   client — or from Claude Desktop — is what would close that.
+7. ~~**A second MCP implementation.**~~ **Done 2026-08-02** — the **TypeScript**
+   SDK drives the real entrypoint (`test_mcp_second_impl_live.py` +
+   `tests/mcp_ts_client/`), which found `serverInfo.version` reporting the MCP
+   SDK's version instead of this package's. What remains of note ⁹ is a real HOST
+   (Claude Desktop / an IDE), which is a different question from a second client.
 
 ### Cleared on 2026-08-02
 
