@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.20.4 — 2026-08-02
+
+> **Two things that reported success without evidence.** NATS egress took two minutes
+> to fail against an unreachable broker while `timeout_s` sat there looking
+> authoritative, and `bacnet_write_property` claimed `applied: true` on the strength of
+> "the client did not raise" — which, for BAC0, is true whether the controller honoured
+> the write or silently dropped it. Both were found by pointing the tests at real
+> counterparties for the first time, along with the product's own primary interface:
+> nothing had ever driven the MCP server with a real MCP client.
+
 ### Fixed
 - **NATS egress took 120 seconds to fail against an unreachable broker**, despite
   `timeout_s`. `connect_timeout` does not bound the attempt — nats-py works through its
