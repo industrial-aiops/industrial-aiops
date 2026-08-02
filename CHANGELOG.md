@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Fixed
+- **The published container images could not write their own audit chain.**
+  `deploy/margo/Dockerfile` declared `VOLUME` *after* `USER`, so Docker created
+  `/home/iaiops/.iaiops` as root:root 0755 while the app runs as uid 10001 — in every
+  image up to 0.21.1, `IAIOPS_HOME` was unwritable. The governance layer behaved exactly
+  as designed (reads proceeded with a warning, **every high-risk write was denied
+  fail-closed** with an actionable message), but the images were unusable for writes and
+  kept no audit trail for reads. The directory is now created, owned and 0700-ed before
+  the volume is declared. Found by running the published image under the constraints an
+  immutable edge host imposes.
 - **A truncated pre-incident window kept the wrong end.** Every reader returns rows
   oldest→newest and cuts at `LIMIT`, so a window holding more samples than the cap lost
   its most recent ones — for an incident investigation, the minutes closest to onset.
@@ -21,6 +30,18 @@
   world where the pin already excludes 1.x.
 
 ### Testing
+- **`immutable-host` CI job + `scripts/immutable_host_check.sh`** — Margo's device role
+  is a hardened, centrally-managed host; validating on a specific one needs that vendor,
+  but what an immutable host demands *of an application* does not. Every build now
+  proves the image runs non-root under a read-only root filesystem with all mutable
+  state in the declared volume, and that the audit chain accepts a row under those
+  constraints. The check fails against the images published before this change, which is
+  how the defect above was found.
+- **The Margo application package is named the way Margo's own reference sandbox
+  requires** (`iaiops-compose-app-package-<version>`). `margo/sandbox` — which did not
+  exist when this integration was written — rejects anything without the
+  `<name>-<type>-app-package` suffix on upload. The old `iaiops-margo-package-<version>`
+  name still ships as a signed alias for existing consumers.
 - **OPC-UA reaches a real 2a.** `test_opcua_thirdparty_live.py` no longer asserts that
   sessions are impossible; it drives Microsoft's opc-plc — an independent
   implementation — through a session, a browse of the SERVER's own address space,
