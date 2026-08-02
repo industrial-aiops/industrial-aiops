@@ -256,8 +256,19 @@ jobs:
       # Built from the branch's Dockerfile; the wheel it installs is the last
       # published one, which is what the image does in production anyway. The
       # property under test belongs to the image, not the wheel.
+      # Built against the version that is ALREADY on PyPI, not the one in
+      # pyproject.toml: on a release PR the latter does not exist yet and the
+      # build fails for a reason that has nothing to do with what is being
+      # tested. The property under test — who owns the state directory — belongs
+      # to the Dockerfile, not to the wheel it installs.
       - name: Build the edge image
-        run: docker build -f deploy/margo/Dockerfile --build-arg PROFILE=modbus -t iaiops-immutable:ci deploy/margo
+        run: |
+          published=$(curl -fsS https://pypi.org/pypi/iaiops/json | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])')
+          echo "building against the published iaiops ${published}"
+          docker build -f deploy/margo/Dockerfile \
+            --build-arg PROFILE=modbus \
+            --build-arg IAIOPS_VERSION="${published}" \
+            -t iaiops-immutable:ci deploy/margo
 
       - name: Non-root, read-only rootfs, writable state, audit chain accepts a row
         run: scripts/immutable_host_check.sh iaiops-immutable:ci
