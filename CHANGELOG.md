@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.21.0 — 2026-08-02
 
 > **A verification sweep, and what it cost.** Every remaining item on
 > `docs/VERIFICATION-RECORD.md`'s follow-up register was cleared by pointing code at a
