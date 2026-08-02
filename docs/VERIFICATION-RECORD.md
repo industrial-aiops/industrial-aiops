@@ -9,8 +9,9 @@
 > Last updated **2026-08-02** (second pass the same day: the two historian TSDBs
 > went from rung 1 to 2a, which cost two product fixes — see note ⁶ —
 > **PROFINET-DCP went from mock-only to 2b** on a veth pair, which cost a
-> documentation fix — see note ⁷ — and the NATS live tests now have a broker on
-> every CI build instead of skipping). The
+> documentation fix — see note ⁷ — **EtherNet/IP's PCCC and Micro800 routes joined
+> its Logix route at 2b**, and the NATS live tests now have a broker on every CI
+> build instead of skipping). The
 > follow-up register at the bottom is the durable list of what is still worth
 > testing, what is not, and the open questions — it is there rather than in a chat
 > log so it survives the session that produced it.
@@ -47,7 +48,7 @@ for every protocol in both repos.** Nothing below changes that.
 | **SECS/GEM** | 2a⁴ | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
 | **Mitsubishi MC** | **2b** | `test_mc_live.py` + `mc_plc_harness.py` | Real `pymcprotocol` `Type3E` client vs **our** SLMP-3E server: CPU identity, batch word/bit read, signed-word decode, offsets, random read of words+dwords, write BEFORE capture verified by read-back | Physical MELSEC CPU; 1E/4E frames; ASCII mode; iQ-R addressing |
 | **S7comm** | **2b** | `test_s7_live.py` + `s7_plc_harness.py` | Real `pyS7` client vs **our** ISO-TSAP server: COTP connect, PDU negotiation, DB/merker reads, signed INT, big-endian REAL, **WORD/DWORD/DINT/LREAL widths**, offsets, write BEFORE capture verified by read-back | Physical S7 CPU; PUT/GET access control; optimized-DB blocks; STRING/WSTRING; **our own bit handling** (see note ³) |
-| **EtherNet/IP** | **2b** | `test_eip_live.py` + `eip_plc_harness.py` | Real `pycomm3` `LogixDriver` vs **our** CIP PLC: RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back | Physical ControlLogix/CompactLogix; **PCCC (`slc`) and Micro800 paths — mock only**; UDT/structured tags; program-scoped tags; **the wire-level tag error** — pycomm3 rejects unknown tags client-side, so that branch is never reached |
+| **EtherNet/IP** | **2b** | `test_eip_live.py`, `test_eip_pccc_live.py` + `eip_plc_harness.py` + `eip_pccc_plc.py` | Real `pycomm3` vs **our** CIP PLC, on all three driver routes. **Logix** (`LogixDriver`): RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back. **PCCC/`slc`** (`SLCDriver`, CIP service 0x4B carrying DF1): processor-type diagnostic, the File-0 directory sequence behind `eip_list_tags`, typed reads of N/F/B/T elements, a masked bit write that leaves its neighbour alone, and **a device-side refusal of a bad address**. **Micro800**: pycomm3's own catalog-number detection, asserted by the batching that does NOT happen on the wire | Physical ControlLogix/CompactLogix/SLC-5-05/MicroLogix/Micro8xx; UDT/structured tags; program-scoped tags; PLC-5 addressing; ST/A files; a PCCC route bridged through a ControlLogix backplane |
 | **Omron FINS** | **2c** | `test_fins.py` | Real UDP/TCP sockets — but the client is **in-repo** (stdlib) *and* the server is ours, so no independent implementation is involved | Physical Omron CPU; everything about the wire format is our reading of it |
 | **HART-IP** | 1 + **2c** | `test_hart.py` | Command codec against the third-party `hart_protocol` (rung 1); the HART-IP UDP/TCP **transport is in-tree** and exercised against our own socket server (rung 2c) | Physical HART-IP gateway / multiplexer; burst mode against real devices |
 | **IO-Link** | **2c** | `test_iolink.py` | Real HTTP against our mock master — **the vendor JSON API shape is our assumption** | Any real IO-Link master (ifm/Balluff/…); JSON schema drift |
@@ -177,9 +178,14 @@ saying so is the point.
    runners have passwordless root, so the Linux box was not needed after all).
    Found the empty vendor/role fields in note ⁷. What remains is a real station
    (rung 3) and the deliberately-out-of-scope services (RT cyclic, Blink, reset).
-2. **EtherNet/IP's PCCC (`slc`) and Micro800 paths are still mock-only.** The Logix
-   path is 2b; these two would need PCCC-over-EtherNet-IP added to
-   `tests/eip_plc_harness.py`. Medium effort, same rung as the rest of that connector.
+2. ~~**EtherNet/IP's PCCC (`slc`) and Micro800 paths are still mock-only.**~~ **Done
+   2026-08-02** — both are 2b (`tests/test_eip_pccc_live.py`). PCCC needed a second
+   protocol in the harness (`eip_pccc_plc.py`: DF1 inside CIP service 0x4B), not a
+   second tag; Micro800 needed the harness to *identify* as one, because pycomm3
+   switches behaviour on the catalog number rather than on anything we pass it. This
+   also closed the EtherNet/IP row's "wire-level tag error is never reached" gap:
+   PCCC has no symbol table for pycomm3 to validate against, so a bad address really
+   does reach the controller and really is refused.
 3. ~~**IoTDB / TDengine write round-trips.**~~ **Done 2026-08-02** — both are rung 2a
    (`test_tsdb_live.py`, run by the `integration-contracts` CI lane). Found the two
    reader defects in note ⁶. What remains is the **HTTP/WebSocket TDengine

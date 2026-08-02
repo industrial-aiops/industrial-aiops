@@ -42,6 +42,8 @@ import socketserver
 import struct
 import sys
 
+from eip_pccc_plc import pccc_payload
+
 SESSION_HANDLE = 0x11223344
 
 # CIP elementary data types used below.
@@ -64,6 +66,11 @@ PRODUCT_CODE = 0x005D
 REVISION = (32, 11)
 SERIAL = 0xC0FFEE01
 PRODUCT_NAME = "1756-L83E/B"
+#: pycomm3 decides a controller is a Micro800 from the catalog-number prefix 2080
+#: in ListIdentity, and then drops multi-service packets and unconnected sends.
+#: Passing ``--micro800`` makes this harness answer as one, so the connector's
+#: ``plctype='micro800'`` route can be exercised against the same tag bank.
+MICRO800_PRODUCT_NAME = "2080-LC50-24QWB"
 
 STATUS_OK = 0x00
 # What a real controller answers for a path it cannot resolve. NOTE: not reached by
@@ -172,6 +179,9 @@ def _handle_cip(cip: bytes) -> bytes:
 
     if service == 0x0A:  # Multiple Service Packet — what a multi-tag read becomes
         return _multiple_service_reply(service, cip)
+
+    if service == 0x4B:  # Execute PCCC — the SLC/PLC-5/MicroLogix half
+        return _cip_reply(service, STATUS_OK, pccc_payload(cip))
 
     if service == 0x55:  # Get_Instance_Attribute_List on the Symbol object (0x6B)
         return _tag_list_reply(service)
@@ -364,11 +374,14 @@ class _Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
-def main(port: int) -> None:
+def main(port: int, micro800: bool = False) -> None:
+    if micro800:
+        global PRODUCT_NAME  # noqa: PLW0603 — the identity IS the harness's mode
+        PRODUCT_NAME = MICRO800_PRODUCT_NAME
     with _Server(("127.0.0.1", port), _Handler) as server:
         print("READY", flush=True)
         server.serve_forever()
 
 
 if __name__ == "__main__":
-    main(int(sys.argv[1]))
+    main(int(sys.argv[1]), micro800="--micro800" in sys.argv[2:])

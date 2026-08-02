@@ -19,6 +19,22 @@
   the limit and the live test asserts it, so a pnio-dcp that fixes it turns red.
 
 ### Testing
+- **`tests/test_eip_pccc_live.py` + `tests/eip_pccc_plc.py`** — EtherNet/IP's other two
+  driver routes reach **2b**, next to the Logix one. `slc` needed a second protocol in
+  the harness rather than a second tag: CIP service 0x4B carrying DF1/PCCC, numbered
+  data files, and `SLCDriver` parsing replies at fixed byte offsets. Covered: the
+  processor-type diagnostic, the whole File-0 directory sequence behind
+  `eip_list_tags`, typed reads (signed N, float F, bit B, timer accumulator), a masked
+  bit write that leaves its neighbour bit alone, and BEFORE-capture round-tripped as an
+  undo. `micro800` needed the harness to *identify* as one — pycomm3 switches on the
+  catalog number in ListIdentity, not on anything the connector passes — asserted by
+  the Multiple Service Packet that does **not** reach the wire, against a live Logix
+  control that does.
+
+  This also closes the EtherNet/IP row's standing gap: PCCC has no symbol table for
+  pycomm3 to validate against, so a bad address really does reach the controller and
+  really is refused. It is the only place in this connector where a device-side
+  rejection is exercised end to end.
 - **`tests/test_profinet_live.py` + `tests/profinet_dcp_station.py` +
   `scripts/profinet_dcp_harness.sh`** — real `pnio-dcp` over a veth pair (mock only →
   **2b**): IdentifyAll discovery with the MAC read off the reply's Ethernet header,

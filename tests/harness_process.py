@@ -34,19 +34,27 @@ import pytest
 
 @contextmanager
 def harness(
-    script: Path, port: int, *, timeout_s: float = 20.0, skip_on_exit: bool = False
+    script: Path,
+    port: int,
+    *,
+    args: tuple[str, ...] = (),
+    timeout_s: float = 20.0,
+    skip_on_exit: bool = False,
 ) -> Iterator[subprocess.Popen[str]]:
-    """Run ``script <port>``, yield once it prints READY, and kill it afterwards.
+    """Run ``script <port> [args…]``, yield once it prints READY, kill it after.
 
     Args:
         script: the harness module to run.
         port: the port to pass it.
+        args: extra argv for the harness — e.g. the EtherNet/IP one takes
+            ``--micro800`` to answer with a Micro800 catalog number, which is
+            what makes pycomm3 take its Micro800 code path.
         timeout_s: how long to wait for READY.
         skip_on_exit: skip rather than fail when the child exits early. Only for
             harnesses whose startup can fail for environmental reasons.
     """
     proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
-        [sys.executable, str(script), str(port)],
+        [sys.executable, str(script), str(port), *args],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
