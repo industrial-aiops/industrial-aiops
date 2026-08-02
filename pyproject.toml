@@ -229,4 +229,8 @@ testpaths = ["tests"]
 markers = [
     "unit: Unit tests",
     "integration: Integration tests (require a reachable OPC-UA server / Modbus device)",
+    # Consulted by the IAIOPS_REQUIRE_LIVE gate in tests/conftest.py: a test that may
+    # still skip on a live-promised CI step, because the workflow itself declares its
+    # scaffolding non-fatal (today only the vendor-CDN libtaos client).
+    "optional_live: may skip even under IAIOPS_REQUIRE_LIVE=1",
 ]

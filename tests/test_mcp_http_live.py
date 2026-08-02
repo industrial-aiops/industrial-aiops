@@ -38,6 +38,24 @@ from mcp import ClientSession  # noqa: E402
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
 _PROFILE = "modbus"  # small, pure-python, and carries a governed write
+
+
+def _streamable_http_client(url: str):
+    """The SDK's streamable-HTTP client, under whichever name this version has.
+
+    `streamablehttp_client` was renamed to `streamable_http_client` and now emits a
+    DeprecationWarning on every call. The package pins `mcp>=1.10,<2`, which spans
+    both names, so the test asks for the new one and falls back — rather than
+    freezing a warning into the suite or narrowing the pin for a test's sake.
+    """
+    from mcp.client import streamable_http
+
+    factory = getattr(streamable_http, "streamable_http_client", None) or (
+        streamable_http.streamablehttp_client
+    )
+    return factory(url)
+
+
 _STARTUP_TIMEOUT_S = 30.0
 
 
@@ -141,9 +159,7 @@ async def test_streamable_http_serves_a_real_mcp_session(http_server: _Server) -
     the same promise the stdio test pins, on the transport that has a proxy,
     a chunked body and a session header in the way.
     """
-    from mcp.client.streamable_http import streamablehttp_client
-
-    async with streamablehttp_client(http_server.url) as (read, write, _get_session_id):
+    async with _streamable_http_client(http_server.url) as (read, write, _get_session_id):
         async with ClientSession(read, write) as session:
             await session.initialize()
 
@@ -224,9 +240,7 @@ async def test_an_allowlisted_client_completes_a_real_session(allowed_server: _S
     until this test existed, `Allowlist.ip_allowed` returning True had never been
     exercised over HTTP, and an unconditional 403 satisfied the suite.
     """
-    from mcp.client.streamable_http import streamablehttp_client
-
-    async with streamablehttp_client(allowed_server.url) as (read, write, _get_session_id):
+    async with _streamable_http_client(allowed_server.url) as (read, write, _get_session_id):
         async with ClientSession(read, write) as session:
             await session.initialize()
             assert "modbus_read_holding" in await _tool_names(session)
