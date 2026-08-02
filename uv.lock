@@ -498,7 +498,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.20.4"
+version = "0.21.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
