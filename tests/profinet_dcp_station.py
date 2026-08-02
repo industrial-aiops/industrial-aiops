@@ -118,6 +118,7 @@ class DCPStation:
         self.device_id = device_id
         self.device_role = device_role
         self.requests: list[tuple[int, int]] = []  # (service_id, service_type) seen
+        self.errors: list[str] = []  # anything the serve loop swallowed
 
         self._socket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETHER_TYPE))
         self._socket.settimeout(_RECV_TIMEOUT_S)
@@ -135,7 +136,8 @@ class DCPStation:
 
     def stop(self) -> None:
         self._stop.set()
-        self._thread.join(timeout=5)
+        if self._thread.is_alive():
+            self._thread.join(timeout=5)
         self._socket.close()
 
     def __enter__(self) -> DCPStation:
@@ -156,9 +158,15 @@ class DCPStation:
                 return
             try:
                 self._handle(frame)
-            except (struct.error, ValueError, IndexError):
+            except Exception as exc:  # noqa: BLE001 — see below
                 # A malformed frame is the counterparty's problem, not a reason to
-                # take the station down mid-test.
+                # take the station down mid-test — but silence is worse than the
+                # crash: a station that stops answering presents to the test as a
+                # DcpTimeoutError ("no station on the segment"), pointing at the
+                # wire instead of at the bug. `errors` is what a test can assert
+                # on, and `stop()` surfaces it. OSError from the SEND path is
+                # caught here too; it used to escape and kill the thread outright.
+                self.errors.append(f"{type(exc).__name__}: {exc}")
                 continue
 
     def _handle(self, frame: bytes) -> None:
@@ -247,6 +255,17 @@ class DCPStation:
         if (opt, subopt) == (OPT_DEVICE, SUB_NAME_OF_STATION):
             self.name_of_station = value[2:].rstrip(b"\x00").decode()
         elif (opt, subopt) == (OPT_IP, SUB_IP_PARAMETER):
+            # 2 bytes of BlockQualifier + three 4-byte addresses. A short value
+            # used to be sliced anyway: the station reported "Set successful",
+            # stored a gateway of ``''``, and then raised on every later
+            # serialize — one malformed Set muted it for the rest of the test.
+            if len(value) < 14:
+                return _block(
+                    OPT_CONTROL,
+                    SUB_CONTROL_RESPONSE,
+                    bytes([opt, subopt, ERR_OPTION_UNSUPPORTED]),
+                    block_info=b"",
+                )
             self.ip = _ip_string(value[2:6])
             self.netmask = _ip_string(value[6:10])
             self.gateway = _ip_string(value[10:14])

@@ -24,10 +24,12 @@ from __future__ import annotations
 import selectors
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -50,25 +52,42 @@ def harness(
             ``--micro800`` to answer with a Micro800 catalog number, which is
             what makes pycomm3 take its Micro800 code path.
         timeout_s: how long to wait for READY.
-        skip_on_exit: skip rather than fail when the child exits early. Only for
-            harnesses whose startup can fail for environmental reasons.
+        skip_on_exit: skip rather than fail when the child EXITS early. Only for
+            harnesses whose startup can fail for environmental reasons — and only
+            for that branch: a child that is alive but silent past the deadline
+            is a hang, and hangs are always failures.
     """
+    # stderr goes to a FILE, not a pipe. A pipe nobody drains fills at ~64 KiB and
+    # then blocks the child mid-write: `socketserver.ThreadingTCPServer` prints a
+    # full traceback for every unhandled handler exception, so a harness that hits
+    # a bad frame would stop replying and the test would fail as a client timeout,
+    # with the explanation sitting unread in the pipe. A file cannot back up, and
+    # the failure path still gets to read it.
+    errors = tempfile.TemporaryFile(mode="w+")
     proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
         [sys.executable, str(script), str(port), *args],
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stderr=errors,
         text=True,
     )
     try:
-        _wait_for_ready(proc, script, timeout_s=timeout_s, skip_on_exit=skip_on_exit)
+        _wait_for_ready(proc, script, errors, timeout_s=timeout_s, skip_on_exit=skip_on_exit)
         yield proc
     finally:
         proc.kill()
         proc.wait(timeout=10)
+        if proc.stdout is not None:
+            proc.stdout.close()
+        errors.close()
 
 
 def _wait_for_ready(
-    proc: subprocess.Popen[str], script: Path, *, timeout_s: float, skip_on_exit: bool
+    proc: subprocess.Popen[str],
+    script: Path,
+    errors: Any,
+    *,
+    timeout_s: float,
+    skip_on_exit: bool,
 ) -> None:
     assert proc.stdout is not None
     selector = selectors.DefaultSelector()
@@ -78,14 +97,14 @@ def _wait_for_ready(
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                _fail(proc, script, f"did not print READY within {timeout_s:g}s", skip_on_exit)
+                _fail(proc, script, errors, f"did not print READY within {timeout_s:g}s", False)
             if not selector.select(timeout=min(remaining, 0.5)):
                 if proc.poll() is not None:
-                    _fail(proc, script, "exited before printing READY", skip_on_exit)
+                    _fail(proc, script, errors, "exited before printing READY", skip_on_exit)
                 continue
             line = proc.stdout.readline()
             if not line:  # EOF — the child closed stdout or died
-                _fail(proc, script, "closed stdout before printing READY", skip_on_exit)
+                _fail(proc, script, errors, "closed stdout before printing READY", skip_on_exit)
             if line.strip() == "READY":
                 return
     finally:
@@ -93,15 +112,15 @@ def _wait_for_ready(
 
 
 def _fail(
-    proc: subprocess.Popen[str], script: Path, what: str, skip_on_exit: bool
+    proc: subprocess.Popen[str], script: Path, errors: Any, what: str, skip_on_exit: bool
 ) -> None:  # -> NoReturn
     proc.kill()
     stderr = ""
-    if proc.stderr is not None:
-        try:
-            stderr = proc.stderr.read()[-2000:]
-        except Exception:  # noqa: BLE001 — diagnostics must not mask the real failure
-            stderr = "<stderr unreadable>"
+    try:
+        errors.seek(0)
+        stderr = errors.read()[-2000:]
+    except Exception:  # noqa: BLE001 — diagnostics must not mask the real failure
+        stderr = "<stderr unreadable>"
     message = f"{script.name} {what}"
     if stderr.strip():
         message += f"\n--- harness stderr ---\n{stderr.strip()}"

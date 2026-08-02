@@ -246,6 +246,10 @@ class _FakeIoTDBSession:
 @pytest.fixture()
 def fake_iotdb(monkeypatch):
     _FakeIoTDBSession.executed = []
+    # `dataset` is class-level and `next()` POPS, so a test that forgets to set
+    # its own would silently inherit the previous test's drained one and assert
+    # against nothing. Reset it to a shape that fails loudly instead.
+    _FakeIoTDBSession.dataset = _FakeDataSet(["unset"], [])
     pkg = types.ModuleType("iotdb")
     session_mod = types.ModuleType("iotdb.Session")
     session_mod.Session = _FakeIoTDBSession  # type: ignore[attr-defined]
@@ -467,4 +471,77 @@ def test_iotdb_reader_refuses_a_result_shape_it_cannot_map(fake_iotdb):
         [_FakeRecord(1_782_984_600_000, ["root.iaiops.line1_temp", 21.5])],
     )
     with pytest.raises(ValueError, match="cannot attribute values"):
+        IoTDBReader().query(SampleFilter(limit=10))
+
+
+@pytest.mark.unit
+def test_pre_incident_window_keeps_the_newest_samples_on_a_wide_historian(home, monkeypatch):
+    """A shared row budget must not dilute a per-tag question into uselessness.
+
+    The grouping query is one bounded read across every tag, and every reader
+    returns rows OLDEST FIRST. With more tags than `MAX_WINDOW_ROWS /
+    MAX_SAMPLES_PER_TAG`, the cap lands before the window ends and each tag keeps
+    only its earliest few samples — the opposite end from the one a pre-incident
+    investigation needs.
+
+    Measured, not theorised: 40 tags against a 100-row budget returned 3 samples
+    per tag, all from the start of the window, on IoTDB *and* on this local
+    store. `sample_count` reported them as if the window were complete.
+
+    The numbers here are scaled down via monkeypatch so the test stays fast; the
+    shape is exactly the production one.
+    """
+    monkeypatch.setattr(rca_history, "MAX_WINDOW_ROWS", 100)
+    monkeypatch.setattr(rca_history, "MAX_SAMPLES_PER_TAG", 30)
+    monkeypatch.setattr(rca_history, "MAX_HISTORY_TAGS", 5)
+
+    db = home / "data.db"
+    points = [
+        {
+            "ref": f"tag{tag:02d}",
+            "value": float(i),  # value == position, so "newest" is checkable
+            "timestamp": f"2026-07-02T09:{10 + i:02d}:00+00:00",
+        }
+        for tag in range(40)
+        for i in range(30)
+    ]
+    assert "error" not in historian_push(points, "sqlite", db_path=db)
+    cfg = AppConfig(historian=HistorianConfig(reader="sqlite", db_path=str(db)))
+
+    bundle = rca_history.gather_pre_incident(WINDOW, config=cfg)
+
+    assert bundle is not None
+    series = {t["ref"]: t for t in bundle["tags"]}
+    assert len(series) == 5, f"expected the tag cap, got {sorted(series)}"
+    for ref, tag_series in series.items():
+        values = [sample["value"] for sample in tag_series["samples"]]
+        assert len(values) == 30, f"{ref} kept only {len(values)} of 30 samples: {values}"
+        # 29.0 is the last sample before the incident. Truncation used to keep
+        # 0.0-2.0 and drop this one, which is the sample RCA is actually about.
+        assert max(values) == 29.0, f"{ref} lost the newest samples: {values}"
+
+
+@pytest.mark.unit
+def test_iotdb_reader_refuses_a_header_it_does_not_recognise(fake_iotdb):
+    """Right column COUNT, wrong column NAMES — must raise, not return nothing.
+
+    The arity guard alone left the other half of the contract silent: a header
+    that keeps the shape but renames the columns (a qualified
+    `COUNT(root.iaiops.t1.value)`, a `__device`) passes the count check while
+    every lookup misses, and `historian_coverage` then reports every tag as
+    `rows: 0` — the answer an operator uses to decide whether the historian even
+    holds the incident window.
+    """
+    fake_iotdb.dataset = _FakeDataSet(
+        ["Device", "COUNT(root.iaiops.t1.value)", "MIN_TIME(x)", "MAX_TIME(x)"],
+        [_FakeRecord(0, ["root.iaiops.t1", 7, 1_782_979_200_000, 1_782_986_400_000])],
+    )
+    with pytest.raises(ValueError, match="expected"):
+        IoTDBReader().coverage(limit=10)
+
+    fake_iotdb.dataset = _FakeDataSet(
+        ["Time", "__device", "value"],
+        [_FakeRecord(1_782_984_600_000, ["root.iaiops.line1_temp", 21.5])],
+    )
+    with pytest.raises(ValueError, match="expected"):
         IoTDBReader().query(SampleFilter(limit=10))

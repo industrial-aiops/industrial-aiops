@@ -32,6 +32,28 @@ def _connect_opcua(client: Any, target: TargetConfig) -> None:
         raise
 
 
+def _require_parseable_url(target: TargetConfig) -> None:
+    """Reject an endpoint_url asyncua's constructor would choke on.
+
+    Only the parse is checked — reachability is the connect's job. This runs
+    before the client exists precisely so a bad URL cannot leave a running
+    ThreadLoop behind (see the call site).
+    """
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(target.endpoint_url)
+        _ = parsed.hostname, parsed.port  # both can raise on a malformed authority
+    except ValueError as exc:
+        raise OTConnectionError(
+            f"OPC-UA endpoint '{target.name}' has an unparseable endpoint_url "
+            f"({target.endpoint_url!r}): {exc}. Expected 'opc.tcp://host:4840' "
+            f"(bracket an IPv6 host: 'opc.tcp://[::1]:4840').",
+            endpoint=target.name,
+            protocol="opcua",
+        ) from exc
+
+
 def _build_opcua_client(target: TargetConfig) -> Any:
     """Construct (but do not connect) an asyncua sync Client for ``target``.
 
@@ -52,6 +74,14 @@ def _build_opcua_client(target: TargetConfig) -> Any:
             endpoint=target.name,
             protocol="opcua",
         )
+    # The URL is parsed HERE, before asyncua sees it, because its sync Client
+    # starts the ThreadLoop in its constructor and only then hands the URL to
+    # urlparse — so a malformed endpoint_url (`opc.tcp://[::1:4840`, an unclosed
+    # IPv6 bracket) raises with the loop already running and NO client object for
+    # anyone to disconnect. The result was a teaching "check endpoint_url is a
+    # valid opc.tcp://host:port URL" verdict emitted by a process that then never
+    # exited. Validating first turns that into an ordinary error (2026-08-02).
+    _require_parseable_url(target)
     # asyncua's sync Client takes a per-request timeout in seconds; without it a
     # dead endpoint blocks on the OS TCP timeout (60-120s+) instead of failing fast.
     client = Client(target.endpoint_url, timeout=target.timeout_s)

@@ -93,6 +93,8 @@ _FNC_FILE0 = 0xA1
 # element 0x23. The content reads that follow are 0x50-byte chunks at word offsets
 # 0, 40, 80…, so the pair (size 4, element 0x23) identifies the probe unambiguously.
 _FILE0_SIZE_ELEMENT = 0x23
+#: pycomm3 switches to a UINT offset after this marker once File 0 exceeds 512 bytes.
+_EXTENDED_OFFSET_MARKER = 0xFF
 _FILE0_SIZE_LEN = 0x04
 _FILE0_LENGTH = 200
 _FILE0_ROW_START = 79  # pycomm3's file_position for the 1747 family
@@ -185,28 +187,57 @@ def _write(args: bytes) -> tuple[int, bytes]:
     if key is None:
         return STATUS_ILLEGAL, b""
     mask = struct.unpack_from("<H", args, 5)[0]
-    payload = args[7 : 7 + size]
+    payload = args[7:]
     start = element * _ELEMENT_SIZE[key[0]]
     table = VALUES[key]
-    if start + size > len(table) or len(payload) < size:
+    if start >= len(table) or len(payload) < 2:
         return STATUS_ILLEGAL, b""
     if mask == 0xFFFF:
-        table[start : start + size] = payload
+        # Whole-element (or multi-element) write: take what was actually sent.
+        width = min(len(payload), size, len(table) - start)
+        table[start : start + width] = payload[:width]
     else:
-        old = struct.unpack_from("<H", table, start)[0]
-        new = struct.unpack_from("<H", payload, 0)[0]
-        struct.pack_into("<H", table, start, (old & ~mask) | (new & mask))
+        # A masked (bit / sub-element) write. pycomm3 sets `data_size = 2` for
+        # these AFTER encoding the size byte from the element width, so a bit
+        # write to a 4- or 6-byte file arrives as "size 6, two bytes of data".
+        # Comparing the payload against the declared size refused those outright
+        # — the harness answered "Illegal Command" to a perfectly good address,
+        # which is a device-side lie a future test would have chased.
+        old_word = struct.unpack_from("<H", table, start)[0]
+        new_word = struct.unpack_from("<H", payload, 0)[0]
+        struct.pack_into("<H", table, start, (old_word & ~mask) | (new_word & mask))
     return STATUS_OK, b""
 
 
 def _file0_read(args: bytes) -> tuple[int, bytes]:
-    """FNC 0xA1 — the directory size probe, then the sequential content reads."""
-    size, file_number, type_code, element = args[0], args[1], args[2], args[3]
+    """FNC 0xA1 — the directory size probe, then the sequential content reads.
+
+    Two things here are load-bearing and were not obvious:
+
+    * **The offset can be extended.** Once the word offset reaches 256 pycomm3
+      sends ``0xFF`` in the element byte and the real offset as a UINT after it
+      (``slc_driver._read_whole_file_directory``). Reading ``args[3]`` blindly
+      would put the read at word 255 forever.
+    * **An out-of-range read must be REFUSED, not answered with success and no
+      data.** pycomm3 loops ``while len(file0_data) < file0_size`` and advances by
+      ``len(data) // 2``; an empty success reply advances nothing, so the client
+      spins forever with no timeout and no socket read to break it — the test
+      process hangs instead of failing. A real SLC answers such a read with a
+      status, which is what the bounds check below restores.
+    """
+    size, file_number, type_code = args[0], args[1], args[2]
     if file_number != 0 or type_code != 0x01:
         return STATUS_ILLEGAL, b""
+    element = args[3]
+    if element == _EXTENDED_OFFSET_MARKER:
+        if len(args) < 6:
+            return STATUS_ILLEGAL, b""
+        element = struct.unpack_from("<H", args, 4)[0]
     if size == _FILE0_SIZE_LEN and element == _FILE0_SIZE_ELEMENT:
         return STATUS_OK, struct.pack("<HH", len(FILE0), 0)
-    start = element * 2  # the offset pycomm3 sends counts WORDS, the size BYTES
+    start = element * 2  # the offset counts WORDS, the size counts BYTES
+    if start >= len(FILE0) or size <= 0:
+        return STATUS_ILLEGAL, b""
     return STATUS_OK, FILE0[start : start + size]
 
 

@@ -336,16 +336,14 @@ class IoTDBReader:
         columns = [str(c) for c in dataset.get_column_names()]
         out: list[dict] = []
         for record in _iter_records(dataset):
-            cells = _named_cells(columns, record)
-            device = cells.get("device")
-            if device is None:
-                continue
+            cells = _named_cells(columns, record, _COVERAGE_COLUMNS)
+            device = cells["device"]
             out.append(
                 {
                     "tag": _tag_from_path(str(device), self._database),
-                    "rows": int(num(cells.get("count(value)")) or 0),
-                    "first_ts": _millis_to_iso(cells.get("min_time(value)")),
-                    "last_ts": _millis_to_iso(cells.get("max_time(value)")),
+                    "rows": int(num(cells["count(value)"]) or 0),
+                    "first_ts": _millis_to_iso(cells["min_time(value)"]),
+                    "last_ts": _millis_to_iso(cells["max_time(value)"]),
                 }
             )
         return sorted(out, key=lambda row: row["tag"])[:capped]
@@ -370,10 +368,10 @@ class IoTDBReader:
         columns = [str(c) for c in dataset.get_column_names()]
         rows: list[dict] = []
         for record in _iter_records(dataset):
-            cells = _named_cells(columns, record)
-            device, value = cells.get("device"), num(cells.get("value"))
-            if device is None or value is None:
-                continue
+            cells = _named_cells(columns, record, _SAMPLE_COLUMNS_ALIGNED)
+            device, value = cells["device"], num(cells["value"])
+            if value is None:
+                continue  # a null measurement at this timestamp — not an error
             rows.append(
                 _sample_row(
                     _millis_to_iso(record.get_timestamp()),
@@ -416,7 +414,14 @@ def _iter_records(dataset: Any):
         yield dataset.next()
 
 
-def _named_cells(columns: list[str], record: Any) -> dict[str, Any]:
+#: The columns each aligned query must come back with. Named rather than
+#: positional — see _named_cells — and REQUIRED rather than defaulted, because a
+#: `.get(...)` miss here is not "no data", it is "we did not recognise the answer".
+_SAMPLE_COLUMNS_ALIGNED = ("device", "value")
+_COVERAGE_COLUMNS = ("device", "count(value)", "min_time(value)", "max_time(value)")
+
+
+def _named_cells(columns: list[str], record: Any, required: tuple[str, ...] = ()) -> dict[str, Any]:
     """Map one record's fields onto the result header, keyed by lower-cased name.
 
     The ``Time`` column is not a field — the record carries the timestamp
@@ -428,11 +433,19 @@ def _named_cells(columns: list[str], record: Any) -> dict[str, Any]:
     wildcard select, where the header is one entry per series and the fields
     come back compacted; that is the bug this helper replaced.
 
-    So the arity is checked rather than assumed: a mismatch is exactly the
-    condition that produced wrong labels last time, and ``zip`` would silently
-    truncate to the shorter side. Failing loudly hands the caller an error dict
-    (every historian tool wraps exceptions); guessing hands them someone else's
-    reading under their tag name.
+    Two things are checked rather than assumed, and both raise:
+
+    * the **arity** — a mismatch is exactly the condition that produced wrong
+      labels last time, and ``zip`` would silently truncate to the shorter side;
+    * the **names** in ``required`` — checking only the count leaves the other
+      half of the contract silent. A header that keeps four columns but calls
+      them something else (a qualified ``COUNT(root.db.t1.value)``, a
+      ``__device``) sails through an arity check while every ``.get`` misses, and
+      the caller reports "no samples" or ``rows: 0`` — a confident wrong answer
+      of the same family as the bug this helper exists to prevent.
+
+    Failing loudly hands the caller an error dict (every historian tool wraps
+    exceptions); guessing hands them someone else's reading, or silence.
     """
     names = [c for c in columns if c.lower() != "time"]
     fields = list(record.get_fields())
@@ -442,7 +455,15 @@ def _named_cells(columns: list[str], record: Any) -> dict[str, Any]:
             f"({columns}) — the reader cannot attribute values to tags safely. "
             f"This is a result shape it does not know; report it with the query."
         )
-    return {name.lower(): _field_value(field) for name, field in zip(names, fields)}
+    cells = {name.lower(): _field_value(field) for name, field in zip(names, fields)}
+    missing = [name for name in required if name not in cells]
+    if missing:
+        raise ValueError(
+            f"IoTDB returned columns {columns} — expected {list(required)}, missing "
+            f"{missing}. The reader will not guess which column is which; report "
+            f"this with the IoTDB version."
+        )
+    return cells
 
 
 def _field_value(field: Any) -> Any:

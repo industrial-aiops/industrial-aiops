@@ -66,9 +66,16 @@ _IDENTIFY_WINDOW_S = 1.5
 
 @pytest.fixture
 def station() -> Any:
-    """The virtual station, live on the peer end of the veth pair."""
+    """The virtual station, live on the peer end of the veth pair.
+
+    The teardown assertion matters: the serve loop swallows exceptions so one bad
+    frame cannot take the station down mid-test, which means a station that broke
+    would otherwise present as `DcpTimeoutError` — "no station answered" — and
+    send the reader looking at the wire instead of at the harness.
+    """
     with DCPStation(DEVICE_IF) as running:
         yield running
+        assert not running.errors, f"the station swallowed errors: {running.errors}"
 
 
 @pytest.fixture
@@ -165,6 +172,15 @@ def test_station_params_takes_the_unicast_get_path(station, target) -> None:
     it the connector would have fallen back to filtering IdentifyAll, which
     returns the same answer for the wrong reason — the exact case a result-only
     assertion cannot tell apart.
+
+    **A Get being present is not enough**, though, which an earlier version of
+    this test missed: `_get_by_mac` sends the name-of-station Get FIRST and only
+    then the IP Get, and wraps both in one `except Exception: return None`. If
+    the second one raised, the name Get would already be on the wire, the
+    connector would fall back to IdentifyAll, and every assertion above would
+    still hold. So the absence of an IdentifyAll is asserted too — and the
+    result SHAPE, since the fallback returns the full `_device_brief` (with
+    `device_family`) while the unicast branch returns only the addressing.
     """
     result = ops.profinet_station_params(target, station.mac)
 
@@ -172,6 +188,10 @@ def test_station_params_takes_the_unicast_get_path(station, target) -> None:
     assert result["name_of_station"] == station.name_of_station
     assert result["ip"] == station.ip
     assert any(service == 3 for service, _type in station.requests), station.requests
+    assert (5, 0) not in station.requests, f"fell back to an IdentifyAll sweep: {station.requests}"
+    assert "device_family" not in result, (
+        f"this is the IdentifyAll fallback's shape, not the unicast Get's: {result}"
+    )
 
 
 @needs_veth

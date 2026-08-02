@@ -10,6 +10,7 @@ below gives every test a fresh throwaway home and fresh singletons.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -73,3 +74,64 @@ def register_full_tool_surface() -> dict[str, Any]:
 def full_tool_registry() -> dict[str, Any]:
     """The complete registered tool surface: brain + all protocols + all editions."""
     return register_full_tool_surface()
+
+
+# ─── live-test enforcement (IAIOPS_REQUIRE_LIVE) ─────────────────────────────
+
+_SKIPPED_WHEN_REQUIRED: list[str] = []
+
+
+def _live_required() -> bool:
+    return os.environ.get("IAIOPS_REQUIRE_LIVE", "").strip().lower() in ("1", "true", "yes")
+
+
+def pytest_collectreport(report: Any) -> None:
+    """Catch a MODULE-level skip — the one that leaves no test items behind.
+
+    `pytest.skip(..., allow_module_level=True)` fires during collection, so a
+    per-test hook never sees it: the file contributes zero items and the run
+    still exits 0. That is exactly how a client library that stops importing
+    (pnio-dcp off Linux, an SDK that moved a submodule) would turn a dedicated
+    CI step into a silent no-op.
+    """
+    if _live_required() and report.skipped:
+        _SKIPPED_WHEN_REQUIRED.append(f"collection: {report.nodeid or '<module>'}")
+
+
+def pytest_runtest_logreport(report: Any) -> None:
+    # `optional_live` is the one escape hatch: a test whose scaffolding the CI
+    # workflow itself declares non-fatal (today only the TDengine native client,
+    # whose libtaos comes from a vendor CDN the build deliberately tolerates
+    # losing). Marking it is a decision recorded in the test file, not a silent
+    # exception buried in the runner.
+    if not (_live_required() and report.skipped and report.when in ("setup", "call")):
+        return
+    if "optional_live" in getattr(report, "keywords", {}):
+        return
+    _SKIPPED_WHEN_REQUIRED.append(report.nodeid)
+
+
+def pytest_sessionfinish(session: Any, exitstatus: int) -> None:
+    """Fail the run when a live-promised step skipped anything.
+
+    A CI step that exists solely to run one live file proves nothing if every
+    test in it skips: `pytest -q -rs` prints "6 skipped" and **exits 0**, so a
+    dropped `export` in a harness script, a renamed env var, or an import that
+    started failing quietly converts the step into a no-op while
+    `docs/VERIFICATION-RECORD.md` keeps claiming the rung. Same failure mode the
+    `-rs` flag was added to surface one level down.
+
+    `IAIOPS_REQUIRE_LIVE=1` is set by exactly those steps (the PROFINET veth
+    harness, the BACnet two-IP harness, the integration lane). It says: the
+    scaffolding is up, so a skip here is a regression, not an environment.
+    Ordinary developer runs are untouched — unset, and skipping on a laptop
+    without a broker stays correct.
+    """
+    if not (_live_required() and _SKIPPED_WHEN_REQUIRED):
+        return
+    listed = "\n  - ".join(_SKIPPED_WHEN_REQUIRED)
+    print(  # noqa: T201 — this has to reach the CI log
+        f"\nIAIOPS_REQUIRE_LIVE=1 but {len(_SKIPPED_WHEN_REQUIRED)} test(s) skipped "
+        f"where the scaffolding was promised to be up:\n  - {listed}"
+    )
+    session.exitstatus = 1

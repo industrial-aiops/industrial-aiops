@@ -111,7 +111,7 @@ jobs:
       - name: Start NATS broker (egress live scaffolding)
         if: runner.os == 'Linux'
         run: |
-          docker run -d --rm --name iaiops-nats -p 4222:4222 nats:alpine
+          docker run -d --rm --name iaiops-nats -p 4222:4222 nats:2.11-alpine
           for i in $(seq 1 20); do
             if (echo > /dev/tcp/127.0.0.1/4222) 2>/dev/null; then
               echo "broker accepting connections (attempt $i)"; exit 0
@@ -135,7 +135,7 @@ jobs:
       - name: BACnet two-IP harness (real broadcast round-trip)
         if: runner.os == 'Linux'
         run: |
-          sudo -E env "PATH=$PATH" scripts/bacnet_live_harness.sh \
+          sudo -E env "PATH=$PATH" IAIOPS_REQUIRE_LIVE=1 scripts/bacnet_live_harness.sh \
             uv run --no-sync pytest tests/test_bacnet_live.py -q -rs
 
       # PROFINET was the last mock-only protocol here that was not hardware-gated.
@@ -147,7 +147,10 @@ jobs:
       - name: PROFINET-DCP veth harness (real layer-2 round-trip)
         if: runner.os == 'Linux'
         run: |
-          sudo -E env "PATH=$PATH" scripts/profinet_dcp_harness.sh \
+          # IAIOPS_REQUIRE_LIVE=1: this step exists only to run this file, so a
+          # SKIP here is a regression, not an environment. Without it `pytest -q`
+          # prints "6 skipped" and exits 0 — see tests/conftest.py.
+          sudo -E env "PATH=$PATH" IAIOPS_REQUIRE_LIVE=1 scripts/profinet_dcp_harness.sh \
             uv run --no-sync pytest tests/test_profinet_live.py -q -rs
 
       - name: pytest (base suite)
@@ -325,7 +328,7 @@ jobs:
           # session on that stack at all (VERIFICATION-RECORD note 8), so this has
           # to keep running: the test is written to go RED when that changes.
           docker run -d --rm --name iaiops-opcplc -p 50000:50000 \
-            mcr.microsoft.com/iotedge/opc-plc:latest \
+            mcr.microsoft.com/iotedge/opc-plc:2.12.28 \
             --pn=50000 --autoaccept --unsecuretransport
           # TAOS_FQDN/--hostname: a taosd dnode advertises its own FQDN, and the
           # native client reconnects to whatever it is told. Left at the default
@@ -349,13 +352,27 @@ jobs:
             docker logs "$1" 2>&1 | tail -30 || true
             return 1
           }
-          ready iaiops-iotdb 'docker logs iaiops-iotdb 2>&1 | grep -q "DataNode is set up successfully"' IoTDB
-          ready iaiops-taos 'docker exec iaiops-taos taos -s "SHOW DATABASES"' TDengine
-          ready iaiops-opcplc 'docker logs iaiops-opcplc 2>&1 | grep -q "PLC simulation started"' opc-plc
+          # Each probe ends with a TCP connect FROM THE RUNNER, because that is
+          # exactly what the tests' skipif guards do (socket.create_connection on
+          # 127.0.0.1). Container logs and `docker exec` say nothing about the
+          # published port: a container that printed its banner and then died, or
+          # one whose port never published, would pass a log-only probe and then
+          # let every live test skip on a green build — the hole this gate exists
+          # to close. Ask the same question the test asks.
+          ready iaiops-iotdb 'docker logs iaiops-iotdb 2>&1 | grep -q "DataNode is set up successfully" && (echo > /dev/tcp/127.0.0.1/6667)' IoTDB
+          ready iaiops-taos 'docker exec iaiops-taos taos -s "SHOW DATABASES" && (echo > /dev/tcp/127.0.0.1/6030)' TDengine
+          ready iaiops-opcplc 'docker logs iaiops-opcplc 2>&1 | grep -q "PLC simulation started" && (echo > /dev/tcp/127.0.0.1/50000)' opc-plc
 
       # --no-sync: keep the ad-hoc `uv pip install` env above; don't re-sync from
       # the lockfile (which has no energy/TSDB/HART extras).
+      # IAIOPS_REQUIRE_LIVE=1 turns a skip into a failed run: every service this
+      # lane needs was started and gated above, so a skip means a container, a
+      # client library or an env var stopped doing what the record claims.
+      # EXCEPT the TDengine binding test, whose libtaos fetch is deliberately
+      # non-fatal (see the vendor-CDN step above) — that one is allowed to skip.
       - name: Integration contract tests (real library APIs)
+        env:
+          IAIOPS_REQUIRE_LIVE: "1"
         run: >-
           uv run --no-sync pytest -q -rs -m integration
           tests/test_binding_contracts.py tests/test_opcua_discovery.py
