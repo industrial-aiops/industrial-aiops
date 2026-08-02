@@ -185,7 +185,13 @@ jobs:
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
         run: |
           v="${{ needs.wait-for-pypi.outputs.version }}"
-          pkgdir="iaiops-margo-package-${v}"
+          # Name it the way Margo's own reference sandbox requires:
+          # `<application-name>-<app-type>-app-package`, app-type being helm or
+          # compose (margo/sandbox docs/upload-package.md, checked 2026-08-02).
+          # The old `iaiops-margo-package-<v>` name would be rejected on upload to
+          # the sandbox's Harbor, so it is emitted as an alias for older consumers
+          # rather than kept as the primary.
+          pkgdir="iaiops-compose-app-package-${v}"
           mkdir "${pkgdir}"
           cp deploy/margo/margo.yaml "${pkgdir}/margo.yaml"
           # The deploy-ready compose ships as `compose.yaml` inside the package.
@@ -194,6 +200,12 @@ jobs:
           tar -czf "${pkgdir}.tar.gz" "${pkgdir}"
           cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY \
             --output-signature "${pkgdir}.tar.gz.sig" "${pkgdir}.tar.gz"
+          # Back-compat alias under the pre-2026-08 name, signed too: the release
+          # notes and deploy/margo/README of older versions point at it.
+          cp "${pkgdir}.tar.gz" "iaiops-margo-package-${v}.tar.gz"
+          cosign sign-blob --yes --key env://COSIGN_PRIVATE_KEY \
+            --output-signature "iaiops-margo-package-${v}.tar.gz.sig" \
+            "iaiops-margo-package-${v}.tar.gz"
 
       - name: Attach package + signature to the release
         env:
@@ -201,6 +213,8 @@ jobs:
         run: |
           v="${{ needs.wait-for-pypi.outputs.version }}"
           gh release upload "v${v}" \
+            "iaiops-compose-app-package-${v}.tar.gz" \
+            "iaiops-compose-app-package-${v}.tar.gz.sig" \
             "iaiops-margo-package-${v}.tar.gz" \
             "iaiops-margo-package-${v}.tar.gz.sig" \
             --clobber --repo "${{ github.repository }}"

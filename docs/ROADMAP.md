@@ -4,7 +4,38 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
-## Status — 2026-07-19 (current: `iaiops 0.17.0` · `iaiops-energy 0.1.7`)
+## Status — 2026-08-02 (current: `iaiops 0.21.1` · `iaiops-energy 0.1.11`)
+
+Latest published: base **`iaiops 0.21.1`**, energy **`iaiops-energy 0.1.11`** — PyPI +
+GitHub Release (with the signed Margo package) + MCP registry + SkillHub ×10 + 5 signed
+profile images. Energy carries no unreleased commits; its `iaiops>=0.20.3` pin picks up
+the current base on a fresh install. Glama re-indexes manually and is the one channel
+nothing here can automate.
+
+Since the 2026-07-19 block below: **0.18–0.20.x** (audit on both front-ends via a central
+`_govern.py`, effect-based write risk, MCP tool annotations derived from
+`@governed_tool`, the NATS 120s hang, `bacnet_write_property`'s unverified `applied`),
+then a **verification sweep** across 0.21.0/0.21.1 that cleared every open item on
+`docs/VERIFICATION-RECORD.md`'s register and cost **eight product fixes** — among them an
+IoTDB reader that returned one tag's values under another tag's name, a TDengine
+coverage query that could never have run, an `opcua_diagnose_connection` that leaked a
+thread and hung the process, and an RCA pre-incident window that kept each tag's oldest
+samples and reported them as complete.
+
+**The statement below that "nothing non-hardware-gated is currently open" was wrong when
+it was written, and the sweep is how that was found.** Feature development being
+complete is not the same as the features being verified: five protocols and both MCP
+transports had never met a real counterparty, and every defect above was invisible to a
+green unit suite because the mocks had been written to match the code. The current open
+list lives in `docs/VERIFICATION-RECORD.md` — it is short, and it is the honest one.
+
+Still true, and now with more behind it: the remaining value is in **real-device**
+verification (rung 3 is zero everywhere, see
+[issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28)) and
+ecosystem conformance. Everything that does NOT need hardware is reproducible on a
+developer machine — see the container recipes in `VERIFICATION-RECORD.md`.
+
+## Status — 2026-07-19 (historical: `iaiops 0.17.0` · `iaiops-energy 0.1.7`)
 
 Latest published: base **`iaiops 0.17.0`**, energy **`iaiops-energy 0.1.7`** — PyPI +
 GitHub Release + MCP registry + SkillHub + 5 signed profile images. Since the 2026-07-13
@@ -302,8 +333,13 @@ Everything below is the detailed backlog with per-item status.
   Releases since then (through 0.17.0) have used the credentials already stored in
   `~/.pypirc` with no token in chat — but if that file still holds the exposed token,
   the exposure is live. Revoking it is the only fix; nothing in this repo can do it.
-- ✅ Published all channels: **iaiops 0.8.0** + **iaiops-energy 0.1.2** on PyPI, GitHub
-  Releases (v0.8.0 / v0.1.2), and the MCP registry (`io.github.industrial-aiops/iaiops`
-  + `…/iaiops-energy`) under the industrial-aiops org (2026-07-02). Base 0.7.0 was also
-  on ClawHub / skills.sh (2026-06-30). *(Historical entry — latest published is
-  **iaiops 0.14.0** + **iaiops-energy 0.1.5**, 2026-07-13; see the status block at the top.)*
+- ✅ Published all channels: **iaiops 0.21.1** + **iaiops-energy 0.1.11** — PyPI, GitHub
+  Releases (with the signed Margo package), the MCP registry
+  (`io.github.industrial-aiops/iaiops` + `…/iaiops-energy`, auto-published from CI via
+  OIDC on tag), SkillHub ×10, and 5 signed profile images. Glama is manual and is the
+  only channel that cannot be automated from here.
+- **Release order that works** (learned twice): PyPI first — the image and registry
+  workflows both gate on the PyPI simple index — then `gh release create --target main`
+  so the release exists before the Margo-package job attaches to it. If one image matrix
+  leg fails to resolve the new version, that is a stale PyPI CDN node: `gh run rerun
+  <id> --failed` a few minutes later, do not re-cut the version.

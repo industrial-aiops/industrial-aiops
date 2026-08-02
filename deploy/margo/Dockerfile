@@ -24,7 +24,17 @@ RUN pip install "iaiops[${PROFILE}]==${IAIOPS_VERSION}"
 FROM python:${PYTHON_VERSION}-slim AS runtime
 ARG PROFILE=factory
 # Non-root user; app state lives under its home so the rootfs can be mounted read-only.
-RUN useradd --create-home --uid 10001 iaiops
+# The state directory is created HERE, owned by the app user and 0700 — not left
+# to the VOLUME instruction below, which runs as root and would leave a
+# root-owned 0755 directory the app cannot write. That was live in every
+# published image up to 0.21.1: `IAIOPS_HOME` was unwritable, so reads ran
+# unaudited and every high-risk write was denied fail-closed (correct behaviour,
+# wrong cause). Found 2026-08-02 by running the published image under the
+# read-only-rootfs constraints an immutable edge host imposes.
+RUN useradd --create-home --uid 10001 iaiops \
+    && mkdir -p /home/iaiops/.iaiops \
+    && chown 10001:10001 /home/iaiops/.iaiops \
+    && chmod 700 /home/iaiops/.iaiops
 COPY --from=build /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
     # The MCP server reads this to expose ONLY the selected edition's tools (no default flood).

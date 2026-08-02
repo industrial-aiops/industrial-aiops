@@ -37,9 +37,9 @@ iaiops is a portable, governed OT-domain app that *any* compliant orchestrator c
 |---|---|---|
 | **Application package** (container + standard *application description*, OCI/Helm) | Ships as one Python package + a menu-configurable MCP server; container image is straightforward | Author a Margo **application description** + publish an OCI image per edition profile |
 | **Edge application** (containerised workload) | Pure-Python core, lazy per-protocol extras, runs headless as an MCP server | Package the `IAIOPS_MCP` profiles (`fab`/`factory`/`process`/`building`/`water`) as deployable app variants |
-| **Device role** (compliant host) | N/A — we ride on the host | Validate on an immutable/centrally-managed edge OS (candidate: IGEL OS + its container runtime) |
+| **Device role** (compliant host) | N/A — we ride on the host. What an immutable host demands OF THE APPLICATION is now gated in CI (`immutable-host` job, `scripts/immutable_host_check.sh`): non-root, read-only root filesystem, all mutable state in the declared volume, and the audit chain accepting a row under those constraints. **The published images failed that check** until 2026-08-02 — `VOLUME` after `USER` left the state directory root-owned | Validate on an actual immutable/centrally-managed edge OS (candidate: IGEL OS + its container runtime) — that still needs the host vendor |
 | **Orchestration (WOS)** desired-state | N/A — we are the payload | Confirm iaiops deploys/updates cleanly under a compliant orchestrator's desired-state lifecycle |
-| **Compliance test suite** (open, publicly traceable results) | **Cannot be run — it does not exist yet.** No conformance repo in the `margo` org; the PM group was still scoping methodology and a first PR1 "vertical slice" as of 2026-01-15. What *is* published and machine-executable is the Application Description **LinkML schema**, and `deploy/margo/margo.yaml` validates clean against it (CI job `margo-descriptor`, checked 2026-07-22) | Run the toolkit and publish the result the day it ships — only then may we say *Margo-compliant* |
+| **Compliance test suite** (open, publicly traceable results) | **Still does not exist** — re-checked 2026-08-02: no conformance repo among the 12 in the `margo` org. Two things DO now exist that did not before: the **Code First Sandbox** (`margo/sandbox` — a reference Symphony WFM, Harbor registry, compose/helm deployment path) and the published Application Description **LinkML schema**, which `deploy/margo/margo.yaml` validates clean against (CI job `margo-descriptor`) | Deploy into the sandbox WFM — the nearest thing to a conformance run that exists — then run the toolkit and publish the result the day it ships. Only then may we say *Margo-compliant* |
 
 **Honest status:** iaiops is **NOT Margo-compliant today** (`待核实` until the conformance toolkit
 exists and passes on a real device). Everything in §4 is roadmap `⏳`. Do not claim compliance in
@@ -88,7 +88,8 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
    internal-only network). Live pass on real edge hardware stays `待核实`.
 4. **`⏳` Conformance run** — execute the Margo compliance toolkit on a real device; publish the
    traceable result. **Only after this passes** does any material say *Margo-compliant*.
-5. **`⏳` Immutable-host validation** — a live deploy on a candidate immutable edge OS (IGEL OS or
+5. **`◐` Immutable-host validation** — the application-side requirements are now enforced on every
+   build (`immutable-host` CI job); what remains is a live deploy on a candidate immutable edge OS (IGEL OS or
    equivalent), captured as a `待核实 → verified` row like every other hardware pass.
 
 ## 5. Participation — contributor first, membership later

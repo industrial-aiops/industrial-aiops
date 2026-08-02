@@ -227,6 +227,32 @@ jobs:
             diff "$upstream" deploy/margo/schema/application-description.linkml.yaml || true
           fi
 
+  # ── Immutable-host readiness (Margo device role) ────────────────────────────
+  # Margo's device role is a hardened, centrally-managed host. Validating on a
+  # specific one (IGEL OS) needs that vendor; what an immutable host DEMANDS OF AN
+  # APPLICATION does not — non-root, a read-only root filesystem, and all mutable
+  # state inside the declared volume — and that is checkable on any runner.
+  #
+  # It is a job rather than a note because the published images FAILED it: `VOLUME`
+  # after `USER` left the state directory root-owned, so the app could not write its
+  # own audit chain (reads unaudited, every high-risk write denied fail-closed).
+  # A Dockerfile regression is invisible to every other job here.
+  immutable-host:
+    name: immutable-host readiness (container)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Built from the branch's Dockerfile; the wheel it installs is the last
+      # published one, which is what the image does in production anyway. The
+      # property under test belongs to the image, not the wheel.
+      - name: Build the edge image
+        run: docker build -f deploy/margo/Dockerfile --build-arg PROFILE=modbus -t iaiops-immutable:ci deploy/margo
+
+      - name: Non-root, read-only rootfs, writable state, audit chain accepts a row
+        run: scripts/immutable_host_check.sh iaiops-immutable:ci
+
   # ── Integration contract tests (linux only) ─────────────────────────────────
   # The base suite mocks every protocol library, so the preview/待核实 bindings can
   # drift from the real library API and still pass. These `integration`-marked
