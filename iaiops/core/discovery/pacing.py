@@ -201,19 +201,27 @@ class Pacer:
     def probe(self, host: str) -> Iterator[None]:
         """Hold every brake for the duration of one probe of ``host``.
 
+        Order matters. The host gate is taken FIRST, then a token, then a
+        concurrency slot — so a thread waiting out a host's gap holds neither a
+        slot nor a spent token. Taking the slot first (the obvious order) lets
+        several workers queue on one host while occupying the whole concurrency
+        budget, which silently collapses throughput and makes the preview's
+        duration estimate wrong. That estimate is the thing an operator agreed a
+        maintenance window on, so it has to stay true.
+
         Raises :class:`SegmentUnhealthy` if the run has already gone bad, and
         :class:`HostBackedOff` if this host was dropped for the run.
         """
         self.health.check_segment()
         if self.health.is_blocked(host):
             raise HostBackedOff(host)
-        self._bucket.acquire()
-        self._slots.acquire()
-        try:
-            with self._host_gate.hold(host):
+        with self._host_gate.hold(host):
+            self._bucket.acquire()
+            self._slots.acquire()
+            try:
                 yield
-        finally:
-            self._slots.release()
+            finally:
+                self._slots.release()
 
 
 class HostBackedOff(RuntimeError):

@@ -46,6 +46,12 @@ from iaiops.core.discovery.profiles import (
     get_profile,
     profile_menu,
 )
+from iaiops.core.discovery.sweep import (
+    ProbeOutcome,
+    diagnose_empty_sweep,
+    probe_port,
+    sweep_hosts,
+)
 from iaiops.core.discovery.types import (
     CONF_CONFIRMED,
     CONF_PORT_ONLY,
@@ -86,6 +92,10 @@ __all__ = [
     "resolve_ports",
     "plan_preview",
     "preview_text",
+    "ProbeOutcome",
+    "probe_port",
+    "sweep_hosts",
+    "diagnose_empty_sweep",
     "PacingPolicy",
     "Authorization",
     "ScanPlan",
