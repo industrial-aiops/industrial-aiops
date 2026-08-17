@@ -97,6 +97,33 @@ def _build_context() -> Any:
     return ModbusServerContext(devices=device, single=True)
 
 
+#: FC43 / MEI-14 identity the server answers with. Deliberately distinctive so a
+#: decoded field cannot accidentally match a library default.
+_IDENT_VENDOR = "Acme Industrial 工业"
+_IDENT_PRODUCT = "PLC-9000"
+_IDENT_REVISION = "V3.14"
+
+
+def _build_identity() -> Any:
+    """Seed FC43 device identification on the server.
+
+    Note a real pymodbus quirk found while checking this: identity state is shared
+    process-wide, so a server started with ``identity=None`` still answers with
+    whatever a previously-constructed identity held. Verified in a clean process,
+    ``identity=None`` returns ``information={}`` — an empty answer, NOT an
+    exception. That is why ``modbus_read_device_identification`` treats an empty
+    object set as "identified as Modbus-speaking and nothing more" rather than an
+    error, and why it never fills in a placeholder vendor.
+    """
+    from pymodbus.pdu.device import ModbusDeviceIdentification
+
+    identity = ModbusDeviceIdentification()
+    identity.VendorName = _IDENT_VENDOR
+    identity.ProductCode = _IDENT_PRODUCT
+    identity.MajorMinorRevision = _IDENT_REVISION
+    return identity
+
+
 class _TcpServer:
     """A real pymodbus TCP server on a private background event loop."""
 
@@ -113,7 +140,11 @@ class _TcpServer:
     async def _start(self) -> Any:
         from pymodbus.server import ModbusTcpServer
 
-        server = ModbusTcpServer(_build_context(), address=("127.0.0.1", self._port))
+        server = ModbusTcpServer(
+            _build_context(),
+            identity=_build_identity(),
+            address=("127.0.0.1", self._port),
+        )
         await server.serve_forever(background=True)
         return server
 
@@ -326,3 +357,51 @@ def test_tcp_out_of_range_read_teaches_rather_than_fabricates(
     assert "5000" in message or "address" in message.lower(), (
         f"the error does not name what went wrong: {message!r}"
     )
+
+
+# ─── FC43 identification, against a real MEI-14 exchange ─────────────────────
+
+
+def test_tcp_device_identification_round_trip(tcp_target: TargetConfig) -> None:
+    """FC43 over real MBAP framing, decoded from real bytes.
+
+    A fake can agree with the decoder it was written against; this cannot. The
+    vendor string carries non-ASCII on purpose — a device that answers with
+    latin-1 or UTF-8 product names is common, and silently mangling one would put
+    a wrong vendor into an asset register.
+    """
+    out = ops.modbus_read_device_identification(tcp_target)
+
+    assert out["vendor"] == _IDENT_VENDOR
+    assert out["product_code"] == _IDENT_PRODUCT
+    assert out["revision"] == _IDENT_REVISION
+    assert out["unit_id"] == _UNIT_ID
+    assert out["object_count"] == 3
+    assert out["objects"]["vendor_name"] == _IDENT_VENDOR
+    assert out["more_follows"] is False
+
+
+def test_tcp_identification_touches_no_registers(tcp_target: TargetConfig) -> None:
+    """The whole point of using FC43 to identify a device is that it asks the
+    protocol layer, not the process image. Reading holding register 0 instead —
+    the obvious alternative — is a data-plane request against an address the
+    device may not map, and legacy slaves answer an unmapped address by raising,
+    dropping the session, or faulting.
+
+    Proven by making every register read on this connector explode for the
+    duration: identification must still succeed.
+    """
+    import pytest as _pytest
+
+    def forbidden(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("identification reached for a register read")
+
+    monkeypatch = _pytest.MonkeyPatch()
+    try:
+        monkeypatch.setattr(ops, "_read_registers", forbidden)
+        monkeypatch.setattr(ops, "_read_bits", forbidden)
+        out = ops.modbus_read_device_identification(tcp_target)
+    finally:
+        monkeypatch.undo()
+
+    assert out["vendor"] == _IDENT_VENDOR
