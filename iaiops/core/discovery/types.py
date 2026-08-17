@@ -142,6 +142,9 @@ class ScanPlan:
     seed: int = 0
     #: Devices explicitly opted in to the L4 address-space walk.
     allow_browse: tuple[str, ...] = ()
+    #: Acknowledges a deliberately huge CIDR. Recorded on the plan rather than
+    #: passed at call time, because it is part of what was authorized.
+    accept_large_scope: bool = False
 
     def with_stages(self, stages: tuple[str, ...]) -> ScanPlan:
         unknown = [s for s in stages if s not in STAGE_ORDER]

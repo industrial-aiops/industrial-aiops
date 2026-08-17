@@ -29,6 +29,15 @@ from iaiops.core.discovery.ports import (
     ports_for_protocols,
     sweepable_ports,
 )
+from iaiops.core.discovery.preview import (
+    MAX_HOSTS_PER_SCAN,
+    Scope,
+    ScopeTooLarge,
+    expand_scope,
+    plan_preview,
+    preview_text,
+    resolve_ports,
+)
 from iaiops.core.discovery.profiles import (
     DEFAULT_PROFILE,
     PROFILES,
@@ -70,6 +79,13 @@ __all__ = [
     "ScanProfile",
     "get_profile",
     "profile_menu",
+    "MAX_HOSTS_PER_SCAN",
+    "Scope",
+    "ScopeTooLarge",
+    "expand_scope",
+    "resolve_ports",
+    "plan_preview",
+    "preview_text",
     "PacingPolicy",
     "Authorization",
     "ScanPlan",
