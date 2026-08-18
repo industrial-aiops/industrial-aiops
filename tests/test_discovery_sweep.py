@@ -5,9 +5,10 @@ Two layers on purpose. The fake connector drives the verdict logic exactly
 ``socket.socket`` listener matrix proves the actual connect path works against
 the kernel's own stack rather than only against our idea of it.
 
-What cannot be tested here is a genuine ``filtered`` — a real silent drop needs a
-firewall rule, so the timeout path is driven through the fake and the real-DROP
-case is left for the Linux verification run.
+The timeout path here is driven through the fake, because a genuine ``filtered``
+needs a real firewall rule. That case is NOT left as a promise: it is covered by
+``test_discovery_sweep_filtered_live.py``, which installs an actual iptables DROP
+inside a container netns and asserts all three verdicts against the kernel.
 """
 
 from __future__ import annotations
