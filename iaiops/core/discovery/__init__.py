@@ -32,6 +32,13 @@ from iaiops.core.discovery.identify import (
     identify_hosts,
     identify_pacing,
 )
+from iaiops.core.discovery.passive import (
+    ARPEntry,
+    merge_passive,
+    normalize_mac,
+    passive_hosts,
+    read_arp_table,
+)
 from iaiops.core.discovery.ports import (
     ALLOWLIST,
     NEVER_IDENTIFIED,
@@ -118,6 +125,11 @@ __all__ = [
     "identify_host",
     "identify_hosts",
     "identify_pacing",
+    "ARPEntry",
+    "read_arp_table",
+    "passive_hosts",
+    "merge_passive",
+    "normalize_mac",
     "PacingPolicy",
     "Authorization",
     "ScanPlan",
