@@ -20,6 +20,18 @@ identify call for that protocol is the one that cannot disturb the device.
 
 from __future__ import annotations
 
+from iaiops.core.discovery.identify import (
+    IDENTIFY_PLAN,
+    IDENTITY_FIELDS,
+    NO_SAFE_IDENTIFY,
+    IdentifyProbe,
+    ProbeUnavailable,
+    candidates_for_port,
+    identify_emissions,
+    identify_host,
+    identify_hosts,
+    identify_pacing,
+)
 from iaiops.core.discovery.ports import (
     ALLOWLIST,
     NEVER_IDENTIFIED,
@@ -96,6 +108,16 @@ __all__ = [
     "probe_port",
     "sweep_hosts",
     "diagnose_empty_sweep",
+    "IDENTIFY_PLAN",
+    "IDENTITY_FIELDS",
+    "NO_SAFE_IDENTIFY",
+    "IdentifyProbe",
+    "ProbeUnavailable",
+    "identify_emissions",
+    "candidates_for_port",
+    "identify_host",
+    "identify_hosts",
+    "identify_pacing",
     "PacingPolicy",
     "Authorization",
     "ScanPlan",

@@ -26,8 +26,8 @@ import ipaddress
 from dataclasses import dataclass
 from typing import Any, Final
 
+from iaiops.core.discovery import identify, wirelog
 from iaiops.core.discovery import ports as port_table
-from iaiops.core.discovery import wirelog
 from iaiops.core.discovery.profiles import REQUIRES_AUTHORIZATION, get_profile
 from iaiops.core.discovery.types import (
     L0_BROADCAST,
@@ -53,17 +53,11 @@ STAGE_EMISSIONS: Final[dict[str, tuple[str, ...]]] = {
     L0_PASSIVE: (),
     L0_BROADCAST: (wirelog.UDP_BROADCAST_WHOIS, wirelog.L2_DCP_IDENTIFY),
     L1_SWEEP: (wirelog.TCP_CONNECT,),
-    L2_IDENTIFY: (
-        wirelog.MODBUS_FC43,
-        wirelog.OPCUA_GETENDPOINTS,
-        wirelog.S7_CPU_INFO,
-        wirelog.EIP_LIST_IDENTITY,
-        wirelog.MC_CPU_STATUS,
-        wirelog.MTCONNECT_PROBE,
-        wirelog.IOLINK_HTTP,
-        wirelog.HTTP_READ,
-        wirelog.MQTT_SUBSCRIBE,
-    ),
+    # DERIVED from the probe table, never listed by hand. A hand-written list
+    # drifts the moment a probe is added or removed, and this preview is the
+    # document an operator signs — it has to describe the code that will run,
+    # not the code that ran when someone last edited this constant.
+    L2_IDENTIFY: identify.identify_emissions(),
     L3_FINGERPRINT: (
         wirelog.MODBUS_FC43,
         wirelog.S7_CPU_INFO,
