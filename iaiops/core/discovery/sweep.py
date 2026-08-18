@@ -188,6 +188,16 @@ def sweep_hosts(
             future.cancel()
 
     blocked = pacer.health.blocked_hosts
+    for host in blocked:
+        if host in per_host_errors:
+            # Recorded PER HOST, not only as a run-level note. A dropped host has
+            # fewer ports in its row than its neighbours, and a report that shows
+            # "3 ports checked" next to "6 ports checked" without saying why
+            # looks like the scan is inconsistent rather than careful.
+            per_host_errors[host].append(
+                "dropped after repeated failures — its remaining allowlisted ports "
+                "were NOT probed, so this row is incomplete by design"
+            )
     if blocked:
         notes.append(
             f"{len(blocked)} host(s) dropped after repeated failures and not probed "

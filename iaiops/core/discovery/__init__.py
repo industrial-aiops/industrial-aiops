@@ -65,6 +65,11 @@ from iaiops.core.discovery.profiles import (
     get_profile,
     profile_menu,
 )
+from iaiops.core.discovery.runner import (
+    NOT_IMPLEMENTED,
+    AuthorizationRequired,
+    run_scan,
+)
 from iaiops.core.discovery.sweep import (
     ProbeOutcome,
     diagnose_empty_sweep,
@@ -130,6 +135,9 @@ __all__ = [
     "passive_hosts",
     "merge_passive",
     "normalize_mac",
+    "run_scan",
+    "AuthorizationRequired",
+    "NOT_IMPLEMENTED",
     "PacingPolicy",
     "Authorization",
     "ScanPlan",
