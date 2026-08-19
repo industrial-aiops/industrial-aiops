@@ -228,6 +228,9 @@ select = ["E", "F", "I", "N", "W", "UP"]
 # HostBackedOff / UnknownWireKind read as what happened, the way the governance
 # harness's PolicyDenied does. Line length is still enforced here.
 "iaiops/core/discovery/*.py" = ["N818"]
+# Same rule for the scan store: ScanNotFound names the condition, and
+# ScanNotFoundError would read as an error about not-found-ness.
+"iaiops/core/sink/scan_store.py" = ["N818"]
 # MCP server files are reflected by FastMCP/Pydantic; PEP 604 unions (X | None)
 # crash on older mcp/pydantic, so they intentionally use Optional[X].
 "mcp_server/**/*.py" = ["UP007", "UP045"]
