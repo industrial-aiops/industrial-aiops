@@ -123,8 +123,13 @@ def sweep_hosts(
     log: wirelog.WireLog | None = None,
     seed: int = 0,
     connector: Callable[..., socket.socket] = socket.create_connection,
-) -> tuple[tuple[HostResult, ...], tuple[str, ...]]:
-    """Sweep ``ports`` on ``hosts``, gently. Returns results and run notes.
+) -> tuple[tuple[HostResult, ...], tuple[str, ...], bool]:
+    """Sweep ``ports`` on ``hosts``, gently. Returns results, notes, and whether
+    the run aborted on an unhealthy segment.
+
+    The abort arrives as a flag rather than only as prose in ``notes``: the
+    caller decides a verdict from it, and a verdict that depended on an
+    exception's wording would silently go wrong the day someone reworded it.
 
     Every brake in :class:`~iaiops.core.discovery.pacing.Pacer` applies. A host
     that fails repeatedly is dropped for the run; a segment that fails wholesale
@@ -171,6 +176,11 @@ def sweep_hosts(
             except SegmentUnhealthy as exc:
                 aborted = True
                 notes.append(str(exc))
+                # Cancel INSIDE the executor's context: leaving the block first
+                # runs shutdown(wait=True), which drains every queued future
+                # before a cancel could ever apply.
+                for pending in futures:
+                    pending.cancel()
                 break
             except Exception as exc:  # noqa: BLE001 — one odd probe must not end the run
                 per_host_errors[host].append(f"{port}: {type(exc).__name__}: {exc}")
@@ -182,10 +192,6 @@ def sweep_hosts(
             )
             if outcome.error and outcome.state == PORT_FILTERED:
                 per_host_errors[host].append(f"{port}: {outcome.error}")
-
-    if aborted:
-        for future in futures:
-            future.cancel()
 
     blocked = pacer.health.blocked_hosts
     for host in blocked:
@@ -214,7 +220,7 @@ def sweep_hosts(
         for host in ordered
         if per_host[host] or per_host_errors[host]
     )
-    return results, tuple(notes)
+    return results, tuple(notes), aborted
 
 
 def diagnose_empty_sweep(results: Sequence[HostResult]) -> tuple[str, ...]:

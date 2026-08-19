@@ -140,7 +140,9 @@ class TestSweep:
     def test_results_carry_the_port_verdicts(self):
         sock = FakeSocket()
         conn = connector_map({("10.0.0.1", 502): sock})
-        results, _notes = sweep_hosts(["10.0.0.1"], [502, 4840], pacing=FAST, connector=conn)
+        results, _notes, _aborted = sweep_hosts(
+            ["10.0.0.1"], [502, 4840], pacing=FAST, connector=conn
+        )
         states = {p.port: p.state for p in results[0].ports}
         assert states == {502: PORT_OPEN, 4840: PORT_REFUSED}
 
@@ -149,7 +151,7 @@ class TestSweep:
         pacing = PacingPolicy(
             connects_per_second=100.0, max_concurrency=1, per_host_gap_ms=0, host_backoff_after=2
         )
-        _results, notes = sweep_hosts(
+        _results, notes, _aborted = sweep_hosts(
             ["10.0.0.9"], [102, 502, 4840, 4843], pacing=pacing, connector=conn
         )
         assert any("dropped after repeated failures" in n for n in notes)
@@ -166,7 +168,9 @@ class TestSweep:
             segment_abort_after=3,
         )
         hosts = [f"10.0.0.{i}" for i in range(1, 12)]
-        _results, notes = sweep_hosts(hosts, [502], pacing=pacing, connector=always_timeout)
+        _results, notes, _aborted = sweep_hosts(
+            hosts, [502], pacing=pacing, connector=always_timeout
+        )
         assert any("aborting" in n for n in notes), notes
 
     def test_host_order_is_shuffled_but_reproducible(self):
@@ -246,7 +250,7 @@ class TestSweep:
                 raise ValueError("something unexpected inside the connector")
             raise OSError(errno.ECONNREFUSED, "refused")
 
-        results, _notes = sweep_hosts(
+        results, _notes, _aborted = sweep_hosts(
             ["10.0.0.1", "10.0.0.2", "10.0.0.3"], [502], pacing=FAST, connector=flaky
         )
         assert {r.ip for r in results} == {"10.0.0.1", "10.0.0.2", "10.0.0.3"}
@@ -301,7 +305,7 @@ class TestRealLocalListeners:
         closed_port = sock.getsockname()[1]
         sock.close()
 
-        results, _notes = sweep_hosts(["127.0.0.1"], [listener, closed_port], pacing=FAST)
+        results, _notes, _aborted = sweep_hosts(["127.0.0.1"], [listener, closed_port], pacing=FAST)
         states = {p.port: p.state for p in results[0].ports}
         assert states[listener] == PORT_OPEN
         assert states[closed_port] == PORT_REFUSED

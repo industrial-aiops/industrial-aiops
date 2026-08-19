@@ -302,3 +302,37 @@ class TestBackoffIsVisiblePerHost:
             arp_reader=NO_ARP,
         )
         assert any("incomplete by design" in e for e in result.hosts[0].errors)
+
+
+class TestAbortIsStructural:
+    """The abort verdict must not depend on the wording of an exception message.
+    Rewording pacing.py would otherwise make an aborted, possibly
+    plant-disturbing scan report itself as ok."""
+
+    def test_sweep_reports_the_abort_as_a_flag(self):
+        from iaiops.core.discovery.sweep import sweep_hosts
+        from iaiops.core.discovery.types import PacingPolicy
+
+        def always_timeout(address, timeout=None):
+            raise TimeoutError
+
+        pacing = PacingPolicy(connects_per_second=100.0, per_host_gap_ms=0, segment_abort_after=2)
+        _hosts, _notes, aborted = sweep_hosts(
+            [f"10.0.0.{i}" for i in range(1, 20)],
+            [502],
+            pacing=pacing,
+            connector=always_timeout,
+        )
+        assert aborted is True, "an unhealthy segment must be signalled structurally"
+
+    def test_a_healthy_sweep_is_not_flagged_as_aborted(self):
+        from iaiops.core.discovery.sweep import sweep_hosts
+        from iaiops.core.discovery.types import PacingPolicy
+
+        def refuse(address, timeout=None):
+            raise ConnectionRefusedError(111, "refused")
+
+        _hosts, _notes, aborted = sweep_hosts(
+            ["10.0.0.1"], [502], pacing=PacingPolicy(per_host_gap_ms=0), connector=refuse
+        )
+        assert aborted is False

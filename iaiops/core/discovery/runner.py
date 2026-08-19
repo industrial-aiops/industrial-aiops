@@ -118,8 +118,9 @@ def run_scan(
         passive_known = passive.passive_hosts(entries, scope=scope.hosts or None)
 
     swept: tuple[HostResult, ...] = ()
+    aborted = False
     if L1_SWEEP in stages and scope.hosts and ports:
-        swept, sweep_notes = sweep_hosts(
+        swept, sweep_notes, aborted = sweep_hosts(
             scope.hosts,
             ports,
             pacing=plan.pacing,
@@ -144,7 +145,7 @@ def run_scan(
     return ScanResult(
         plan=plan,
         hosts=hosts,
-        verdict=_verdict(hosts, notes),
+        verdict=_verdict(hosts, aborted),
         wire_summary=log.summary(),
         notes=tuple(dict.fromkeys(notes)),
         started_at=started,
@@ -160,9 +161,15 @@ def _ip_sort_key(host: HostResult) -> tuple:
     return (1, host.ip)
 
 
-def _verdict(hosts: tuple[HostResult, ...], notes: list[str]) -> str:
-    """Four outcomes, kept apart because they are acted on differently."""
-    if any("aborting" in note for note in notes):
+def _verdict(hosts: tuple[HostResult, ...], aborted: bool) -> str:
+    """Four outcomes, kept apart because they are acted on differently.
+
+    ``aborted`` is passed in as a flag, not recovered from the notes: a verdict
+    that keyed on the word "aborting" appearing in an exception message would
+    turn an aborted, possibly plant-disturbing run into a clean "ok" the day
+    that message was reworded.
+    """
+    if aborted:
         return VERDICT_ABORTED_UNHEALTHY
     if any(c.confidence == CONF_CONFIRMED for h in hosts for c in h.protocols):
         return VERDICT_OK
