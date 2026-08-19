@@ -123,6 +123,51 @@ _SCENARIO = textwrap.dedent(
     assert len(list_scans("/tmp/e2e.db")) == 1
 
     print("E2E_OK", scan_id, len(html))
+
+    # ── and now the same thing through the COMMAND ──────────────────────────
+    # The library working does not mean the command works, and the command is
+    # the only part a person ever touches. Everything above could pass while
+    # `iaiops scan run` is broken by a bad flag name, a missing registration or
+    # an exception class the CLI does not translate.
+    from typer.testing import CliRunner
+
+    from iaiops.cli._root import app
+
+    cli = CliRunner()
+
+    preview = cli.invoke(app, ["scan", "plan", "--targets", "127.0.0.1"])
+    assert preview.exit_code == 0, preview.output
+    assert "nothing has been sent" in preview.output.lower()
+
+    run = cli.invoke(
+        app,
+        [
+            "scan", "run", "--yes",
+            "--targets", "127.0.0.1",
+            "--site", "Container Line 1",
+            "--db", "/tmp/cli.db",
+            "--report", "/tmp/cli-survey.html",
+        ],
+    )
+    assert run.exit_code == 0, run.output
+    assert VENDOR in run.output, run.output
+
+    cli_html = open("/tmp/cli-survey.html", encoding="utf-8").read()
+    assert VENDOR in cli_html
+    assert PRODUCT in cli_html
+    assert "What this scan touched" in cli_html
+
+    listed = cli.invoke(app, ["scan", "list", "--db", "/tmp/cli.db"])
+    assert listed.exit_code == 0, listed.output
+    assert "Container Line 1" in listed.output
+
+    rerender = cli.invoke(
+        app, ["scan", "report", "--out", "/tmp/cli-again.html", "--db", "/tmp/cli.db"]
+    )
+    assert rerender.exit_code == 0, rerender.output
+    assert VENDOR in open("/tmp/cli-again.html", encoding="utf-8").read()
+
+    print("CLI_OK", len(cli_html))
     """
 )
 
@@ -145,7 +190,8 @@ def test_scan_store_and_report_against_a_real_modbus_device(tmp_path: Path) -> N
         # iaiops's own base deps too: TargetConfig pulls in yaml + dotenv, and without
         # them the probe fails as "unavailable" and the scan reports port_only —
         # a result that looks like a silent device rather than a missing library.
-        "pip install -q 'pymodbus>=3.5,<4' pyyaml python-dotenv cryptography >/dev/null 2>&1 "
+        "pip install -q 'pymodbus>=3.5,<4' pyyaml python-dotenv cryptography "
+        "typer rich 'mcp[cli]' >/dev/null 2>&1 "
         "|| { echo NO_PYMODBUS; exit 2; }\n"
         "python3 /probe/scenario.py\n"
     )
@@ -172,3 +218,4 @@ def test_scan_store_and_report_against_a_real_modbus_device(tmp_path: Path) -> N
         pytest.skip("could not install pymodbus in the container (no network?)")
     assert proc.returncode == 0, output
     assert "E2E_OK" in output, output
+    assert "CLI_OK" in output, output
