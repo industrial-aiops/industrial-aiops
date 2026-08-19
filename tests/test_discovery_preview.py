@@ -128,6 +128,20 @@ class TestPortResolution:
         with pytest.raises(ValueError, match="opt-in"):
             pv.resolve_ports(plan(ports=(1883,)))
 
+    def test_a_hint_that_names_nothing_is_refused(self):
+        """A typo must not resolve to an empty port set. The sweep would then be
+        skipped silently and the run would blame the operator's VLAN for a
+        silence that a misspelling caused."""
+        with pytest.raises(ValueError, match="modbuss"):
+            pv.resolve_ports(plan(protocols=("modbuss",)))
+
+    def test_a_udp_only_protocol_hint_is_refused_with_its_reason(self):
+        """BACnet, FINS and HART are deliberately absent from the TCP allowlist —
+        a TCP sweep cannot find them. Say so instead of sweeping nothing."""
+        for name in ("bacnet", "fins", "hart"):
+            with pytest.raises(ValueError, match=name):
+                pv.resolve_ports(plan(protocols=(name,)))
+
     def test_deep_profile_includes_the_opt_in_ports(self):
         ports = {p.port for p in pv.resolve_ports(plan(profile="deep"))}
         assert 1883 in ports

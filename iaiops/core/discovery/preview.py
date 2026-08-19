@@ -185,8 +185,21 @@ def resolve_ports(plan: ScanPlan) -> tuple[port_table.IndustrialPort, ...]:
 
     if plan.protocols:
         allowed = {p.port for p in port_table.ports_for_protocols(plan.protocols)}
+        if not allowed:
+            sweepable = sorted({n for e in port_table.ALLOWLIST for n in e.protocols})
+            # The narrowing primitive returns an empty set for a name it does not
+            # serve; at plan level that must be loud. Silently resolving to no
+            # ports skips the sweep, and the run then blames the operator's VLAN
+            # for a silence a typo — or a UDP-only protocol — actually caused.
+            raise ValueError(
+                f"protocols {list(plan.protocols)} match no sweepable TCP port. "
+                "Either the name is misspelled, or the protocol is not reachable by "
+                "a TCP sweep at all: BACnet, FINS and HART are UDP and are found by "
+                "broadcast or by an operator-supplied address, not by this stage. "
+                f"Sweepable names: {sweepable}."
+            )
         candidates = tuple(p for p in candidates if p.port in allowed)
-        if not candidates and allowed:
+        if not candidates:
             _refuse_opt_in(sorted(allowed), profile.name, f"protocols {list(plan.protocols)}")
 
     if plan.ports:
