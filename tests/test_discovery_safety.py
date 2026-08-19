@@ -71,6 +71,17 @@ class TestTokenBucket:
         with pytest.raises(ValueError):
             TokenBucket(0)
 
+    def test_a_rate_below_one_per_second_still_grants(self):
+        """A sub-1/s rate is the gentlest setting the policy allows, and the one
+        a fragile controller deserves. The bucket must still hand out whole
+        tokens: sizing capacity to the rate means it saturates below 1 and the
+        scan waits forever for a token that can never arrive."""
+        clock = FakeClock()
+        bucket = TokenBucket(0.5, monotonic=clock.monotonic, sleep=clock.sleep)
+        waited = bucket.acquire()
+        assert waited >= 0.0
+        assert clock.now <= 4.0, "one token at 0.5/s is ~2s of waiting, not a hang"
+
     def test_a_broken_refill_loop_raises_instead_of_spinning(self, monkeypatch):
         """A hung limiter is a hung scanner. On a plant floor a stuck process is
         worse than a loud error — and in CI a hang is worse than a red test.

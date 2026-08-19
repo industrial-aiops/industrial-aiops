@@ -59,8 +59,11 @@ class TokenBucket:
             raise ValueError("rate_per_s must be positive")
         self._rate = rate_per_s
         # A one-second burst by default: enough to not stutter, small enough that
-        # a burst cannot become a flood.
-        self._capacity = capacity if capacity is not None else rate_per_s
+        # a burst cannot become a flood. Never below one whole token, though:
+        # acquire() asks for 1, and a capacity sized to a sub-1/s rate saturates
+        # under that forever — the gentlest policies the ceiling allows would
+        # sleep out every refill round and then die blaming the limiter.
+        self._capacity = capacity if capacity is not None else max(rate_per_s, 1.0)
         self._tokens = self._capacity
         self._monotonic = monotonic
         self._sleep = sleep
