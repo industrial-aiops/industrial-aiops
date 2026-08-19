@@ -80,11 +80,28 @@ _S7_SLOTS: Final[tuple[int, ...]] = (1, 2)
 
 
 class ProbeUnavailable(RuntimeError):
-    """The optional extra backing this probe is not installed.
+    """This machine cannot load the probe. The device was never asked.
 
     Distinct from a device failure: the finding is about THIS machine, and the
     report must say so rather than blame the device.
     """
+
+
+def _unavailable(protocol: str, extra: str, exc: Exception) -> ProbeUnavailable:
+    """Name the module that is actually missing, not the one we assume.
+
+    A probe import failing does NOT prove the protocol extra is absent — the
+    connector also reaches base dependencies through the config layer. Saying
+    "modbus extra not installed" when the missing module is ``cryptography``
+    sends someone to ``pip install iaiops[modbus]``, which changes nothing, and
+    costs an afternoon on a plant floor where there may be no second attempt.
+    """
+    missing = getattr(exc, "name", "") or str(exc)
+    return ProbeUnavailable(
+        f"cannot load the {protocol} probe here — missing module {missing!r}. "
+        f"If it is a driver, install iaiops[{extra}]; if it is a base dependency, "
+        "this install is incomplete."
+    )
 
 
 def _identity(
@@ -144,7 +161,7 @@ def _probe_modbus(host: str, port: int, timeout_s: float, log: wirelog.WireLog) 
     try:
         from iaiops.connectors.modbus import ops
     except ImportError as exc:  # pragma: no cover - exercised via _run_probe
-        raise ProbeUnavailable(f"modbus extra not installed: {exc}") from exc
+        raise _unavailable("modbus", "modbus", exc) from exc
 
     # Unit id 1 only. A serial-bridged slave may sit at any id, but walking ids
     # to find it is a request storm against a device that has not answered yet —
@@ -174,7 +191,7 @@ def _probe_opcua(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -
     try:
         from iaiops.connectors.opcua import ops
     except ImportError as exc:  # pragma: no cover - exercised via _run_probe
-        raise ProbeUnavailable(f"opcua extra not installed: {exc}") from exc
+        raise _unavailable("opcua", "opcua", exc) from exc
 
     scheme = "opc.tcp"
     target = _target(
@@ -202,7 +219,7 @@ def _probe_s7(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> d
     try:
         from iaiops.connectors.s7 import ops
     except ImportError as exc:  # pragma: no cover - exercised via _run_probe
-        raise ProbeUnavailable(f"s7 extra not installed: {exc}") from exc
+        raise _unavailable("s7", "s7", exc) from exc
 
     last: OTConnectionError | None = None
     for slot in _S7_SLOTS:
@@ -243,7 +260,7 @@ def _probe_eip(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> 
     try:
         from iaiops.connectors.eip import ops
     except ImportError as exc:  # pragma: no cover - exercised via _run_probe
-        raise ProbeUnavailable(f"ethernetip extra not installed: {exc}") from exc
+        raise _unavailable("ethernetip", "eip", exc) from exc
 
     target = _target(
         protocol="ethernetip",
@@ -271,7 +288,7 @@ def _probe_mc(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> d
     try:
         from iaiops.connectors.mc import ops
     except ImportError as exc:  # pragma: no cover - exercised via _run_probe
-        raise ProbeUnavailable(f"mc extra not installed: {exc}") from exc
+        raise _unavailable("mc", "mc", exc) from exc
 
     target = _target(
         protocol="mc",
@@ -296,7 +313,7 @@ def _probe_mtconnect(
     try:
         from iaiops.connectors.mtconnect import ops
     except ImportError as exc:  # pragma: no cover - exercised via _run_probe
-        raise ProbeUnavailable(f"mtconnect extra not installed: {exc}") from exc
+        raise _unavailable("mtconnect", "mtconnect", exc) from exc
 
     target = _target(
         protocol="mtconnect",
@@ -323,7 +340,7 @@ def _probe_iolink(host: str, port: int, timeout_s: float, log: wirelog.WireLog) 
     try:
         from iaiops.connectors.iolink import ops
     except ImportError as exc:  # pragma: no cover - exercised via _run_probe
-        raise ProbeUnavailable(f"iolink extra not installed: {exc}") from exc
+        raise _unavailable("iolink", "iolink", exc) from exc
 
     target = _target(
         protocol="iolink",

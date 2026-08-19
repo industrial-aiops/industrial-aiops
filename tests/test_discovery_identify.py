@@ -214,7 +214,7 @@ class TestOutcomeMapping:
 
     def test_a_missing_extra_blames_this_machine_not_the_device(self):
         """'Could not identify' would blame a device that was never asked."""
-        plan, _ = probe_for("modbus", ProbeUnavailable("modbus extra not installed"))
+        plan, _ = probe_for("modbus", ProbeUnavailable("cannot load the modbus probe here"))
         out = identify_host(host(open=[502]), log=wirelog.WireLog(), plan=plan)
         candidate = out.protocols[0]
         assert candidate.confidence == CONF_PORT_ONLY
@@ -629,3 +629,35 @@ class TestEveryProbeCanActuallyRun:
         assert target.protocol in (protocol, "ethernetip")
         assert target.timeout_s == 2.0
         assert log.summary().get(probe.wire_kind, 0) >= 1
+
+
+class TestTheUnavailableMessageNamesTheRealModule:
+    """A probe import failing does not prove the protocol extra is absent.
+
+    The connector also reaches base dependencies through the config layer, so
+    the missing module is often something like ``cryptography``. Reporting that
+    as "the modbus extra is not installed" sends a field engineer to
+    ``pip install iaiops[modbus]``, which changes nothing — on a plant floor
+    where there may be no second visit, that is an afternoon gone.
+
+    Found by running the pipeline in a container that had pymodbus but not
+    iaiops's own base dependencies.
+    """
+
+    def test_a_base_dependency_is_named_as_itself(self):
+        exc = identify._unavailable("modbus", "modbus", ModuleNotFoundError(name="cryptography"))
+        assert "cryptography" in str(exc)
+        assert "base dependency" in str(exc)
+
+    def test_it_does_not_claim_the_extra_is_the_cause(self):
+        exc = identify._unavailable("modbus", "modbus", ModuleNotFoundError(name="cryptography"))
+        assert "modbus extra not installed" not in str(exc)
+
+    def test_a_real_driver_still_points_at_the_extra(self):
+        exc = identify._unavailable("opcua", "opcua", ModuleNotFoundError(name="asyncua"))
+        assert "asyncua" in str(exc)
+        assert "iaiops[opcua]" in str(exc)
+
+    def test_an_exception_without_a_name_still_says_something_useful(self):
+        exc = identify._unavailable("s7", "s7", ImportError("circular import in pyS7"))
+        assert "circular import in pyS7" in str(exc)
