@@ -174,6 +174,40 @@ def _host_row(scan_id: str, host: HostResult) -> tuple:
     )
 
 
+def host_to_dict(host: HostResult) -> dict[str, Any]:
+    """A host in the SAME shape :func:`load_scan` returns, without storing it.
+
+    One shape with two producers, so a report renders identically whether the
+    scan came off disk or straight out of the runner. Pinned by a test that
+    compares the two key-for-key — a renderer that silently worked on only one
+    of them would be a bug nobody noticed until an operator asked for a report
+    of a scan they had not saved.
+    """
+    source, flat = _flat_identity(host)
+    return {
+        "ip": host.ip,
+        "mac": host.mac,
+        "sources": list(host.sources),
+        "alive": host.alive,
+        "open_ports": [p.port for p in host.ports if p.state == PORT_OPEN],
+        "confirmed": list(_confirmed(host)),
+        "identity_from": source,
+        **{k: flat[k] for k in IDENTITY_COLUMNS},
+        "ports": [{"port": p.port, "state": p.state, "rtt_ms": p.rtt_ms} for p in host.ports],
+        "protocols": [
+            {
+                "protocol": c.protocol,
+                "confidence": c.confidence,
+                "evidence": c.evidence,
+                "detail": c.detail,
+            }
+            for c in host.protocols
+        ],
+        "identity": json.loads(json.dumps(host.identity, default=str)),
+        "errors": list(host.errors),
+    }
+
+
 def _ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute(CREATE_SCANS_TABLE)
@@ -357,6 +391,7 @@ def prune_scans(keep_last: int, db_path: Path | str | None = None) -> int:
 
 __all__ = [
     "IDENTITY_COLUMNS",
+    "host_to_dict",
     "ScanNotFound",
     "ScanSummary",
     "scan_id_for",

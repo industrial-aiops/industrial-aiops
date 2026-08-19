@@ -65,6 +65,7 @@ from iaiops.core.discovery.profiles import (
     get_profile,
     profile_menu,
 )
+from iaiops.core.discovery.report import render_html, render_result
 from iaiops.core.discovery.runner import (
     NOT_IMPLEMENTED,
     AuthorizationRequired,
@@ -136,6 +137,8 @@ __all__ = [
     "merge_passive",
     "normalize_mac",
     "run_scan",
+    "render_html",
+    "render_result",
     "AuthorizationRequired",
     "NOT_IMPLEMENTED",
     "PacingPolicy",
