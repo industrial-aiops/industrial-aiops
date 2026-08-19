@@ -45,8 +45,105 @@ def _node_summary(node: Any) -> dict:
     }
 
 
+#: OPC-UA MessageSecurityMode (Part 4, §7.15) — numeric on the wire.
+_SECURITY_MODES = {0: "Invalid", 1: "None", 2: "Sign", 3: "SignAndEncrypt"}
+
+#: UserTokenType (Part 4, §7.36).
+_TOKEN_TYPES = {0: "Anonymous", 1: "UserName", 2: "Certificate", 3: "IssuedToken"}
+
+
+def _policy_name(uri: Any) -> str:
+    """Shorten a SecurityPolicy URI to its fragment ('...#Basic256Sha256' → that)."""
+    text = str(uri or "")
+    return s(text.rsplit("#", 1)[-1] if "#" in text else text, 64)
+
+
+def _endpoint_row(endpoint: Any) -> dict:
+    """One EndpointDescription, defensively — servers return surprising shapes."""
+    mode_raw = getattr(endpoint, "SecurityMode", None)
+    mode_num = int(getattr(mode_raw, "value", mode_raw) or 0)
+    tokens = []
+    for policy in getattr(endpoint, "UserIdentityTokens", None) or []:
+        token_raw = getattr(policy, "TokenType", None)
+        token_num = int(getattr(token_raw, "value", token_raw) or 0)
+        tokens.append(_TOKEN_TYPES.get(token_num, f"token_{token_num}"))
+    return {
+        "url": s(getattr(endpoint, "EndpointUrl", ""), 200),
+        "security_policy": _policy_name(getattr(endpoint, "SecurityPolicyUri", "")),
+        "security_mode": _SECURITY_MODES.get(mode_num, f"mode_{mode_num}"),
+        "security_level": int(getattr(endpoint, "SecurityLevel", 0) or 0),
+        "user_tokens": tokens,
+    }
+
+
+def opcua_endpoints(target: Any) -> dict:
+    """[READ] Identify a server via GetEndpoints — WITHOUT opening a session.
+
+    This is the identification call a scan may safely make. The obvious
+    alternative, :func:`server_info`, goes through ``opcua_session`` and therefore
+    consumes one of the server's session slots; embedded servers commonly allow
+    only two to five, so an unattended re-scan can evict the plant's real SCADA
+    client from its own PLC. GetEndpoints runs on the secure channel before any
+    session exists, so it costs the server nothing it is counting.
+
+    The security policies each endpoint offers come back too, which is what makes
+    this useful beyond identification: "this server still offers SecurityPolicy
+    None with Anonymous tokens" is a finding an IEC 62443 review acts on, and it
+    is visible here without authenticating.
+
+    Returns:
+        ``{endpoint_url, application_name, application_uri, product_uri,
+        endpoint_count, endpoints, allows_none_security, allows_anonymous}``.
+    """
+    from iaiops.core.runtime import connection
+
+    client = connection._build_opcua_client(target)
+    try:
+        endpoints = client.connect_and_get_server_endpoints()
+    except Exception as exc:
+        raise OTConnectionError(
+            f"OPC-UA GetEndpoints against '{target.name}' failed: {s(str(exc), 200)}. "
+            f"The port answered but the secure channel did not open — check the "
+            f"endpoint_url path and whether the server requires a certificate.",
+            endpoint=target.name,
+            protocol="opcua",
+        ) from exc
+    finally:
+        # asyncua's sync Client starts a NON-DAEMON ThreadLoop in its constructor
+        # and only ``disconnect`` stops it (in its own finally). Skipping this
+        # leaks a thread per probe and a long-lived scanner never exits — the same
+        # leak the connect path was fixed for in 0.15.0.
+        try:
+            client.disconnect()
+        except Exception:  # noqa: BLE001 — teardown must not mask the real error
+            pass
+
+    rows = [_endpoint_row(endpoint) for endpoint in endpoints or []]
+    first_server = getattr((endpoints or [None])[0], "Server", None)
+    name_obj = getattr(first_server, "ApplicationName", None)
+
+    return {
+        "endpoint_url": s(getattr(target, "endpoint_url", ""), 200),
+        "application_name": s(getattr(name_obj, "Text", "") or "", 128),
+        "application_uri": s(getattr(first_server, "ApplicationUri", "") or "", 200),
+        "product_uri": s(getattr(first_server, "ProductUri", "") or "", 200),
+        "endpoint_count": len(rows),
+        "endpoints": rows,
+        # Surfaced as plain booleans so a report can act on them without
+        # re-deriving the rule from policy URIs.
+        "allows_none_security": any(
+            r["security_policy"] == "None" or r["security_mode"] == "None" for r in rows
+        ),
+        "allows_anonymous": any("Anonymous" in r["user_tokens"] for r in rows),
+    }
+
+
 def server_info(target: Any) -> dict:
-    """[READ] OPC-UA server status: state, build info, namespaces, start time."""
+    """[READ] OPC-UA server status: state, build info, namespaces, start time.
+
+    Opens a full session — see :func:`opcua_endpoints` for the identification
+    path that does not, and which a scan should use instead.
+    """
     with opcua_session(target) as client:
         from asyncua import ua  # session guarantees asyncua is importable here
 

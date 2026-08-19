@@ -23,6 +23,42 @@ MAX_COUNT = 125  # Modbus protocol max registers per read
 _REGISTER_DECODES = ("raw", "uint16", "int16", "uint32", "int32", "float32")
 _PAIR_DECODES = ("uint32", "int32", "float32")  # each value consumes 2 registers
 
+#: FC43 / MEI-14 object ids (Modbus Application Protocol, §6.21). BASIC is the
+#: first three; the rest arrive only with a REGULAR request.
+_FC43_OBJECTS = {
+    0x00: "vendor_name",
+    0x01: "product_code",
+    0x02: "revision",
+    0x03: "vendor_url",
+    0x04: "product_name",
+    0x05: "model_name",
+    0x06: "user_application_name",
+}
+
+
+def _decode_identity_bytes(raw: Any) -> tuple[str, bool]:
+    """Decode an FC43 object defensively. Returns (text, decoded_cleanly).
+
+    UTF-8 is tried FIRST, not ASCII. A Chinese, Japanese or German vendor name is
+    ordinary in this market — 汇川, 三菱, Müller — and an ASCII-first decoder marks
+    every one of them "not clean", which puts a corruption warning on a perfectly
+    good asset register row and teaches the reader to ignore the flag. Only bytes
+    that are genuinely not UTF-8 fall back to latin-1, and only those are flagged:
+    latin-1 never raises, so it can silently mis-render, and the operator should
+    know which fields might be wrong.
+    """
+    if isinstance(raw, list | tuple):
+        parts = [_decode_identity_bytes(item) for item in raw]
+        return " ".join(p[0] for p in parts if p[0]), all(p[1] for p in parts)
+    if isinstance(raw, bytes | bytearray):
+        try:
+            return bytes(raw).decode("utf-8").strip("\x00 \t\r\n"), True
+        except UnicodeDecodeError:
+            # latin-1 maps every byte, so this always yields something readable —
+            # possibly wrongly, which is exactly why it is reported.
+            return bytes(raw).decode("latin-1").strip("\x00 \t\r\n"), False
+    return str(raw).strip(), True
+
 
 def _clamp_count(count: int) -> int:
     return max(1, min(int(count), MAX_COUNT))
@@ -165,6 +201,75 @@ def modbus_detect_byte_order(
         value_min=value_min,
         value_max=value_max,
     )
+
+
+def modbus_read_device_identification(target: Any, extended: bool = False) -> dict:
+    """[READ] Identify a Modbus device via FC43 / MEI-14, touching no registers.
+
+    This is the *safe* way to ask "what are you". The obvious alternative —
+    reading holding register 0 — is a data-plane request against an address the
+    device may not map, and legacy slaves answer an unmapped address by raising
+    an exception, dropping the session, or (on a few) faulting. FC43 asks the
+    protocol layer instead, so nothing in the process image is touched.
+
+    Not every slave implements FC43; a great many simple ones do not. That is a
+    legitimate finding, not an error to paper over — the device answers "illegal
+    function", which is an :class:`OTProtocolError` (it ANSWERED, so it is alive
+    and reachable) and callers should record "identified by port only" rather
+    than inventing a vendor.
+
+    Args:
+        target: endpoint config.
+        extended: also request the REGULAR object set (vendor URL, product and
+            model name). One extra round trip; BASIC alone is far more widely
+            implemented.
+
+    Returns:
+        ``{unit_id, read_code, objects, vendor, product_code, revision, ...,
+        more_follows, undecodable}``. String fields are decoded defensively:
+        devices return arbitrary bytes, and one odd byte must not fail an
+        identification.
+    """
+    from pymodbus.pdu.mei_message import DeviceInformation
+
+    read_code = DeviceInformation.REGULAR if extended else DeviceInformation.BASIC
+    with modbus_session(target) as client:
+        resp = _check(
+            client.read_device_information(read_code=read_code, device_id=target.unit_id),
+            0,
+            "device identification (FC43)",
+        )
+        information = dict(getattr(resp, "information", {}) or {})
+        more = getattr(resp, "more_follows", None)
+        conformity = getattr(resp, "conformity", None)
+
+    objects: dict[str, str] = {}
+    undecodable: list[str] = []
+    for object_id, raw in information.items():
+        name = _FC43_OBJECTS.get(int(object_id), f"object_0x{int(object_id):02x}")
+        text, clean = _decode_identity_bytes(raw)
+        objects[name] = s(text, 128)
+        if not clean:
+            undecodable.append(name)
+
+    result: dict[str, Any] = {
+        "unit_id": target.unit_id,
+        "read_code": int(read_code),
+        "object_count": len(objects),
+        "objects": objects,
+        # Promote the three BASIC fields, which is what an inventory row needs.
+        "vendor": objects.get("vendor_name", ""),
+        "product_code": objects.get("product_code", ""),
+        "revision": objects.get("revision", ""),
+        # Reported, never followed: chasing continuations costs extra packets and
+        # identification does not need them.
+        "more_follows": bool(more) if more is not None else False,
+    }
+    if conformity is not None:
+        result["conformity"] = int(conformity)
+    if undecodable:
+        result["undecodable"] = undecodable
+    return result
 
 
 def modbus_list_templates() -> dict:
