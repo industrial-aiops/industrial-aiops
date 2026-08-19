@@ -113,6 +113,21 @@ class TestPortResolution:
         with pytest.raises(ValueError, match="implicit I/O"):
             pv.resolve_ports(plan(ports=(2222,)))
 
+    def test_a_protocol_hint_cannot_reach_past_the_profile(self):
+        """A hint narrows; it never opts the run in to a port the profile left
+        out. MTConnect's other homes are 80 and 8080 — ports the allowlist marks
+        as ambiguous with IT — so a request to scan LESS must not start
+        connecting to ordinary web servers on the OT VLAN."""
+        with pytest.raises(ValueError, match="opt-in"):
+            pv.resolve_ports(plan(protocols=("mtconnect",)))
+
+    def test_an_explicit_opt_in_port_is_refused_under_a_default_profile(self):
+        """Same rule for an explicit port, and it fails loudly rather than
+        resolving to nothing: a silently empty port set is a scan that sweeps
+        nothing while reporting that it swept."""
+        with pytest.raises(ValueError, match="opt-in"):
+            pv.resolve_ports(plan(ports=(1883,)))
+
     def test_deep_profile_includes_the_opt_in_ports(self):
         ports = {p.port for p in pv.resolve_ports(plan(profile="deep"))}
         assert 1883 in ports

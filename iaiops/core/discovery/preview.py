@@ -177,13 +177,17 @@ def resolve_ports(plan: ScanPlan) -> tuple[port_table.IndustrialPort, ...]:
     does not already contain.
     """
     profile = get_profile(plan.profile)
-    candidates = port_table.sweepable_ports(
-        include_optional=profile.include_optional_ports or bool(plan.ports or plan.protocols)
-    )
+    # Driven by the PROFILE alone. Letting a hint flip this on is how "scan only
+    # MTConnect" quietly starts connecting to 80 and 8080 — ports the allowlist
+    # itself marks as ambiguous with IT. A hint narrows; the profile decides how
+    # far the run may reach.
+    candidates = port_table.sweepable_ports(include_optional=profile.include_optional_ports)
 
     if plan.protocols:
         allowed = {p.port for p in port_table.ports_for_protocols(plan.protocols)}
         candidates = tuple(p for p in candidates if p.port in allowed)
+        if not candidates and allowed:
+            _refuse_opt_in(sorted(allowed), profile.name, f"protocols {list(plan.protocols)}")
 
     if plan.ports:
         requested = set(plan.ports)
@@ -197,9 +201,32 @@ def resolve_ports(plan: ScanPlan) -> tuple[port_table.IndustrialPort, ...]:
                 f"ports {not_allowlisted} are not on the industrial allowlist and cannot "
                 f"be scanned.{detail} A port hint may only narrow the allowlist."
             )
+        before = candidates
         candidates = tuple(p for p in candidates if p.port in requested)
+        if not candidates and before:
+            _refuse_opt_in(sorted(requested), profile.name, f"ports {sorted(requested)}")
 
     return candidates
+
+
+def _refuse_opt_in(ports: list[int], profile_name: str, asked_for: str) -> None:
+    """Explain an empty port set instead of sweeping nothing and reporting a sweep.
+
+    Reached when every port a hint selected is opt-in and the profile is not.
+    Opt-in ports are ambiguous with IT services or can disturb a third party, so
+    reaching them is a profile decision, never a side effect of naming a
+    protocol.
+    """
+    detail = ", ".join(
+        f"{port} ({entry.note})" if (entry := port_table.describe_port(port)) else str(port)
+        for port in ports
+    )
+    raise ValueError(
+        f"{asked_for} resolves only to opt-in ports under the {profile_name!r} profile, "
+        f"so there is nothing this run may sweep: {detail}. A hint may narrow the "
+        "profile's port set, never widen it — choose a profile that includes the "
+        "opt-in ports (e.g. 'deep') if you mean to touch them."
+    )
 
 
 def _worst_case_seconds(host_count: int, port_count: int, plan: ScanPlan) -> dict[str, float]:
