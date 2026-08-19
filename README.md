@@ -4,66 +4,67 @@
 
 **English** · [中文](README.zh-CN.md)
 
-**Governed, vendor-neutral industrial data tap + intelligent troubleshooting for AI agents — read-first tools across 14 field protocols in this package (17 line-wide with the energy edition): OPC-UA (incl. Historical Access + tag auto-discovery), Modbus-TCP/RTU (byte-order auto-detect + vendor templates), S7comm, Mitsubishi MC, Omron FINS (stdlib-only client), MTConnect, MQTT/Sparkplug B (full decode), EtherNet/IP (Rockwell/Allen-Bradley Logix), EtherCAT (pysoem/SOEM), PROFINET (DCP), SECS/GEM (HSMS fab), HART-IP (process instrumentation), BACnet/IP (building), and IO-Link (master JSON integration), plus two vendor-REST **read-only** layers above the field bus — a **BAS supervisory-controller layer** (Johnson Controls Metasys / Tridium Niagara, sitting above the BACnet field connector, building edition) and an **Ignition Gateway MES/SCADA read layer** (Inductive Automation Ignition's HTTP/Gateway web API — module health, tag browse/read, alarms, tag-history — factory edition) — plus an AI downtime root-cause copilot (with a `downtime_triage` composer), conservative baseline learning, ISA-18.2 alarm-flood analysis, historian READ integration (RCA pre-incident evidence), a legacy PLC program explainer (ST/AWL/L5X), nine per-industry editions (fab / factory / process / building / water / warehouse / clinical / renewables / plcnext) each carrying its own read-only advisory checks (SPC, PID control-loop, AHU economizer, line bottleneck, medical-gas, disinfection-CT …), open-format export (`iaiops export` CSV/SQLite/Parquet) with a Prometheus/Grafana bridge, data-quality watchdog, UNS governance, OEE/downtime, asset-inventory, and 信创 (TDengine/IoTDB historian sinks + 防护指南/等保2.0/IEC 62443 compliance mapping, report & evidence bundle). The energy edition (变电/电力: IEC-104 / DNP3 / IEC-61850) ships separately as [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).**
+**Ask an AI agent why the line stopped — and get an answer that cites its evidence.**
 
-Industrial-AIOps is the OT member of the [industrial-aiops](https://github.com/industrial-aiops) org. It is a **factory-level, vendor-neutral, governed data tap** that lets an AI agent safely *read* industrial control systems across many field protocols, plus a **cross-protocol intelligence layer** that localizes "no data" breaks, analyzes alarm floods (ISA-18.2), scores data trustworthiness, ranks unhealthy tags, computes OEE / categorizes downtime, builds an active asset register, auto-discovers OPC-UA tags into a semantic asset model, and — the flagship — runs an **AI downtime root-cause copilot** that correlates the evidence into an **evidence-cited, advisory** verdict. Read-first by design; the few write/command paths are OT-dangerous and gated by MOC discipline. Every tool runs through a vendored governance harness (audit / budget / risk-tier / undo).
+A vendor-neutral, **read-first** data tap for the factory floor. It speaks **14 field protocols**,
+correlates what it reads *across* them, and hands your agent an evidence-cited verdict instead of a
+guess. Every call is audited, and no reading ever phones home.
 
-> **v0.18.0 — validation status (honest).** Grouped by *how strongly* each path is
-> verified, because "tested" spans a real container round-trip and a synthetic fixture and
-> the difference is what an evaluator needs. Every `待核实` below is hardware-gated, not
-> forgotten — see [issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28).
->
-> **Per-protocol evidence, including what each test does *not* cover, is in
-> [docs/VERIFICATION-RECORD.md](docs/VERIFICATION-RECORD.md)** — one row per protocol,
-> naming the test that produced the claim. It distinguishes a real wire to a
-> *third-party* server (2a) from one to a server *we* wrote (2b) from one where both
-> ends are ours (2c), because those are not the same evidence. **Real gear (rung 3) is
-> zero for every protocol**, and nothing in that file changes it.
->
-> **Verified against real libraries / containers / in-process servers.** Pure analysis and
-> the **OPC-UA** path run against a real in-process `asyncua` server — including
-> **certificate message security** (a `Sign` / `SignAndEncrypt` matrix) and **Alarms &
-> Conditions**. **IoTDB** and **TDengine** do a live container write→read round-trip. The
-> **HART** command codec is checked against `hart-protocol`. **Modbus-RTU** round-trips over
-> a real serial link (a `socat` PTY pair + a `pymodbus` RTU server,
-> `tests/test_modbus_rtu_live.py`), exercising actual RTU framing. The **BACnet/IP** read
-> path does a genuine Who-Is discover + present-value read against a real `bacpypes3`
-> virtual device on a two-IP subnet in a Linux container (`tests/test_bacnet_live.py`),
-> through the real async BAC0 (2024+) stack. **Phoenix Contact PLCnext vPLC** is
-> *route*-verified over an in-process `asyncua` server reproducing the `Arp.Plc.Eclr` GDS
-> address space plus a Modbus-TCP process-data block (`tests/test_plcnext_route.py`).
->
-> **Mock-verified — the protocol logic is exercised, no real device is.** **Omron FINS**
-> (in-repo mock UDP/TCP responder, `tests/test_fins.py`), **IO-Link** (in-process mock
-> master, both JSON dialects, `tests/test_iolink.py`), the **BAS controller** layer (mock supervisory controller in both vendor
-> dialects — Metasys OpenBlue REST and Niagara oBIX/REST), the **Ignition Gateway** read
-> layer (mock Gateway, both `webdev` / `gateway` flavors), **EtherNet/IP PCCC** for
-> PLC-5 / SLC-500 / MicroLogix / Micro800 (mocked pycomm3 `SLCDriver`), **CC-Link /
-> CC-Link IE Field** via master-PLC SLMP, **MTConnect** long-poll streaming (synthetic
-> advancing / caught-up / reset agents; static XML fixtures elsewhere), **Sparkplug B**
-> incl. DataSet/Template decode (synthetic Tahu-schema protobuf payloads), and mocked
-> clients for **S7 / MC / EtherNet-IP / SECS-GEM**.
->
-> **Pure software, fully covered by the suite.** The `IAIOPS_NO_EGRESS` posture
-> gate and the return envelope (0.17.0–0.18.0).
->
-> **Still `待核实` — preview, not hardware-verified.** Live Omron PLCs (incl. banked-EM
-> access); live IO-Link master datapoint paths; BACnet write / COV / trend on live HVAC;
-> HART-IP wire transport against a live gateway; **EtherCAT** (no software simulator
-> exists — Linux + root + a real bus only); physical Modbus-RTU RS-485 devices; live
-> PLCnext hardware; a live CC-Link master; real PLC-5 / SLC-500 / MicroLogix / Micro800;
-> a real MTConnect agent's long-poll behaviour; a live MQTT broker for Sparkplug;
-> third-party / vendor OPC-UA servers, certificate-*trust* enforcement and X509 *user*
-> tokens; third-party A&C servers; live Metasys / Niagara controllers (incl. native
-> oBIX-XML encoding) and live Ignition gateways (exact API version / paths).
->
-> (The energy edition's IEC-104 / DNP3 / IEC-61850 validation lives in the
-> [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) repo.)
-> See *Safety*.
+```bash
+pip install "iaiops[opcua]"      # pick your protocol — or [all]
+iaiops init                      # write ~/.iaiops/config.yaml
+iaiops doctor                    # check the setup before you trust it
+```
 
-## Why
+Prefer a container? The published image is **cosign-signed** and runs **non-root**. It speaks MCP
+over stdio, so keep stdin open and mount a volume for the audit store:
 
-OT is exactly where you want an agent on a tight leash: read first, never blind-write. Industrial-AIOps is the **safe, neutral read wedge** — one package, one MCP server, many protocols — with governance and an intelligence layer that turns raw reads into actionable diagnoses.
+```bash
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.22.0-factory
+docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
+  ghcr.io/industrial-aiops/iaiops:0.22.0-factory
+```
+
+For a hardened or air-gapped deployment (read-only rootfs, `cap_drop: ALL`, no-new-privileges,
+optional on-box LLM) use [`deploy/margo/compose.yaml`](deploy/margo/compose.yaml) and
+[`deploy/airgap/`](deploy/airgap/). The analysis engine needs **no GPU and no model API** — it is
+deterministic; an LLM is optional and only *phrases* the verdict.
+
+## What you get
+
+|  |  |
+|---|---|
+| **Reads** | OPC-UA (+ Historical Access, tag auto-discovery) · Modbus TCP/RTU · S7comm · Mitsubishi MC · Omron FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link — plus read-only REST layers for BAS supervisors (Metasys / Niagara) and Ignition Gateway |
+| **Figures out** | downtime root cause (the flagship copilot), alarm floods (ISA-18.2), broken dataflows, data trustworthiness, OEE, asset inventory, legacy PLC program explainer (ST/AWL/L5X) |
+| **Governs** | audit · budget · risk-tier · undo — on *every* call, through one engine, from both MCP and CLI |
+| **Stays yours** | no telemetry, no phone-home. Five tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all five for an air-gapped posture |
+
+Nine per-industry editions ship in this package — fab · factory · process · building · water ·
+warehouse · clinical · renewables · plcnext — each adding its own read-only advisory checks.
+Substation / utility telecontrol (IEC-104 · DNP3 · IEC-61850) ships separately as
+[`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
+
+## Why read-first
+
+OT is exactly where you want an agent on a tight leash. The read paths are the product; the few
+write paths are OT-dangerous, off by default, and gated by MOC discipline — dry-run, one-shot
+approval, undo capture, hash-chained audit.
+
+## How far it's actually been verified
+
+Short version: **verified against real protocol libraries, containers and in-process servers —
+not yet against real plant gear.** We grade evidence rather than saying "tested", because a real
+container round-trip and a synthetic fixture are not the same claim.
+
+| Rung | What it means | Status |
+|---|---|---|
+| Real libraries / containers / in-process servers | OPC-UA (incl. cert `Sign`/`SignAndEncrypt` + A&C), Modbus-RTU over a `socat` PTY + `pymodbus`, BACnet/IP via `bacpypes3` on a two-IP subnet, IoTDB / TDengine live write→read, HART codec vs `hart-protocol`, PLCnext route via `asyncua` | ✅ |
+| Mock-verified (protocol logic exercised, no real device) | Omron FINS, IO-Link, BAS (Metasys / Niagara), Ignition Gateway, EtherNet/IP PCCC, MTConnect long-poll, Sparkplug B, S7 / MC / SECS-GEM | ⚠️ |
+| **Real gear** | physical RS-485 devices, EtherCAT slaves, live HART gateways, live HVAC / BAS / Ignition, real PLCs | **zero, for every protocol** |
+
+**Per-protocol evidence — including what each test does *not* cover — is in
+[docs/VERIFICATION-RECORD.md](docs/VERIFICATION-RECORD.md)**, one row per protocol, naming the test
+behind each claim. Every `待核实` is hardware-gated, not forgotten: [issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28).
 
 ## 🧪 测试与共创 / Beta testing & co-creation
 
@@ -332,7 +333,7 @@ The **building** vertical adds **BACnet/IP** (ASHRAE 135) — the dominant build
 `IAIOPS_MCP=renewables` (or `iaiops-mcp-renewables`, `pip install iaiops[renewables]`) exposes **modbus + opcua + sparkplug** + the brain — PV inverters (SUN2000 / Growatt templates) + wind-turbine controllers over Modbus, OPC-UA plant SCADA, and MQTT-Sparkplug telemetry. Edition tool (read-only, advisory): `pv_performance` (PV string performance vs expectation). Device-level monitoring + PdM via baseline / RCA.
 
 ### PLCnext packaging edition (Phoenix Contact vPLC)
-`IAIOPS_MCP=plcnext` (or `iaiops-mcp-plcnext`, `pip install iaiops[plcnext]`) exposes **opcua + modbus** + the brain — the Phoenix Contact PLCnext virtualized PLC reached over its built-in OPC-UA server (`opc.tcp` 4840, `Arp.Plc.Eclr` address space) + Modbus-TCP process-data server; **no new connector**. Route-verified in-process; live PLCnext hardware reads stay `待核实` (see validation status above).
+`IAIOPS_MCP=plcnext` (or `iaiops-mcp-plcnext`, `pip install iaiops[plcnext]`) exposes **opcua + modbus** + the brain — the Phoenix Contact PLCnext virtualized PLC reached over its built-in OPC-UA server (`opc.tcp` 4840, `Arp.Plc.Eclr` address space) + Modbus-TCP process-data server; **no new connector**. Route-verified in-process; live PLCnext hardware reads stay `待核实` (see *How far it's actually been verified*).
 
 ### 信创 / China entry (offline · 国产 TSDB · compliance)
 For 自主可控 / 信创 deployments — see **[docs/CHINA.md](docs/CHINA.md)** for the full guide.
