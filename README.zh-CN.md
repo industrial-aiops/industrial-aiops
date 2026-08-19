@@ -4,21 +4,61 @@
 
 [English](README.md) · **中文**
 
-**面向 AI 智能体的「受治理、厂商中立」工业数据 tap + 智能排查 —— 本包 14 种现场协议（加能源版全线 17 种）、读优先工具：** OPC-UA（含历史访问 HDA + tag 自动发现）、Modbus-TCP/RTU（字节序自动探测 + 厂商寄存器模板）、S7comm、三菱 MC、**欧姆龙 FINS**（纯标准库客户端）、MTConnect、MQTT/Sparkplug B（完整解码）、EtherNet/IP（罗克韦尔/AB Logix）、EtherCAT（pysoem/SOEM）、PROFINET（DCP）、SECS/GEM（HSMS 半导体/面板设备）、HART-IP（过程仪表）、BACnet/IP（楼宇）、**IO-Link**（主站 JSON 集成），另加两层厂商 REST **只读**面——**BAS 监控器层**（Johnson Controls Metasys / Tridium Niagara，位于 BACnet 现场连接器之上，building 版）与 **Ignition Gateway MES/SCADA 只读层**（Inductive Automation Ignition 的 HTTP/Gateway Web API——模块健康、tag 浏览/读取、报警、tag 历史，factory 版）—— 外加 AI 停机根因 copilot（含 `downtime_triage` 编排器）、**保守基线学习**、**ISA-18.2 报警洪泛分析**、**历史库读回**（RCA 事故前证据）、**老 PLC 程序讲解**（ST/AWL/L5X）、**九个按行业版**（fab / factory / process / building / water / warehouse / clinical / renewables / plcnext，各自携带只读、仅建议的行业检查:SPC、PID 回路、经济器、产能瓶颈、医用气体、消毒 CT …）、**开放格式导出**（`iaiops export` CSV/SQLite/Parquet）+ **Prometheus/Grafana 桥**、数据质量看门狗、UNS 治理、OEE/停机分析、资产盘点，以及**信创**（TDengine/IoTDB 时序库下沉 + 防护指南/等保2.0/IEC 62443 合规对照、合规报告 + 证据包）。**能源版（变电/电力：IEC-104 / DNP3 / IEC-61850）为独立包 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)。**
+**让 AI 说清楚产线为什么停了 —— 而且每句结论都带证据引用。**
 
-Industrial-AIOps 是 [industrial-aiops](https://github.com/industrial-aiops) 组织下的 OT/工控线产品。它是一个**工厂级、厂商中立、受治理的数据 tap**：让 AI 智能体跨多种现场协议**安全地"读"**工业控制系统;再叠加一个**跨协议智能层**——定位"没数据"的断点、分析报警洪泛（ISA-18.2）、给数据可信度打分、排查不健康 tag、算 OEE / 分类停机、建主动资产台账、把 OPC-UA 地址空间自动发现成语义资产模型,以及旗舰能力 **AI 停机根因 copilot**(把证据关联成**带证据引用、仅建议**的结论)。
+一个厂商中立、**读优先**的现场数据 tap。它讲 **14 种现场协议**，把跨协议的证据在时间上对齐，
+交给智能体的是**带引用的裁决**，不是猜测。每次调用都留审计；读取路径绝不回连。
 
-设计上**读优先**;少数写/命令路径属 OT 高危,受 **MOC(变更管理)纪律**门控。所有工具都经过一套内置治理 harness(审计 / 预算 / 风险分级 / 回滚)。
+```bash
+pip install "iaiops[opcua]"      # 按现场装，或 [all]
+iaiops init                      # 生成 ~/.iaiops/config.yaml
+iaiops doctor                    # 先自检，再谈信任
+```
 
-> **v0.14.0 — 验证状态(诚实标注)。** 纯分析 + OPC-UA 路径用**真实 in-process asyncua 服务器**测;信创绑定用**真库 + 容器**跑过:**IoTDB** + **TDengine**(真容器写→读 round-trip)**已验证**;HART 命令编解码层对 `hart-protocol` 已验证。**菲尼克斯 PLCnext vPLC** 经其 OPC-UA server(in-process asyncua 复现 `Arp.Plc.Eclr` 地址空间)+ Modbus-TCP 过程数据块 **route-verified**(`tests/test_plcnext_route.py`),真机 `待核实`。**Modbus-RTU(真串口)已验证**(2026-07-02):`socat` PTY 对 + `pymodbus` RTU 服务器搭真串口链路,读操作经真实 RTU 帧 round-trip(`tests/test_modbus_rtu_live.py`);尚未对具体物理 RS-485 设备验证。**BACnet/IP 读路径已验证**(2026-07-02):Linux 容器内对**真实 bacpypes3 虚拟 BACnet/IP 设备**,经真实异步 BAC0(2024+)协议栈完成 Who-Is + present-value 真 round-trip(`tests/test_bacnet_live.py`)。新增 **欧姆龙 FINS** 对 in-repo mock FINS UDP/TCP 响应器验证(`tests/test_fins.py`);新增 **IO-Link** 对 in-process mock 主站双方言验证(`tests/test_iolink.py`)。两层新增厂商 REST 只读面均 **mock 验证**:**BAS 控制器层**对 in-repo mock 监控器双方言(Metasys OpenBlue REST + Niagara oBIX/REST)、**Ignition Gateway** 读层对 in-repo mock Gateway 双 flavor(`webdev` / `gateway`)验证;真实 Metasys/Niagara 控制器(含原生 oBIX-XML 编码)与真实 Ignition 网关(确切 API 版本/路径)仍 `待核实`。**仍 `待核实`(预览、未经硬件验证):** 欧姆龙真机(含 EM bank)、IO-Link 真机 datapoint 路径、BACnet 写/COV/趋势(真 HVAC)、HART-IP 线传输(真网关)、EtherCAT(无软件仿真器——仅 Linux + root + 真总线)、物理 Modbus-RTU RS-485 设备、真机 PLCnext。S7/MC/EtherNet-IP/SECS-GEM 用 mock 客户端;MTConnect 用静态 XML;Sparkplug 用合成 protobuf。(能源版 IEC-104 / DNP3 / IEC-61850 的验证状态见 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 仓库。)详见**安全与治理**。
+也可以直接跑容器 —— **cosign 签名**、**非 root**。它以 stdio 讲 MCP，所以要保持 stdin 打开，并挂一个卷存审计库：
 
----
+```bash
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.22.0-factory
+docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
+  ghcr.io/industrial-aiops/iaiops:0.22.0-factory
+```
 
-## 为什么是它
+要加固部署或离线部署（只读根文件系统、`cap_drop: ALL`、no-new-privileges、可选端侧 LLM），
+见 [`deploy/margo/compose.yaml`](deploy/margo/compose.yaml) 与 [`deploy/airgap/`](deploy/airgap/)。
+分析引擎**不需要 GPU、不需要模型 API** —— 它是确定性算法；LLM 可选，且只负责把结论讲成人话。
 
-OT 现场正是最该给智能体"上紧箍咒"的地方:**先读、绝不盲写**。Industrial-AIOps 就是那个**安全、中立的"读"楔子**——一个包、一个 MCP server、多种协议——配上治理与智能层,把原始读数变成可执行的诊断。
+## 它能干什么
 
-与 IT 线的关键差异:OT 走 **monorepo**(共享 core + 每协议一个 connector + 按行业打包的 edition),交付时按现场只装那 1–2 种协议。
+|  |  |
+|---|---|
+| **读** | OPC-UA（含 HDA 历史访问、tag 自动发现）· Modbus TCP/RTU · S7comm · 三菱 MC · 欧姆龙 FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link —— 另有两层只读 REST 面：BAS 监控器（Metasys / Niagara）与 Ignition Gateway |
+| **想明白** | 停机根因 copilot（旗舰）、报警洪泛分析（ISA-18.2）、数据流断点定位、数据可信度打分、OEE / 停机归因、资产台账、老 PLC 程序讲解（ST/AWL/L5X） |
+| **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎 |
+| **归你自己** | 无遥测、不回连。有五个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这五个一并摘除，形成离线姿态 |
+
+本包内含**九个行业版**：fab · factory · process · building · water · warehouse · clinical ·
+renewables · plcnext，各自带只读的行业建议检查。变电/电力（IEC-104 · DNP3 · IEC-61850）为独立包
+[`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)。
+
+## 为什么"读优先"
+
+OT 正是最该给智能体上紧箍咒的地方。**读**路径才是产品本体；少数写路径属 OT 高危，默认关闭，
+并受 MOC 纪律门控 —— dry-run、一次性审批令牌、undo 捕获、hash 链审计。
+
+## 到底验证到什么程度
+
+一句话：**对真实协议库、容器、in-process 服务器验过；尚未对真实产线设备验过。**
+我们给证据分级，而不是笼统说"测过"—— 真容器 round-trip 和合成 fixture 不是同一种证据。
+
+| 级别 | 含义 | 状态 |
+|---|---|---|
+| 真库 / 容器 / in-process 服务器 | OPC-UA（含证书 `Sign`/`SignAndEncrypt` 矩阵 + A&C）、Modbus-RTU 走 `socat` PTY + `pymodbus` 真串口、BACnet/IP 经 `bacpypes3` 双 IP 子网、IoTDB / TDengine 真容器写→读、HART 编解码对 `hart-protocol`、PLCnext 经 `asyncua` route 验证 | ✅ |
+| Mock 验证（协议逻辑跑通，但无真设备） | 欧姆龙 FINS、IO-Link、BAS（Metasys / Niagara）、Ignition Gateway、EtherNet/IP PCCC、MTConnect 长轮询、Sparkplug B、S7 / MC / SECS-GEM | ⚠️ |
+| **真实设备** | 物理 RS-485、EtherCAT 从站、真 HART 网关、在线 HVAC / BAS / Ignition、真 PLC | **每个协议都是零** |
+
+**逐协议证据（包括每个测试"没覆盖什么"）见
+[docs/VERIFICATION-RECORD.md](docs/VERIFICATION-RECORD.md)**，一协议一行，注明支撑该结论的测试。
+每一条 `待核实` 都是卡在硬件上，不是忘了：[issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28)。
 
 ## 🧪 测试与共创 / Beta testing & co-creation
 
