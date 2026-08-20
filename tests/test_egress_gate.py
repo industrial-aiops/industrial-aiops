@@ -377,6 +377,7 @@ def test_known_egress_tools_are_flagged_by_the_scan() -> None:
         "rca_narrate",
         "stream_publish",
         "stream_publish_event",
+        "uns_publish",
     }
 
 

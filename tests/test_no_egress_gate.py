@@ -45,6 +45,7 @@ _EXPECTED_EGRESS_TOOLS = frozenset(
         "rca_narrate",
         "stream_publish",
         "stream_publish_event",
+        "uns_publish",
     }
 )
 

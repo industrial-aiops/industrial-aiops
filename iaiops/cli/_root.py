@@ -31,6 +31,7 @@ from iaiops.cli.opcua import opcua_app
 from iaiops.cli.profinet import profinet_app
 from iaiops.cli.program import program_app
 from iaiops.cli.s7 import s7_app
+from iaiops.cli.scan import scan_app
 from iaiops.cli.secret import secret_app
 
 app = typer.Typer(
@@ -72,6 +73,7 @@ app.command("export")(export_cmd)
 app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
 app.add_typer(compliance_app, name="compliance")
+app.add_typer(scan_app, name="scan")
 
 
 @app.command("protocols")

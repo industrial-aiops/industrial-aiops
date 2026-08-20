@@ -22,7 +22,7 @@ same discipline as the per-protocol connector extras.
 |-----|-----|-----------|-------------------|
 | **Ingress** | connectors | per-protocol read ops | `opcua`, `modbus`, `s7`, … (14) |
 | **Egress · historian** | `iaiops.core.sink` — `get_sink(kind)` → `write(points) -> int` | write normalized points to a TSDB | `sqlite` (built-in) · `tdengine` · `iotdb` · **`influxdb`** |
-| **Egress · stream** | `iaiops.core.egress` — `get_publisher(kind)` → `publish_points()` / `publish_event()` | publish points + RCA/alarm events to a bus | **`nats`** |
+| **Egress · stream** | `iaiops.core.egress` — `get_publisher(kind)` → `publish_points()` / `publish_event()` | publish points + RCA/alarm events to a bus | **`nats`**, **`mqtt`** |
 | **Egress · narrate** | `iaiops.core.llm` — `get_provider(kind)` → `complete()` | on-box LLM narration of a cited RCA verdict | **`ollama`** |
 
 `normalize_points()` (in `sink/base.py`) produces the uniform `{metric, value, numeric, timestamp,

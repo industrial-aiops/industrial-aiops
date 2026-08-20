@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **`iaiops scan` — site discovery from the command line.** The engine landed in
+  #161 but had no entry point, so a survey could only be run by writing Python.
+  Six commands: `profiles` / `plan` / `run` / `list` / `report` / `prune`.
+  `scan plan` emits **nothing** and prints the full preview — every host, every
+  port, every packet class, the worst-case duration, and the explicit list of
+  what the tool never does — which is the artifact a controls engineer signs
+  before anyone touches the network. `scan run` shows that same preview and asks
+  once before sending (`--yes` skips). Verified against a real pymodbus device in
+  a container: `iaiops scan run` → SQLite → HTML with the vendor intact.
+
+### Fixed
+- **`ScanNotFound` reached the user as a traceback.** `cli_errors` translated
+  `KeyError` but not its parent `LookupError`, so a carefully written teaching
+  message ("nothing has been stored yet, run `scan run` first") was swallowed and
+  replaced by a stack trace. The caught families now include `LookupError`.
+- **`scan plan --out preview.json` wrote plain text.** The output file's format
+  followed the `--json` flag rather than its own suffix, producing a `.json` file
+  whose extension lied about its contents. Format now follows the suffix;
+  `--json` governs stdout only.
+- **Asking for a report of a scan id that does not exist** printed the store's
+  path rather than saying nothing had been stored. "That id is not here" and
+  "nothing has ever been stored" are different problems and someone typing an id
+  from memory on a fresh machine needs the second answer.
+
+
 ## 0.22.0 — 2026-08-02
 
 > **A minor version because the floor moved: `asyncua>=2.0`.** On 1.x a session against

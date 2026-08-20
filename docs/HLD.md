@@ -243,6 +243,14 @@ MCP 有三个**各自独立、版本协商**的东西，不是一个整体：协
 - **审计转发 vs 可靠投递** —— `iaiops audit forward`（syslog UDP / HTTP，best-effort、
   at-least-once、无 ACK）是单次调用之后的顺手动作 → **留 MIT**。"六个月不丢一条"是
   留存承诺，属规则 3 → enterprise。
+- **现场勘察（scan）的两个前端** —— 扫描引擎、`iaiops scan` CLI、本地 SQLite 存储、
+  未签名 HTML 报告全部 **留 MIT**（规则 1：它让 tap 读到一台此前不知道的设备）。
+  跨时间的快照比对、跨站点汇总、以及**给第三方看的签名报告**属规则 3 → enterprise。
+  **scan 的 MCP 前端也在 enterprise**，这是本条唯一需要解释的地方：它看起来像"把一个
+  MIT 能力的入口收进付费层"，但并不违反承诺 1 —— 能力（库 + CLI）完整留在 MIT 且可
+  独立使用，MCP 只是第二个前端；而 scan 按定位就是**零 AI、离线**的产品（边缘侧不跑
+  大模型），agent 前端服务的是办公室侧而非现场侧。若哪天现场侧真的需要 agent 驱动
+  扫描，按 D15 默认方向应当落回 MIT。
 
 ### 8.4 D14 —— 为什么不转私有、不 relicense
 

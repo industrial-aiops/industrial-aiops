@@ -29,10 +29,17 @@ EndpointOption = Annotated[
 
 
 def _cli_error_types() -> tuple[type[BaseException], ...]:
-    """Exceptions translated to a one-line teaching error instead of a traceback."""
+    """Exceptions translated to a one-line teaching error instead of a traceback.
+
+    ``LookupError`` rather than ``KeyError``: ``KeyError`` is already a
+    ``LookupError``, so this is the same family widened by one step, and it is
+    the family a "you asked for something that is not here" error naturally
+    lands in. ``ScanNotFound`` was raising with a carefully written teaching
+    message that the user never saw — it escaped as a traceback instead.
+    """
     from iaiops.core.runtime.connection import OTConnectionError
 
-    return (OTConnectionError, KeyError, OSError, ValueError)
+    return (OTConnectionError, LookupError, OSError, ValueError)
 
 
 def cli_errors(fn: Callable) -> Callable:

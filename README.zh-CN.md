@@ -34,7 +34,7 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 | **读** | OPC-UA（含 HDA 历史访问、tag 自动发现）· Modbus TCP/RTU · S7comm · 三菱 MC · 欧姆龙 FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link —— 另有两层只读 REST 面：BAS 监控器（Metasys / Niagara）与 Ignition Gateway |
 | **想明白** | 停机根因 copilot（旗舰）、报警洪泛分析（ISA-18.2）、数据流断点定位、数据可信度打分、OEE / 停机归因、资产台账、老 PLC 程序讲解（ST/AWL/L5X） |
 | **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎 |
-| **归你自己** | 无遥测、不回连。有五个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这五个一并摘除，形成离线姿态 |
+| **归你自己** | 无遥测、不回连。有六个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`uns_publish`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这六个一并摘除，形成离线姿态 |
 
 本包内含**九个行业版**：fab · factory · process · building · water · warehouse · clinical ·
 renewables · plcnext，各自带只读的行业建议检查。变电/电力（IEC-104 · DNP3 · IEC-61850）为独立包

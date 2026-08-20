@@ -37,7 +37,7 @@ deterministic; an LLM is optional and only *phrases* the verdict.
 | **Reads** | OPC-UA (+ Historical Access, tag auto-discovery) · Modbus TCP/RTU · S7comm · Mitsubishi MC · Omron FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link — plus read-only REST layers for BAS supervisors (Metasys / Niagara) and Ignition Gateway |
 | **Figures out** | downtime root cause (the flagship copilot), alarm floods (ISA-18.2), broken dataflows, data trustworthiness, OEE, asset inventory, legacy PLC program explainer (ST/AWL/L5X) |
 | **Governs** | audit · budget · risk-tier · undo — on *every* call, through one engine, from both MCP and CLI |
-| **Stays yours** | no telemetry, no phone-home. Five tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all five for an air-gapped posture |
+| **Stays yours** | no telemetry, no phone-home. Six tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all six for an air-gapped posture |
 
 Nine per-industry editions ship in this package — fab · factory · process · building · water ·
 warehouse · clinical · renewables · plcnext — each adding its own read-only advisory checks.
@@ -520,6 +520,41 @@ Step 2 — add an endpoint
 
 ## Usage
 
+### Site survey — find what is on a network you have not been given a list for
+
+Every other command needs an endpoint you already configured. `scan` answers the
+question that comes first. It has no full-port mode, no raw sockets, no
+half-open SYNs, and no write path of any kind; what it may touch is a fixed
+industrial port allowlist, and how fast is capped by a ceiling the caller cannot
+raise.
+
+```bash
+iaiops scan profiles                                   # what each posture does
+iaiops scan plan --targets 10.0.0.0/24                 # sends NOTHING — the artifact you get signed
+iaiops scan run  --targets 10.0.0.0/24 --site "Line 1" \
+                 --approved-by "J. Controls" --ticket CHG-91 \
+                 --report survey.html                  # scan → store → one HTML file
+iaiops scan list                                       # stored surveys
+iaiops scan report --out survey.html                   # re-render the latest
+```
+
+`scan plan` puts **nothing** on the wire. It prints every host and port that
+would be touched, every class of packet that would be sent, the worst-case
+duration, and the explicit list of what this tool never does — so you can run it
+against a network before you have permission to scan it, and hand the output to
+whoever grants that permission. `scan run` shows the same preview and asks once
+before it sends anything (`--yes` to skip).
+
+Postures run from `passive` (reads the local ARP cache, emits nothing at all) to
+`legacy-safe` (reachability only, one host at a time, five connects a second —
+for 1990s controllers where even a well-formed identify request is a risk).
+`standard` and `deep` refuse to run without a recorded sign-off.
+
+The HTML report is self-contained: no fonts, scripts, styles or images from
+anywhere, and no network request when opened. Its **first** section is what the
+scan touched — per-class emission counts, including requests that failed —
+followed by the list of things it never does. The device table comes after that.
+
 ### CLI (read)
 ```bash
 iaiops opcua read "ns=2;i=5" -e line1
@@ -804,6 +839,7 @@ IAIOPS_NO_EGRESS=1 iaiops-mcp-factory   # 134 tools -> 129; 5 withheld
 ```
 
 Withheld: `stream_publish`, `stream_publish_event` (NATS message bus),
+`uns_publish` (MQTT broker / Unified Namespace),
 `historian_push` (external TSDB), `mqtt_publish` (broker), `rca_narrate` (POSTs
 the RCA verdict — plant tags, values and citations — to a caller-supplied model
 `base_url`). This is a **data-exfiltration / airgap** axis, not read/write
@@ -847,7 +883,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 - **Read-first.** 156 of 166 tools are read-only. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Read/write authorisation is the caller's, not the tap's.** iaiops does not encode "this server may not write" by hiding tools — that decision belongs to the agent's judgement or account/permission management. The tap's guarantee is **un-bypassable audit on both front-ends**: every call, read or write, via an MCP tool **or** the `iaiops` CLI, runs through `@governed_tool` and leaves a row in `~/.iaiops/audit.db`. Writes are additionally high `risk_tier`, MOC-gated, and undo-captured (see above). High/critical calls **fail closed** when the audit DB cannot be written.
-- **No-egress mode is enforced at registration.** `IAIOPS_NO_EGRESS=1` withholds the 5 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `historian_push`, `mqtt_publish`, `rca_narrate`), fail-closed, for airgap/sealed-box deployments. This is a **data-exfiltration axis, not authorisation** — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so this switch withholds it. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
+- **No-egress mode is enforced at registration.** `IAIOPS_NO_EGRESS=1` withholds the 6 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`), fail-closed, for airgap/sealed-box deployments. This is a **data-exfiltration axis, not authorisation** — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so this switch withholds it. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
 - All endpoint-returned text is sanitized (prompt-injection defense); secrets are never returned by any tool; MTConnect XML is parsed with DTD/entity declarations refused.
 - Every tool runs through the vendored governance harness: SQLite **audit** (`~/.iaiops/audit.db`, SHA-256 **hash-chained** rows + `iaiops audit verify`; audit **fails closed** for high/critical writes), token/call **budget** + runaway breaker, **risk-tier** gate (policy engine fails closed on a broken `rules.yaml`), **undo** recording. The MCP server **refuses to start** if any registered tool lacks the governance marker.
