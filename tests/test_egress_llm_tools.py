@@ -55,7 +55,19 @@ def test_stream_publish_skips_nonnumeric(home, monkeypatch):
 
 @pytest.mark.unit
 def test_stream_publish_unknown_publisher_teaches(home):
-    assert "Unknown publisher" in stream_publish(points=[], publisher="kafka")["error"]
+    assert "speaks NATS" in stream_publish(points=[], publisher="kafka")["error"]
+
+
+@pytest.mark.unit
+def test_stream_publish_points_at_the_mqtt_tool_instead_of_failing_obscurely(home):
+    """'mqtt' is a supported publisher, just not through THIS tool.
+
+    Every argument stream_publish takes is NATS-shaped, so accepting 'mqtt' here
+    would pass validation and then die in the constructor. The error names the tool
+    that does speak MQTT rather than leaving the caller to guess.
+    """
+    err = stream_publish(points=[], publisher="mqtt")["error"]
+    assert "uns_publish" in err
 
 
 @pytest.mark.unit

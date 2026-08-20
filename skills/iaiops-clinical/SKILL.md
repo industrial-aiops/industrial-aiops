@@ -70,7 +70,7 @@ description: >-
 - 基线：`baseline_learn` `baseline_check` `baseline_record_change` `baseline_status`
 - 合规/信创：`compliance_mapping` `compliance_frameworks` `compliance_dengbao_levels`
   `compliance_report` `compliance_evidence_bundle`
-  `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish`
+  `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish`
   `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility`
 - 元：`protocols_supported`

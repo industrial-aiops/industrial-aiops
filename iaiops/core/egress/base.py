@@ -19,7 +19,7 @@ from typing import Any
 from iaiops.core.brain._shared import s
 
 MAX_MESSAGES = 100_000  # bounded batch (defensive)
-SUPPORTED_PUBLISHERS = ("nats",)
+SUPPORTED_PUBLISHERS = ("nats", "mqtt")
 
 
 class EgressError(Exception):
@@ -57,6 +57,61 @@ def points_to_messages(
     return out
 
 
+def points_to_mqtt_messages(
+    points: list[dict], topic_prefix: str = "iaiops"
+) -> list[tuple[str, dict]]:
+    """Shape normalized numeric points into ``(topic, payload)`` messages for MQTT.
+
+    Sibling of :func:`points_to_messages`, not a replacement: the payload and the
+    skip-non-numeric rule are identical, only the routing differs. NATS separates
+    subject tokens with ``.``; MQTT nests levels with ``/``, and a UNS subscriber
+    filters on those levels — so a dotted metric becomes a level path
+    (``line1.temp`` → ``<prefix>/line1/temp``) rather than a dotted leaf.
+
+    Topic: ``<prefix>/<metric-as-levels>``. Payload: ``{metric, value, timestamp, tags}``.
+    """
+    prefix = _mqtt_topic(topic_prefix) or "iaiops"
+    out: list[tuple[str, dict]] = []
+    for p in list(points or [])[:MAX_MESSAGES]:
+        if not isinstance(p, dict) or not p.get("numeric"):
+            continue
+        metric = str(p.get("metric") or "")
+        if not metric:
+            continue
+        leaf = _mqtt_topic(metric.replace(".", "/"))
+        if not leaf:
+            continue
+        out.append(
+            (
+                f"{prefix}/{leaf}",
+                {
+                    "metric": s(metric, 128),
+                    "value": p.get("value"),
+                    "timestamp": s(p.get("timestamp", ""), 40),
+                    "tags": p.get("tags") or {},
+                },
+            )
+        )
+    return out
+
+
+def _mqtt_topic(text: str) -> str:
+    """A publish-safe MQTT topic: ``/``-separated levels, no wildcards, no empty levels.
+
+    ``+`` and ``#`` are subscribe-side wildcards and are a protocol error in a
+    published topic. Tag names and the prefix are both operator-supplied, so they
+    are neutralised here rather than trusted. Empty levels are dropped: ``a//b`` is
+    legal MQTT but meaningless in a namespace meant to be browsed.
+    """
+    levels = []
+    for level in str(text).split("/"):
+        safe = "".join(c if (c.isalnum() or c in "-_") else "_" for c in level)
+        safe = safe.strip("_")
+        if safe:
+            levels.append(safe)
+    return "/".join(levels)[:180].strip("/")
+
+
 def encode(payload: dict) -> bytes:
     """Compact, deterministic JSON bytes for a bus message."""
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
@@ -69,12 +124,16 @@ def _sanitize_subject_token(text: str) -> str:
 
 
 def get_publisher(kind: str, **opts: Any) -> Any:
-    """Return a stream publisher for ``kind`` (nats)."""
+    """Return a stream publisher for ``kind`` (nats | mqtt)."""
     k = (kind or "").strip().lower()
     if k == "nats":
         from iaiops.core.egress.nats import NATSPublisher
 
         return NATSPublisher(**opts)
+    if k == "mqtt":
+        from iaiops.core.egress.mqtt import MQTTPublisher
+
+        return MQTTPublisher(**opts)
     raise EgressError(
         f"Unknown stream publisher '{kind}'. Supported: {', '.join(SUPPORTED_PUBLISHERS)}."
     )
@@ -83,6 +142,7 @@ def get_publisher(kind: str, **opts: Any) -> Any:
 __all__ = [
     "EgressError",
     "points_to_messages",
+    "points_to_mqtt_messages",
     "encode",
     "get_publisher",
     "SUPPORTED_PUBLISHERS",
