@@ -57,6 +57,29 @@ docker pull ghcr.io/industrial-aiops/iaiops:0.22.0-factory
 
 Then import the `.app` into an IEM and deploy it to an IEVD.
 
+## 2b. What the marketplace actually looks like (verified 2026-08-20)
+
+Two findings from reading the live catalogue that are not in any Siemens document:
+
+**The catalogue is region-gated, and this is undocumented.** In the default anonymous
+`zh_CN` view it returns **70 offerings, every one of them Siemens** — no third parties at all.
+Forcing `?cclcl=en_US` returns **71 offerings across 8 vendors**, including the third-party apps.
+So a listing can be invisible in a given market without anything saying so. **Verify locale
+visibility before signing** — a slot nobody in your target region can see is worth far less than
+it appears.
+
+**Third parties are scarce, which cuts the other way.** The full en_US third-party set is roughly
+**11 apps against ~60 Siemens first-party ones**: HighByte, HiveMQ Edge, AWS IoT SiteWise Edge,
+OPC Router (2 SKUs, via Software Toolbox), FFT (2), Novakon (3), Dynics. Being one of eleven is a
+genuinely scarce position — the opposite of the IGEL App Portal, where 143 apps compete and 59% of
+them are under 1K downloads.
+
+**Prices are shown for Siemens apps and hidden for most third parties.** Siemens' own connectors
+publish annual figures (OPC UA HP Connector $192/yr, Modbus TCP $216/yr — each entitling **one
+instance on one device and twenty data sources**). Among third parties only OPC Router shows a
+price ($2,292/yr); HighByte and HiveMQ both say "contact us". Worth knowing before deciding whether
+to publish a number.
+
 ## 3. Getting listed — the honest sequence
 
 The Ecosystem process is **not self-serve**. Phase one ends at "contact the Industrial Edge
