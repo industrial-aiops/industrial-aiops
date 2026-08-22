@@ -297,6 +297,77 @@ def count_samples(db_path: Path | str | None = None) -> int:
         conn.close()
 
 
+def store_coverage(db_path: Path | str | None = None) -> dict[str, Any]:
+    """[READ] What the local store actually holds — rows, tags, and time span.
+
+    Answers "is there enough history here yet", which is what decides whether a
+    conservative baseline can be learned at all. Reports the span of the tag with
+    the LONGEST history rather than the store's overall span: baselines are learned
+    per tag, so an overall span borrowed from a well-covered tag would promise
+    history that the tag you care about does not have.
+
+    A missing store is not an error — it is a site that has not collected yet.
+    """
+    path = Path(db_path).expanduser() if db_path else local_db_path()
+    empty = {"exists": False, "samples": 0, "tags": 0, "oldest": "", "newest": "", "span_days": 0.0}
+    if not path.exists():
+        return empty
+
+    conn = _connect(path)
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*), COUNT(DISTINCT tag), MIN(ts), MAX(ts) FROM samples"
+        ).fetchone()
+        best = conn.execute(
+            "SELECT tag, MIN(ts), MAX(ts), COUNT(*) FROM samples GROUP BY tag "
+            "ORDER BY julianday(MAX(ts)) - julianday(MIN(ts)) DESC LIMIT 1"
+        ).fetchone()
+    except sqlite3.DatabaseError:
+        # A file that exists but has no samples table is a store that has never
+        # been written to, not a corrupt one worth raising over.
+        return empty
+    finally:
+        conn.close()
+
+    samples = int(row[0] or 0)
+    if not samples:
+        return {**empty, "exists": True}
+
+    span_days = 0.0
+    best_tag = ""
+    best_samples = 0
+    if best and best[1] and best[2]:
+        best_tag = str(best[0] or "")
+        best_samples = int(best[3] or 0)
+        span_days = _span_days(str(best[1]), str(best[2]))
+
+    return {
+        "exists": True,
+        "samples": samples,
+        "tags": int(row[1] or 0),
+        "oldest": str(row[2] or ""),
+        "newest": str(row[3] or ""),
+        "span_days": span_days,
+        "best_covered_tag": best_tag,
+        "best_covered_samples": best_samples,
+    }
+
+
+def _span_days(oldest: str, newest: str) -> float:
+    """Days between two stored ISO-8601 timestamps; unparseable → 0.0.
+
+    Timestamps a device supplied in an unparseable format are kept verbatim by
+    ``_normalize_ts``; refusing to guess a span from them is the same choice
+    made there.
+    """
+    try:
+        start = datetime.fromisoformat(oldest.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(newest.replace("Z", "+00:00"))
+    except ValueError:
+        return 0.0
+    return round(max(0.0, (end - start).total_seconds()) / 86400.0, 2)
+
+
 __all__ = [
     "DB_FILENAME",
     "SAMPLE_COLUMNS",
@@ -309,4 +380,5 @@ __all__ = [
     "query_samples",
     "latest_samples",
     "count_samples",
+    "store_coverage",
 ]
