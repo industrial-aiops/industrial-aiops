@@ -27,8 +27,10 @@ from __future__ import annotations
 import logging
 import os
 import stat
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 from dotenv import load_dotenv
@@ -172,12 +174,38 @@ def _resolve_secret(name: str) -> str:
 
 
 @dataclass(frozen=True)
+class TagRole:
+    """What a tag MEANS to the line — declared by a human, never inferred.
+
+    Deliberately small. Each role exists because some analysis cannot be derived
+    without it; a vocabulary that grows to cover every plant becomes a taxonomy
+    nobody fills in.
+
+    Note what is NOT here: the ideal cycle time. That is a product SPEC rather
+    than something a machine reports, so it belongs on the line as a number, not
+    as a tag role.
+    """
+
+    RUN_STATE = "run_state"
+    TOTAL_COUNT = "total_count"
+    GOOD_COUNT = "good_count"
+    REJECT_COUNT = "reject_count"
+
+    ALL = (RUN_STATE, TOTAL_COUNT, GOOD_COUNT, REJECT_COUNT)
+
+
+@dataclass(frozen=True)
 class MonitorTag:
-    """A monitored point with optional warn/alarm thresholds.
+    """A monitored point with optional warn/alarm thresholds and semantic role.
 
     ``ref`` is an OPC-UA node id (e.g. ``ns=2;i=5``) or a Modbus register
     address (as a string). Thresholds are optional; any combination of
     high/low warn/alarm bounds may be set. Used by ``health_summary``.
+
+    ``role`` is what unlocks OEE from a configured line rather than from five
+    numbers typed in by hand. It is **declared, never guessed** (D16): which tag
+    counts production is process knowledge, and a wrong guess yields a
+    plausible-looking OEE, which is worse than an error.
     """
 
     ref: str
@@ -186,6 +214,51 @@ class MonitorTag:
     alarm_high: float | None = None
     warn_low: float | None = None
     alarm_low: float | None = None
+    role: str = ""
+    #: Which values of a ``run_state`` tag count as productive. REQUIRED with
+    #: that role — see ``__post_init__``.
+    running_when: tuple[Any, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.role and self.role not in TagRole.ALL:
+            raise ValueError(f"Unknown tag role {self.role!r}. Allowed: {', '.join(TagRole.ALL)}.")
+        if self.role == TagRole.RUN_STATE and not self.running_when:
+            raise ValueError(
+                f"Tag {self.ref!r} declares role 'run_state' but not 'running_when'. "
+                "Which value means running has to be stated: a PLC status word is "
+                "commonly 0=stopped 1=idle 2=running 3=fault, and assuming "
+                "'anything non-zero' would count idle and fault as production time — "
+                "inflating availability and OEE. Example: running_when: [2]"
+            )
+        if self.running_when and self.role != TagRole.RUN_STATE:
+            raise ValueError(
+                f"Tag {self.ref!r} sets 'running_when' without role 'run_state', where "
+                "it has no meaning. Remove it, or declare the role."
+            )
+
+    def is_running(self, value: Any) -> bool:
+        """True when ``value`` is one of the declared productive states.
+
+        Strings compare case-insensitively, because a device may report RUNNING,
+        Running or running for one condition. Numbers and booleans compare with
+        ``==``, which makes ``1`` and ``True`` equivalent — deliberately: a Modbus
+        coil reads back as a bool while the person writing the config naturally
+        types ``running_when: [1]``, and a strict type match there would silently
+        report zero run time, which is a far more confusing failure than the
+        equivalence is a risk.
+
+        An empty ``running_when`` matches NOTHING. Not "anything truthy" — that
+        default is the exact trap this design exists to close, and it must stay
+        closed here as well as in the constructor, so relaxing one guard later
+        cannot silently reopen it.
+        """
+        for candidate in self.running_when:
+            if isinstance(candidate, str) or isinstance(value, str):
+                if str(candidate).strip().upper() == str(value).strip().upper():
+                    return True
+            elif candidate == value:
+                return True
+        return False
 
     def classify(self, value: float) -> str:
         """Classify a numeric value as 'ok', 'warn', or 'alarm'."""
@@ -295,6 +368,11 @@ class TargetConfig:
     # dead endpoint fails fast instead of hanging on the OS TCP timeout.
     timeout_s: float = DEFAULT_TIMEOUT_S
     tags: tuple[MonitorTag, ...] = ()
+    #: Design cycle time for the product this line runs — a product SPEC rather
+    #: than something the machine reports, which is why it is a line value and
+    #: not a tag role. A multi-product line needs one per product; this single
+    #: value is the simple case, and OEE says so plainly when it is unset.
+    ideal_cycle_time_s: float | None = None
 
     def __post_init__(self) -> None:
         if self.protocol not in SUPPORTED_PROTOCOLS:
@@ -407,7 +485,7 @@ class AppConfig:
         return self.targets[0]
 
 
-def _parse_tags(raw_tags: list) -> tuple[MonitorTag, ...]:
+def parse_tags(raw_tags: list) -> tuple[MonitorTag, ...]:
     """Parse the optional ``tags`` list of a config endpoint."""
     out: list[MonitorTag] = []
     for t in raw_tags or []:
@@ -422,9 +500,51 @@ def _parse_tags(raw_tags: list) -> tuple[MonitorTag, ...]:
                 alarm_high=_opt_float(t.get("alarm_high")),
                 warn_low=_opt_float(t.get("warn_low")),
                 alarm_low=_opt_float(t.get("alarm_low")),
+                role=str(t.get("role", "") or "").strip(),
+                running_when=_as_tuple(t.get("running_when")),
             )
         )
     return tuple(out)
+
+
+def _as_tuple(value: object) -> tuple[Any, ...]:
+    """``2`` → ``(2,)``; ``[2, 5]`` → ``(2, 5)``; missing → ``()``.
+
+    A scalar is what someone actually types for a single state, so accept it
+    rather than making the common case the awkward one.
+    """
+    if value is None:
+        return ()
+    if isinstance(value, (list, tuple)):
+        return tuple(value)
+    return (value,)
+
+
+def roles_present(tags: Sequence[MonitorTag]) -> dict[str, str]:
+    """``{role: ref}`` for every role declared on ``tags``.
+
+    A role claimed twice is refused rather than resolved: if two tags both say
+    they are the production counter, picking either is a guess, and the wrong
+    pick produces a number that looks right.
+    """
+    found: dict[str, str] = {}
+    for tag in tags or ():
+        # Duck-typed on purpose: readiness must survive a hand-written config
+        # whose tags never became MonitorTag objects. Role VALIDATION happens at
+        # parse time; this function only reports what is declared.
+        role = str(
+            getattr(tag, "role", "") or (tag.get("role", "") if isinstance(tag, dict) else "")
+        )
+        ref = str(getattr(tag, "ref", "") or (tag.get("ref", "") if isinstance(tag, dict) else ""))
+        if not role:
+            continue
+        if role in found:
+            raise ValueError(
+                f"Role {role!r} is claimed by both {found[role]!r} and {ref!r}. "
+                "One line has one production counter — declare which."
+            )
+        found[role] = ref
+    return found
 
 
 def _opt_float(value: object) -> float | None:
@@ -620,5 +740,6 @@ def _parse_target(d: dict) -> TargetConfig:
         nic=str(d.get("nic", "") or d.get("interface", "")),
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
         timeout_s=_parse_timeout_s(d),
-        tags=_parse_tags(d.get("tags", [])),
+        tags=parse_tags(d.get("tags", [])),
+        ideal_cycle_time_s=_opt_float(d.get("ideal_cycle_time_s")),
     )

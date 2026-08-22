@@ -77,12 +77,29 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
 
 ### Open — 2. OEE from configured tags
 
-- [ ] **A semantic role on `MonitorTag`** — the unlock `readiness` already names.
-      `oee_compute` takes five plain numbers and `MonitorTag` carries only a ref,
-      a label and thresholds, so there is no way to declare "this tag is the
-      production counter". Three roles is enough to start: run-state, count,
-      cycle. Roles are **declared, never guessed** (D16/D23) — heuristics may
-      SUGGEST, a human confirms.
+- [x] **A semantic role on `MonitorTag`** — shipped. `role:` takes one of
+      `run_state` / `total_count` / `good_count` / `reject_count`; an unknown
+      role fails the config rather than silently becoming "no role", and two tags
+      claiming one role is refused (which is the production counter?). Roles are
+      **declared, never guessed** (D16/D23).
+- [x] **`run_state` requires `running_when`.** The trap this closes: `_is_running`
+      treats any non-zero NUMBER as running, which is right for a coil and wrong
+      for the status word most PLCs expose — `0=stopped 1=idle 2=running 3=fault`
+      would count idle AND fault as productive, inflating Availability and OEE in
+      the direction that flatters whoever sells the tool. One extra config line
+      removes the whole class of error. `1` and `True` compare equal on purpose:
+      a coil reads back as a bool while the author naturally writes `[1]`, and a
+      strict match there would silently report zero run time.
+- [x] **`ideal_cycle_time_s` on the endpoint** — a product SPEC, not something a
+      machine reports, so it is a line value rather than a tag role. OPTIONAL:
+      Availability is where minor stoppages live and needs only a run-state tag,
+      so the headline gap is reachable before anyone looks up a spec. Without it
+      OEE reports Availability (and Quality, given counts) and says so.
+      ⚠️ One value per line is the simple case; a multi-product line needs one
+      per product.
+- [x] **`readiness` OEE went from `blocked` (inexpressible) to a real check.**
+      A configured line now reports `degraded` — it can produce a number — rather
+      than a dead end.
 - [ ] Wire `downtime_events()` / `six_big_losses()` to a configured line so OEE
       is derived rather than hand-fed.
 - [ ] The comparison that sells it: measured OEE next to the site's own reported

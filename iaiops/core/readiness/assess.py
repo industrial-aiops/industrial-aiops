@@ -72,6 +72,15 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
     collectable = [
         str(getattr(t, "name", "")) for t in targets if can_collect(str(getattr(t, "protocol", "")))
     ]
+    from iaiops.core.runtime.config import TagRole, roles_present
+
+    oee_roles: dict[str, str] = {}
+    role_conflict = ""
+    for t in targets:
+        try:
+            oee_roles.update(roles_present(getattr(t, "tags", ()) or ()))
+        except ValueError as exc:
+            role_conflict = str(exc)
     coverage = store_coverage(db_path)
 
     return {
@@ -85,6 +94,17 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
             if str(getattr(t, "protocol", "")) in ALARM_CAPABLE_PROTOCOLS
         ],
         "collectable_endpoints": collectable,
+        "oee_roles": dict(sorted(oee_roles.items())),
+        "role_conflict": role_conflict,
+        "oee_required_roles": [TagRole.RUN_STATE, TagRole.TOTAL_COUNT],
+        "ideal_cycle_time_s": next(
+            (
+                float(getattr(t, "ideal_cycle_time_s"))
+                for t in targets
+                if getattr(t, "ideal_cycle_time_s", None) is not None
+            ),
+            None,
+        ),
         "monitored_tags": monitored,
         "historian": bool(historian),
         "historian_reader": str(getattr(historian, "reader", "")) if historian else "",
@@ -222,26 +242,91 @@ def _baseline_history_req(facts: dict[str, Any]) -> Requirement:
     )
 
 
-def _oee_mapping_req(_facts: dict[str, Any]) -> Requirement:
-    """The one prerequisite that cannot be supplied today.
+def _oee_mapping_req(facts: dict[str, Any]) -> Requirement:
+    """Whether this line declares the tags OEE is computed from.
 
-    ``oee_compute`` takes five plain numbers (planned/run/ideal-cycle/total/good)
-    and ``MonitorTag`` carries only a ref, a label and thresholds — there is no
-    field that says "this tag is the production counter". So OEE is a calculator
-    a human feeds, not something derivable from a configured site, and saying
-    "not configured" would send someone hunting for a setting that does not exist.
+    Until roles existed this was **inexpressible** — there was no field that
+    could say "this tag is the production counter", so the honest report was
+    that the product offered no way to supply it. It is now a normal, checkable
+    prerequisite: still never guessed (D16/D23), but now sayable.
+
+    ``run_state`` and ``total_count`` are the floor. ``good_count`` refines
+    Quality and its absence degrades rather than blocks, because a line that
+    does not count rejects still has a real Availability and Performance.
     """
+    from iaiops.core.runtime.config import TagRole
+
+    declared = facts["oee_roles"]
+    required = [TagRole.RUN_STATE, TagRole.TOTAL_COUNT]
+    missing = [r for r in required if r not in declared]
+
+    if facts["role_conflict"]:
+        return Requirement(
+            key="oee_role_mapping",
+            label="a run-state and production-count tag",
+            met=False,
+            detail=facts["role_conflict"],
+            fix="One line has one production counter — declare which tag holds it.",
+        )
+
     return Requirement(
         key="oee_role_mapping",
-        label="a run/stop/count/cycle tag mapping",
-        met=False,
-        detail="config has no way to declare a tag's production role yet",
-        fix=(
-            "Today OEE is computed by passing the five figures in directly "
-            "(`iaiops analytics oee ...`). Deriving them from configured tags needs a "
-            "semantic role on MonitorTag, which does not exist yet — see docs/ROADMAP.md."
+        label="a run-state and production-count tag",
+        met=not missing,
+        detail=(
+            "declared: " + ", ".join(f"{k}={v}" for k, v in declared.items())
+            if declared
+            else "no tag declares an OEE role"
         ),
-        expressible=False,
+        fix=(
+            f"Add `role:` to the tags in config.yaml — missing {', '.join(missing)}. "
+            "A run_state tag must also say `running_when:` (which value means running); "
+            "assuming 'anything non-zero' would count idle and fault as production. "
+            "Which tag counts production is process knowledge — not inferred here."
+        ),
+    )
+
+
+def _oee_quality_req(facts: dict[str, Any]) -> Requirement:
+    """Good/reject count refines Quality; without it OEE is still meaningful."""
+    from iaiops.core.runtime.config import TagRole
+
+    declared = facts["oee_roles"]
+    have = [r for r in (TagRole.GOOD_COUNT, TagRole.REJECT_COUNT) if r in declared]
+    return Requirement(
+        key="oee_quality_tag",
+        label="a good- or reject-count tag",
+        met=bool(have),
+        detail=", ".join(have) if have else "no quality count declared",
+        fix=(
+            "Without one, Quality cannot be measured and OEE reports Availability × "
+            "Performance only — honest, but not the whole figure."
+        ),
+        optional=True,
+    )
+
+
+def _ideal_cycle_req(facts: dict[str, Any]) -> Requirement:
+    """The design cycle time, without which Performance cannot be computed.
+
+    Optional on purpose. Availability is the factor that minor stoppages live in,
+    and it needs only a run-state tag — so the headline gap between a hand-kept
+    figure and a measured one is reachable before anyone has to look up a
+    product spec. Reporting Availability alone and saying so is honest;
+    inventing a cycle time to complete the formula would not be.
+    """
+    value = facts.get("ideal_cycle_time_s")
+    return Requirement(
+        key="ideal_cycle_time",
+        label="the design cycle time",
+        met=value is not None,
+        detail=f"{value:g}s per part" if value is not None else "not declared on any endpoint",
+        fix=(
+            "Add `ideal_cycle_time_s:` to the endpoint. Without it OEE reports "
+            "Availability (and Quality, if counts are declared) but not Performance — "
+            "which is honest, and still shows the stoppages a manual count misses."
+        ),
+        optional=True,
     )
 
 
@@ -325,6 +410,8 @@ def assess(config: Any = None, db_path: Any = None) -> ReadinessReport:
                 _endpoints_req(facts),
                 _collectable_req(facts),
                 _oee_mapping_req(facts),
+                _ideal_cycle_req(facts),
+                _oee_quality_req(facts),
             ),
         ),
     )

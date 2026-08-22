@@ -187,21 +187,73 @@ class TestTheAlarmSourceIsContextual:
 
 
 class TestItNeverFillsIn:
-    def test_oee_reports_the_mapping_as_inexpressible(self, tmp_path):
-        """Not "you forgot to configure it" — there is no field to configure.
-        Saying otherwise sends someone hunting for a setting that does not exist."""
+    def test_oee_roles_are_now_expressible_but_still_never_guessed(self, tmp_path):
+        """Until tag roles existed this was INEXPRESSIBLE — no field could say
+        "this tag is the production counter", so the honest report was that the
+        product offered no way to supply it. It is now a normal prerequisite:
+        sayable, and still never inferred."""
         cfg = FakeConfig(targets=(FakeTarget("line1", "opcua", ({"ref": "x"},)),))
         oee = cap(assess(config=cfg, db_path=store_with(tmp_path)), "oee")
         mapping = next(r for r in oee.requirements if r.key == "oee_role_mapping")
         assert mapping.met is False
-        assert mapping.expressible is False
-        assert mapping.as_dict()["not_yet_expressible"] is True
+        assert mapping.expressible is True, "roles exist now; do not report a dead end"
+        assert "no tag declares an OEE role" in mapping.detail
 
-    def test_it_offers_the_route_that_does_exist(self, tmp_path):
+    def test_the_fix_warns_about_the_status_word_trap(self, tmp_path):
+        """The fix has to carry the reason, or someone writes running_when
+        without understanding why it is not optional."""
         cfg = FakeConfig(targets=(FakeTarget("line1", "opcua", ({"ref": "x"},)),))
         oee = cap(assess(config=cfg, db_path=store_with(tmp_path)), "oee")
+        fix = next(r for r in oee.requirements if r.key == "oee_role_mapping").fix
+        assert "running_when" in fix and "idle" in fix
+
+    def test_declared_roles_satisfy_it(self, tmp_path):
+        cfg = FakeConfig(
+            targets=(
+                FakeTarget(
+                    "line1",
+                    "modbus",
+                    (
+                        {"ref": "40001", "role": "run_state"},
+                        {"ref": "40010", "role": "total_count"},
+                    ),
+                ),
+            )
+        )
+        oee = cap(assess(config=cfg, db_path=store_with(tmp_path)), "oee")
+        assert next(r for r in oee.requirements if r.key == "oee_role_mapping").met
+
+    def test_a_run_state_alone_does_not_satisfy_oee(self, tmp_path):
+        """Availability needs run_state; OEE needs a production count too.
+        Accepting half the mapping would produce a figure with no Performance
+        input and no way to notice."""
+        cfg = FakeConfig(
+            targets=(FakeTarget("line1", "modbus", ({"ref": "40001", "role": "run_state"},)),)
+        )
+        oee = cap(assess(config=cfg, db_path=store_with(tmp_path)), "oee")
         mapping = next(r for r in oee.requirements if r.key == "oee_role_mapping")
-        assert "analytics oee" in mapping.fix
+        assert mapping.met is False
+        assert "total_count" in mapping.fix
+
+    def test_a_line_with_roles_but_no_cycle_time_degrades_rather_than_blocks(self, tmp_path):
+        """Availability is where minor stoppages live, and it needs only a
+        run-state tag — so the headline number is reachable before anyone looks
+        up a product spec."""
+        cfg = FakeConfig(
+            targets=(
+                FakeTarget(
+                    "line1",
+                    "modbus",
+                    (
+                        {"ref": "40001", "role": "run_state"},
+                        {"ref": "40010", "role": "total_count"},
+                    ),
+                ),
+            )
+        )
+        oee = cap(assess(config=cfg, db_path=store_with(tmp_path)), "oee")
+        assert oee.status == DEGRADED
+        assert {"ideal_cycle_time", "oee_quality_tag"} == {r.key for r in oee.missing_optional}
 
     def test_no_capability_is_satisfied_by_inference(self, tmp_path):
         """Every met requirement must point at something actually found."""
