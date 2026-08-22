@@ -4,6 +4,84 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## Status — 2026-08-19 (unreleased: site discovery + the onboarding gap it exposed)
+
+Two things landed that the earlier status blocks could not have named, because the
+first of them did not exist yet.
+
+**Site discovery shipped** (#161 engine, #162 CLI). `iaiops scan` answers the question
+that comes *before* every other capability in this product — "what is on this network"
+— with no writes, a fixed industrial port allowlist, a zero-emission dry run, and a
+self-contained HTML report whose first section is what it touched. Verified through the
+command against a real Modbus device.
+
+**Building it exposed a larger gap than it closed.** Every capability before `scan`
+assumed you already knew your endpoints; `scan` removes that assumption for the
+*device* layer and, in doing so, makes it obvious that nothing removes it for the
+*semantic* layer. A new user can now discover 40 devices in an afternoon and still have
+no idea which of them matters, which tag is the production counter, or which of the
+eleven flagship scenarios they are actually able to run today.
+
+That is not a documentation problem. **"Readiness" was never a first-class concept in
+this architecture** — it is now written down as `docs/HLD.md §9`, and the work below is
+the part that is still missing.
+
+### Open — onboarding (the current #1 non-verification item)
+
+- [ ] **`iaiops readiness`** — a command answering "what can I run right now, and what
+      is each blocked capability missing". Doubles as a **maturity baseline**: re-run
+      after every site change, and use it to tell a customer what they must invest to
+      unlock which scenarios. Report-only: it must NEVER guess a semantic mapping
+      (HLD §9.4/D16 — a wrong production-counter mapping produces plausible-looking OEE
+      numbers, which is worse than an error).
+- [ ] **`iaiops onboard`** — chain the pieces that already exist: `scan` → config draft
+      → per-device point-list browse (`opcua/discovery.py`, `eip_list_tags`, Modbus
+      templates) → heuristic semantic guess **presented for human confirmation** →
+      readiness report.
+- [ ] **Both front-ends, one engine** (D17). CLI for engineers on an edge box with no
+      GUI and for CI; an App page for the field, because confirming a hundred-row point
+      list is a table interaction, not a command-line questionnaire. The engine returns
+      structured results; each front-end only renders. CLI covers the point-list step
+      with export-CSV → edit → import rather than interactive row-by-row prompting.
+
+### Open — analysis depth (after onboarding, not before)
+
+The three flagship directions are **conservative baseline alerting, complete downtime
+RCA, and OEE**. Their shared bottleneck is readiness, not algorithms — so this block is
+deliberately sequenced *after* the one above. Two are real gaps rather than polish
+(HLD §10.3):
+
+- [ ] **Contextual baselines.** `learn_baseline` produces ONE robust band per tag,
+      segmented only at the latest operator change. OT normal ranges move with context
+      — shift, product/recipe, start-up vs steady state — so one band is either too
+      wide to catch a real excursion or too mixed to learn at all. Learn per bucket and
+      locate the current context before comparing. Keep the refusal discipline: a
+      bucket without enough samples **refuses to learn** rather than falling back to a
+      global band, which would disguise "never seen this regime" as "this regime is
+      normal".
+- [ ] **Relationship-aware correlation** (D18). `_proximity_scale` weights evidence by
+      TIME only (cause precedes effect). Without an upstream/downstream axis, one
+      upstream stoppage yields a run of equally-confident downstream false root causes.
+      Sources ranked by trust: a human-declared line order (enough to start) → SNMP/LLDP
+      adjacency (network layer, not process layer) → co-occurrence inference (weakest,
+      and readily mistakes correlation for causality).
+- [ ] Event-type clustering for alarms — `alarm_bad_actors` groups by source, so ten
+      phrasings of one fault count as ten bad actors. Incremental; lowest of the three.
+- [ ] **Prerequisites belong in the sales deck.** `ppt/industrial-aiops-介绍-v1.pptx`
+      slides 9–20 use a 如何做 → 得到什么 → 价值 → 意义 frame with no 前置条件 row.
+      Three of the four evidence classes behind the flagship RCA story need a human or
+      a configured historian (HLD §9.2); a demo that omits that will fail on first
+      contact with a real site.
+
+### Also now guarded rather than merely claimed
+
+- **The analysis layers cannot reach a language model.** `core/brain`,
+  `core/discovery`, `core/runtime` and `connectors` are AST-scanned for any import
+  route to a model (`tests/test_brain_is_llm_free.py`, 136 files). This makes
+  "the edge app loses nothing without an LLM" a structural property instead of a
+  current-state observation — and it is the reason a pure-app front-end and an agent
+  front-end are the same engine, not two products.
+
 ## Status — 2026-08-02 (current: `iaiops 0.21.1` · `iaiops-energy 0.1.11`)
 
 Latest published: base **`iaiops 0.21.1`**, energy **`iaiops-energy 0.1.11`** — PyPI +
