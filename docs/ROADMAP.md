@@ -100,10 +100,27 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
 - [x] **`readiness` OEE went from `blocked` (inexpressible) to a real check.**
       A configured line now reports `degraded` — it can produce a number — rather
       than a dead end.
-- [ ] Wire `downtime_events()` / `six_big_losses()` to a configured line so OEE
-      is derived rather than hand-fed.
-- [ ] The comparison that sells it: measured OEE next to the site's own reported
-      figure, with the minor stoppages the manual count could not see.
+- [x] **`iaiops oee measure`** — shipped. Availability derived from collected
+      history via the line's declared `run_state` tag, with `--reported` for the
+      comparison. Pure math in `core/brain/oee_measure.py`; the CLI reads the
+      store and renders (the `baseline` / `baseline_store` split).
+- [x] **Three buckets, not two.** Time is running / stopped / **unknown**, and
+      unknown is never folded into either. Availability is over KNOWN time, with
+      coverage reported beside it; below 50% coverage no figure is reported at
+      all, because a meaningless number that looks precise is the thing this
+      product exists not to produce. Counting a blind window as downtime is the
+      TEMPTING error — unexplained downtime inflates the losses a vendor can
+      offer to fix.
+- [x] **Minor stoppages counted separately** (≤300s default) — the ones a manual
+      tally cannot record, and the usual source of the gap.
+- [x] **The comparison cannot manufacture a favourable answer**: a refused
+      measurement yields no gap, and a measurement ABOVE the reported figure is
+      stated as plainly as one below. Hiding the second would make the first
+      suspect.
+- [ ] Performance and Quality factors from `total_count` / `good_count` +
+      `ideal_cycle_time_s` — Availability alone already carries the headline, so
+      this completes the figure rather than unlocking it.
+- [ ] Wire `six_big_losses()` to the same derived inputs.
 
 **Do not enter as "OEE software"** (D27) — Evocon, Fabrico, Symestic, TEEPTRAK,
 MaintMaster and every MES are already there. The difference is the PATH to the
