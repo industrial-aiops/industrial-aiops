@@ -344,3 +344,38 @@ class TestFacts:
     def test_alarm_capable_endpoints_are_named(self, tmp_path):
         cfg = FakeConfig(targets=(FakeTarget("a", "opcua"), FakeTarget("b", "modbus")))
         assert gather_facts(cfg, tmp_path / "none.db")["alarm_capable_endpoints"] == ["a"]
+
+
+class TestCollectabilityIsAProtocolFactNotAConfigMistake:
+    """Continuous collection needs a point-read path, and not every protocol has
+    one — a Modbus register and an OPC-UA node are point-shaped, a SECS/GEM
+    stream is not. Reporting that as "you configured it wrong" would send
+    someone to fix a config file over a property of the protocol."""
+
+    def test_a_collectable_protocol_satisfies_it(self, tmp_path):
+        cfg = FakeConfig(targets=(FakeTarget("line1", "modbus", ({"ref": "40001"},)),))
+        report = assess(config=cfg, db_path=store_with(tmp_path))
+        assert cap(report, "continuous_collection").status == READY
+
+    def test_a_stream_shaped_protocol_blocks_it(self, tmp_path):
+        cfg = FakeConfig(targets=(FakeTarget("tool1", "secsgem", ({"ref": "x"},)),))
+        report = assess(config=cfg, db_path=store_with(tmp_path))
+        collection = cap(report, "continuous_collection")
+        assert collection.status == BLOCKED
+        assert "collectable_endpoint" in {r.key for r in collection.missing_required}
+
+    def test_the_fix_names_the_protocols_that_do_work(self, tmp_path):
+        cfg = FakeConfig(targets=(FakeTarget("tool1", "secsgem", ({"ref": "x"},)),))
+        report = assess(config=cfg, db_path=store_with(tmp_path))
+        fix = next(
+            r
+            for r in cap(report, "continuous_collection").missing_required
+            if r.key == "collectable_endpoint"
+        ).fix
+        assert "modbus" in fix and "opcua" in fix
+
+    def test_oee_now_depends_on_collection_being_possible(self, tmp_path):
+        """OEE from configured tags cannot happen on a protocol we cannot sample."""
+        cfg = FakeConfig(targets=(FakeTarget("tool1", "secsgem", ({"ref": "x"},)),))
+        report = assess(config=cfg, db_path=store_with(tmp_path))
+        assert "collectable_endpoint" in {r.key for r in cap(report, "oee").missing_required}

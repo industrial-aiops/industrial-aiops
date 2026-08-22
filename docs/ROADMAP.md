@@ -48,18 +48,32 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
 
 ### Open — 1. Continuous collection (the actual first build)
 
-- [ ] A collector that runs unattended and fills the local store: per-tag rates,
-      OPC-UA subscriptions where available (event-driven beats polling), fast
-      polling elsewhere. Minor stoppages are the whole point, so the sample rate
-      has to resolve them.
-- [ ] **Assessment mode before any resident deployment** (D21). A resident
-      process on an OT network needs change-management approval; a CLI you run
-      once does not. So collection must be runnable from a laptop for a week,
-      with zero site changes, to put the 8–12 point gap on the table FIRST —
-      evidence before permissions, the same discipline as `scan plan` emitting
-      nothing.
+- [x] **`iaiops collect plan` / `collect run`** — shipped. A BOUNDED assessment
+      run (`--duration 7d`) that fills the local store, with a hard 14-day cap.
+      There is deliberately **no run-forever mode**: that keeps the connectors'
+      existing "never an unbounded loop" rule intact, and a run that states when
+      it ends is a far smaller change-management ask than a resident daemon —
+      which IS the deployment strategy (D21). `collect plan` contacts nothing.
+- [x] **A gap is not a stoppage.** A failed read is never written as a value —
+      not null, not a stale repeat — because either would be indistinguishable
+      from a real sample downstream. Blind windows are reported as data, and the
+      run states its coverage (66.67%, not "done"). Conflating the two would
+      overstate losses, in the direction that flatters a vendor.
+- [x] **The cross-protocol read is now public** (`core/collect/reader.py`). The
+      dispatch already existed as `brain.monitor._read_point` over the capability
+      registry's `monitor_read`; collection should not import a private name from
+      the analysis layer. Collectable today: **opcua, modbus, s7, mc, eip,
+      ethernetip** — 6 of 15 registered protocols.
+- [x] **`readiness` now answers "can this endpoint be sampled at all"**, and OEE
+      depends on it. Protocols without a point-read path are reported as a
+      protocol property, not a configuration mistake.
+- [ ] Wire `fins` into `monitor_read` — Omron is a conspicuous gap and
+      `fins_read_words` / `fins_read_bits` already exist; it is a registration,
+      not a build.
 - [ ] Retention and store growth: continuous collection turns the local store
       from incidental into something with a lifecycle.
+- [ ] Resume/backfill across process restarts (today a stopped run keeps what it
+      collected, but a new run starts fresh).
 
 ### Open — 2. OEE from configured tags
 

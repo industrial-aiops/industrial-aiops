@@ -67,6 +67,11 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
         {str(getattr(t, "protocol", "")) for t in targets if getattr(t, "protocol", "")}
     )
     monitored = sum(len(getattr(t, "tags", ()) or ()) for t in targets)
+    from iaiops.core.collect.reader import can_collect
+
+    collectable = [
+        str(getattr(t, "name", "")) for t in targets if can_collect(str(getattr(t, "protocol", "")))
+    ]
     coverage = store_coverage(db_path)
 
     return {
@@ -79,6 +84,7 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
             for t in targets
             if str(getattr(t, "protocol", "")) in ALARM_CAPABLE_PROTOCOLS
         ],
+        "collectable_endpoints": collectable,
         "monitored_tags": monitored,
         "historian": bool(historian),
         "historian_reader": str(getattr(historian, "reader", "")) if historian else "",
@@ -94,6 +100,33 @@ def _endpoints_req(facts: dict[str, Any]) -> Requirement:
         met=n > 0,
         detail=f"{n} configured" if n else "no endpoints in config.yaml",
         fix="Run `iaiops scan run --targets <cidr>` to find devices, then `iaiops init`.",
+    )
+
+
+def _collectable_req(facts: dict[str, Any]) -> Requirement:
+    """Whether any configured endpoint can be sampled on a schedule.
+
+    Not every protocol can: a point-read path is what continuous collection
+    needs, and some connectors are stream- or file-shaped instead. Reporting
+    this as a missing configuration would be wrong — it is a property of the
+    protocol, so the fix names the protocols that do work.
+    """
+    names = facts["collectable_endpoints"]
+    from iaiops.core.collect.reader import collectable_protocols
+
+    return Requirement(
+        key="collectable_endpoint",
+        label="an endpoint that can be sampled on a schedule",
+        met=bool(names),
+        detail=(
+            f"collectable endpoints: {', '.join(names)}"
+            if names
+            else "no configured endpoint has a point-read path"
+        ),
+        fix=(
+            "Continuous collection needs a protocol with a point-read path. "
+            f"Available today: {', '.join(collectable_protocols())}."
+        ),
     )
 
 
@@ -243,6 +276,16 @@ def assess(config: Any = None, db_path: Any = None) -> ReadinessReport:
             requirements=(_samples_req(facts),),
         ),
         Capability(
+            key="continuous_collection",
+            label="Continuous collection (assessment run)",
+            value="Sample a line for days so real OEE and minor stoppages become visible.",
+            requirements=(
+                _endpoints_req(facts),
+                _collectable_req(facts),
+                _monitored_tags_req(facts),
+            ),
+        ),
+        Capability(
             key="baseline_alerting",
             label="Conservative baseline alerting",
             value="A per-tag normal band learned from this site's own history.",
@@ -278,7 +321,11 @@ def assess(config: Any = None, db_path: Any = None) -> ReadinessReport:
             key="oee",
             label="OEE from configured tags",
             value="Availability × Performance × Quality, derived from the line itself.",
-            requirements=(_endpoints_req(facts), _oee_mapping_req(facts)),
+            requirements=(
+                _endpoints_req(facts),
+                _collectable_req(facts),
+                _oee_mapping_req(facts),
+            ),
         ),
     )
 
