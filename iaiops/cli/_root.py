@@ -28,6 +28,7 @@ from iaiops.cli.metrics import metrics_app
 from iaiops.cli.modbus import modbus_app
 from iaiops.cli.mqtt import mqtt_app
 from iaiops.cli.mtconnect import mtconnect_app
+from iaiops.cli.oee import oee_app
 from iaiops.cli.opcua import opcua_app
 from iaiops.cli.profinet import profinet_app
 from iaiops.cli.program import program_app
@@ -76,6 +77,7 @@ app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
 app.command("readiness")(readiness_cmd)
 app.add_typer(collect_app, name="collect")
+app.add_typer(oee_app, name="oee")
 app.add_typer(compliance_app, name="compliance")
 app.add_typer(scan_app, name="scan")
 
