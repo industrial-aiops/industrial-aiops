@@ -29,13 +29,44 @@ the part that is still missing.
 ### Open — onboarding (the current #1 non-verification item)
 
 - [ ] **`iaiops readiness`** — a command answering "what can I run right now, and what
-      is each blocked capability missing". Report-only: it must NEVER guess a semantic
-      mapping (HLD §9.4 — a wrong production-counter mapping produces plausible-looking
-      OEE numbers, which is worse than an error).
+      is each blocked capability missing". Doubles as a **maturity baseline**: re-run
+      after every site change, and use it to tell a customer what they must invest to
+      unlock which scenarios. Report-only: it must NEVER guess a semantic mapping
+      (HLD §9.4/D16 — a wrong production-counter mapping produces plausible-looking OEE
+      numbers, which is worse than an error).
 - [ ] **`iaiops onboard`** — chain the pieces that already exist: `scan` → config draft
       → per-device point-list browse (`opcua/discovery.py`, `eip_list_tags`, Modbus
       templates) → heuristic semantic guess **presented for human confirmation** →
       readiness report.
+- [ ] **Both front-ends, one engine** (D17). CLI for engineers on an edge box with no
+      GUI and for CI; an App page for the field, because confirming a hundred-row point
+      list is a table interaction, not a command-line questionnaire. The engine returns
+      structured results; each front-end only renders. CLI covers the point-list step
+      with export-CSV → edit → import rather than interactive row-by-row prompting.
+
+### Open — analysis depth (after onboarding, not before)
+
+The three flagship directions are **conservative baseline alerting, complete downtime
+RCA, and OEE**. Their shared bottleneck is readiness, not algorithms — so this block is
+deliberately sequenced *after* the one above. Two are real gaps rather than polish
+(HLD §10.3):
+
+- [ ] **Contextual baselines.** `learn_baseline` produces ONE robust band per tag,
+      segmented only at the latest operator change. OT normal ranges move with context
+      — shift, product/recipe, start-up vs steady state — so one band is either too
+      wide to catch a real excursion or too mixed to learn at all. Learn per bucket and
+      locate the current context before comparing. Keep the refusal discipline: a
+      bucket without enough samples **refuses to learn** rather than falling back to a
+      global band, which would disguise "never seen this regime" as "this regime is
+      normal".
+- [ ] **Relationship-aware correlation** (D18). `_proximity_scale` weights evidence by
+      TIME only (cause precedes effect). Without an upstream/downstream axis, one
+      upstream stoppage yields a run of equally-confident downstream false root causes.
+      Sources ranked by trust: a human-declared line order (enough to start) → SNMP/LLDP
+      adjacency (network layer, not process layer) → co-occurrence inference (weakest,
+      and readily mistakes correlation for causality).
+- [ ] Event-type clustering for alarms — `alarm_bad_actors` groups by source, so ten
+      phrasings of one fault count as ten bad actors. Incremental; lowest of the three.
 - [ ] **Prerequisites belong in the sales deck.** `ppt/industrial-aiops-介绍-v1.pptx`
       slides 9–20 use a 如何做 → 得到什么 → 价值 → 意义 frame with no 前置条件 row.
       Three of the four evidence classes behind the flagship RCA story need a human or
