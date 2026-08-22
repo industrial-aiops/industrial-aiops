@@ -4,6 +4,126 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## Status — 2026-08-22 (sequencing decided: OEE first, knowledge base second, PdM last)
+
+`readiness` shipped (#166). The next question was no longer "what do we build" but
+"in what order" — and a market check on 2026-08-22 changed the answer. Full
+evidence with links: [MARKET-EVIDENCE.md](MARKET-EVIDENCE.md); the decisions it
+produced: HLD §11–13 (D19–D27).
+
+Three findings drove the ordering:
+
+1. **The knowledge-base loop is already a shipping product category.** Aspen
+   Mtell's own description is work orders → failure signatures → monitor for
+   recurrence. So it is neither a moat nor an entry ticket — it is a **retention
+   mechanism** (D20).
+2. **PdM has a 60–70% pilot-stall rate**, and what stalls it is heterogeneity,
+   not algorithms. It is the only capability needing BOTH history and labels, so
+   it goes last (D19).
+3. **OEE has a quantified, demonstrable pain**: manual Excel OEE overstates by
+   **8–12 points**, because minor stoppages are too fast for a human to log. It
+   needs no feedback loop to prove — just the tap.
+
+And OEE turns out to have the **smallest semantic ask of any capability**:
+`run/stop` + `count` + `cycle` — three tags. Downtime RCA needs a full tag list
+plus an alarm source plus a historian. The §9 onboarding cliff is narrowest
+exactly where the value lands first.
+
+### ⚠️ The blocking finding: nothing collects continuously
+
+An audit on 2026-08-22 found that OEE's *brain* is largely built —
+`downtime_events()` segments stops from a state series, `six_big_losses()`,
+`oee_multidim()` — while the thing that would feed it does not exist:
+
+| | reality |
+|---|---|
+| `opcua monitor --duration-s 10` | a BOUNDED window, 10s by default |
+| `metrics serve` | only READS the local store; never fills it |
+| `~/.iaiops/data.db` | gains rows only when a human runs a read command |
+
+**So "OEE first" is mostly about building continuous collection, not OEE maths.**
+That brings disconnect buffering and backfill, retention, crash recovery and
+start-on-boot — and it changes the product's shape from "a CLI you run" into
+"a thing that runs".
+
+### Open — 1. Continuous collection (the actual first build)
+
+- [ ] A collector that runs unattended and fills the local store: per-tag rates,
+      OPC-UA subscriptions where available (event-driven beats polling), fast
+      polling elsewhere. Minor stoppages are the whole point, so the sample rate
+      has to resolve them.
+- [ ] **Assessment mode before any resident deployment** (D21). A resident
+      process on an OT network needs change-management approval; a CLI you run
+      once does not. So collection must be runnable from a laptop for a week,
+      with zero site changes, to put the 8–12 point gap on the table FIRST —
+      evidence before permissions, the same discipline as `scan plan` emitting
+      nothing.
+- [ ] Retention and store growth: continuous collection turns the local store
+      from incidental into something with a lifecycle.
+
+### Open — 2. OEE from configured tags
+
+- [ ] **A semantic role on `MonitorTag`** — the unlock `readiness` already names.
+      `oee_compute` takes five plain numbers and `MonitorTag` carries only a ref,
+      a label and thresholds, so there is no way to declare "this tag is the
+      production counter". Three roles is enough to start: run-state, count,
+      cycle. Roles are **declared, never guessed** (D16/D23) — heuristics may
+      SUGGEST, a human confirms.
+- [ ] Wire `downtime_events()` / `six_big_losses()` to a configured line so OEE
+      is derived rather than hand-fed.
+- [ ] The comparison that sells it: measured OEE next to the site's own reported
+      figure, with the minor stoppages the manual count could not see.
+
+**Do not enter as "OEE software"** (D27) — Evocon, Fabrico, Symestic, TEEPTRAK,
+MaintMaster and every MES are already there. The difference is the PATH to the
+number: `scan` → `readiness` → confirm three tags → real OEE, with no added
+hardware and no integrator visit. Those first two steps are already built and
+nobody else has them.
+
+### Open — 3. The site knowledge base (retention, not entry)
+
+Design in HLD §12. It must not gate the product's day-one value.
+
+- [ ] The store itself, following `baseline_store` / `alias_store` conventions
+      (JSON, 0600, atomic temp+replace, never a device write): structure,
+      baselines, cases, weights, signatures.
+- [ ] **Every fact tagged `declared` / `derived` / `suggested`** (D23). A
+      `suggested` fact used as if `declared` turns RCA confidently wrong, which
+      is worse than no answer.
+- [ ] **Labels from the audit trail, not from data entry** (D22). `~/.iaiops/
+      audit.db` already records what a human changed, when, and who approved it;
+      `undo.db` holds the prior state. The fix an engineer applied through the
+      tool right after a stoppage IS the label — captured at diagnosis time, in
+      our own taxonomy, with the evidence attached. This matters because
+      "operators will record the cause" is the single most documented failure
+      mode in this category.
+- [ ] Human confirmation, where needed, is **one click among the ranked
+      hypotheses** — never a free-text field. Dismissing an alert is a negative
+      label, and those are free.
+- [ ] **Reliability alongside confidence** (D24): 90% from a site with three
+      recorded cases is not 90% from a site with three hundred.
+- [ ] **Self-confirmation guard** (D25 neighbourhood, HLD §12.10): count a case
+      as a label only when a human states the cause independently or overrides
+      us, and track the human-agreement rate separately — an unusually high one
+      is itself an alarm.
+- [ ] Relationships: human-declared line order first. Timestamp co-occurrence
+      produces **candidates for confirmation only**, never edges (D25).
+- [ ] Line-design/P&ID extraction belongs to the agent front-end and produces a
+      PROPOSAL a human confirms (D26) — so the knowledge base never depends on a
+      model and the offline app loses nothing.
+
+### Open — 4. PdM (last, and deliberately so)
+
+Needs both accumulated history and labels. Everything above is its prerequisite.
+
+### Open — onboarding (reframed)
+
+`onboard` is not a wizard — it is **the knowledge base's first write**. Doing it
+before there is somewhere to put a confirmed mapping would produce a wizard whose
+output has nowhere to go, which is why it now follows rather than leads.
+
+---
+
 ## Status — 2026-08-19 (unreleased: site discovery + the onboarding gap it exposed)
 
 Two things landed that the earlier status blocks could not have named, because the
@@ -26,7 +146,7 @@ That is not a documentation problem. **"Readiness" was never a first-class conce
 this architecture** — it is now written down as `docs/HLD.md §9`, and the work below is
 the part that is still missing.
 
-### Open — onboarding (the current #1 non-verification item)
+### Open — onboarding (SUPERSEDED by the 2026-08-22 sequencing above — kept for its detail)
 
 - [x] **`iaiops readiness`** — shipped. A command answering "what can I run right now, and what
       is each blocked capability missing". Doubles as a **maturity baseline**: re-run
@@ -52,7 +172,7 @@ the part that is still missing.
       structured results; each front-end only renders. CLI covers the point-list step
       with export-CSV → edit → import rather than interactive row-by-row prompting.
 
-### Open — analysis depth (after onboarding, not before)
+### Open — analysis depth (still valid; slots after collection + OEE)
 
 The three flagship directions are **conservative baseline alerting, complete downtime
 RCA, and OEE**. Their shared bottleneck is readiness, not algorithms — so this block is
