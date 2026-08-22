@@ -28,12 +28,20 @@ the part that is still missing.
 
 ### Open — onboarding (the current #1 non-verification item)
 
-- [ ] **`iaiops readiness`** — a command answering "what can I run right now, and what
+- [x] **`iaiops readiness`** — shipped. A command answering "what can I run right now, and what
       is each blocked capability missing". Doubles as a **maturity baseline**: re-run
       after every site change, and use it to tell a customer what they must invest to
       unlock which scenarios. Report-only: it must NEVER guess a semantic mapping
       (HLD §9.4/D16 — a wrong production-counter mapping produces plausible-looking OEE
       numbers, which is worse than an error).
+
+      Building it surfaced a prerequisite that is not merely unset but
+      **inexpressible**: `oee_compute` takes five plain numbers and `MonitorTag`
+      carries only a ref, a label and thresholds — there is no field saying "this
+      tag is the production counter". The report says so rather than "not
+      configured", because the latter sends someone hunting for a setting that
+      does not exist. **Adding a semantic role to `MonitorTag` is the unlock for
+      OEE-from-configured-tags** and is now the concrete next step.
 - [ ] **`iaiops onboard`** — chain the pieces that already exist: `scan` → config draft
       → per-device point-list browse (`opcua/discovery.py`, `eip_list_tags`, Modbus
       templates) → heuristic semantic guess **presented for human confirmation** →
