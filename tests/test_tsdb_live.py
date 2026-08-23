@@ -39,7 +39,13 @@ from iaiops.core.sink.sqlite_local import SampleFilter
 
 pytestmark = [pytest.mark.integration]
 
-_HOST = "127.0.0.1"
+#: Where the historian servers are. Defaults to localhost, but a lab server on
+#: another machine is an ordinary setup — and hardcoding loopback meant these
+#: tests could only ever run somewhere Docker also runs, which is exactly the
+#: machine least likely to be free to host a TSDB. `IAIOPS_TSDB_HOST=10.0.0.5`
+#: points them at a real one; the skip messages name it so a failure to reach it
+#: reads as "wrong host", not "no server".
+_HOST = os.environ.get("IAIOPS_TSDB_HOST", "127.0.0.1")
 _IOTDB_PORT = 6667
 _TAOS_PORT = 6030
 _TAOS_ADAPTER_PORT = 6041  # taosAdapter: REST and WebSocket share this port
@@ -118,7 +124,7 @@ def test_iotdb_points_land_on_the_path_the_reader_looks_under(iotdb_database: st
     """
     from iaiops.core.sink.iotdb import IoTDBSink
 
-    sink = IoTDBSink(database=iotdb_database)
+    sink = IoTDBSink(host=_HOST, database=iotdb_database)
     written = sink.write(
         [
             {
@@ -141,7 +147,7 @@ def test_iotdb_points_land_on_the_path_the_reader_looks_under(iotdb_database: st
     sink.close()
     assert written == 2, "the non-numeric point should not have been written"
 
-    reader = get_reader("iotdb", database=iotdb_database)
+    reader = get_reader("iotdb", host=_HOST, database=iotdb_database)
     try:
         rows = reader.query(SampleFilter(limit=100))
     finally:
@@ -174,7 +180,7 @@ def test_iotdb_time_bounds_and_tag_filter_are_applied_by_the_server(
     """
     from iaiops.core.sink.iotdb import IoTDBSink
 
-    sink = IoTDBSink(database=iotdb_database)
+    sink = IoTDBSink(host=_HOST, database=iotdb_database)
     sink.write(
         [
             {"metric": "old", "value": 1.0, "numeric": True, "timestamp": "2026-01-01T00:00:00Z"},
@@ -183,7 +189,7 @@ def test_iotdb_time_bounds_and_tag_filter_are_applied_by_the_server(
     )
     sink.close()
 
-    reader = get_reader("iotdb", database=iotdb_database)
+    reader = get_reader("iotdb", host=_HOST, database=iotdb_database)
     try:
         after_march = reader.query(SampleFilter(since="2026-03-01T00:00:00Z", limit=100))
         before_march = reader.query(SampleFilter(until="2026-03-01T00:00:00Z", limit=100))
@@ -207,7 +213,7 @@ def test_iotdb_latest_and_coverage_parse_a_real_result_set(iotdb_database: str) 
     """
     from iaiops.core.sink.iotdb import IoTDBSink
 
-    sink = IoTDBSink(database=iotdb_database)
+    sink = IoTDBSink(host=_HOST, database=iotdb_database)
     sink.write(
         [
             {"metric": "t1", "value": 1.0, "numeric": True, "timestamp": "2026-05-01T00:00:00Z"},
@@ -217,7 +223,7 @@ def test_iotdb_latest_and_coverage_parse_a_real_result_set(iotdb_database: str) 
     )
     sink.close()
 
-    reader = get_reader("iotdb", database=iotdb_database)
+    reader = get_reader("iotdb", host=_HOST, database=iotdb_database)
     try:
         latest = reader.latest(limit=10)
         coverage = reader.coverage(limit=10)
@@ -282,7 +288,7 @@ def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -
     _taos_or_skip()
     from iaiops.core.sink.tdengine import TDengineSink
 
-    sink = TDengineSink(database=tdengine_database)
+    sink = TDengineSink(host=_HOST, database=tdengine_database)
     written = sink.write(
         [
             {
@@ -313,7 +319,7 @@ def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -
     sink.close()
     assert written == 3, "the non-numeric point should not have been written"
 
-    reader = get_reader("tdengine", database=tdengine_database)
+    reader = get_reader("tdengine", host=_HOST, database=tdengine_database)
     try:
         rows = reader.query(SampleFilter(limit=100))
         latest = reader.latest(limit=10)
@@ -354,7 +360,7 @@ def test_tdengine_time_bounds_narrow_on_the_server(tdengine_database: str) -> No
     _taos_or_skip()
     from iaiops.core.sink.tdengine import TDengineSink
 
-    sink = TDengineSink(database=tdengine_database)
+    sink = TDengineSink(host=_HOST, database=tdengine_database)
     sink.write(
         [
             {
@@ -373,7 +379,7 @@ def test_tdengine_time_bounds_narrow_on_the_server(tdengine_database: str) -> No
     )
     sink.close()
 
-    reader = get_reader("tdengine", database=tdengine_database)
+    reader = get_reader("tdengine", host=_HOST, database=tdengine_database)
     try:
         after_march = reader.query(SampleFilter(since="2026-03-01T00:00:00", limit=100))
         # `until` builds a second clause in the same SQL and had never reached a
@@ -400,7 +406,7 @@ def test_iotdb_newest_first_keeps_the_end_nearest_the_incident(iotdb_database: s
     """
     from iaiops.core.sink.iotdb import IoTDBSink
 
-    sink = IoTDBSink(database=iotdb_database)
+    sink = IoTDBSink(host=_HOST, database=iotdb_database)
     sink.write(
         [
             {
@@ -414,7 +420,7 @@ def test_iotdb_newest_first_keeps_the_end_nearest_the_incident(iotdb_database: s
     )
     sink.close()
 
-    reader = get_reader("iotdb", database=iotdb_database)
+    reader = get_reader("iotdb", host=_HOST, database=iotdb_database)
     try:
         oldest = reader.query(SampleFilter(tag="t1", limit=5))
         newest = reader.query(SampleFilter(tag="t1", limit=5, newest_first=True))
@@ -435,7 +441,7 @@ def test_tdengine_newest_first_keeps_the_end_nearest_the_incident(
     _taos_or_skip()
     from iaiops.core.sink.tdengine import TDengineSink
 
-    sink = TDengineSink(database=tdengine_database)
+    sink = TDengineSink(host=_HOST, database=tdengine_database)
     sink.write(
         [
             {
@@ -449,7 +455,7 @@ def test_tdengine_newest_first_keeps_the_end_nearest_the_incident(
     )
     sink.close()
 
-    reader = get_reader("tdengine", database=tdengine_database)
+    reader = get_reader("tdengine", host=_HOST, database=tdengine_database)
     try:
         oldest = reader.query(SampleFilter(tag="t1", limit=5))
         newest = reader.query(SampleFilter(tag="t1", limit=5, newest_first=True))
@@ -500,7 +506,7 @@ def test_tdengine_round_trip_over_a_libtaos_free_transport(transport: str, tmp_p
     from iaiops.core.sink.tdengine import TDengineSink
 
     database = _unique("iaiops_tr_")
-    sink = TDengineSink(database=database, transport=transport)
+    sink = TDengineSink(host=_HOST, database=database, transport=transport)
     written = sink.write(
         [
             {
@@ -521,7 +527,7 @@ def test_tdengine_round_trip_over_a_libtaos_free_transport(transport: str, tmp_p
     sink.close()
     assert written == 2, "the non-numeric point should not have been written"
 
-    reader = get_reader("tdengine", database=database, transport=transport)
+    reader = get_reader("tdengine", host=_HOST, database=database, transport=transport)
     try:
         rows = reader.query(SampleFilter(limit=100))
         newest = reader.query(SampleFilter(limit=1, newest_first=True))
