@@ -330,6 +330,56 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
     return (list(resp.registers) or [None])[0], ""
 
 
+def _session_read_opcua(client: Any, ref: str) -> tuple[Any, str]:
+    """Read one node from an open OPC-UA client.
+
+    Reuses the connector's own `_read_one`, which is already client-scoped —
+    a second implementation would be a second place for the status-code and
+    timestamp handling to drift.
+    """
+    from iaiops.connectors.opcua.ops import _read_one
+
+    desc = _read_one(client, ref)
+    return desc.get("value"), desc.get("source_timestamp", "")
+
+
+def _session_read_s7(client: Any, ref: str) -> tuple[Any, str]:
+    """Read one pyS7 address from an open client."""
+    values = client.read([ref])
+    return ((list(values) or [None])[0]), ""
+
+
+def _session_read_mc(client: Any, ref: str) -> tuple[Any, str]:
+    """Read one MC word device from an open client."""
+    words = client.batchread_wordunits(headdevice=ref, readsize=1) or []
+    return ((list(words) or [None])[0]), ""
+
+
+def _session_read_eip(client: Any, ref: str) -> tuple[Any, str]:
+    """Read one Logix tag from an open client."""
+    result = client.read(ref)
+    return getattr(result, "Value", result), ""
+
+
+def _session_read_fins(client: Any, ref: str) -> tuple[Any, str]:
+    """Read one FINS point from an open client.
+
+    Goes through `parse_fins_ref`, so the area-qualification rule cannot be lost
+    by taking a second path into the same protocol: `DM100` and `CIO100` are
+    different memory, and a bare number stays refused here too.
+    """
+    from iaiops.connectors.fins.client import resolve_area
+    from iaiops.connectors.fins.ops import parse_fins_ref
+
+    point = parse_fins_ref(ref)
+    spec = resolve_area(point.area, bit_access=point.bit is not None)
+    if point.bit is None:
+        words = client.read_words(spec.word_code, point.address, 1) or []
+        return ((list(words) or [None])[0]), ""
+    bits = client.read_bits(spec.bit_code, point.address, point.bit, 1) or []
+    return ((list(bits) or [None])[0]), ""
+
+
 def _monitor_s7(t: Any, ref: str) -> tuple[Any, str]:
     from iaiops.connectors.s7.ops import s7_read_many
 
@@ -410,6 +460,7 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         diagnose_connect=_connect_opcua,
         read_ref=_readref_opcua,
         monitor_read=_monitor_opcua,
+        session_read=_session_read_opcua,
         session_builder=_session("opcua_session"),
     ),
     "modbus": _caps(
@@ -427,6 +478,7 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         diagnose_connect=_connect_s7,
         read_ref=_readref_s7,
         monitor_read=_monitor_s7,
+        session_read=_session_read_s7,
         session_builder=_session("s7_session"),
     ),
     "mc": _caps(
@@ -435,12 +487,14 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         diagnose_connect=_connect_mc,
         read_ref=_readref_mc,
         monitor_read=_monitor_mc,
+        session_read=_session_read_mc,
         session_builder=_session("mc_session"),
     ),
     "fins": _caps(
         _where_fins,
         doctor_probe=_probe_fins,
         monitor_read=_monitor_fins,
+        session_read=_session_read_fins,
         session_builder=_session("fins_session"),
     ),
     "mtconnect": _caps(
@@ -458,12 +512,14 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         _where_eip,
         doctor_probe=_probe_eip,
         monitor_read=_monitor_eip,
+        session_read=_session_read_eip,
         session_builder=_session("eip_session"),
     ),
     "eip": _caps(
         _where_eip,
         doctor_probe=_probe_eip,
         monitor_read=_monitor_eip,
+        session_read=_session_read_eip,
         session_builder=_session("eip_session"),
     ),
     "iolink": _caps(

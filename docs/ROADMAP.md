@@ -136,9 +136,12 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
       six are the follow-up.
       ⚠️ The PLC-side risk is stated but UNTESTED here — a pymodbus server
       tolerates churn that a real PLC may not.
-- [ ] `session_read` for the remaining collectable protocols (opcua, s7, mc,
-      fins, eip, ethernetip) — each is a thin read against an already-open
-      client, like the modbus one.
+- [x] **`session_read` for all seven collectable protocols** — shipped. Nothing
+      about connection churn is Modbus-specific: an OPC-UA server with a session
+      limit, an S7 CPU with a PG connection budget and a Logix controller all
+      have the same ceiling. A parametrized test asserts EVERY collectable
+      protocol has one, so a protocol added later cannot join collection while
+      silently keeping the churn.
 
 ### Open — 2. OEE from configured tags
 
