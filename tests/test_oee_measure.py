@@ -252,3 +252,37 @@ class TestItRefusesRatherThanGuesses:
         rows.append({"ts": "not-a-time", "value": 2})
         result = measure_availability(rows, RUN)
         assert result["status"] == "ok"
+
+
+class TestTheThresholdMatchesMeasuredJitter:
+    """Encodes what a real device over a real LAN actually did (2026-08-23),
+    so a future tuning change has to face the measurement rather than intuition.
+
+    At a 200ms target the observed cadence was 0.283s with a worst interval of
+    0.918s — **3.24x the median**. The multiplicative factor alone is 3x, so it
+    would have called that ordinary interval an outage; the additive floor is
+    what keeps sub-second sampling usable.
+    """
+
+    def test_the_multiplicative_factor_alone_would_be_too_tight_at_fast_rates(self):
+        from iaiops.core.brain.oee_measure import GAP_FACTOR
+
+        observed_cadence, observed_worst = 0.283, 0.918
+        assert observed_worst > observed_cadence * GAP_FACTOR, (
+            "the premise of the additive floor no longer holds — re-measure before removing it"
+        )
+
+    def test_the_combined_threshold_clears_the_measured_worst_case(self):
+        from iaiops.core.brain.oee_measure import GAP_FACTOR, GAP_FLOOR_S
+
+        observed_cadence, observed_worst = 0.283, 0.918
+        threshold = max(observed_cadence * GAP_FACTOR, observed_cadence + GAP_FLOOR_S)
+        assert threshold > observed_worst
+
+    def test_a_slow_cadence_is_governed_by_the_factor_not_the_floor(self):
+        """At 1s the measured jitter was only 1.21x, and the factor has room."""
+        from iaiops.core.brain.oee_measure import GAP_FACTOR, GAP_FLOOR_S
+
+        cadence = 1.081
+        assert cadence * GAP_FACTOR > cadence + GAP_FLOOR_S
+        assert cadence * GAP_FACTOR > cadence * 1.21

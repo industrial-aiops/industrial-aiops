@@ -41,8 +41,14 @@ def free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def serve(port: int) -> None:
-    """Answer Modbus TCP until killed. Killing this IS the outage."""
+def serve(port: int, bind: str = "127.0.0.1") -> None:
+    """Answer Modbus TCP until killed. Killing this IS the outage.
+
+    Binds to LOOPBACK by default. A demo should not put an unauthenticated
+    Modbus server on a network where something might take it for a real device
+    — Modbus has no authentication, and a write reaches the registers. Exposing
+    it is an explicit choice (``--bind 0.0.0.0``), made only on a lab network.
+    """
     from pymodbus.datastore import (
         ModbusDeviceContext,
         ModbusSequentialDataBlock,
@@ -55,7 +61,7 @@ def serve(port: int) -> None:
         devices=ModbusDeviceContext(hr=ModbusSequentialDataBlock(1, [0] * 64)),
         single=True,
     )
-    StartTcpServer(context=context, address=("127.0.0.1", port))
+    StartTcpServer(context=context, address=(bind, port))
 
 
 def script(total_s: float) -> list[tuple[float, int, str]]:
@@ -80,7 +86,7 @@ def script(total_s: float) -> list[tuple[float, int, str]]:
     ]
 
 
-def drive(port: int, duration_s: float) -> None:
+def drive(port: int, duration_s: float, host: str = "127.0.0.1") -> None:
     """Change the run-state register over Modbus, as a PLC program would.
 
     Reconnects silently: the server is expected to disappear part-way through,
@@ -94,7 +100,7 @@ def drive(port: int, duration_s: float) -> None:
     counter = 0
     index = 0
     last = ""
-    client = ModbusTcpClient("127.0.0.1", port=port, timeout=1)
+    client = ModbusTcpClient(host, port=port, timeout=1)
     client.connect()
 
     while True:
@@ -125,8 +131,15 @@ if __name__ == "__main__":
     ap.add_argument("mode", choices=["serve", "drive"])
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--duration", type=float, default=90.0)
+    ap.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="Server bind address. Loopback by default — an unauthenticated "
+        "Modbus server does not belong on a shared network.",
+    )
+    ap.add_argument("--host", default="127.0.0.1", help="Where the driver writes.")
     args = ap.parse_args()
     if args.mode == "serve":
-        serve(args.port)
+        serve(args.port, args.bind)
     else:
-        drive(args.port, args.duration)
+        drive(args.port, args.duration, args.host)
