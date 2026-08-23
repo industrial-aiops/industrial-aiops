@@ -236,3 +236,68 @@ class TestTheResultIsReportable:
             clock=FakeClock(),
         )
         assert "10" in result.as_dict()["plan"]["resolution_note"]
+
+
+class TestTimestampsResolveWhatTheRunClaims:
+    """Found on real hardware, invisible to every test above.
+
+    Injecting the clock made the loop testable — and meant the REAL timestamp
+    path was never executed. The fake clock produced perfect sub-second stamps
+    while the production helper truncated to whole seconds, so at 200ms every
+    five samples shared one timestamp, `_cadence` computed 0.0, and ordinary
+    sampling intervals were misreported as blind windows.
+
+    The direction of that error is the familiar one: the tool CLAIMED to resolve
+    stoppages down to 0.4s while storing timestamps that could not distinguish
+    anything under two seconds. It looked more capable than it was.
+    """
+
+    def test_the_runners_own_timestamps_resolve_below_a_second(self):
+        from iaiops.core.collect.runner import _now_iso
+
+        stamp = _now_iso()
+        seconds_field = stamp.split("T")[1].split("+")[0]
+        assert "." in seconds_field, (
+            f"{stamp!r} has whole-second resolution; sampling faster than 1 Hz "
+            "cannot be represented and every sub-second interval collapses to zero"
+        )
+
+    def test_stamps_separated_by_a_short_sleep_differ(self):
+        """A real interval shorter than the coarse format's resolution.
+
+        Deliberately NOT "call it 200 times and expect variety": 200 calls can
+        finish inside one tick on a fast machine, which made the first version of
+        this test flaky for a reason that had nothing to do with the defect.
+        """
+        import time
+
+        from iaiops.core.collect.runner import _now_iso
+
+        first = _now_iso()
+        time.sleep(0.02)
+        assert _now_iso() != first, (
+            "20ms apart and indistinguishable — sub-second sampling is unrecordable"
+        )
+
+    def test_a_fast_run_stores_distinguishable_timestamps(self, tmp_path):
+        """End to end through the real stamping path, with a real (fast) clock."""
+        db = tmp_path / "d.db"
+        run_collection(
+            plan(duration_s=1, interval_ms=50),
+            target=object(),
+            reader=reader_returning(1.0),
+            db_path=db,
+            max_iterations=6,
+        )
+        rows = query_samples(SampleFilter(limit=100), db_path=db)
+        assert len({r["ts"] for r in rows}) > 1, (
+            "every sample landed on the same timestamp — a stoppage inside that "
+            "second is unmeasurable, whatever the sample rate claims"
+        )
+
+    def test_the_plans_resolution_claim_is_not_finer_than_the_stamp(self):
+        """The claim and the storage must agree, or the claim is marketing."""
+        from iaiops.core.collect.plan import MIN_INTERVAL_MS
+        from iaiops.core.collect.runner import TIMESTAMP_RESOLUTION_S
+
+        assert TIMESTAMP_RESOLUTION_S <= MIN_INTERVAL_MS / 1000.0

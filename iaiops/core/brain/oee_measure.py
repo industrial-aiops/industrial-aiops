@@ -35,10 +35,33 @@ from iaiops.core.runtime.config import MonitorTag, TagRole
 #: definition in OEE practice.
 DEFAULT_MINOR_STOP_S = 300.0
 
-#: A hole longer than this multiple of the observed sample cadence is treated as
-#: BLIND rather than as a state that persisted. Three keeps one late sample from
-#: manufacturing an outage while still catching a real disconnection.
+#: A hole longer than ``max(cadence * GAP_FACTOR, cadence + GAP_FLOOR_S)`` is
+#: treated as BLIND rather than as a state that persisted.
+#:
+#: Both halves are needed, and measurement rather than intuition says so.
+#: Against a real Modbus device across a LAN (2026-08-23, two tags per
+#: iteration):
+#:
+#:   ==========  ==============  ================
+#:   target      median interval  worst jitter
+#:   ==========  ==============  ================
+#:   1000 ms     1.081 s          1.21x median
+#:    200 ms     0.283 s          3.24x median
+#:   ==========  ==============  ================
+#:
+#: Jitter as a MULTIPLE of cadence grows as the cadence approaches the cost of a
+#: single read: at 200ms the network round-trip is a large share of the interval,
+#: at 1s it is noise. So the multiplicative factor alone is the wrong model at
+#: fast rates — 3x would have flagged that 0.918s interval as an outage — and the
+#: ADDITIVE floor is what makes fast sampling safe rather than a nicety.
+#:
+#: ⚠️ One quiet LAN at one load level. A busier network may exceed this; if false
+#: blind windows appear, measure before changing the constant.
 GAP_FACTOR = 3.0
+
+#: Additive floor, in seconds. See ``GAP_FACTOR`` — this is the half that carries
+#: sub-second sampling.
+GAP_FLOOR_S = 1.0
 
 #: Below this share of known time, no availability is reported at all.
 MIN_COVERAGE_PCT = 50.0
@@ -123,7 +146,7 @@ def measure_availability(
         }
 
     cadence = _cadence(rows)
-    gap_limit = max(cadence * GAP_FACTOR, cadence + 1.0)
+    gap_limit = max(cadence * GAP_FACTOR, cadence + GAP_FLOOR_S)
     running = stopped = unknown = 0.0
     stops: list[float] = []
     open_stop = 0.0
@@ -253,5 +276,6 @@ __all__ = [
     "DEFAULT_MINOR_STOP_S",
     "MIN_COVERAGE_PCT",
     "GAP_FACTOR",
+    "GAP_FLOOR_S",
     "MIN_SAMPLES",
 ]

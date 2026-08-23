@@ -34,6 +34,11 @@ DURATION_REACHED = "duration_reached"
 STOPPED_BY_OPERATOR = "stopped_by_operator"
 ITERATION_CAP = "iteration_cap"
 
+#: Resolution of the timestamps this module writes. A run must not claim to
+#: resolve stoppages finer than what it can actually record, so this is asserted
+#: against the plan's minimum interval rather than left as a comment.
+TIMESTAMP_RESOLUTION_S = 0.001
+
 
 class _RealClock:
     monotonic = staticmethod(time.monotonic)
@@ -110,7 +115,18 @@ class _GapTracker:
 
 
 def _now_iso() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
+    """A timestamp fine enough to represent the rate we are sampling at.
+
+    This was whole seconds, which quietly made sub-second sampling meaningless:
+    at 200ms every five samples shared one stamp, the observed cadence computed
+    as 0.0, and ordinary intervals were then misreported as blind windows. The
+    plan meanwhile advertised resolving stoppages down to 0.4s — a claim the
+    stored data could not support.
+
+    Found against a real device over a real network, and invisible to the tests
+    above because injecting the clock meant this function never ran in them.
+    """
+    return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
 def run_collection(
@@ -189,6 +205,7 @@ def run_collection(
 
 
 __all__ = [
+    "TIMESTAMP_RESOLUTION_S",
     "RunResult",
     "run_collection",
     "DURATION_REACHED",
