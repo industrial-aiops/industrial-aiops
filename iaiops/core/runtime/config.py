@@ -417,6 +417,7 @@ class HistorianConfig:
           user: root
           database: iaiops          # TDengine db / IoTDB storage group / sqlite path
           db_path: ~/.iaiops/data.db   # sqlite reader only (optional override)
+          transport: rest           # TDengine wire: native | rest | ws
 
     The password (TSDB readers) is resolved from the encrypted secret store
     under the name ``historian`` — never stored here. Absent block ⇒ no
@@ -429,8 +430,27 @@ class HistorianConfig:
     user: str = ""
     database: str = ""
     db_path: str = ""
+    #: TDengine wire: ``native`` (needs the libtaos vendor tarball), ``rest`` or
+    #: ``ws`` (both served by taosAdapter on 6041, both pure PyPI wheels).
+    #: Unset keeps the reader's own default, so existing configs are unchanged —
+    #: but leaving it unset on a machine without libtaos means every incident
+    #: answers "the native TDengine client could not be loaded", which is why it
+    #: had to become expressible at all.
+    transport: str = ""
 
     def __post_init__(self) -> None:
+        if self.transport:
+            from iaiops.core.sink.tdengine_transport import resolve_transport
+
+            # Resolve here rather than at first use: a typo must not fall back to
+            # native and then surface, incidents later, as a missing C library.
+            # Re-raised as ValueError because every other config mistake in this
+            # file is one, and a caller validating config should not have to know
+            # that this particular field reports through the sink layer.
+            try:
+                resolve_transport(self.transport)
+            except Exception as exc:
+                raise ValueError(str(exc)) from exc
         if self.reader not in SUPPORTED_HISTORIAN_READERS:
             raise ValueError(
                 f"historian.reader '{self.reader}' is unsupported. Supported: "
@@ -454,6 +474,8 @@ class HistorianConfig:
             opts["database"] = self.database
         if self.db_path:
             opts["db_path"] = self.db_path
+        if self.transport and self.reader != "sqlite":
+            opts["transport"] = self.transport
         if self.reader != "sqlite":
             secret = self.password()
             if secret:
@@ -703,6 +725,7 @@ def _parse_historian(raw: object) -> HistorianConfig | None:
         user=str(raw.get("user", "") or ""),
         database=str(raw.get("database", "") or ""),
         db_path=str(raw.get("db_path", "") or ""),
+        transport=str(raw.get("transport", "") or "").strip().lower(),
     )
 
 
