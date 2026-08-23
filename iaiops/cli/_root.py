@@ -11,6 +11,7 @@ from iaiops.cli.approve import approve_cmd
 from iaiops.cli.audit import audit_app
 from iaiops.cli.bacnet import bacnet_app
 from iaiops.cli.baseline import baseline_app
+from iaiops.cli.case import case_app
 from iaiops.cli.collect import collect_app
 from iaiops.cli.compliance import compliance_app, historian_app
 from iaiops.cli.diagnostics import diag_app
@@ -80,6 +81,7 @@ app.command("readiness")(readiness_cmd)
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
 app.add_typer(store_app, name="store")
+app.add_typer(case_app, name="case")
 app.add_typer(compliance_app, name="compliance")
 app.add_typer(scan_app, name="scan")
 
