@@ -153,7 +153,29 @@ Design in HLD §12. It must not gate the product's day-one value.
       contradicting each other is for a person to settle.
 - [x] A site with no knowledge yet loads **empty rather than failing** — D20 in
       code: the product must work before the base has accumulated anything.
-- [ ] Cases: what the tool said, what a human confirmed, what fixed it.
+- [x] **Cases + the loop that closes** — shipped (`core/knowledge/cases.py`).
+      `to_corpus()` produces exactly what `learn_cause_weights` consumes, so the
+      corpus can finally be GROWN by use instead of only imported from a CMMS
+      export. Verified by integration, not by shape.
+- [x] **Labels from the audit trail** (D22) — `case_from_audit()` reads what
+      someone actually DID after an incident: successful, high-risk actions only
+      (a read is looking, a failed write changed nothing). Zero extra typing,
+      because it already happened and was already recorded.
+- [x] **An audit inference is NOT a label.** The action is a recorded fact; what
+      it implies about the CAUSE is a guess, so it enters as `suggested` and
+      waits for a person — composing with the provenance model rather than
+      bypassing it.
+- [x] **Anchoring is measured, and high agreement is a WARNING** (HLD §12.10).
+      A person picking from our ranked list is a usable label but not an
+      independent one; enough of those and the weights converge on whatever the
+      tool already believed. Agreement is reported per capture mode, the
+      anchored share is reported separately, and >90% agreement over ≥20 cases
+      is flagged — on a real plant that more likely means the ranking is leading
+      the expert than that it is that accurate. `to_corpus(include_anchored=
+      False)` lets a site check whether its weights survive without them.
+- [ ] Human confirmation UI: one click among the ranked hypotheses, never a
+      free-text field. Dismissing an alert is a negative label, and those are
+      free.
 - [ ] **Labels from the audit trail, not from data entry** (D22). `~/.iaiops/
       audit.db` already records what a human changed, when, and who approved it;
       `undo.db` holds the prior state. The fix an engineer applied through the
