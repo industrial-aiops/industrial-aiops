@@ -70,8 +70,30 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
 - [ ] Wire `fins` into `monitor_read` — Omron is a conspicuous gap and
       `fins_read_words` / `fins_read_bits` already exist; it is a registration,
       not a build.
-- [ ] Retention and store growth: continuous collection turns the local store
-      from incidental into something with a lifecycle.
+- [x] **Retention** — shipped (`core/retain/`, `iaiops store status|prune`).
+      Measured first: three tags at 200ms is **2.0 GB a week and 102 GB a year**,
+      while the stop events derived from that same year come to about **3 MB**.
+      A factor of ~35,000, and the whole design: **raw samples have a lifetime,
+      derived facts do not**, so "what happened in March" stays answerable
+      without keeping March's samples.
+- [x] **You cannot prune data whose value has not been extracted.** A window is
+      prunable only once SEALED (derived facts computed); the effective cutoff is
+      the EARLIER of the policy and the seal. Without a seal watermark `--apply`
+      refuses outright — deleting an unsummarized window destroys the only record
+      of a period nobody has looked at.
+- [x] **A pruned period refuses rather than estimates.** `raw_available_from()`
+      says the raw data is gone and names the earliest that survives. Re-deriving
+      from fragments would look like a measurement and could flatter: prune the
+      samples covering a stoppage and availability goes UP.
+- [x] **`prune --apply` is a governed WRITE** (`_cli_apply_param`), audited at
+      `high` behind the approval gate. It touches no device but deletes history
+      permanently, and there is no undo for samples that no longer exist. The
+      write-classification contract was updated deliberately rather than
+      silently — which is what that test is for (D10).
+- [x] **`readiness` reports whether retention was DECIDED.** Optional, since a
+      default applies — but continuous collection without a stated policy is a
+      disk filling up on a schedule, and an unstated policy is a decision nobody
+      made.
 - [ ] Resume/backfill across process restarts (today a stopped run keeps what it
       collected, but a new run starts fresh).
 

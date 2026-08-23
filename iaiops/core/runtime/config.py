@@ -467,6 +467,10 @@ class AppConfig:
 
     targets: tuple[TargetConfig, ...] = ()
     historian: HistorianConfig | None = None
+    #: How long raw samples live. Unset means the default policy — recorded as a
+    #: real field so `readiness` can tell a site that continuous collection
+    #: without a retention decision is a disk filling up on a schedule.
+    retention_raw_days: int | None = None
 
     def get_target(self, name: str) -> TargetConfig:
         for t in self.targets:
@@ -673,7 +677,13 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     entries = raw.get("endpoints", raw.get("targets", []))
 
     targets = tuple(_parse_target(d) for d in entries)
-    return AppConfig(targets=targets, historian=_parse_historian(raw.get("historian")))
+    retention = raw.get("retention") or {}
+    raw_days = retention.get("raw_days") if isinstance(retention, dict) else None
+    return AppConfig(
+        targets=targets,
+        historian=_parse_historian(raw.get("historian")),
+        retention_raw_days=int(raw_days) if raw_days is not None else None,
+    )
 
 
 def load_config_env() -> AppConfig:
