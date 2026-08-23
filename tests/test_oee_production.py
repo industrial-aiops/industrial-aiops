@@ -33,8 +33,7 @@ pytestmark = pytest.mark.unit
 
 def series(*values, step_s=1):
     return [
-        {"ts": f"2026-08-01T00:00:{i * step_s:02d}+00:00", "value": v}
-        for i, v in enumerate(values)
+        {"ts": f"2026-08-01T00:00:{i * step_s:02d}+00:00", "value": v} for i, v in enumerate(values)
     ]
 
 
@@ -66,7 +65,7 @@ class TestAWrapDoesNotInventParts:
         assert result["produced"] == 6  # 3 before the wrap, 3 after
 
     def test_the_discontinuity_is_reported_not_absorbed(self):
-        """"Your counter was reset mid-shift" is something the reader needs."""
+        """ "Your counter was reset mid-shift" is something the reader needs."""
         result = count_production(series(65530, 65533, 2, 5))
         assert result["discontinuities"] == 1
         assert "reset" in result["note"].lower() or "wrap" in result["note"].lower()
@@ -103,9 +102,10 @@ class TestPerformance:
         assert "cycle" in result["note"].lower()
 
     def test_it_refuses_without_run_time(self):
-        assert performance_factor(produced=10, ideal_cycle_time_s=1.0, run_time_s=0)[
-            "performance"
-        ] is None
+        assert (
+            performance_factor(produced=10, ideal_cycle_time_s=1.0, run_time_s=0)["performance"]
+            is None
+        )
 
     def test_above_one_is_reported_raw_and_flagged(self):
         """Faster than the design cycle means the cycle time is wrong, or the
