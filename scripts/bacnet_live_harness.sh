@@ -21,7 +21,35 @@ fi
 BASE="$(ip -4 -o addr show dev "$IFACE" | awk '{print $4; exit}')"
 PRIMARY="${BASE%%/*}"
 MASK="${BASE##*/}"
-SECOND="${PRIMARY%.*}.$(( ${PRIMARY##*.} + 1 ))"
+# Pick the second address by 32-bit arithmetic, not by incrementing the last
+# octet. A runner whose primary address ends in .255 is perfectly ordinary on a
+# /20 — the broadcast there is 10.1.15.255, not 10.1.0.255 — and the naive
+# version produced "10.1.0.256", which is not an address at all. Intermittent by
+# nature: it depended entirely on which IP the runner happened to be given.
+ip_to_int() {
+  local IFS=. ; read -r a b c d <<< "$1" ; echo $(( (a<<24) + (b<<16) + (c<<8) + d ))
+}
+int_to_ip() {
+  echo "$(( ($1>>24) & 255 )).$(( ($1>>16) & 255 )).$(( ($1>>8) & 255 )).$(( $1 & 255 ))"
+}
+
+PRIMARY_INT="$(ip_to_int "$PRIMARY")"
+HOST_BITS=$(( 32 - MASK ))
+NET_INT=$(( PRIMARY_INT & ~((1 << HOST_BITS) - 1) & 0xFFFFFFFF ))
+BCAST_INT=$(( NET_INT | ((1 << HOST_BITS) - 1) ))
+
+# Step away from the primary, staying inside the subnet and off both the network
+# and broadcast addresses. Going up unless that would hit broadcast, in which
+# case go down — a /31 has nowhere to go and is rejected rather than fudged.
+SECOND_INT=$(( PRIMARY_INT + 1 ))
+if [ "$SECOND_INT" -ge "$BCAST_INT" ]; then
+  SECOND_INT=$(( PRIMARY_INT - 1 ))
+fi
+if [ "$SECOND_INT" -le "$NET_INT" ] || [ "$SECOND_INT" -ge "$BCAST_INT" ]; then
+  echo "No usable second address beside $PRIMARY/$MASK — the subnet is too small" >&2
+  exit 1
+fi
+SECOND="$(int_to_ip "$SECOND_INT")"
 
 echo "interface=$IFACE primary=$PRIMARY/$MASK second=$SECOND/$MASK"
 
