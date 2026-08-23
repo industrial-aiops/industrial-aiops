@@ -28,6 +28,25 @@ EndpointOption = Annotated[
 ]
 
 
+def humanize_seconds(seconds: float) -> str:
+    """A duration in the unit that makes it readable at its own scale.
+
+    A week-long run reads naturally in hours; a two-minute one does not, and
+    ``f"{s/3600:.1f}h"`` renders ten seconds of blind time as "0.0h" — true, and
+    misleading in the direction that makes a gap look like nothing.
+    """
+    seconds = max(0.0, float(seconds))
+    if seconds < 1:
+        return f"{seconds * 1000:.0f}ms"
+    if seconds < 90:
+        return f"{seconds:.0f}s"
+    if seconds < 5400:
+        return f"{seconds / 60:.1f}min"
+    if seconds < 172_800:
+        return f"{seconds / 3600:.1f}h"
+    return f"{seconds / 86_400:.1f}d"
+
+
 def _cli_error_types() -> tuple[type[BaseException], ...]:
     """Exceptions translated to a one-line teaching error instead of a traceback.
 

@@ -20,18 +20,9 @@ from pathlib import Path
 
 import typer
 
-from iaiops.cli._common import _emit, cli_errors, console
+from iaiops.cli._common import _emit, cli_errors, console, humanize_seconds
 
 oee_app = typer.Typer(help="OEE measured from collected history.")
-
-
-def _hms(seconds: float) -> str:
-    seconds = int(seconds)
-    if seconds < 60:
-        return f"{seconds}s"
-    if seconds < 3600:
-        return f"{seconds // 60}m{seconds % 60:02d}s"
-    return f"{seconds // 3600}h{(seconds % 3600) // 60:02d}m"
 
 
 @cli_errors
@@ -82,13 +73,14 @@ def oee_measure_cmd(
         console.print(f"  [bold]{pct:.2f}%[/] over {result['coverage_pct']:g}% coverage")
 
     console.print(
-        f"  running {_hms(result['running_s'])} · stopped {_hms(result['stopped_s'])} · "
-        f"[yellow]blind {_hms(result['unknown_s'])}[/]"
+        f"  running {humanize_seconds(result['running_s'])} · "
+        f"stopped {humanize_seconds(result['stopped_s'])} · "
+        f"[yellow]blind {humanize_seconds(result['unknown_s'])}[/]"
     )
     if result.get("minor_stops"):
         console.print(
             f"  [cyan]{result['minor_stops']} minor stoppage(s)[/] totalling "
-            f"{_hms(result['minor_stop_s'])} — under {minor_stop_s:g}s each, "
+            f"{humanize_seconds(result['minor_stop_s'])} — under {minor_stop_s:g}s each, "
             "the ones a manual tally cannot see"
         )
     console.print(f"\n[dim]{result['note']}[/]")
