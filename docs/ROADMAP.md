@@ -121,6 +121,25 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
       the resume output: twelve seconds of blind time printed as "0.0h", which is
       true and makes a real gap look like nothing.
 
+- [x] **One connection per RUN, not per sample** — shipped, and found by
+      pointing the collector at a real device. Per-call sessions are right for a
+      CLI command reading one register, and wrong for continuous collection:
+      measured at 500ms over two tags it opened **3.7 TCP connections a second**
+      (~110 sockets in TIME_WAIT), which is **1.8 million** across the week-long
+      assessment run. The client survives that; real Modbus devices commonly cap
+      connections in the single digits and some exhaust their socket table under
+      churn — so a week of reconnecting could take the line down while measuring
+      how often the line goes down.
+      **Verified on the real device: TIME_WAIT 110 → 0, ESTABLISHED → 1.**
+      Additive via a new `session_read` capability: a protocol without one keeps
+      the old behaviour rather than losing collection. `modbus` has it; the other
+      six are the follow-up.
+      ⚠️ The PLC-side risk is stated but UNTESTED here — a pymodbus server
+      tolerates churn that a real PLC may not.
+- [ ] `session_read` for the remaining collectable protocols (opcua, s7, mc,
+      fins, eip, ethernetip) — each is a thin read against an already-open
+      client, like the modbus one.
+
 ### Open — 2. OEE from configured tags
 
 - [x] **A semantic role on `MonitorTag`** — shipped. `role:` takes one of

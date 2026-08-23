@@ -17,6 +17,8 @@ the governance harness (high risk_tier, dry-run + double-confirm, undo capture).
 
 from __future__ import annotations
 
+from typing import Any
+
 from iaiops.connectors.bacnet import transport as _bacnet_tx
 from iaiops.connectors.eip import transport as _eip_tx
 from iaiops.connectors.ethercat import transport as _ethercat_tx
@@ -109,10 +111,24 @@ opcua_session = make_session(
     translate=_translate_opcua,
 )
 
+
+def _prepare_modbus(client: Any, target: Any, **_kwargs: Any) -> None:
+    """Carry the endpoint's unit id ON the client.
+
+    A session-scoped read gets a live client and nothing else, and Modbus needs a
+    unit id per request. Defaulting to 1 when it is missing would silently read a
+    DIFFERENT device on any site that uses another unit — returning plausible
+    values from the wrong place rather than an error. So the session attaches it
+    at open time, and the reader takes it from there rather than assuming.
+    """
+    client.iaiops_unit_id = int(getattr(target, "unit_id", 1) or 1)
+
+
 modbus_session = make_session(
     protocol="modbus",
     build=lambda target: _build_modbus_client(target),
     connect=_modbus_tx._connect_modbus,
+    prepare=_prepare_modbus,
     close=lambda client: client.close(),
     translate=_translate_modbus,
 )

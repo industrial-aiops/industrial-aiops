@@ -74,6 +74,12 @@ class ProtocolCapabilities:
     diagnose_connect: ProbeFn | _Unsupported
     read_ref: ReadRefFn | _Unsupported
     monitor_read: MonitorReadFn | _Unsupported
+    #: Read one point from an ALREADY-OPEN client. Lets continuous collection
+    #: hold one connection for a run instead of opening 1.8 million across a
+    #: week — real PLCs cap connections in the single digits and some exhaust
+    #: their socket table under churn. Absent means "reconnect per read", which
+    #: stays correct for one-shot CLI reads.
+    session_read: MonitorReadFn | _Unsupported
     session_builder: SessionBuilder | _Unsupported
 
 
@@ -302,6 +308,28 @@ def _monitor_modbus(t: Any, ref: str) -> tuple[Any, str]:
     return (r.get("decoded") or [None])[0], ""
 
 
+def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
+    """Read one holding register from an open pymodbus client.
+
+    Deliberately thin: the connection lifecycle belongs to the caller, so this
+    does nothing but the read. `device_id` comes off the client because the
+    session already resolved the target.
+    """
+    unit = getattr(client, "iaiops_unit_id", None)
+    if unit is None:
+        # Never assume 1: on a site using another unit that would read a
+        # DIFFERENT device and return a plausible value from the wrong place.
+        raise ValueError(
+            "This Modbus client carries no unit id, so a session-scoped read cannot "
+            "know which device to address. The session attaches it at open time — a "
+            "client built another way must do the same rather than defaulting."
+        )
+    resp = client.read_holding_registers(int(ref), count=1, device_id=int(unit))
+    if resp.isError():
+        raise OSError(f"Modbus read of {ref} failed: {resp}")
+    return (list(resp.registers) or [None])[0], ""
+
+
 def _monitor_s7(t: Any, ref: str) -> tuple[Any, str]:
     from iaiops.connectors.s7.ops import s7_read_many
 
@@ -359,6 +387,7 @@ def _caps(
     diagnose_connect: ProbeFn | _Unsupported = UNSUPPORTED,
     read_ref: ReadRefFn | _Unsupported = UNSUPPORTED,
     monitor_read: MonitorReadFn | _Unsupported = UNSUPPORTED,
+    session_read: MonitorReadFn | _Unsupported = UNSUPPORTED,
     session_builder: SessionBuilder | _Unsupported = UNSUPPORTED,
 ) -> ProtocolCapabilities:
     return ProtocolCapabilities(
@@ -368,6 +397,7 @@ def _caps(
         diagnose_connect=diagnose_connect,
         read_ref=read_ref,
         monitor_read=monitor_read,
+        session_read=session_read,
         session_builder=session_builder,
     )
 
@@ -388,6 +418,7 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         diagnose_connect=_connect_modbus,
         read_ref=_readref_modbus,
         monitor_read=_monitor_modbus,
+        session_read=_session_read_modbus,
         session_builder=_session("modbus_session"),
     ),
     "s7": _caps(
