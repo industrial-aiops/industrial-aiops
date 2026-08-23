@@ -47,6 +47,7 @@ GUARDED_PACKAGES = (
     "iaiops/core/runtime",
     "iaiops/core/readiness",
     "iaiops/core/collect",
+    "iaiops/core/knowledge",
     "iaiops/connectors",
 )
 

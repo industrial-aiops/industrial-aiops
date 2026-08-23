@@ -132,12 +132,28 @@ nobody else has them.
 
 Design in HLD §12. It must not gate the product's day-one value.
 
-- [ ] The store itself, following `baseline_store` / `alias_store` conventions
-      (JSON, 0600, atomic temp+replace, never a device write): structure,
-      baselines, cases, weights, signatures.
-- [ ] **Every fact tagged `declared` / `derived` / `suggested`** (D23). A
-      `suggested` fact used as if `declared` turns RCA confidently wrong, which
-      is worse than no answer.
+- [x] **The store and the provenance model** — shipped (`core/knowledge/`).
+      One JSON file per site under the iaiops home, 0600, atomic temp+replace,
+      never a device write — the `alias_store` conventions rather than a second
+      scheme. Written human-readable (`ensure_ascii=False`, sorted keys) on
+      purpose: this file is a tool's accumulated opinion about someone's
+      factory, and if they cannot open it and see a relationship marked
+      `suggested`, the guarantee exists only inside the process that wrote it.
+- [x] **Every fact tagged `declared` / `derived` / `suggested`** (D23), and
+      `suggested` is **withheld from reasoning** — withheld, not hidden:
+      suggestions are the review queue. Promotion happens by a human confirming
+      and by nothing else: no threshold, no accumulated agreement, no
+      self-promotion after n sightings, each of which would be a way for the
+      system to talk itself into believing its own guess. Confirmation records
+      WHO and what the fact was BEFORE, so it can be reviewed or withdrawn.
+- [x] **`derived` must show its evidence** — a derived fact nobody can check is
+      a suggestion wearing a better label.
+- [x] **Conflicts are reported, never averaged.** Higher trust supersedes lower;
+      two `declared` facts that disagree raise, naming both values. Two humans
+      contradicting each other is for a person to settle.
+- [x] A site with no knowledge yet loads **empty rather than failing** — D20 in
+      code: the product must work before the base has accumulated anything.
+- [ ] Cases: what the tool said, what a human confirmed, what fixed it.
 - [ ] **Labels from the audit trail, not from data entry** (D22). `~/.iaiops/
       audit.db` already records what a human changed, when, and who approved it;
       `undo.db` holds the prior state. The fix an engineer applied through the
