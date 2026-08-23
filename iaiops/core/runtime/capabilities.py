@@ -316,6 +316,12 @@ def _monitor_mc(t: Any, ref: str) -> tuple[Any, str]:
     return (words[0] if words else None), ""
 
 
+def _monitor_fins(t: Any, ref: str) -> tuple[Any, str]:
+    from iaiops.connectors.fins.ops import fins_read_ref
+
+    return fins_read_ref(t, ref)
+
+
 def _monitor_eip(t: Any, ref: str) -> tuple[Any, str]:
     from iaiops.connectors.eip.ops import eip_read_tag
 
@@ -403,6 +409,7 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
     "fins": _caps(
         _where_fins,
         doctor_probe=_probe_fins,
+        monitor_read=_monitor_fins,
         session_builder=_session("fins_session"),
     ),
     "mtconnect": _caps(

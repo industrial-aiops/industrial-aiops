@@ -14,9 +14,11 @@ run through dry-run + double-confirm. 未经授权勿对生产控制系统写入
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from typing import Any
 
-from iaiops.connectors.fins.client import resolve_area
+from iaiops.connectors.fins.client import MEMORY_AREAS, resolve_area
 from iaiops.core.brain._shared import s
 from iaiops.core.runtime.connection import OTConnectionError, fins_session
 
@@ -174,7 +176,80 @@ def fins_write_words(
     }
 
 
+# ─── single-point reference (for scheduled sampling) ────────────────────────
+
+_REF = re.compile(r"^([A-Za-z]+)\s*(\d+)(?:\.(\d+))?$")
+
+
+@dataclass(frozen=True)
+class FinsRef:
+    """One FINS point: an area, a word address, and optionally a bit."""
+
+    area: str
+    address: int
+    bit: int | None = None
+
+
+def parse_fins_ref(ref: str) -> FinsRef:
+    """``"DM100"`` / ``"CIO0.05"`` → a resolved point. Refuses rather than guesses.
+
+    A FINS reference is area-qualified and the areas are different memory:
+    ``DM100`` and ``CIO100`` hold different values in different places. A bare
+    ``100`` cannot be resolved into either without inventing an answer, and
+    assuming "probably DM" would return readings from the wrong area that look
+    entirely plausible — so it is refused, with the areas named.
+    """
+    text = str(ref or "").strip().replace(" ", "")
+    match = _REF.match(text)
+    if not match:
+        raise ValueError(
+            f"FINS reference {ref!r} needs an AREA and an address, e.g. 'DM100' or "
+            f"'CIO0.05'. Areas: {', '.join(MEMORY_AREAS)}. A bare number cannot be "
+            "resolved — DM100 and CIO100 are different memory, and picking one would "
+            "read a plausible value from the wrong place."
+        )
+    area = match.group(1).upper()
+    address = int(match.group(2))
+    bit = int(match.group(3)) if match.group(3) is not None else None
+
+    # resolve_area raises a teaching error for an unknown area, and for a bit
+    # request against an area with no bit code (EM) — reading the whole word
+    # instead would return a number where a boolean was asked for.
+    resolve_area(area, bit_access=bit is not None)
+
+    if bit is not None and bit > 15:
+        raise ValueError(
+            f"FINS reference {ref!r}: bit {bit} is out of range — a word holds bits 0-15."
+        )
+    return FinsRef(area=area, address=address, bit=bit)
+
+
+def fins_read_ref(target: Any, ref: str) -> tuple[Any, str]:
+    """[READ] One point by reference → ``(value, source_timestamp)``.
+
+    The single-point shape the capability registry needs for scheduled sampling;
+    the area/address split stays where the protocol knowledge is.
+    """
+    point = parse_fins_ref(ref)
+    if point.bit is None:
+        words = (
+            fins_read_words(target, area=point.area, address=point.address, count=1).get("words")
+            or []
+        )
+        return (words[0] if words else None), ""
+    bits = (
+        fins_read_bits(target, area=point.area, address=point.address, bit=point.bit, count=1).get(
+            "bits"
+        )
+        or []
+    )
+    return (bits[0] if bits else None), ""
+
+
 __all__ = [
+    "FinsRef",
+    "parse_fins_ref",
+    "fins_read_ref",
     "OTConnectionError",
     "fins_cpu_info",
     "fins_cpu_status",
