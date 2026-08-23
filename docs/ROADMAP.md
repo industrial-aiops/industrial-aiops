@@ -67,9 +67,16 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
 - [x] **`readiness` now answers "can this endpoint be sampled at all"**, and OEE
       depends on it. Protocols without a point-read path are reported as a
       protocol property, not a configuration mistake.
-- [ ] Wire `fins` into `monitor_read` — Omron is a conspicuous gap and
-      `fins_read_words` / `fins_read_bits` already exist; it is a registration,
-      not a build.
+- [x] **`fins` is collectable** — shipped. Omron is not a corner case in Asian
+      plants, and it was absent purely because nothing mapped a single point
+      reference onto the existing `fins_read_words` / `fins_read_bits`.
+      **Collectable: 7 of 15** (opcua, modbus, s7, mc, eip, ethernetip, fins).
+- [x] `parse_fins_ref` refuses rather than guesses. A FINS reference is
+      area-qualified and the areas are different memory — `DM100` and `CIO100`
+      hold different values in different places — so a bare `100` is refused with
+      every area named. Assuming "probably DM" would return a plausible reading
+      from the wrong place. Bits are checked against the area's bit code (`EM`
+      has none) and against the 0-15 range.
 - [x] **Retention** — shipped (`core/retain/`, `iaiops store status|prune`).
       Measured first: three tags at 200ms is **2.0 GB a week and 102 GB a year**,
       while the stop events derived from that same year come to about **3 MB**.
