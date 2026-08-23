@@ -106,6 +106,7 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
             None,
         ),
         "monitored_tags": monitored,
+        "retention_raw_days": getattr(config, "retention_raw_days", None) if config else None,
         "historian": bool(historian),
         "historian_reader": str(getattr(historian, "reader", "")) if historian else "",
         "store": coverage,
@@ -147,6 +148,39 @@ def _collectable_req(facts: dict[str, Any]) -> Requirement:
             "Continuous collection needs a protocol with a point-read path. "
             f"Available today: {', '.join(collectable_protocols())}."
         ),
+    )
+
+
+def _retention_req(facts: dict[str, Any]) -> Requirement:
+    """Whether this site has decided how long raw samples live.
+
+    Measured on this codebase: three tags at 200ms is 2.0 GB a week and 102 GB a
+    year. Continuous collection WITHOUT a retention decision is a disk filling up
+    on a schedule, and the site finds out months in, usually at the worst moment.
+
+    Optional rather than blocking: a default policy applies, so collection still
+    works. But an unstated policy is a decision nobody made, and this says so.
+    """
+    from iaiops.core.retain.policy import DEFAULT_RAW_DAYS
+
+    days = facts.get("retention_raw_days")
+    return Requirement(
+        key="retention",
+        label="a retention decision for raw samples",
+        met=days is not None,
+        detail=(
+            f"raw samples kept {days} days"
+            if days is not None
+            else f"not declared — the {DEFAULT_RAW_DAYS}-day default applies"
+        ),
+        fix=(
+            "Add a `retention:` block with `raw_days:` to config.yaml. Three tags at "
+            "200ms is about 2 GB a week, so continuous collection without a stated "
+            "policy fills a disk on a schedule. Derived facts (stoppages, per-shift "
+            "figures) never expire — they are ~35,000x smaller and are what answers "
+            "about a period whose raw data is gone."
+        ),
+        optional=True,
     )
 
 

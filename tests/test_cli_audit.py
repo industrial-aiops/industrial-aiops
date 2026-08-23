@@ -133,8 +133,16 @@ def test_real_write_is_high_and_approver_gated_and_body_does_not_run():
 
 
 def test_write_commands_are_classified_as_writes():
-    """The seven CLI write commands (six unique function names) carry the effect-
-    based write marker, so their real ``--apply`` path is approver-gated."""
+    """Every CLI command whose ``--apply`` path is irreversible carries the
+    effect-based write marker, so that path is approver-gated.
+
+    The set is spelled out rather than counted: a new command joining it is a
+    governance decision, and this test exists to make that decision explicit
+    instead of letting one arrive unnoticed (D10).
+
+    ``store_prune_cmd`` is here despite touching no device. It deletes collected
+    history permanently — there is no undo for samples that no longer exist — so
+    it belongs on the same footing as a register write."""
     writes = {
         cmd.callback.__name__
         for cmd in _all_commands(app)
@@ -147,6 +155,7 @@ def test_write_commands_are_classified_as_writes():
         "write_tag_cmd",
         "write_words_cmd",  # mc + fins share the name
         "publish_cmd",
+        "store_prune_cmd",  # deletes history irreversibly; no device involved
     }
 
 

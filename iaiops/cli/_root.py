@@ -36,6 +36,7 @@ from iaiops.cli.readiness import readiness_cmd
 from iaiops.cli.s7 import s7_app
 from iaiops.cli.scan import scan_app
 from iaiops.cli.secret import secret_app
+from iaiops.cli.store import store_app
 
 app = typer.Typer(
     name="iaiops",
@@ -78,6 +79,7 @@ app.command("doctor")(doctor_cmd)
 app.command("readiness")(readiness_cmd)
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
+app.add_typer(store_app, name="store")
 app.add_typer(compliance_app, name="compliance")
 app.add_typer(scan_app, name="scan")
 
