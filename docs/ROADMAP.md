@@ -163,9 +163,23 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
       measurement yields no gap, and a measurement ABOVE the reported figure is
       stated as plainly as one below. Hiding the second would make the first
       suspect.
-- [ ] Performance and Quality factors from `total_count` / `good_count` +
-      `ideal_cycle_time_s` — Availability alone already carries the headline, so
-      this completes the figure rather than unlocking it.
+- [x] **Performance and Quality** — shipped (`core/brain/oee_production.py`).
+      Each factor is reported only when its inputs were DECLARED; a partial OEE
+      that names what is missing beats a whole one with a guess inside it.
+- [x] **A counter wrap must not become production.** A PLC counter goes up until
+      it wraps or someone resets it, and both look identical in the samples
+      (65000 → 3). `max - min` across a wrap credits ~65,000 phantom parts,
+      sending Performance and OEE through the roof — flattering, and unquestioned
+      because the counter really did read those values. So: sum the POSITIVE
+      deltas and report the discontinuities. A wrap loses the partial increment
+      before the rollover, **against us**, and nothing is invented either way.
+- [x] Performance above 100% keeps its raw value and warns — faster than the
+      design cycle means the cycle time or the count is wrong, and clamping
+      silently would hide the bad input. `good > total` is refused rather than
+      clamped, for the same reason: it means the wrong tag is in a role.
+- [x] Verified against injected ground truth: Availability 83.5% (expected
+      83.3), Performance 49.3% (expected 50), Quality 81.1% (expected 80), and
+      the mid-run rollover reported as a discontinuity rather than 65,000 parts.
 - [ ] Wire `six_big_losses()` to the same derived inputs.
 
 **Do not enter as "OEE software"** (D27) — Evocon, Fabrico, Symestic, TEEPTRAK,

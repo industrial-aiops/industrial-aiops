@@ -43,6 +43,11 @@ def oee_measure_cmd(
     means running is process knowledge, not something to infer from the data.
     """
     from iaiops.core.brain.oee_measure import compare_to_reported, measure_availability
+    from iaiops.core.brain.oee_production import (
+        count_production,
+        performance_factor,
+        quality_factor,
+    )
     from iaiops.core.runtime.config import TagRole, load_config
     from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
@@ -60,8 +65,48 @@ def oee_measure_cmd(
     result = measure_availability(rows, tag, minor_stop_s=minor_stop_s)
     comparison = compare_to_reported(result, reported) if reported is not None else None
 
+    # The other two factors, each reported only when its inputs were DECLARED.
+    # A partial OEE that says which parts are missing beats a whole one with a
+    # guess inside it.
+    def _count_for(role: str):
+        found = [t for t in (getattr(target, "tags", ()) or ()) if t.role == role]
+        if not found:
+            return None
+        counted = count_production(
+            query_samples(SampleFilter(tag=found[0].ref, limit=200_000), db_path=db)
+        )
+        return counted if counted["status"] == "ok" else None
+
+    totals = _count_for(TagRole.TOTAL_COUNT)
+    goods = _count_for(TagRole.GOOD_COUNT)
+    produced = totals["produced"] if totals else 0.0
+    perf = performance_factor(
+        produced=produced,
+        ideal_cycle_time_s=getattr(target, "ideal_cycle_time_s", None),
+        run_time_s=result.get("running_s", 0.0),
+    )
+    qual = quality_factor(total=produced, good=goods["produced"] if goods else None)
+
+    factors = {
+        "availability": result.get("availability"),
+        "performance": perf["performance"],
+        "quality": qual["quality"],
+    }
+    known = [v for v in factors.values() if v is not None]
+    oee = round(known[0] * known[1] * known[2], 4) if len(known) == 3 else None
+
     if as_json:
-        _emit({"measured": result, "comparison": comparison})
+        _emit(
+            {
+                "measured": result,
+                "comparison": comparison,
+                "production": totals,
+                "performance": perf,
+                "quality": qual,
+                "factors": factors,
+                "oee": oee,
+            }
+        )
         return
 
     console.print(f"\n[bold]Availability[/] — {endpoint} · tag {tag.ref}\n")
@@ -84,6 +129,40 @@ def oee_measure_cmd(
             "the ones a manual tally cannot see"
         )
     console.print(f"\n[dim]{result['note']}[/]")
+
+    if totals:
+        console.print(
+            f"\n[bold]Production[/] — {totals['produced']:,.0f} parts"
+            + (
+                f" · [yellow]{totals['discontinuities']} counter discontinuity(ies)[/]"
+                if totals["discontinuities"]
+                else ""
+            )
+        )
+        if totals["discontinuities"]:
+            console.print(f"  [dim]{totals['note']}[/]")
+
+    console.print("\n[bold]OEE factors[/]")
+    for name, value, note in (
+        ("Availability", factors["availability"], result.get("note", "")),
+        ("Performance", factors["performance"], perf["note"]),
+        ("Quality", factors["quality"], qual["note"]),
+    ):
+        if value is None:
+            console.print(f"  {name:13} [dim]not reported[/] — {note}")
+        else:
+            console.print(f"  {name:13} [bold]{value:.1%}[/]")
+    if perf.get("warning"):
+        console.print(f"  [yellow]{perf['warning']}[/]")
+
+    if oee is not None:
+        console.print(f"\n  [bold]OEE {oee:.1%}[/]  (A x P x Q)")
+    else:
+        missing = [n for n, v in factors.items() if v is None]
+        console.print(
+            f"\n  [dim]No single OEE figure: {', '.join(missing)} not measurable here. "
+            "Reporting the factors that ARE measured beats multiplying in a guess.[/]"
+        )
 
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
