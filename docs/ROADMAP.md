@@ -233,9 +233,28 @@ Design in HLD §12. It must not gate the product's day-one value.
       is flagged — on a real plant that more likely means the ranking is leading
       the expert than that it is that accurate. `to_corpus(include_anchored=
       False)` lets a site check whether its weights survive without them.
-- [ ] Human confirmation UI: one click among the ranked hypotheses, never a
-      free-text field. Dismissing an alert is a negative label, and those are
-      free.
+- [x] **The confirmation loop has an entrance** — shipped
+      (`core/knowledge/case_store.py`, `iaiops case`). #173 built cases, capture
+      modes and the corpus, but nothing could CREATE a case, so the loop had no
+      way in. `case open` turns a stoppage into a case carrying what we ranked
+      AND what someone did afterwards, straight from the audit trail at zero
+      typing cost.
+- [x] **One choice among the causes, never a text box.** `--cause` must be in
+      `LEARNABLE_CAUSES`; anything else is refused with the vocabulary listed.
+      Free text is why an imported CMMS corpus needs synonym mapping and still
+      arrives full of "Fixed it" — a label captured here speaks the learner's own
+      language, which is most of its advantage over a work order.
+- [x] **The capture mode is DERIVED, never declared by the answerer**
+      (`confirm_case` has no `capture` parameter). Whether an answer was anchored
+      depends on whether we had already suggested it. Letting anyone mark their
+      own answer "stated" would defeat the anchoring guard silently — the
+      agreement rate would still look healthy while the weights drifted toward
+      what the tool already believed.
+- [x] **A dismissal is a label too, and free.** `iaiops case dismiss` costs one
+      keystroke, never trains the weights, and leaves the pending queue.
+- [x] `iaiops case agreement` surfaces the anchoring measurement, and the
+      loop was verified end to end: 3 cases → 2 trainable → `learn_cause_weights`
+      consumed them; 1 remained when anchored labels were excluded.
 - [ ] **Labels from the audit trail, not from data entry** (D22). `~/.iaiops/
       audit.db` already records what a human changed, when, and who approved it;
       `undo.db` holds the prior state. The fix an engineer applied through the
