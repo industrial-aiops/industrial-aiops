@@ -52,4 +52,35 @@ def read_point(target: Any, ref: str) -> tuple[Any, str]:
     return reader(target, ref)
 
 
-__all__ = ["read_point", "can_collect", "collectable_protocols"]
+def session_read_for(protocol: str):
+    """The session-scoped read for ``protocol``, or ``None``.
+
+    ``None`` is not a failure — it means this protocol reconnects per read, which
+    is what every protocol did before and what one-shot CLI reads still want.
+    Collection simply does not get to hold a connection for it.
+    """
+    from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
+
+    cap = get_capabilities(str(protocol or ""))
+    if not cap or cap.session_read is UNSUPPORTED:
+        return None
+    return cap.session_read
+
+
+def session_builder_for(protocol: str):
+    """The session opener for ``protocol``, or ``None`` when it has none."""
+    from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
+
+    cap = get_capabilities(str(protocol or ""))
+    if not cap or cap.session_builder is UNSUPPORTED:
+        return None
+    return cap.session_builder
+
+
+__all__ = [
+    "read_point",
+    "can_collect",
+    "collectable_protocols",
+    "session_read_for",
+    "session_builder_for",
+]

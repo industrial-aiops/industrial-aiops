@@ -86,7 +86,12 @@ def script(total_s: float) -> list[tuple[float, int, str]]:
     ]
 
 
-def drive(port: int, duration_s: float, host: str = "127.0.0.1") -> None:
+def drive(
+    port: int,
+    duration_s: float,
+    host: str = "127.0.0.1",
+    counter_start: int = 0,
+) -> None:
     """Change the run-state register over Modbus, as a PLC program would.
 
     Reconnects silently: the server is expected to disappear part-way through,
@@ -97,7 +102,7 @@ def drive(port: int, duration_s: float, host: str = "127.0.0.1") -> None:
 
     steps = script(duration_s)
     started = time.monotonic()
-    counter = 0
+    counter = int(counter_start)
     index = 0
     last = ""
     client = ModbusTcpClient(host, port=port, timeout=1)
@@ -138,8 +143,15 @@ if __name__ == "__main__":
         "Modbus server does not belong on a shared network.",
     )
     ap.add_argument("--host", default="127.0.0.1", help="Where the driver writes.")
+    ap.add_argument(
+        "--counter-start",
+        type=int,
+        default=0,
+        help="Initial production count. Start near 65535 to exercise a real rollover — "
+        "the case that turns max-minus-min into 65,000 phantom parts.",
+    )
     args = ap.parse_args()
     if args.mode == "serve":
         serve(args.port, args.bind)
     else:
-        drive(args.port, args.duration, args.host)
+        drive(args.port, args.duration, args.host, args.counter_start)
