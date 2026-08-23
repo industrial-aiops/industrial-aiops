@@ -94,8 +94,25 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
       default applies — but continuous collection without a stated policy is a
       disk filling up on a schedule, and an unstated policy is a decision nobody
       made.
-- [ ] Resume/backfill across process restarts (today a stopped run keeps what it
-      collected, but a new run starts fresh).
+- [x] **Resume across interruptions** — shipped (`core/collect/session.py`,
+      `collect run --resume`). The assessment run IS the deployment strategy
+      (D21), and a week-long run that cannot survive a closed lid is not a
+      week-long run.
+- [x] **The time between stopping and resuming is a BLIND WINDOW**, exactly like
+      a dropped connection. Stitching the halves into one continuous series would
+      manufacture a measurement over a window nobody observed — and in the usual
+      direction, since a stoppage that happened while we were away simply
+      disappears and availability goes up.
+- [x] **The deadline is the ORIGINAL end time**, never extended by a pause.
+      "Collect for a week" means a week of the plant's operation, not a week of
+      our uptime; pausing for twelve hours means six and a half days were
+      covered. Extending the finish line until the sample count looked
+      respectable would be measuring until the answer is convenient.
+- [x] A resume reuses the ORIGINAL plan — resuming with a different interval
+      would produce a series whose resolution changes half-way through.
+- [x] Durations render at their own scale (`humanize_seconds`). Found by reading
+      the resume output: twelve seconds of blind time printed as "0.0h", which is
+      true and makes a real gap look like nothing.
 
 ### Open — 2. OEE from configured tags
 

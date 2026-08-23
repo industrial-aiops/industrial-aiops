@@ -13,11 +13,13 @@ the same posture as ``scan plan``. Evidence before permissions (D21).
 from __future__ import annotations
 
 import signal
+from dataclasses import replace
+from datetime import UTC
 from pathlib import Path
 
 import typer
 
-from iaiops.cli._common import _emit, cli_errors, console
+from iaiops.cli._common import _emit, cli_errors, console, humanize_seconds
 
 collect_app = typer.Typer(help="Bounded collection runs — fill the local store for OEE.")
 
@@ -89,6 +91,9 @@ def collect_run_cmd(
     tags: str = typer.Option("", "--tags", help="Comma-separated refs (default: the endpoint's)."),
     interval_ms: int = typer.Option(1000, "--interval-ms"),
     db: Path = typer.Option(None, "--db", help="Local store (default: the iaiops store)."),
+    resume: bool = typer.Option(
+        False, "--resume", help="Continue an interrupted run instead of starting over."
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Run a bounded collection, then report what it saw AND what it missed.
@@ -96,10 +101,45 @@ def collect_run_cmd(
     Ctrl-C stops it cleanly and keeps everything collected so far — interrupting
     an assessment must not throw away the days you already have.
     """
+    from datetime import datetime
+
     from iaiops.core.collect.reader import read_point
     from iaiops.core.collect.runner import run_collection
+    from iaiops.core.collect.session import (
+        Session,
+        find_resumable,
+        save_session,
+    )
+    from iaiops.core.runtime.config import load_config
 
-    plan, target = _build_plan(endpoint, tags, duration, interval_ms)
+    now = datetime.now(UTC)
+    session = find_resumable(endpoint, now=now) if resume else None
+    if resume and session is None:
+        console.print(
+            f"[yellow]No interrupted run for {endpoint!r} with time left — starting a new one.[/]"
+        )
+
+    if session is not None:
+        # The ORIGINAL terms, not fresh ones: resuming with a different interval
+        # would produce a series whose resolution changes half-way through.
+        plan = session.plan
+        target = load_config().get_target(endpoint)
+        session = session.resumed_at(now.isoformat())
+        remaining = session.remaining_s(now)
+        console.print(
+            f"[bold]Resuming[/] {session.run_id} — {humanize_seconds(remaining)} left of "
+            f"the original window; {humanize_seconds(session.blind_s)} blind so far."
+        )
+        plan = replace(plan, duration_s=int(remaining))
+    else:
+        plan, target = _build_plan(endpoint, tags, duration, interval_ms)
+        session = Session(
+            run_id=f"{endpoint}-{now.strftime('%Y%m%dT%H%M%S')}",
+            plan=plan,
+            started_at=now.isoformat(),
+        )
+    save_session(session)
+
     stopping = {"flag": False}
 
     def _handle(_signum, _frame):
@@ -117,6 +157,14 @@ def collect_run_cmd(
         )
     finally:
         signal.signal(signal.SIGINT, previous)
+
+    ended = datetime.now(UTC)
+    if result.stopped_because == "duration_reached" and session.remaining_s(ended) <= 1.0:
+        save_session(session.completed())
+    else:
+        # Paused, not finished. The clock keeps running on the plant, so the time
+        # from here until a resume is blind — recorded now so it cannot be lost.
+        save_session(session.paused_at(ended.isoformat()))
 
     if as_json:
         _emit(result.as_dict())
@@ -138,6 +186,17 @@ def collect_run_cmd(
             "Treating them as stoppages would overstate losses.[/]"
         )
     console.print(f"[dim]{plan.resolution_note}[/]")
+    if session.gaps:
+        console.print(
+            f"\n[yellow]This run was interrupted {len(session.gaps)} time(s), "
+            f"{humanize_seconds(session.blind_s)} blind in total.[/] "
+            "[dim]The line kept running and was not observed — that time is excluded "
+            "from any figure rather than counted as downtime.[/]"
+        )
+    if not session.is_finished(ended):
+        console.print(
+            f"[dim]Window not finished — resume with `iaiops collect run {endpoint} --resume`.[/]"
+        )
 
 
 collect_app.command("plan")(collect_plan_cmd)
