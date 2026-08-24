@@ -415,7 +415,8 @@ class HistorianConfig:
           host: 10.0.0.20           # TSDB readers only
           port: 6030
           user: root
-          database: iaiops          # TDengine db / IoTDB storage group / sqlite path
+          database: iaiops          # TDengine db (IoTDB needs the root. prefix:
+                                    #   database: root.iaiops)
           db_path: ~/.iaiops/data.db   # sqlite reader only (optional override)
           transport: rest           # TDengine wire: native | rest | ws
 
@@ -455,6 +456,16 @@ class HistorianConfig:
             raise ValueError(
                 f"historian.reader '{self.reader}' is unsupported. Supported: "
                 f"{', '.join(SUPPORTED_HISTORIAN_READERS)}."
+            )
+        if self.reader == "iotdb" and self.database and not self.database.startswith("root."):
+            # Every IoTDB path starts at `root.`, so this is an unambiguous config
+            # mistake, not a preference — and refusing it here is the only place it
+            # can still be pointed at the config line. Left to run, the server
+            # answers with a SQL parse error naming OUR generated statement, which
+            # tells the operator nothing about the file they typed.
+            raise ValueError(
+                f"historian.database '{self.database}' is not an IoTDB path — every "
+                f"IoTDB path starts at the root node. Use 'root.{self.database}'."
             )
 
     def password(self) -> str:

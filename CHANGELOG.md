@@ -26,6 +26,22 @@
   path rather than saying nothing had been stored. "That id is not here" and
   "nothing has ever been stored" are different problems and someone typing an id
   from memory on a fresh machine needs the second answer.
+- **A configured IoTDB historian was documented with a database name IoTDB
+  cannot accept.** `HistorianConfig`'s own docstring said `database: iaiops`;
+  every IoTDB path starts at `root.`, so following our documentation produced a
+  server-side SQL parse error naming *our* generated statement. The config now
+  refuses a non-rooted path and names the fix (`root.iaiops`) while the operator
+  is still looking at the file they typed.
+- **Every historian failure escaped as a traceback.** The TSDB client libraries
+  raise their own exception types (taospy's `ProgrammingError`, IoTDB's thrift
+  `StatementExecutionException`), which are neither `ValueError` nor `OSError`,
+  so nothing in the CLI's error harness recognised them: an unreachable server
+  or a dropped database produced 111 lines of stack trace with our SQL in it.
+  Both readers now translate client failures into one `SinkError` teaching line,
+  and `cli_errors` catches that family. Found by pointing a `config.yaml` at a
+  live Apache IoTDB and running `iaiops historian coverage` — every existing test
+  either mocks the reader or constructs it directly with keyword arguments, so
+  the path a customer takes had never run.
 
 
 ## 0.22.0 — 2026-08-02
