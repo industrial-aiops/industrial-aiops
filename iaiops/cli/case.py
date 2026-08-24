@@ -18,9 +18,22 @@ what keeps the anchoring measurement honest.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
-from iaiops.cli._common import _emit, cli_errors, console
+from iaiops.cli._common import (
+    _emit,
+    cli_errors,
+    console,
+    humanize_seconds,
+    run_state_samples,
+)
+
+#: How many audit rows to scan for post-incident actions. The engine returns
+#: newest first, so this bounds the lookback rather than truncating the answer
+#: at the wrong end.
+AUDIT_ROWS_SCANNED = 2000
 
 case_app = typer.Typer(help="Incidents awaiting a cause, and the one-choice answer.")
 
@@ -43,13 +56,14 @@ def case_list_cmd(
     if not cases:
         console.print(
             f"\n[dim]No {'pending ' if pending else ''}cases for site {site!r}. "
-            "Cases are opened from detected stoppages.[/]"
+            "Open them from the stoppages already in the collected history: "
+            "`iaiops case open <endpoint>`.[/]"
         )
         return
 
     console.print(f"\n[bold]{len(cases)} case(s)[/] — site {site}\n")
     for case in cases:
-        state = case.label or ("dismissed" if "dismissed" in case.note.lower() else "awaiting")
+        state = case.label or ("dismissed" if case.answered else "awaiting")
         console.print(f"  [bold]{case.incident_id}[/]  {case.when[:19]}  → {state}")
         if case.ranked:
             console.print(f"     [dim]we ranked: {', '.join(case.ranked)}[/]")
@@ -61,6 +75,108 @@ def case_list_cmd(
     console.print(
         "\n[dim]Confirm with `iaiops case confirm <id> --cause <cause> --by <you>`, "
         "or `iaiops case dismiss <id> --by <you>` if it was not an incident.[/]"
+    )
+
+
+#: A stoppage shorter than this opens no case. A week of 500ms sampling contains
+#: thousands of micro-stops and nobody is going to explain them one by one; the
+#: minor ones are what the OEE figure is for, the long ones are what a person can
+#: still remember. Overridable, because "long" is a per-line judgement.
+DEFAULT_CASE_MIN_STOP_S = 300.0
+
+#: How far after a stoppage to look for the actions someone took. An hour is the
+#: window ``case_from_audit`` itself defaults to.
+FIX_WINDOW_S = 3600.0
+
+
+@cli_errors
+def case_open_cmd(
+    endpoint: str = typer.Argument(..., help="Configured endpoint name."),
+    site: str = typer.Option(DEFAULT_SITE, "--site"),
+    min_stop_s: float = typer.Option(
+        DEFAULT_CASE_MIN_STOP_S, "--min-stop-s", help="Stoppages shorter than this open no case."
+    ),
+    db: Path = typer.Option(None, "--db", help="Local store (default: the iaiops store)."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Open a case for each long stoppage found in the collected history.
+
+    This is the entrance the learning loop was missing. `case list` already said
+    "cases are opened from detected stoppages" — and nothing opened one, so the
+    empty list read as "you have had no stoppages" rather than "nothing here ever
+    creates a case", and the corpus could never grow at a real site.
+
+    Each case carries what someone DID afterwards, taken from the audit trail —
+    zero extra typing, because those actions were already recorded. It carries no
+    label: what an action implies about the cause is for a person to say.
+
+    Re-running is safe. A case id is derived from the endpoint and the onset, so
+    the same stoppage re-opens as the same case rather than a duplicate, and one
+    already answered keeps its answer.
+    """
+    from iaiops.core.brain.oee_measure import measure_availability
+    from iaiops.core.governance.audit import get_engine
+    from iaiops.core.knowledge.case_store import list_cases, open_case
+
+    tag, samples = run_state_samples(endpoint, db)
+    measured = measure_availability(samples, tag, minor_stop_s=min_stop_s)
+    if measured["status"] not in ("ok", "insufficient_coverage"):
+        console.print(f"\n[yellow]No cases opened ({measured['status']}).[/]")
+        console.print(f"[dim]{measured['note']}[/]\n")
+        return
+
+    long_stops = [w for w in measured["stop_windows"] if not w["minor"]]
+    answered = {c.incident_id for c in list_cases(site) if c.answered}
+    audit_rows = get_engine().query(limit=AUDIT_ROWS_SCANNED)
+
+    opened, kept = [], 0
+    for window in long_stops:
+        case = open_case(
+            site,
+            endpoint,
+            window["onset"],
+            ranked=(),
+            audit_rows=audit_rows,
+            base_dir=None,
+        )
+        # `open_case` returns an answered case untouched, so this only decides
+        # what to PRINT. The protection is in the store, where every caller gets
+        # it — this counter reporting "already answered" was true here while the
+        # answer had already been overwritten, which is how the defect hid.
+        if case.incident_id in answered:
+            kept += 1
+        else:
+            opened.append((case, window))
+
+    if as_json:
+        _emit(
+            {
+                "endpoint": endpoint,
+                "site": site,
+                "stoppages_found": len(measured["stop_windows"]),
+                "long_stoppages": len(long_stops),
+                "opened": [c.as_fact().as_dict() for c, _ in opened],
+                "already_answered": kept,
+                "min_stop_s": min_stop_s,
+            }
+        )
+        return
+
+    console.print(
+        f"\n[bold]{len(opened)} case(s) opened[/] — {endpoint} · site {site}"
+        + (f" · {kept} already answered" if kept else "")
+    )
+    for case, window in opened:
+        console.print(
+            f"  [bold]{case.incident_id}[/]  {window['onset'][:19]}  "
+            f"stopped {humanize_seconds(window['duration_s'])}"
+            + (f" · {len(case.fix_actions)} action(s) recorded" if case.fix_actions else "")
+        )
+    minor = len(measured["stop_windows"]) - len(long_stops)
+    console.print(
+        f"\n[dim]{minor} stoppage(s) under {min_stop_s:g}s opened no case — those are what "
+        "the OEE figure is for, not what a person can still remember. "
+        "Answer with `iaiops case confirm <id> --cause <cause> --by <you>`.[/]"
     )
 
 
@@ -148,6 +264,7 @@ def case_agreement_cmd(
         console.print(f"\n[yellow]{report['warning']}[/]")
 
 
+case_app.command("open")(case_open_cmd)
 case_app.command("list")(case_list_cmd)
 case_app.command("causes")(case_causes_cmd)
 case_app.command("confirm")(case_confirm_cmd)

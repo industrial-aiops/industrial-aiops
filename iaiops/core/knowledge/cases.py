@@ -57,6 +57,10 @@ MIN_CASES_FOR_WARNING = 20
 #: Audit rows at or above this risk level are treated as actions taken, not looking.
 FIX_RISK_LEVELS = frozenset({"high", "critical"})
 
+#: How a dismissal is recognised in a case's note. Named because three places
+#: were matching the same bare string and a fourth invented its own rule.
+DISMISSED_MARKER = "dismissed"
+
 
 @dataclass(frozen=True)
 class Case:
@@ -89,6 +93,19 @@ class Case:
     def counts_as_evidence(self) -> bool:
         """Whether this case may train the cause weights."""
         return bool(self.label) and self.capture in EVIDENCE_MODES
+
+    @property
+    def answered(self) -> bool:
+        """Whether a person has already said something about this case.
+
+        A label, or a dismissal — both cost somebody a decision, and both are the
+        thing re-detecting the same stoppage must never overwrite. One definition
+        so ``list_cases(pending_only=True)`` and ``open_case``'s no-overwrite
+        guard cannot drift apart; the guard's first version invented its own,
+        matched every case that merely had a NOTE, and so silently stopped
+        refreshing the pending ones it was supposed to leave alone.
+        """
+        return bool(self.label) or DISMISSED_MARKER in self.note.lower()
 
     @property
     def anchored(self) -> bool:

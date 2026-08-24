@@ -71,6 +71,11 @@ MIN_COVERAGE_PCT = 50.0
 #: tag does not print a thousand readings.
 MAX_OBSERVED_VALUES = 8
 
+#: How many stoppage windows to hand back. A week at 500ms can contain thousands
+#: of micro-stops; a person is going to explain a handful, so returning every one
+#: would turn the answer into a data dump nobody reads.
+MAX_STOP_WINDOWS = 50
+
 #: Two samples cannot describe a shift.
 MIN_SAMPLES = 10
 
@@ -191,8 +196,19 @@ def measure_availability(
     cadence = _cadence(rows)
     gap_limit = max(cadence * GAP_FACTOR, cadence + GAP_FLOOR_S)
     running = stopped = unknown = 0.0
-    stops: list[float] = []
+    # (duration, onset) — the onset is what makes a stoppage addressable rather
+    # than merely countable: a case has to be opened AT a time, and the audit
+    # trail is searched around it.
+    stops: list[tuple[float, datetime]] = []
     open_stop = 0.0
+    open_since: datetime | None = None
+
+    def _close_open_stop() -> None:
+        nonlocal open_stop, open_since
+        if open_stop and open_since is not None:
+            stops.append((open_stop, open_since))
+        open_stop = 0.0
+        open_since = None
 
     for index in range(1, len(rows)):
         span = (rows[index][0] - rows[index - 1][0]).total_seconds()
@@ -200,25 +216,22 @@ def measure_availability(
         if span > gap_limit:
             # Blind. Not a state that persisted, and emphatically not downtime.
             unknown += span
-            if open_stop:
-                stops.append(open_stop)
-                open_stop = 0.0
+            _close_open_stop()
             continue
         if was_running:
             running += span
-            if open_stop:
-                stops.append(open_stop)
-                open_stop = 0.0
+            _close_open_stop()
         else:
             stopped += span
+            if open_since is None:
+                open_since = rows[index - 1][0]
             open_stop += span
-    if open_stop:
-        stops.append(open_stop)
+    _close_open_stop()
 
     known = running + stopped
     total = known + unknown
     coverage = round(100.0 * known / total, 2) if total else 0.0
-    minor = [s for s in stops if s <= minor_stop_s]
+    minor = [duration for duration, _ in stops if duration <= minor_stop_s]
     result = {
         **base,
         "running_s": round(running, 1),
@@ -230,6 +243,18 @@ def measure_availability(
         "minor_stops": len(minor),
         "minor_stop_s": round(sum(minor), 1),
         "coverage_pct": coverage,
+        # Longest first: whoever is going to explain a handful of stoppages
+        # should be handed the ones that cost the most, not the first of the day.
+        "stop_windows": [
+            {
+                "onset": onset.isoformat(),
+                "duration_s": round(duration, 1),
+                "minor": duration <= minor_stop_s,
+            }
+            for duration, onset in sorted(stops, key=lambda s: s[0], reverse=True)[
+                :MAX_STOP_WINDOWS
+            ]
+        ],
     }
 
     if coverage < MIN_COVERAGE_PCT:
