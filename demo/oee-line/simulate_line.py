@@ -19,6 +19,10 @@ claim: blind time must not be reported as downtime.
 Registers (holding):
   0  — run state: 2 = running, 0 = stopped, 1 = idle, 3 = fault
   10 — production counter, advancing while running
+  11 — GOOD counter, advancing slightly slower: about one part in REJECT_EVERY is
+       scrapped. A line with no rejects at all would let the demo report a
+       perfect Quality factor, which is the one number a buyer will not believe
+       and the one this tool exists not to invent.
 """
 
 from __future__ import annotations
@@ -32,7 +36,12 @@ warnings.filterwarnings("ignore")
 
 RUN_STATE_ADDR = 0
 COUNTER_ADDR = 10
+GOOD_COUNTER_ADDR = 11
 STOPPED, IDLE, RUNNING, FAULT = 0, 1, 2, 3
+
+#: One part in this many is scrapped, so Quality is a real measurement rather
+#: than a constant 100%.
+REJECT_EVERY = 25
 
 
 def free_port() -> int:
@@ -103,6 +112,7 @@ def drive(
     steps = script(duration_s)
     started = time.monotonic()
     counter = int(counter_start)
+    good = int(counter_start)
     index = 0
     last = ""
     client = ModbusTcpClient(host, port=port, timeout=1)
@@ -120,11 +130,14 @@ def drive(
             last = label
         if state == RUNNING:
             counter += 1
+            if counter % REJECT_EVERY:
+                good += 1
         try:
             if not client.connected:
                 client.connect()
             client.write_register(address=RUN_STATE_ADDR, value=state, device_id=1)
             client.write_register(address=COUNTER_ADDR, value=counter % 65535, device_id=1)
+            client.write_register(address=GOOD_COUNTER_ADDR, value=good % 65535, device_id=1)
         except Exception:  # noqa: BLE001 — the server is meant to vanish mid-run
             pass
         time.sleep(0.1)

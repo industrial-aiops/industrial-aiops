@@ -43,7 +43,11 @@ endpoints:
     host: 127.0.0.1
     port: $PORT
     unit_id: 1
-    ideal_cycle_time_s: 1.0
+    # 0.1s is what this simulated line actually runs at. It was 1.0 — ten times
+    # too slow — and the demo dutifully printed "Performance computed to 1681.2%"
+    # with a warning that the input was wrong. The tool was right; the demo was
+    # showing a customer a nonsense number to prove it.
+    ideal_cycle_time_s: 0.1
     tags:
       - ref: "0"
         label: "Line run state"
@@ -54,6 +58,9 @@ endpoints:
       - ref: "10"
         label: "Production counter"
         role: total_count
+      - ref: "11"
+        label: "Good-parts counter"
+        role: good_count
 YAML
 chmod 600 "$DEMO_HOME/.iaiops/config.yaml"
 

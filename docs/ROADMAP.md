@@ -46,7 +46,7 @@ That brings disconnect buffering and backfill, retention, crash recovery and
 start-on-boot — and it changes the product's shape from "a CLI you run" into
 "a thing that runs".
 
-### Open — 1. Continuous collection (the actual first build)
+### DONE — 1. Continuous collection (the actual first build)
 
 - [x] **`iaiops collect plan` / `collect run`** — shipped. A BOUNDED assessment
       run (`--duration 7d`) that fills the local store, with a hard 14-day cap.
@@ -143,7 +143,7 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
       protocol has one, so a protocol added later cannot join collection while
       silently keeping the churn.
 
-### Open — 2. OEE from configured tags
+### DONE — 2. OEE from configured tags
 
 - [x] **A semantic role on `MonitorTag`** — shipped. `role:` takes one of
       `run_state` / `total_count` / `good_count` / `reject_count`; an unknown
@@ -202,7 +202,17 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
 - [x] Verified against injected ground truth: Availability 83.5% (expected
       83.3), Performance 49.3% (expected 50), Quality 81.1% (expected 80), and
       the mid-run rollover reported as a discontinuity rather than 65,000 parts.
-- [ ] Wire `six_big_losses()` to the same derived inputs.
+- [x] Wire `six_big_losses()` to the same derived inputs — `iaiops/core/brain/
+      oee_losses.py`, reported by `oee measure`. It refuses without a declared
+      good-count tag or ideal cycle: `good_count = total_count` is one line away
+      and reports a PERFECT Quality factor, which reads exactly like a line with
+      no rejects. "Planned time" is stated as OBSERVED known time, not the
+      plant's schedule, which nobody has given us.
+- [x] Blind-window parts no longer inflate Performance. `count_production` summed
+      every positive delta while availability excluded blind seconds from run
+      time, so the ratio's two halves described different windows: **1.251 →
+      0.995** across a 25s blind window, all upward. Found by running the demo,
+      whose device is killed mid-run on purpose.
 
 **Do not enter as "OEE software"** (D27) — Evocon, Fabrico, Symestic, TEEPTRAK,
 MaintMaster and every MES are already there. The difference is the PATH to the
@@ -210,7 +220,12 @@ number: `scan` → `readiness` → confirm three tags → real OEE, with no adde
 hardware and no integrator visit. Those first two steps are already built and
 nobody else has them.
 
-### Open — 3. The site knowledge base (retention, not entry)
+### MOSTLY DONE — 3. The site knowledge base (retention, not entry)
+
+> Three items remain, listed unticked below: reliability alongside confidence
+> on the RCA verdict, human-declared line order, and P&ID extraction. Everything
+> else shipped and was driven end to end against a real collected history
+> (#172, #173, #180, #191).
 
 Design in HLD §12. It must not gate the product's day-one value.
 
@@ -277,22 +292,33 @@ Design in HLD §12. It must not gate the product's day-one value.
 - [x] `iaiops case agreement` surfaces the anchoring measurement, and the
       loop was verified end to end: 3 cases → 2 trainable → `learn_cause_weights`
       consumed them; 1 remained when anchored labels were excluded.
-- [ ] **Labels from the audit trail, not from data entry** (D22). `~/.iaiops/
+- [x] **Labels from the audit trail, not from data entry** (D22) — shipped
+      (#173 + #191). `iaiops case open <endpoint>` opens a case per long stoppage
+      and attaches the successful high-risk actions the audit trail already
+      recorded. Verified end to end: a 27s stoppage detected from collected
+      history came back carrying `then zw ran store_prune_cmd at 01:22:45`.
+      `~/.iaiops/
       audit.db` already records what a human changed, when, and who approved it;
       `undo.db` holds the prior state. The fix an engineer applied through the
       tool right after a stoppage IS the label — captured at diagnosis time, in
       our own taxonomy, with the evidence attached. This matters because
       "operators will record the cause" is the single most documented failure
       mode in this category.
-- [ ] Human confirmation, where needed, is **one click among the ranked
-      hypotheses** — never a free-text field. Dismissing an alert is a negative
-      label, and those are free.
+- [x] Human confirmation is **one choice among the ranked hypotheses**, never a
+      free-text field — shipped. `iaiops case causes` lists the seven the learner
+      speaks; `case confirm --cause` takes one of them; `case dismiss` records a
+      negative label for one keystroke.
 - [ ] **Reliability alongside confidence** (D24): 90% from a site with three
-      recorded cases is not 90% from a site with three hundred.
-- [ ] **Self-confirmation guard** (D25 neighbourhood, HLD §12.10): count a case
-      as a label only when a human states the cause independently or overrides
-      us, and track the human-agreement rate separately — an unusually high one
-      is itself an alarm.
+      recorded cases is not 90% from a site with three hundred. **Still open** —
+      verified 2026-08-24: the RCA verdict carries `confidence_band` and nothing
+      about how much history stands behind it. The learner already refuses below
+      8 confirmed incidents ("History too thin"); the verdict does not say so.
+- [x] **Self-confirmation guard** (D25 neighbourhood, HLD §12.10) — shipped. The
+      capture mode is DERIVED from whether the cause was one we ranked, never
+      declared by the answerer; `iaiops case agreement` reports agreement and
+      anchored share separately, and warns above 90%. `diag learn-weights
+      --independent-only` trains on labels our ranking did not shape, so a site
+      can see whether its weights survive without them.
 - [ ] Relationships: human-declared line order first. Timestamp co-occurrence
       produces **candidates for confirmation only**, never edges (D25).
 - [ ] Line-design/P&ID extraction belongs to the agent front-end and produces a

@@ -49,12 +49,42 @@ def _num(value: Any) -> float | None:
         return None
 
 
-def count_production(samples: Any) -> dict[str, Any]:
-    """[PURE] Parts made, from a counter that may wrap or be reset.
+#: Same rule as the availability path (see ``oee_measure.GAP_FACTOR`` /
+#: ``GAP_FLOOR_S``), applied to this series' own cadence. Duplicated as an import
+#: rather than a second constant so the two paths cannot disagree about what
+#: "blind" means — a counter window and a run-state window that drew the line in
+#: different places would silently mismatch numerator and denominator.
+def _gap_limit(rows: list[tuple[datetime, float]]) -> float:
+    """The gap above which a step is treated as unobserved, from median cadence."""
+    from iaiops.core.brain.oee_measure import GAP_FACTOR, GAP_FLOOR_S
 
-    Returns ``{produced, discontinuities, n_samples, status, note}``. A drop in
-    the counter contributes NOTHING and is counted as a discontinuity: a wrap and
-    a reset cannot be told apart from the samples, so neither is assumed.
+    deltas = sorted((rows[i][0] - rows[i - 1][0]).total_seconds() for i in range(1, len(rows)))
+    mid = len(deltas) // 2
+    cadence = deltas[mid] if len(deltas) % 2 else (deltas[mid - 1] + deltas[mid]) / 2.0
+    return max(cadence * GAP_FACTOR, cadence + GAP_FLOOR_S)
+
+
+def count_production(samples: Any) -> dict[str, Any]:
+    """[PURE] Parts made DURING THE TIME WE WATCHED, from a counter that may wrap.
+
+    Returns ``{produced, discontinuities, unobserved_steps, n_samples, status,
+    note}``. A drop in the counter contributes NOTHING and is counted as a
+    discontinuity: a wrap and a reset cannot be told apart from the samples, so
+    neither is assumed.
+
+    **An increment across a BLIND gap contributes nothing either**, and that is
+    not obvious. The line kept producing while the collector could not see it,
+    so those parts are real — but ``measure_availability`` excludes the blind
+    seconds from run time, and Performance is ``ideal_cycle × produced /
+    run_time``. Credit the parts and drop the time and the numerator describes a
+    longer window than the denominator: Performance goes UP in proportion to how
+    blind the run was. Measured on the demo, whose device is killed mid-run on
+    purpose: 95.6% over a clean window became **117.8%** at 85% coverage — over
+    100%, so the tool then warned that its own input must be wrong.
+
+    Flattering direction, again: a higher Performance is a higher OEE. So the
+    same gap rule the availability path uses is applied here, on this series'
+    own cadence, and the skipped steps are reported rather than absorbed.
     """
     rows: list[tuple[datetime, float]] = []
     for row in samples or ():
@@ -76,9 +106,16 @@ def count_production(samples: Any) -> dict[str, Any]:
             "note": "A counter needs at least two readings before it can show production.",
         }
 
+    gap_limit = _gap_limit(rows)
     produced = 0.0
     drops = 0
+    unobserved = 0
     for i in range(1, len(rows)):
+        if (rows[i][0] - rows[i - 1][0]).total_seconds() > gap_limit:
+            # Blind. The parts are real; the seconds that made them are not in
+            # run time, so counting them here would inflate Performance.
+            unobserved += 1
+            continue
         delta = rows[i][1] - rows[i - 1][1]
         if delta >= 0:
             produced += delta
@@ -86,6 +123,12 @@ def count_production(samples: Any) -> dict[str, Any]:
             drops += 1
 
     note = "Counted from rising increments only."
+    if unobserved:
+        note += (
+            f" {unobserved} increment(s) spanning a blind window were NOT counted: the "
+            "line kept producing but those seconds are excluded from run time, and "
+            "crediting the parts without the time inflates Performance."
+        )
     if drops:
         note = (
             f"{drops} discontinuity(ies): the counter went DOWN, which is either a "
@@ -96,6 +139,7 @@ def count_production(samples: Any) -> dict[str, Any]:
     return {
         "produced": round(produced, 3),
         "discontinuities": drops,
+        "unobserved_steps": unobserved,
         "n_samples": len(rows),
         "status": "ok",
         "note": note,

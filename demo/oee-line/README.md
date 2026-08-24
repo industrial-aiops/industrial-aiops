@@ -69,6 +69,8 @@ tags:
     running_when: [2]     # ← stated, never inferred
   - ref: "10"
     role: total_count
+  - ref: "11"
+    role: good_count
 ```
 
 Two tags. `running_when` is mandatory because this status word is
