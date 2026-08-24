@@ -100,6 +100,15 @@
   configured TDengine got "the native TDengine client could not be loaded" for every
   incident, with nothing in the config able to say "use REST". `transport:` is now a
   config field, validated at load.
+- **The OPC-UA CI harnesses published ports the kernel hands out as ephemeral.**
+  Linux uses 32768-60999 for ephemeral source ports, so an outbound connection
+  made anywhere in the job — a docker pull, a `uv` download, a TSDB client —
+  could be holding 50000 or 50010 when docker tried to publish it, failing the
+  whole lane with `address already in use`. It surfaced on a docs-only PR, which
+  is the signature: it depends on which port the kernel happened to hand out, not
+  on the change. Both servers moved below the range, and the harness now reads
+  the range from the kernel and refuses an ephemeral port rather than binding it
+  and failing at random.
 - **The BACnet CI harness picked an address that does not exist.** It derived its
   second address by incrementing the last octet, so a runner ending in `.255` —
   perfectly ordinary on a /20 — produced `10.1.0.256`. Intermittent by nature, which
