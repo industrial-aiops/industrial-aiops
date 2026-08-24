@@ -208,6 +208,14 @@ start-on-boot — and it changes the product's shape from "a CLI you run" into
       and reports a PERFECT Quality factor, which reads exactly like a line with
       no rejects. "Planned time" is stated as OBSERVED known time, not the
       plant's schedule, which nobody has given us.
+- [x] **`oee measure --report x.html`** — the figure a customer can be handed.
+      `scan` and `compliance` could both write a file; the number this product
+      most wants seen was the only one that could not be put on paper. One
+      self-contained file (no external resource, no network request, no script
+      tag), `--lang en|zh`. **Coverage precedes the figure and cannot be moved by
+      configuration**, for the reason `discovery/report.py` gives about its own
+      section order. The demo writes `oee-demo.html` with its honesty caveat
+      rendered onto the page in the report's language.
 - [x] Blind-window parts no longer inflate Performance. `count_production` summed
       every positive delta while availability excluded blind seconds from run
       time, so the ratio's two halves described different windows: **1.251 →
@@ -416,6 +424,10 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
       Three of the four evidence classes behind the flagship RCA story need a human or
       a configured historian (HLD §9.2); a demo that omits that will fail on first
       contact with a real site.
+      **Half-addressed:** the OEE report now carries that row — what had to be
+      declared to produce each figure, and what is still missing — so the DEMO no
+      longer omits it. The deck still does; this item stays open until the slides
+      do, because a report nobody opens does not fix a slide everybody sees.
 
 ### Also now guarded rather than merely claimed
 
