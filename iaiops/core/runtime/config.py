@@ -415,7 +415,8 @@ class HistorianConfig:
           host: 10.0.0.20           # TSDB readers only
           port: 6030
           user: root
-          database: iaiops          # TDengine db / IoTDB storage group / sqlite path
+          database: iaiops          # TDengine db (IoTDB needs the root. prefix:
+                                    #   database: root.iaiops)
           db_path: ~/.iaiops/data.db   # sqlite reader only (optional override)
           transport: rest           # TDengine wire: native | rest | ws
 
@@ -456,6 +457,14 @@ class HistorianConfig:
                 f"historian.reader '{self.reader}' is unsupported. Supported: "
                 f"{', '.join(SUPPORTED_HISTORIAN_READERS)}."
             )
+        if self.reader == "iotdb":
+            # Refused here because this is the only place it can still be pointed at
+            # the config LINE. Left to run, the server answers with a SQL parse error
+            # naming OUR generated statement, which tells the operator nothing about
+            # the file they typed. One rule, shared with the write side.
+            from iaiops.core.sink.iotdb import require_iotdb_path
+
+            require_iotdb_path(self.database, "historian.database")
 
     def password(self) -> str:
         """Resolve the historian password from the encrypted store (or env)."""

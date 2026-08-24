@@ -55,10 +55,14 @@ def _cli_error_types() -> tuple[type[BaseException], ...]:
     the family a "you asked for something that is not here" error naturally
     lands in. ``ScanNotFound`` was raising with a carefully written teaching
     message that the user never saw — it escaped as a traceback instead.
+
+    ``SinkError`` is the historian family's equivalent: it exists to carry a
+    teaching message, and every one of them escaped as a traceback too.
     """
     from iaiops.core.runtime.connection import OTConnectionError
+    from iaiops.core.sink.base import SinkError
 
-    return (OTConnectionError, LookupError, OSError, ValueError)
+    return (OTConnectionError, LookupError, OSError, SinkError, ValueError)
 
 
 def cli_errors(fn: Callable) -> Callable:

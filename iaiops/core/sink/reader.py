@@ -24,6 +24,8 @@ ISO timestamps, quote-escaped tag literals, and Python ints.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -85,6 +87,29 @@ def _cap_coverage_limit(limit: int) -> int:
 def _sample_row(ts: str, tag: str, value: Any) -> dict:
     """A SAMPLE_COLUMNS-shaped dict for TSDB rows (no endpoint/quality/unit)."""
     return dict(zip(SAMPLE_COLUMNS, (s(ts, 40), "", "", s(tag, 128), value, "", "")))
+
+
+@contextmanager
+def _client_errors(reader: str, what: str) -> Iterator[None]:
+    """Turn a TSDB client-library failure into a ``SinkError`` teaching line.
+
+    The client libraries raise their OWN exception types — taospy's
+    ``ProgrammingError``, IoTDB's thrift ``StatementExecutionException`` — which
+    are neither ``ValueError`` nor ``OSError``, so nothing in either front-end's
+    error harness recognised them. A mistyped ``historian.database`` therefore
+    reached the operator as 111 lines of traceback with our generated SQL in it,
+    instead of one line saying what to fix. Found 2026-08-24 by driving
+    ``iaiops historian coverage`` through a config against a live IoTDB.
+
+    ``ValueError``/``SinkError`` pass through: those are already ours and already
+    carry a written message.
+    """
+    try:
+        yield
+    except (SinkError, ValueError):
+        raise
+    except Exception as exc:  # noqa: BLE001 — any foreign client failure, uniformly
+        raise SinkError(f"The {reader} historian failed to {what}: {exc}") from exc
 
 
 def _reject_endpoint_filter(flt: SampleFilter, reader: str) -> None:
@@ -166,19 +191,27 @@ class TDengineReader:
         self._conn: Any = None
 
     def connect(self) -> None:
-        self._conn = open_connection(
-            self._transport,
-            self._host,
-            self._port,
-            self._user,
-            self._password,
-            self._database,
-        )
+        with _client_errors("tdengine", f"connect to {self._host}:{self._port}"):
+            self._conn = open_connection(
+                self._transport,
+                self._host,
+                self._port,
+                self._user,
+                self._password,
+                self._database,
+            )
 
     def _cursor(self) -> Any:
         if self._conn is None:
             self.connect()
         return self._conn.cursor()
+
+    def _run(self, sql: str) -> list[Any]:
+        """Execute one statement and return its rows (client errors → SinkError)."""
+        with _client_errors("tdengine", "run the query"):
+            cur = self._cursor()
+            cur.execute(sql)
+            return list(cur.fetchall())
 
     def query(self, flt: SampleFilter) -> list[dict]:
         checked = validate_filter(flt)
@@ -200,9 +233,7 @@ class TDengineReader:
             f"SELECT ts, `value`, metric FROM {self._database}.{self._stable}"
             f"{where} ORDER BY ts {order} LIMIT {int(checked.limit)}"  # nosec B608
         )
-        cur = self._cursor()
-        cur.execute(sql)
-        rows = [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in cur.fetchall()]
+        rows = [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in self._run(sql)]
         return list(reversed(rows)) if checked.newest_first else rows
 
     def latest(self, limit: int = 5_000) -> list[dict]:
@@ -212,9 +243,7 @@ class TDengineReader:
             f"SELECT LAST(ts), LAST(`value`), metric "  # nosec B608
             f"FROM {self._database}.{self._stable} GROUP BY metric LIMIT {capped}"
         )
-        cur = self._cursor()
-        cur.execute(sql)
-        return [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in cur.fetchall()]
+        return [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in self._run(sql)]
 
     def coverage(self, limit: int = DEFAULT_COVERAGE_LIMIT) -> list[dict]:
         capped = _cap_coverage_limit(limit)
@@ -231,8 +260,6 @@ class TDengineReader:
             f"SELECT metric, COUNT(*), FIRST(ts), LAST(ts) "  # nosec B608
             f"FROM {self._database}.{self._stable} GROUP BY metric LIMIT {capped}"
         )
-        cur = self._cursor()
-        cur.execute(sql)
         return [
             {
                 "tag": s(str(r[0]), 128),
@@ -240,7 +267,7 @@ class TDengineReader:
                 "first_ts": s(str(r[2]), 40),
                 "last_ts": s(str(r[3]), 40),
             }
-            for r in cur.fetchall()
+            for r in self._run(sql)
         ]
 
     def close(self) -> None:
@@ -286,13 +313,15 @@ class IoTDBReader:
                 "The 'apache-iotdb' package is not installed. Install the IoTDB "
                 "reader (same extra as the sink): 'pip install iaiops[iotdb]'."
             ) from exc
-        self._session = Session(self._host, self._port, self._user, self._password)
-        self._session.open(False)
+        with _client_errors("iotdb", f"connect to {self._host}:{self._port}"):
+            self._session = Session(self._host, self._port, self._user, self._password)
+            self._session.open(False)
 
     def _execute(self, sql: str) -> Any:
         if self._session is None:
             self.connect()
-        return self._session.execute_query_statement(sql)
+        with _client_errors("iotdb", "run the query"):
+            return self._session.execute_query_statement(sql)
 
     def _device(self, tag: str | None) -> str:
         from iaiops.core.sink.iotdb import _sanitize_path
