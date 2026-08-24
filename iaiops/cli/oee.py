@@ -49,6 +49,7 @@ def oee_measure_cmd(
     Needs a tag declared `role: run_state` with `running_when:` — which value
     means running is process knowledge, not something to infer from the data.
     """
+    from iaiops.core.brain.oee_losses import losses_from_measured
     from iaiops.core.brain.oee_measure import compare_to_reported, measure_availability
     from iaiops.core.brain.oee_production import (
         count_production,
@@ -93,6 +94,10 @@ def oee_measure_cmd(
     known = [v for v in factors.values() if v is not None]
     oee = round(known[0] * known[1] * known[2], 4) if len(known) == 3 else None
 
+    losses = losses_from_measured(
+        result, totals, goods, getattr(target, "ideal_cycle_time_s", None)
+    )
+
     if as_json:
         _emit(
             {
@@ -103,6 +108,7 @@ def oee_measure_cmd(
                 "quality": qual,
                 "factors": factors,
                 "oee": oee,
+                "losses": losses,
             }
         )
         return
@@ -172,8 +178,35 @@ def oee_measure_cmd(
             "Reporting the factors that ARE measured beats multiplying in a guess.[/]"
         )
 
+    _print_losses(losses)
+
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
+
+
+def _print_losses(losses: dict) -> None:
+    """Where the OEE gap went, or which declaration would let us say."""
+    console.print("\n[bold]Six Big Losses[/]")
+    if losses["status"] != "ok":
+        console.print(f"  [dim]{losses['note']}[/]")
+        return
+    for entry in losses["ranked"]:
+        if entry["time_s"] <= 0:
+            continue
+        console.print(
+            f"  {entry['loss']:19} {humanize_seconds(entry['time_s']):>7}"
+            f"  {entry['pct_of_planned']:6.1%} of observed time"
+            + ("" if entry["classified"] else "  [dim](unclassified — not supplied)[/]")
+        )
+    biggest = losses.get("largest_loss")
+    if biggest and biggest["time_s"] > 0:
+        console.print(f"\n  [bold]Largest: {biggest['loss']}[/] — the one worth attacking first")
+    if losses.get("optimistic_cycle"):
+        console.print(
+            "  [yellow]The declared ideal cycle is faster than the line ever ran, so the "
+            "speed loss below is an artefact of the declaration, not of the line.[/]"
+        )
+    console.print(f"  [dim]{losses['note']}[/]")
 
 
 oee_app.command("measure")(oee_measure_cmd)

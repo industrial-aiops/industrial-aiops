@@ -101,7 +101,32 @@
   duration, longest first — so a stoppage is addressable rather than only
   countable.
 
+- **The Six Big Losses, from measured inputs.** `six_big_losses` had existed since
+  the OEE brain was written and was reachable from nowhere — a sweep for public
+  core functions with no production caller found it referenced only by its own
+  docstring and `__all__`. Four of its five inputs are now derived by `collect` +
+  `oee measure`, and `iaiops oee measure` reports the decomposition. Without a
+  declared good-count tag or ideal cycle it refuses and names the tag to declare:
+  the shortcut (`good_count = total_count`) reports a perfect Quality factor that
+  reads exactly like a line with no rejects. "Planned time" here is stated as
+  OBSERVED known time, not the plant's schedule, which nobody has given us.
+
 ### Fixed
+- **Parts made while the collector was blind inflated Performance.**
+  `count_production` summed every positive delta while `measure_availability`
+  excluded blind seconds from run time, so the numerator described a longer
+  window than the denominator and Performance rose in proportion to how blind the
+  run was. Measured across a 25s blind window: **1.251 → 0.995**, a quarter of a
+  factor, all upward — a higher Performance is a higher OEE. Past 100% the tool
+  then blamed its own inputs, telling the operator their cycle time or counter
+  must be wrong when neither was. Increments spanning a gap are now skipped by the
+  same rule the availability path uses, and reported rather than absorbed.
+- **The demo declared an ideal cycle ten times too slow**, so the artefact meant
+  for a customer conversation printed "Performance computed to 1681.2%" and a
+  warning about its own input. It also declared no good-count tag, so Quality —
+  the factor a buyer asks about first — was never shown. The simulated line now
+  scraps about one part in 25, and the demo reports a complete OEE plus the Six
+  Big Losses.
 - **An IoTDB historian could not serve a Modbus line at all.** A bare number is
   not a legal IoTDB path node, and a Modbus site's tags ARE numbers — `collect
   run` stores samples under the register address, so a plain line yields the tags
