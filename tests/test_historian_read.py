@@ -279,9 +279,11 @@ def test_iotdb_reader_query_sql_and_shape(fake_iotdb):
             limit=50,
         )
     )
-    # Path segment sanitized (dots → underscores), bounds are epoch-millis ints.
+    # Path segment sanitized (dots → underscores) and BACKQUOTED, bounds are
+    # epoch-millis ints. The quoting is not cosmetic: a Modbus site's tags are
+    # register addresses, and `root.iaiops.0` is a parse error on a real server.
     assert fake_iotdb.executed[-1] == (
-        "SELECT value FROM root.iaiops.line1_temp"
+        "SELECT value FROM root.iaiops.`line1_temp`"
         " WHERE time >= 1782979200000 AND time <= 1782986400000"
         " ORDER BY time ASC LIMIT 50 ALIGN BY DEVICE"
     )
