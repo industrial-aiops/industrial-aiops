@@ -67,6 +67,52 @@ class TestTheIoTDBDatabaseMustBeAnIoTDBPath:
         assert HistorianConfig(reader=reader, database="iaiops").database == "iaiops"
 
 
+class TestTheWriteSideCarriesTheSameRule:
+    """One rule, both directions — a database name refused on read and accepted on
+    write would put data somewhere the reader is forbidden to look."""
+
+    def test_the_sink_refuses_a_bare_name(self):
+        from iaiops.core.sink.iotdb import IoTDBSink
+
+        with pytest.raises(ValueError) as excinfo:
+            IoTDBSink(host="h", database="plant_a")
+        assert "root.plant_a" in str(excinfo.value)
+
+    def test_the_message_names_the_argument_rather_than_the_config_field(self):
+        """A tool caller passed `database=`; sending them to a config file they may
+        not have is the wrong place to look."""
+        from iaiops.core.sink.iotdb import IoTDBSink
+
+        with pytest.raises(ValueError) as excinfo:
+            IoTDBSink(host="h", database="plant_a")
+        assert "historian.database" not in str(excinfo.value)
+
+    def test_the_default_is_still_valid(self):
+        from iaiops.core.sink.iotdb import IoTDBSink
+
+        assert IoTDBSink(host="h")._database == "root.iaiops"
+
+    def test_push_still_returns_a_tally_error_rather_than_raising(self):
+        """`historian_push` promises a dict; a sink that validates its arguments
+        raised straight past that promise because construction sat outside the
+        guard."""
+        from iaiops.core.sink.push import historian_push
+
+        # A closed local port, not a hostname: when the guard is removed this test
+        # must fail in milliseconds, not spend 77 seconds resolving and timing out.
+        # A test that takes over a minute to fail is a test somebody disables.
+        result = historian_push(
+            [{"metric": "T", "value": 1.0}],
+            "iotdb",
+            host="127.0.0.1",
+            port=1,
+            database="plant_a",
+        )
+        assert isinstance(result, dict)
+        assert "root.plant_a" in result["error"]
+        assert result["sink"] == "iotdb"
+
+
 class TestForeignClientErrorsBecomeTeachingErrors:
     def test_an_unknown_exception_becomes_a_sink_error(self):
         with pytest.raises(SinkError) as excinfo:

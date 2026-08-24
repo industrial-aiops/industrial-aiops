@@ -16,6 +16,26 @@ from __future__ import annotations
 
 from iaiops.core.sink.base import SinkError
 
+#: Every IoTDB path starts at this node, so a database name without it is an
+#: unambiguous mistake rather than a preference. Left to run, the server answers
+#: "Path does not exist" — which reads as *your server is missing a database*
+#: and sends the operator looking in the wrong place.
+IOTDB_ROOT = "root."
+
+
+def require_iotdb_path(database: str, field: str) -> None:
+    """Refuse a database name that is not an IoTDB path, naming the fix.
+
+    Shared by the sink and by ``HistorianConfig`` so one rule covers both the
+    write side and the read side. ``field`` is what the caller should go and
+    edit — ``historian.database`` for config, ``database`` for a tool argument.
+    """
+    if database and not database.startswith(IOTDB_ROOT):
+        raise ValueError(
+            f"{field} '{database}' is not an IoTDB path — every IoTDB path starts "
+            f"at the root node. Use '{IOTDB_ROOT}{database}'."
+        )
+
 
 class IoTDBSink:
     """Uniform sink over an IoTDB Session (待核实)."""
@@ -32,6 +52,7 @@ class IoTDBSink:
         self._port = int(port or 6667)
         self._user = user
         self._password = password
+        require_iotdb_path(database, "database")
         self._database = database.rstrip(".")
         self._session = None
 
@@ -105,4 +126,4 @@ def _ts_millis(timestamp) -> int:
     return int(datetime.now(tz=UTC).timestamp() * 1000)
 
 
-__all__ = ["IoTDBSink"]
+__all__ = ["IOTDB_ROOT", "IoTDBSink", "require_iotdb_path"]

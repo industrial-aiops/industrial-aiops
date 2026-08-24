@@ -39,10 +39,15 @@ def historian_push(points: list[Any], sink: str, **opts: Any) -> dict:
     numeric = [p for p in normalized if p["numeric"]]
     # SQLite keeps text values too; the TSDBs store a numeric value column only.
     writable = normalized if kind in TEXT_CAPABLE_SINKS else numeric
-    adapter = get_sink(kind, **opts)
+    # Construction is INSIDE the guard: a sink that validates its own arguments
+    # (IoTDBSink refuses a database name that is not an IoTDB path) would
+    # otherwise raise straight past this function's "always return a tally"
+    # contract, and the carefully worded message would surface as a traceback.
+    adapter = None
     try:
+        adapter = get_sink(kind, **opts)
         written = int(adapter.write(writable))
-    except SinkError as exc:
+    except (SinkError, ValueError) as exc:
         return {"error": s(str(exc), 200), "sink": kind}
     except Exception as exc:  # noqa: BLE001 — any client-lib failure → a teaching tally error
         return {"error": s(f"{kind} write failed: {exc}", 200), "sink": kind}

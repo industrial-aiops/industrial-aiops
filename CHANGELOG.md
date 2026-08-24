@@ -31,7 +31,8 @@
   every IoTDB path starts at `root.`, so following our documentation produced a
   server-side SQL parse error naming *our* generated statement. The config now
   refuses a non-rooted path and names the fix (`root.iaiops`) while the operator
-  is still looking at the file they typed.
+  is still looking at the file they typed — and so does the sink, so the rule
+  cannot be true on the read side and false on the write side.
 - **Every historian failure escaped as a traceback.** The TSDB client libraries
   raise their own exception types (taospy's `ProgrammingError`, IoTDB's thrift
   `StatementExecutionException`), which are neither `ValueError` nor `OSError`,

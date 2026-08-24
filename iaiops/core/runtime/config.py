@@ -457,16 +457,14 @@ class HistorianConfig:
                 f"historian.reader '{self.reader}' is unsupported. Supported: "
                 f"{', '.join(SUPPORTED_HISTORIAN_READERS)}."
             )
-        if self.reader == "iotdb" and self.database and not self.database.startswith("root."):
-            # Every IoTDB path starts at `root.`, so this is an unambiguous config
-            # mistake, not a preference — and refusing it here is the only place it
-            # can still be pointed at the config line. Left to run, the server
-            # answers with a SQL parse error naming OUR generated statement, which
-            # tells the operator nothing about the file they typed.
-            raise ValueError(
-                f"historian.database '{self.database}' is not an IoTDB path — every "
-                f"IoTDB path starts at the root node. Use 'root.{self.database}'."
-            )
+        if self.reader == "iotdb":
+            # Refused here because this is the only place it can still be pointed at
+            # the config LINE. Left to run, the server answers with a SQL parse error
+            # naming OUR generated statement, which tells the operator nothing about
+            # the file they typed. One rule, shared with the write side.
+            from iaiops.core.sink.iotdb import require_iotdb_path
+
+            require_iotdb_path(self.database, "historian.database")
 
     def password(self) -> str:
         """Resolve the historian password from the encrypted store (or env)."""
