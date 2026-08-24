@@ -25,6 +25,7 @@ store, following the ``baseline`` / ``baseline_store`` split.
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime
 from typing import Any
 
@@ -65,6 +66,10 @@ GAP_FLOOR_S = 1.0
 
 #: Below this share of known time, no availability is reported at all.
 MIN_COVERAGE_PCT = 50.0
+#: How many distinct run-state values to echo back when nothing matched. Enough
+#: to recognise a status word (0/1/2/3), short enough that a mis-declared ANALOG
+#: tag does not print a thousand readings.
+MAX_OBSERVED_VALUES = 8
 
 #: Two samples cannot describe a shift.
 MIN_SAMPLES = 10
@@ -93,6 +98,20 @@ def _rows(samples: Any, tag: MonitorTag) -> list[tuple[datetime, bool]]:
         out.append((when, tag.is_running(row.get("value", row.get("state")))))
     out.sort(key=lambda r: r[0])
     return out
+
+
+def _observed(samples: Any, tag: MonitorTag) -> list[str]:
+    """The distinct values the run-state tag actually carried, most common first.
+
+    The point of the refusal above is that someone can put the declared value and
+    the observed value side by side; without this list they would have to go and
+    query the store themselves, which is the step nobody takes.
+    """
+    counts: Counter[str] = Counter()
+    for row in samples or ():
+        if isinstance(row, dict):
+            counts[str(row.get("value", row.get("state")))] += 1
+    return [value for value, _ in counts.most_common(MAX_OBSERVED_VALUES)]
 
 
 def _cadence(rows: list[tuple[datetime, bool]]) -> float:
@@ -142,6 +161,30 @@ def measure_availability(
             "note": (
                 f"{len(rows)} usable samples — below {MIN_SAMPLES}. Collect first "
                 "(`iaiops collect run`), then measure."
+            ),
+        }
+
+    if not any(is_running for _, is_running in rows):
+        # A fully-sampled run-state tag that NEVER said running is far more likely
+        # a declaration that does not match what the device sends than a line that
+        # stood still for the whole window. Reporting 0% availability instead is
+        # the flattering reading — unexplained downtime is exactly the loss a
+        # vendor then offers to fix — and it is what a `running_when: "2"` against
+        # a float `2.0` produced against a real device before this check existed.
+        # Refuse to give a figure and name the two values to compare.
+        return {
+            **base,
+            "status": "no_running_state_matched",
+            "observed_values": _observed(samples, run_state_tag),
+            "running_when": [str(v) for v in run_state_tag.running_when],
+            "note": (
+                f"Tag {run_state_tag.ref!r} was sampled {len(rows)} times and NEVER "
+                f"matched the declared running state "
+                f"({', '.join(str(v) for v in run_state_tag.running_when) or '(none declared)'}). "
+                "That is usually a declaration that does not match what the device "
+                "sends — compare it with the values actually observed, listed under "
+                "'observed_values'. No availability is reported: a line reads as 100% "
+                "down either way, and the wrong reason is worse than no answer."
             ),
         }
 

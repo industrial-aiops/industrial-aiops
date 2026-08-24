@@ -93,6 +93,16 @@
   be legal unquoted. Path nodes are now always backquoted — verified on the same
   live server that a quoted node and its bare form are the same node, so series
   written by earlier versions still read.
+- **A running line measured as 0% available.** YAML spells a status word
+  `running_when: "2"` and a Modbus register arrives as the float `2.0`;
+  `is_running` compared those as text, `"2" != "2.0"`, and a line that ran for
+  88% of its samples reported `0.00% over 97.54% coverage`. Measured against a
+  real device — the same data now reads **88.56%**. Note the direction: zero
+  availability turns a healthy line into unexplained downtime, which is exactly
+  the loss a vendor then offers to fix. Two guards now: the same number matches
+  however it is spelled, and a run-state tag that was sampled and NEVER matched
+  refuses to report a figure at all, printing the declared value beside the ones
+  actually observed.
 - **One command read two config files.** `IAIOPS_CONFIG` was honoured by
   `load_config_env()` — which the shared brain modules call — and ignored by
   `load_config()`, which the CLI and everything else call. So a single

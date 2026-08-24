@@ -239,13 +239,19 @@ class MonitorTag:
     def is_running(self, value: Any) -> bool:
         """True when ``value`` is one of the declared productive states.
 
-        Strings compare case-insensitively, because a device may report RUNNING,
-        Running or running for one condition. Numbers and booleans compare with
-        ``==``, which makes ``1`` and ``True`` equivalent — deliberately: a Modbus
-        coil reads back as a bool while the person writing the config naturally
-        types ``running_when: [1]``, and a strict type match there would silently
-        report zero run time, which is a far more confusing failure than the
-        equivalence is a risk.
+        Two values that are the SAME NUMBER match however they are spelled. That
+        is the load-bearing rule: YAML quotes a status word as ``running_when:
+        "2"`` while a Modbus register arrives as the float ``2.0``, and comparing
+        those as text gives ``"2" != "2.0"`` — so a line that ran all day measures
+        as **0% available**. Measured against a real device on 2026-08-24: 88% of
+        the samples said running and availability reported 0.00%. Note the
+        direction — unexplained downtime is what a vendor then offers to fix, so
+        this error flattered us. The docstring here previously warned about
+        exactly that failure and then produced it through the string branch.
+
+        Text still compares case-insensitively for genuine words (RUNNING /
+        Running / running), and ``1`` still matches ``True``: a Modbus coil reads
+        back as a bool while the config naturally says ``running_when: [1]``.
 
         An empty ``running_when`` matches NOTHING. Not "anything truthy" — that
         default is the exact trap this design exists to close, and it must stay
@@ -253,10 +259,12 @@ class MonitorTag:
         cannot silently reopen it.
         """
         for candidate in self.running_when:
-            if isinstance(candidate, str) or isinstance(value, str):
-                if str(candidate).strip().upper() == str(value).strip().upper():
-                    return True
-            elif candidate == value:
+            if candidate == value:
+                return True
+            as_declared, as_read = _as_number(candidate), _as_number(value)
+            if as_declared is not None and as_read is not None and as_declared == as_read:
+                return True
+            if str(candidate).strip().upper() == str(value).strip().upper():
                 return True
         return False
 
@@ -682,6 +690,23 @@ def _parse_timeout_s(d: dict) -> float:
             given,
         )
     return _default_timeout_s()
+
+
+def _as_number(value: object) -> float | None:
+    """A numeric view of a scalar, or None when it is not a number at all.
+
+    ``bool`` needs no branch of its own: it IS an ``int`` in Python, so ``True``
+    already reads as ``1.0``, which is what makes a Modbus coil match a config
+    that says ``running_when: [1]``. (An explicit bool branch was written here
+    first and a mutation check showed it changed nothing — it was dead code
+    dressed as a guarantee.)
+    """
+    if isinstance(value, int | float):
+        return float(value)
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
 
 
 def _as_bool(value: object) -> bool:
