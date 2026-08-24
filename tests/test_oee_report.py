@@ -26,6 +26,7 @@ import pytest
 
 from iaiops.core.brain.oee_report import render_oee_report
 from iaiops.core.report.strings import EN, ZH, strings
+from iaiops.core.report.svg import _BAR_W
 
 pytestmark = pytest.mark.unit
 
@@ -34,7 +35,11 @@ def _losses(**over) -> dict:
     base = {
         "status": "ok",
         "planned_time_s": 179.9,
-        "fully_productive_time_s": 122.4,
+        # 122.5 + (46.6 + 5.9 + 4.9) = 179.9 exactly. The ladder identity holds in
+        # real data (checked against a live run), so a fixture that missed it by
+        # 0.1s was testing a shape the product never produces — and the bar test
+        # is tight enough to have noticed, which is the point of it.
+        "fully_productive_time_s": 122.5,
         "oee_from_losses": 0.680378,
         "planned_time_basis": "observed_known_time",
         "coverage_pct": 100.0,
@@ -140,6 +145,12 @@ def payload(**over) -> dict:
         "losses": _losses(),
     }
     return {**base, **over}
+
+
+def _stacked_bar(html: str) -> str:
+    """The losses bar, found by its viewBox width rather than a hardcoded number —
+    the constant moved once already and a literal in the test would have hidden it."""
+    return re.search(rf'<svg viewBox="0 0 {_BAR_W:.0f} [\d.]+".*?</svg>', html, re.S).group(0)
 
 
 def render(**kwargs) -> str:
@@ -268,9 +279,9 @@ class TestTheLossLadderIsDrawn:
         """Fully productive + six losses = planned, exactly. A bar drawn past its
         own width would be the visible form of an arithmetic error."""
         html = render()
-        bar = re.search(r'<svg viewBox="0 0 720 [\d.]+".*?</svg>', html, re.S).group(0)
+        bar = _stacked_bar(html)
         widths = [float(w) for w in re.findall(r'<rect x="[\d.]+" y="0" width="([\d.]+)"', bar)]
-        assert sum(widths) == pytest.approx(720.0, abs=0.5)
+        assert sum(widths) == pytest.approx(_BAR_W, abs=0.5)
 
     def test_a_segment_that_would_overrun_the_bar_is_clipped(self):
         """The ladder identity (productive + losses = planned) is checked in the
@@ -290,9 +301,9 @@ class TestTheLossLadderIsDrawn:
             ],
         )
         html = render(payload=payload(losses=broken))
-        bar = re.search(r'<svg viewBox="0 0 720 [\d.]+".*?</svg>', html, re.S).group(0)
+        bar = _stacked_bar(html)
         widths = [float(w) for w in re.findall(r'<rect x="[\d.]+" y="0" width="([\d.]+)"', bar)]
-        assert sum(widths) <= 720.0 + 0.5, f"the bar drew {sum(widths):.1f} of 720 units"
+        assert sum(widths) <= _BAR_W + 0.5, f"the bar drew {sum(widths):.1f} of {_BAR_W}"
 
     def test_the_true_number_survives_the_clip(self):
         """Clipping the drawing must not quietly shrink the reported value —

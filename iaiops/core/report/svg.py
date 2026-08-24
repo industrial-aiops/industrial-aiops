@@ -24,8 +24,18 @@ from __future__ import annotations
 from iaiops.core.report.html import escape
 
 #: Bar geometry, in the SVG's own user units. The viewBox scales to the column,
-#: so these are proportions rather than pixels.
-_BAR_W = 720.0
+#: so these are proportions rather than pixels — but the NUMBER still matters,
+#: because it sets the scale factor at the width this is normally read at. The
+#: page's content column is 1100px wide, so a viewBox near that renders the text
+#: at roughly its nominal size instead of magnified.
+#:
+#: The first version paired a 720-unit viewBox with a fixed pixel `height`. With
+#: `width="100%"` that combination makes `preserveAspectRatio="meet"` letterbox
+#: the drawing: the ELEMENT measured 1100px while the chart occupied 720 of them
+#: and the rest was blank, so the bar looked truncated. Caught by looking at the
+#: page rather than by any assertion — the geometry was internally consistent,
+#: it just was not what a reader saw.
+_BAR_W = 1060.0
 _BAR_H = 34.0
 _ROW_H = 22.0
 
@@ -96,8 +106,11 @@ def stacked_bar_svg(
         )
     height = _BAR_H + 14 + len(segments) * _ROW_H
     return (
-        f'<svg viewBox="0 0 {_BAR_W:.0f} {height:.0f}" width="100%" '
-        f'height="{height:.0f}" role="img" aria-label="{escape(title)}" '
+        # No fixed height: `width:100%; height:auto` lets one uniform scale carry
+        # the whole drawing, so the bar always fills its column and the legend
+        # keeps its proportions instead of being letterboxed beside it.
+        f'<svg viewBox="0 0 {_BAR_W:.0f} {height:.0f}" '
+        f'style="width:100%;height:auto" role="img" aria-label="{escape(title)}" '
         f'preserveAspectRatio="xMinYMin meet">'
         f"<title>{escape(title)}</title>" + "".join(blocks) + "".join(rows) + "</svg>"
     )
@@ -120,11 +133,11 @@ def meter_svg(label: str, fraction: float | None, *, refused: str = "") -> str:
     var = "ok" if pct >= 85 else ("warn" if pct >= 60 else "bad")
     return (
         f'<div class="meter"><div class="meter-label">{name}</div>'
-        f'<svg viewBox="0 0 200 10" width="100%" height="10" role="img" '
+        f'<svg viewBox="0 0 200 8" style="width:100%;height:auto" role="img" '
         f'aria-label="{name} {pct:.1f} percent">'
         f"<title>{name} {pct:.1f}%</title>"
-        f'<rect x="0" y="0" width="200" height="10" rx="5" fill="var(--line)"></rect>'
-        f'<rect x="0" y="0" width="{pct * 2:.2f}" height="10" rx="5" '
+        f'<rect x="0" y="0" width="200" height="8" rx="4" fill="var(--line)"></rect>'
+        f'<rect x="0" y="0" width="{pct * 2:.2f}" height="8" rx="4" '
         f'fill="var(--{var})"></rect></svg>'
         f'<div class="meter-value">{pct:.1f}%</div></div>'
     )
