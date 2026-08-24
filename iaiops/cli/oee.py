@@ -20,7 +20,14 @@ from pathlib import Path
 
 import typer
 
-from iaiops.cli._common import _emit, cli_errors, console, humanize_seconds
+from iaiops.cli._common import (
+    MAX_STORE_SAMPLES,
+    _emit,
+    cli_errors,
+    console,
+    humanize_seconds,
+    run_state_samples,
+)
 
 oee_app = typer.Typer(help="OEE measured from collected history.")
 
@@ -52,16 +59,7 @@ def oee_measure_cmd(
     from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
     target = load_config().get_target(endpoint)
-    run_tags = [t for t in (getattr(target, "tags", ()) or ()) if t.role == TagRole.RUN_STATE]
-    if not run_tags:
-        raise ValueError(
-            f"Endpoint {endpoint!r} declares no run_state tag. Add `role: run_state` and "
-            "`running_when:` to the tag that reports whether the line is producing — "
-            "run `iaiops readiness` to see what else is missing."
-        )
-    tag = run_tags[0]
-
-    rows = query_samples(SampleFilter(tag=tag.ref, limit=200_000), db_path=db)
+    tag, rows = run_state_samples(endpoint, db)
     result = measure_availability(rows, tag, minor_stop_s=minor_stop_s)
     comparison = compare_to_reported(result, reported) if reported is not None else None
 
@@ -73,7 +71,7 @@ def oee_measure_cmd(
         if not found:
             return None
         counted = count_production(
-            query_samples(SampleFilter(tag=found[0].ref, limit=200_000), db_path=db)
+            query_samples(SampleFilter(tag=found[0].ref, limit=MAX_STORE_SAMPLES), db_path=db)
         )
         return counted if counted["status"] == "ok" else None
 

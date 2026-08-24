@@ -90,7 +90,22 @@ def open_case(
 
     The case starts with NO label: the actions in the audit trail are recorded
     facts, but what they imply about the cause is for a person to say.
+
+    **An ANSWERED case is returned untouched.** Stoppage detection is naturally
+    re-run — a longer collection, a lower threshold, a second look — and each run
+    rediscovers the same stoppages. Because the id is derived from the endpoint
+    and the onset, re-opening one would replace a human's label with a blank,
+    silently destroying the single most expensive thing this system accumulates.
+    The guard lives here rather than in the caller so that no future caller has
+    to remember it: the first caller written did not, and reported "1 already
+    answered" having already erased the answer.
+
+    A case still awaiting a label IS refreshed, so a re-run picks up actions
+    recorded since.
     """
+    existing = _existing(site, _case_id(endpoint, when), base_dir)
+    if existing is not None and existing.answered:
+        return existing
     case = case_from_audit(_case_id(endpoint, when), when, audit_rows)
     case = Case(
         incident_id=case.incident_id,
@@ -104,11 +119,19 @@ def open_case(
     return _store(site, case, base_dir)
 
 
+def _existing(site: str, incident_id: str, base_dir: Path | None) -> Case | None:
+    """The stored case with this id, or None. Unlike ``_find``, absence is normal."""
+    for case in _cases_from(load(site, base_dir=base_dir)):
+        if case.incident_id == incident_id:
+            return case
+    return None
+
+
 def list_cases(site: str, pending_only: bool = False, base_dir: Path | None = None) -> list[Case]:
     """Cases for a site, newest first. A site with none lists nothing."""
     cases = sorted(_cases_from(load(site, base_dir=base_dir)), key=lambda c: c.when, reverse=True)
     if pending_only:
-        cases = [c for c in cases if not c.label and "dismissed" not in c.note.lower()]
+        cases = [c for c in cases if not c.answered]
     return cases
 
 

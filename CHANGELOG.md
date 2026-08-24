@@ -83,6 +83,24 @@
   once before sending (`--yes` skips). Verified against a real pymodbus device in
   a container: `iaiops scan run` → SQLite → HTML with the vendor intact.
 
+- **`iaiops case open` — the entrance the learning loop never had.** `case list`
+  printed "cases are opened from detected stoppages" while `open_case` had no
+  caller anywhere outside its own module, so an empty list read as "you have had
+  no stoppages" rather than "nothing here ever creates a case". It opens one case
+  per long stoppage found in the collected history, each carrying what someone
+  DID afterwards straight from the audit trail — zero extra typing, because those
+  actions were already recorded. Re-running is safe: an answered case is returned
+  untouched rather than replaced with a blank.
+- **`iaiops diag learn-weights --site` — and the exit it never had either.**
+  `to_corpus` also had no caller outside tests, so the corpus a site spends years
+  accumulating could not reach the learner that exists to consume it; the only
+  input was a hand-written JSON file. `--independent-only` trains on labels this
+  tool did not suggest, so a site can see whether its weights survive without the
+  ones its own ranking shaped.
+- `measure_availability` now returns `stop_windows` — each stoppage's onset and
+  duration, longest first — so a stoppage is addressable rather than only
+  countable.
+
 ### Fixed
 - **An IoTDB historian could not serve a Modbus line at all.** A bare number is
   not a legal IoTDB path node, and a Modbus site's tags ARE numbers — `collect

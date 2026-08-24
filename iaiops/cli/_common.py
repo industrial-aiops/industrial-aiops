@@ -84,6 +84,34 @@ def cli_errors(fn: Callable) -> Callable:
     return wrapper
 
 
+#: Upper bound on samples pulled from the local store for one measurement. A
+#: week at 200ms is ~3M rows per tag; the analyses here work on a window, not on
+#: everything ever collected.
+MAX_STORE_SAMPLES = 200_000
+
+
+def run_state_samples(endpoint: str, db: Path | None = None):
+    """The endpoint's declared run-state tag and its collected samples.
+
+    Shared by `oee measure` and `case open` so both agree on which tag decides
+    what running means. A second copy of this would be a second place for the
+    status-word rule to drift.
+    """
+    from iaiops.core.runtime.config import TagRole, load_config
+    from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
+
+    target = load_config().get_target(endpoint)
+    run_tags = [t for t in (getattr(target, "tags", ()) or ()) if t.role == TagRole.RUN_STATE]
+    if not run_tags:
+        raise ValueError(
+            f"Endpoint {endpoint!r} declares no run_state tag. Add `role: run_state` and "
+            "`running_when:` to the tag that reports whether the line is producing — "
+            "run `iaiops readiness` to see what else is missing."
+        )
+    tag = run_tags[0]
+    return tag, query_samples(SampleFilter(tag=tag.ref, limit=MAX_STORE_SAMPLES), db_path=db)
+
+
 def get_manager(config_path: Path | None = None):
     """Return a ConnectionManager built from config."""
     from iaiops.core.runtime.config import load_config

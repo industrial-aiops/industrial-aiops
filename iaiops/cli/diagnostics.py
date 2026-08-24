@@ -199,21 +199,59 @@ def rca_cmd(
 @cli_errors
 def learn_weights_cmd(
     input: Path = typer.Option(
-        ...,
+        None,
         "--input",
         help="JSON file: list of confirmed incidents [{cause, signals:[...]}]",
+    ),
+    site: str = typer.Option(
+        None, "--site", help="Learn from this site's own confirmed cases instead of a file."
+    ),
+    include_anchored: bool = typer.Option(
+        True,
+        "--include-anchored/--independent-only",
+        help="--independent-only trains on labels this tool did not suggest.",
     ),
     min_samples: int = typer.Option(8, "--min-samples"),
     smoothing: float = typer.Option(1.0, "--smoothing"),
 ) -> None:
     """Learn a per-site {cause: weight} RCA profile from a labeled incident history.
 
-    Reads a corpus of confirmed incidents (each ``{cause, signals}``) and derives a
-    per-site cause-weight profile to feed ``diag rca --weights``. Explainable
-    (smoothed signal→cause precision) with smoothing + a min-sample fall-back to
-    the shipped defaults; advisory only — it tunes ranking, executes nothing.
+    Derives a per-site cause-weight profile to feed ``diag rca --weights``.
+    Explainable (smoothed signal→cause precision) with smoothing + a min-sample
+    fall-back to the shipped defaults; advisory only — it tunes ranking, executes
+    nothing.
+
+    ``--site`` reads the cases confirmed through ``iaiops case confirm``. Without
+    it this command could only be fed a hand-written JSON file — so the corpus the
+    product spends years accumulating had no way to reach the learner, and the
+    "loop" was open at both ends.
+
+    ``--independent-only`` excludes labels chosen from a list this tool ranked. A
+    site whose weights change a lot between the two views is being led by its own
+    suggestions, and that is worth seeing before trusting the profile.
     """
-    _emit(rca_weights.learn_cause_weights(_load_json(input), min_samples, smoothing))
+    from iaiops.core.knowledge.case_store import list_cases
+    from iaiops.core.knowledge.cases import to_corpus
+
+    if bool(input) == bool(site):
+        raise ValueError(
+            "Give exactly one of --input (a JSON corpus) or --site (this site's own "
+            "confirmed cases). Learning from two different histories at once would "
+            "produce a profile neither of them supports."
+        )
+    if site:
+        cases = list_cases(site, pending_only=False, base_dir=None)
+        corpus = to_corpus(cases, include_anchored=include_anchored)
+        if not corpus:
+            raise ValueError(
+                f"Site {site!r} has no confirmed cases to learn from"
+                + (" that were not anchored." if not include_anchored else ".")
+                + " Open cases with `iaiops case open <endpoint>` and answer them "
+                "with `iaiops case confirm`."
+            )
+    else:
+        corpus = _load_json(input)
+    _emit(rca_weights.learn_cause_weights(corpus, min_samples, smoothing))
 
 
 @diag_app.command("corpus")
