@@ -167,6 +167,81 @@ def test_iotdb_points_land_on_the_path_the_reader_looks_under(iotdb_database: st
 
 
 @needs_iotdb
+def test_iotdb_serves_a_modbus_line_whose_tags_are_register_numbers(
+    iotdb_database: str,
+) -> None:
+    """A bare number is not a legal IoTDB path node — and Modbus tags ARE numbers.
+
+    `collect run` against a Modbus endpoint stores its samples under the register
+    address, so a plain line yields the tags `0` and `10`. Unquoted, the server
+    refuses BOTH directions — `ILLEGAL_PATH(509)` on insert and "no viable
+    alternative at input" on select — so an IoTDB historian could not serve a
+    Modbus site at all. Nothing caught it because every fixture in this file uses
+    alphabetic metric names, which happen to be legal unquoted.
+
+    Only a real server can answer this: the node grammar is IoTDB's, not ours.
+    """
+    from iaiops.core.sink.iotdb import IoTDBSink
+
+    sink = IoTDBSink(host=_HOST, database=iotdb_database)
+    written = sink.write(
+        [
+            {"metric": "0", "value": 2.0, "numeric": True, "timestamp": "2026-08-02T00:00:00Z"},
+            {"metric": "10", "value": 41.0, "numeric": True, "timestamp": "2026-08-02T00:00:01Z"},
+        ]
+    )
+    sink.close()
+    assert written == 2
+
+    reader = get_reader("iotdb", host=_HOST, database=iotdb_database)
+    try:
+        rows = reader.query(SampleFilter(limit=100))
+        one_tag = reader.query(SampleFilter(tag="0", limit=100))
+        cover = reader.coverage(limit=100)
+    finally:
+        reader.close()
+
+    # The tag comes back as the operator wrote it — a stray backtick here would
+    # mean no downstream lookup by tag name could ever match.
+    assert {row["tag"] for row in rows} == {"0", "10"}, rows
+    assert [row["value"] for row in one_tag] == [pytest.approx(2.0)], one_tag
+    assert {row["tag"] for row in cover} == {"0", "10"}, cover
+
+
+@needs_iotdb
+def test_iotdb_quoting_does_not_move_an_existing_series(iotdb_database: str) -> None:
+    """A backquoted node and its bare form must be the SAME node.
+
+    The fix quotes every path node, including the alphabetic ones already stored
+    by earlier versions. If the server treated `` `T` `` as a different node from
+    `T`, every existing historian would silently appear empty after an upgrade —
+    a far worse outcome than the bug being fixed. Written unquoted, read quoted.
+    """
+    from iotdb.Session import Session
+    from iotdb.utils.IoTDBConstants import TSDataType
+
+    session = Session(_HOST, _IOTDB_PORT, "root", "root")
+    session.open(False)
+    try:
+        # Deliberately NOT through the sink: this must be the pre-fix on-disk form.
+        session.insert_record(
+            f"{iotdb_database}.LEGACY_TAG", 1_785_628_800_000, ["value"], [TSDataType.DOUBLE], [7.5]
+        )
+    finally:
+        session.close()
+
+    reader = get_reader("iotdb", host=_HOST, database=iotdb_database)
+    try:
+        rows = reader.query(SampleFilter(tag="LEGACY_TAG", limit=10))
+    finally:
+        reader.close()
+
+    assert [row["value"] for row in rows] == [pytest.approx(7.5)], (
+        f"quoting moved an existing series — every stored historian would read empty: {rows}"
+    )
+
+
+@needs_iotdb
 def test_iotdb_time_bounds_and_tag_filter_are_applied_by_the_server(
     iotdb_database: str,
 ) -> None:

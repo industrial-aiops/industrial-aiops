@@ -75,7 +75,7 @@ class IoTDBSink:
         for p in points:
             if not p.get("numeric"):
                 continue
-            device = f"{self._database}.{_sanitize_path(p['metric'])}"
+            device = f"{self._database}.{quote_path_node(p['metric'])}"
             ts = _ts_millis(p.get("timestamp"))
             # insert_record(device_id, time, measurements, data_types, values)
             self._session.insert_record(
@@ -100,9 +100,34 @@ def _double_type():
 
 
 def _sanitize_path(metric: str) -> str:
-    """IoTDB path segment from a metric (no dots/special chars in a node name)."""
+    """IoTDB path segment from a metric (no dots/special chars in a node name).
+
+    The value is the NODE NAME, not the SQL text — see :func:`quote_path_node`
+    for the form that goes into a statement.
+    """
     safe = "".join(c if c.isalnum() else "_" for c in str(metric))[:180]
     return safe or "unknown"
+
+
+def quote_path_node(metric: str) -> str:
+    """A sanitized metric as a path node SAFE TO INTERPOLATE, always backquoted.
+
+    IoTDB's grammar accepts an unquoted node only when it looks like an
+    identifier. A **bare number is a parse error** — and a Modbus site's tags are
+    register addresses, so `0` and `10` are exactly what `collect` and the demo
+    produce. The effect: an IoTDB historian could not store or read a Modbus line
+    at all, failing `ILLEGAL_PATH(509)` on write and "no viable alternative at
+    input" on read. Verified against a live IoTDB 1.3.2 on 2026-08-24.
+
+    Always backquoted rather than only-when-needed, because "when needed" is a
+    second rule that can disagree with the first. Confirmed on the same live
+    server that a backquoted node and its bare form are the SAME node — the
+    server echoes the column unquoted either way — so existing series are
+    unaffected. Injection-safe: the sanitizer has already reduced the value to
+    alphanumerics and underscores, so no backquote can survive into the quoted
+    text.
+    """
+    return f"`{_sanitize_path(metric)}`"
 
 
 def _ts_millis(timestamp) -> int:
@@ -126,4 +151,4 @@ def _ts_millis(timestamp) -> int:
     return int(datetime.now(tz=UTC).timestamp() * 1000)
 
 
-__all__ = ["IOTDB_ROOT", "IoTDBSink", "require_iotdb_path"]
+__all__ = ["IOTDB_ROOT", "IoTDBSink", "quote_path_node", "require_iotdb_path"]

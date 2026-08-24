@@ -324,9 +324,12 @@ class IoTDBReader:
             return self._session.execute_query_statement(sql)
 
     def _device(self, tag: str | None) -> str:
-        from iaiops.core.sink.iotdb import _sanitize_path
+        from iaiops.core.sink.iotdb import quote_path_node
 
-        return f"{self._database}.{_sanitize_path(tag)}" if tag else f"{self._database}.*"
+        # Backquoted for the same reason the sink writes it backquoted: a bare
+        # numeric node is a PARSE ERROR, and a Modbus site's tags are register
+        # addresses. Unquoted, no IoTDB historian could serve a Modbus line.
+        return f"{self._database}.{quote_path_node(tag)}" if tag else f"{self._database}.*"
 
     def query(self, flt: SampleFilter) -> list[dict]:
         checked = validate_filter(flt)
@@ -519,14 +522,19 @@ def _field_value(field: Any) -> Any:
 
 
 def _tag_from_path(column: str, database: str) -> str:
-    """``root.iaiops.<tag>.value`` → ``<tag>`` (tolerates other shapes)."""
+    """``root.iaiops.<tag>.value`` → ``<tag>`` (tolerates other shapes).
+
+    Backticks are stripped: a live IoTDB echoes the node unquoted, but a server
+    that quoted it back would otherwise turn the tag ``0`` into ``` `0` ``` and
+    fail to match anything the caller asked for.
+    """
     text = str(column)
     prefix = f"{database}."
     if text.startswith(prefix):
         text = text[len(prefix) :]
     if text.endswith(".value"):
         text = text[: -len(".value")]
-    return s(text, 128)
+    return s(text.replace("`", ""), 128)
 
 
 def _iso_to_millis(iso_text: str) -> int:

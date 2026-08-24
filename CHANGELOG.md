@@ -84,6 +84,15 @@
   a container: `iaiops scan run` → SQLite → HTML with the vendor intact.
 
 ### Fixed
+- **An IoTDB historian could not serve a Modbus line at all.** A bare number is
+  not a legal IoTDB path node, and a Modbus site's tags ARE numbers — `collect
+  run` stores samples under the register address, so a plain line yields the tags
+  `0` and `10`. Unquoted, a live server refuses both directions:
+  `ILLEGAL_PATH(509)` on insert and "no viable alternative at input" on select.
+  Every fixture in the live suite used alphabetic metric names, which happen to
+  be legal unquoted. Path nodes are now always backquoted — verified on the same
+  live server that a quoted node and its bare form are the same node, so series
+  written by earlier versions still read.
 - **One command read two config files.** `IAIOPS_CONFIG` was honoured by
   `load_config_env()` — which the shared brain modules call — and ignored by
   `load_config()`, which the CLI and everything else call. So a single
