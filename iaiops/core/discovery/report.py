@@ -23,12 +23,14 @@ Two constraints are load-bearing and both are tested:
 
 from __future__ import annotations
 
-import html
 import json
 from typing import Any
 
 from iaiops.core.discovery import wirelog
 from iaiops.core.discovery.types import ScanResult
+from iaiops.core.report.html import CSS as _CSS
+from iaiops.core.report.html import JS as _JS
+from iaiops.core.report.html import cell, escape, kv
 
 _VERDICT_TEXT = {
     "ok": ("ok", "Industrial devices were identified."),
@@ -43,125 +45,12 @@ _VERDICT_TEXT = {
     ),
 }
 
-_CSS = """
-:root {
-  --bg:#f7f7f5; --fg:#16181d; --muted:#5c6270; --line:#dcdcd6; --card:#fff;
-  --ok:#1a7f4b; --warn:#8a5a00; --bad:#a3262c; --accent:#1f4e79; --code:#f0f0ec;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg:#14161a; --fg:#e8e8e4; --muted:#9aa0ac; --line:#2c3038; --card:#1b1e24;
-    --ok:#4cc38a; --warn:#d6a34a; --bad:#e5757c; --accent:#7fb3e0; --code:#22262e;
-  }
-}
-* { box-sizing:border-box; }
-body {
-  margin:0; padding:2rem 1.25rem 4rem; background:var(--bg); color:var(--fg);
-  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
-       "Helvetica Neue",Arial,sans-serif;
-}
-.wrap { max-width:1100px; margin:0 auto; }
-h1 { font-size:1.5rem; margin:0 0 .25rem; }
-h2 { font-size:1.1rem; margin:2.5rem 0 .75rem; padding-bottom:.4rem;
-     border-bottom:1px solid var(--line); }
-h3 { font-size:.95rem; margin:1.5rem 0 .5rem; color:var(--muted); font-weight:600; }
-.sub { color:var(--muted); margin:0 0 1.5rem; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:8px;
-        padding:1rem 1.15rem; }
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:.9rem; }
-.kv { font-size:.85rem; }
-.kv dt { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.04em; }
-.kv dd { margin:.15rem 0 0; font-weight:600; word-break:break-word; }
-.badge { display:inline-block; padding:.15rem .55rem; border-radius:999px; font-size:.75rem;
-         font-weight:700; border:1px solid currentColor; }
-.badge.ok{color:var(--ok)} .badge.partial{color:var(--warn)}
-.badge.none{color:var(--muted)} .badge.aborted{color:var(--bad)}
-table { width:100%; border-collapse:collapse; font-size:.85rem; }
-.scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px;
-          background:var(--card); }
-th,td { padding:.5rem .7rem; text-align:left; border-bottom:1px solid var(--line);
-        white-space:nowrap; }
-th { background:var(--code); font-size:.72rem; text-transform:uppercase; letter-spacing:.04em;
-     color:var(--muted); cursor:pointer; user-select:none; position:sticky; top:0; }
-th[data-sort]:after { content:" \\2195"; opacity:.35; }
-tbody tr:last-child td { border-bottom:none; }
-tbody tr:hover { background:var(--code); }
-td.blank { color:var(--muted); }
-ul.never { list-style:none; padding:0; margin:.5rem 0 0; }
-ul.never li { padding:.3rem 0 .3rem 1.5rem; position:relative; font-size:.87rem; }
-ul.never li:before { content:"\\2717"; position:absolute; left:.25rem;
-                     color:var(--ok); font-weight:700; }
-ul.notes { margin:.5rem 0 0; padding-left:1.2rem; font-size:.88rem; }
-ul.notes li { margin:.35rem 0; }
-input[type=search] { width:100%; max-width:340px; padding:.45rem .6rem; margin-bottom:.75rem;
-  border:1px solid var(--line); border-radius:6px; background:var(--card);
-  color:var(--fg); font-size:.85rem; }
-pre { background:var(--code); border:1px solid var(--line); border-radius:8px; padding:.9rem;
-      overflow-x:auto; font-size:.78rem; line-height:1.45; }
-code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-.mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
-.foot { margin-top:3rem; padding-top:1rem; border-top:1px solid var(--line);
-        color:var(--muted); font-size:.78rem; }
-.empty { color:var(--muted); font-style:italic; padding:1rem 0; }
-"""
-
-_JS = """
-(function () {
-  var box = document.getElementById('filter');
-  var table = document.getElementById('devices');
-  if (!table) return;
-  var body = table.tBodies[0];
-  var rows = Array.prototype.slice.call(body.rows);
-
-  if (box) {
-    box.addEventListener('input', function () {
-      var q = box.value.toLowerCase();
-      var shown = 0;
-      rows.forEach(function (row) {
-        var hit = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
-        row.hidden = !hit;
-        if (hit) shown++;
-      });
-      var count = document.getElementById('shown');
-      if (count) count.textContent = shown + ' of ' + rows.length + ' shown';
-    });
-  }
-
-  var dir = {};
-  Array.prototype.forEach.call(table.tHead.rows[0].cells, function (th, index) {
-    if (!th.hasAttribute('data-sort')) return;
-    th.addEventListener('click', function () {
-      dir[index] = !dir[index];
-      var numeric = th.getAttribute('data-sort') === 'num';
-      var sorted = rows.slice().sort(function (a, b) {
-        var x = a.cells[index].getAttribute('data-key') || a.cells[index].textContent;
-        var y = b.cells[index].getAttribute('data-key') || b.cells[index].textContent;
-        var out = numeric ? (parseFloat(x) || 0) - (parseFloat(y) || 0)
-                          : x.localeCompare(y, undefined, { numeric: true });
-        return dir[index] ? out : -out;
-      });
-      sorted.forEach(function (row) { body.appendChild(row); });
-    });
-  });
-})();
-"""
-
-
-def _e(value: Any) -> str:
-    """Escape for HTML text. Every device-supplied string goes through this."""
-    return html.escape("" if value is None else str(value), quote=True)
-
-
-def _cell(value: Any, key: str | None = None) -> str:
-    text = "" if value is None else str(value)
-    attrs = f' data-key="{_e(key)}"' if key is not None else ""
-    if not text.strip():
-        return f'<td class="blank"{attrs}>—</td>'
-    return f"<td{attrs}>{_e(text)}</td>"
-
-
-def _kv(label: str, value: Any) -> str:
-    return f"<div class='kv'><dt>{_e(label)}</dt><dd>{_e(value) or '—'}</dd></div>"
+# Local names for the shared primitives. Kept as aliases rather than rewritten
+# at ~40 call sites: an extraction that also churns its callers cannot be read as
+# "nothing changed", and this one has to be provably inert.
+_e = escape
+_cell = cell
+_kv = kv
 
 
 def _header(record: dict[str, Any]) -> str:

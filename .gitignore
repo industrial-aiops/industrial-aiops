@@ -14,3 +14,7 @@ build/
 # scratch scripts used to drive container verification runs
 _verify.sh
 _v.sh
+
+# The demo writes its report into the working directory on purpose — a report you
+# cannot find is a report you cannot forward. It is an artefact, not source.
+oee-demo.html

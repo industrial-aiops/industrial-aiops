@@ -118,6 +118,34 @@
   hundred", and a verdict that reports only the first invites the reader to
   supply the second from imagination.
 
+- **`iaiops oee measure --report x.html` — the number you can hand to someone.**
+  `scan` and `compliance` could both write a file; the figure this product most
+  wants a customer to see was the only one that could not be put on paper, and a
+  terminal is the wrong medium for a five-minute conversation with a plant
+  manager. One self-contained file: no fonts, scripts, styles or images from
+  anywhere and no network request when opened, so it works on an air-gapped
+  laptop and survives being forwarded as an attachment. `--lang en|zh`.
+
+  **Coverage comes before the number, and cannot be moved.** The scan report
+  argues that its section order IS its argument — it opens with what it did, not
+  what it found. Here the equivalent is that "we could see 85% of the window"
+  precedes "OEE 66%": a report that leads with the figure and footnotes the
+  coverage hands the reader a measured fact and lets them supply a false
+  precision. The page also carries the **prerequisite row a sales deck leaves
+  out** — what had to be declared to produce each figure, and what is still
+  missing — because a demo that hides it fails on first contact with a real site.
+
+  The demo now writes `oee-demo.html`, with its own honesty caveat rendered onto
+  the page (in the report's language): a forwarded report of a shift compressed
+  into seventy seconds, without that sentence, reads as a real plant's real OEE.
+
+- Shared report primitives moved to `iaiops/core/report/` (escaping, CSS, the
+  document skeleton, and the repo's first inline-SVG charts). The repo had two
+  report builders sharing **no code**, with two escape helpers and two `_cell`
+  functions whose contracts disagreed; a third copy would have been the point of
+  no return. `discovery/report.py` now imports them back and its output is
+  **byte-identical** across the change.
+
 ### Fixed
 - **`diag learn-weights` output could not be fed to `diag rca --weights`**, which
   is exactly what that option's help text tells you to do. The learner returns

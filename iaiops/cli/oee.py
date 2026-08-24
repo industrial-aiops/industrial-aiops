@@ -42,6 +42,12 @@ def oee_measure_cmd(
         300.0, "--minor-stop-s", help="Stops at or under this count as minor."
     ),
     db: Path = typer.Option(None, "--db", help="Local store (default: the iaiops store)."),
+    report: Path = typer.Option(None, "--report", help="Also write a self-contained HTML report."),
+    lang: str = typer.Option("en", "--lang", help="Report language: en | zh."),
+    site: str = typer.Option("", "--site", help="Site / plant name for the report heading."),
+    note: str = typer.Option(
+        "", "--note", help="A caveat rendered near the top of the report, before the figure."
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Measure availability from collected history; optionally compare it.
@@ -98,19 +104,41 @@ def oee_measure_cmd(
         result, totals, goods, getattr(target, "ideal_cycle_time_s", None)
     )
 
-    if as_json:
-        _emit(
-            {
-                "measured": result,
-                "comparison": comparison,
-                "production": totals,
-                "performance": perf,
-                "quality": qual,
-                "factors": factors,
-                "oee": oee,
-                "losses": losses,
-            }
+    payload = {
+        "measured": result,
+        "comparison": comparison,
+        "production": totals,
+        "performance": perf,
+        "quality": qual,
+        "factors": factors,
+        "oee": oee,
+        "losses": losses,
+    }
+
+    if report is not None:
+        # Same guard the scan report uses: refuse `..` traversal and a wrong
+        # extension before writing anything.
+        from datetime import UTC, datetime
+
+        from iaiops.core.brain.oee_report import render_oee_report
+        from iaiops.core.governance.evidence import validate_output_path
+
+        path = validate_output_path(report, suffixes=(".html", ".htm"))
+        path.write_text(
+            render_oee_report(
+                payload,
+                endpoint=endpoint,
+                site=site,
+                lang=lang,
+                note=note,
+                generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
+            ),
+            encoding="utf-8",
         )
+        console.print(f"[dim]report written to {path}[/]")
+
+    if as_json:
+        _emit(payload)
         return
 
     console.print(f"\n[bold]Availability[/] — {endpoint} · tag {tag.ref}\n")

@@ -11,6 +11,8 @@ from typing import Annotated, Any
 import typer
 from rich.console import Console
 
+from iaiops.core.report.fmt import humanize_seconds as _humanize_seconds
+
 console = Console()
 
 
@@ -23,28 +25,14 @@ def _emit(data: object) -> None:
     console.print_json(json.dumps(data, default=str))
 
 
+# Re-exported so every existing caller keeps working. The implementation moved
+# to core/report/fmt.py so the HTML reports can share it — core must not import
+# from cli, and two copies would be two places for "0.0h" to come back.
+humanize_seconds = _humanize_seconds
+
 EndpointOption = Annotated[
     str | None, typer.Option("--endpoint", "-e", help="Endpoint name from config")
 ]
-
-
-def humanize_seconds(seconds: float) -> str:
-    """A duration in the unit that makes it readable at its own scale.
-
-    A week-long run reads naturally in hours; a two-minute one does not, and
-    ``f"{s/3600:.1f}h"`` renders ten seconds of blind time as "0.0h" — true, and
-    misleading in the direction that makes a gap look like nothing.
-    """
-    seconds = max(0.0, float(seconds))
-    if seconds < 1:
-        return f"{seconds * 1000:.0f}ms"
-    if seconds < 90:
-        return f"{seconds:.0f}s"
-    if seconds < 5400:
-        return f"{seconds / 60:.1f}min"
-    if seconds < 172_800:
-        return f"{seconds / 3600:.1f}h"
-    return f"{seconds / 86_400:.1f}d"
 
 
 def _cli_error_types() -> tuple[type[BaseException], ...]:
