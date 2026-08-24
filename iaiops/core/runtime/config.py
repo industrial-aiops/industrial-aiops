@@ -691,13 +691,32 @@ def _as_bool(value: object) -> bool:
     return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
+def default_config_path() -> Path:
+    """The config file to read when no explicit path is given.
+
+    ``IAIOPS_CONFIG`` is resolved HERE, in the one place every caller goes
+    through, rather than in a second loader beside it. It used to live only in
+    ``load_config_env()``, which the shared brain modules called while the CLI
+    called ``load_config()`` — so one ``iaiops diag rca-live`` read its ENDPOINTS
+    from ``~/.iaiops/config.yaml`` and its HISTORIAN from ``$IAIOPS_CONFIG``.
+    Point that at a plant while a stale file sits in the home directory and the
+    copilot pairs live evidence from one machine with history from another, with
+    no error anywhere: a wrong answer wearing the right shape.
+    """
+    override = os.environ.get("IAIOPS_CONFIG")
+    return Path(override).expanduser() if override else CONFIG_FILE
+
+
 def load_config(config_path: Path | None = None) -> AppConfig:
     """Load config from YAML.
 
     Returns an empty config (no endpoints) when no file exists — the
     CLI/doctor then prints a teaching message rather than crashing.
+
+    With no explicit path, reads whatever :func:`default_config_path` resolves, so
+    ``IAIOPS_CONFIG`` applies to every caller uniformly.
     """
-    path = config_path or CONFIG_FILE
+    path = config_path or default_config_path()
     if not path.exists():
         return AppConfig()
 
@@ -718,9 +737,13 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
 
 def load_config_env() -> AppConfig:
-    """Load config honoring the ``IAIOPS_CONFIG`` path override (MCP/tool paths)."""
-    override = os.environ.get("IAIOPS_CONFIG")
-    return load_config(Path(override) if override else None)
+    """Deprecated alias for :func:`load_config` — every loader honours the override.
+
+    Kept so published callers keep working. There is no longer a version that
+    ignores ``IAIOPS_CONFIG``, which is the whole point: two loaders meant two
+    answers to "which file is this site configured in".
+    """
+    return load_config()
 
 
 def _parse_historian(raw: object) -> HistorianConfig | None:
