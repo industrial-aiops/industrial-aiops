@@ -30,11 +30,33 @@ there rather than what would sell.
 | 1 | `iaiops readiness` | **no** — what this site can run, and what each gap needs |
 | 2 | `iaiops collect plan` | **no** — what a run would cost, and what it could not see |
 | 3 | `iaiops collect run` | yes — a bounded assessment run |
-| 4 | `iaiops oee measure --reported 97` | **no** — measured over collected history |
+| 4 | `iaiops oee measure --reported 97 --report oee.html` | **no** — measured over collected history |
 
 Two of the four contact nothing, which is the point of ordering them this way:
 you can answer "what would this take" on a site you have not been given
 permission to probe.
+
+## What you can hand to someone afterwards
+
+Step 4 writes **`oee-demo.html`** into the directory you ran it from — one
+self-contained file with the whole story: what the measurement could see, the
+A×P×Q figure, the Six Big Losses, the gap against the site's own number, and the
+prerequisite row saying what had to be declared to produce each figure.
+
+It loads no fonts, scripts, styles or images from anywhere and makes no network
+request when opened, so it works on an air-gapped laptop in a plant office and
+survives being forwarded as an attachment.
+
+**The caveat above travels with it.** The paragraph at the top of this README is
+rendered onto the page itself, near the top, before the number. A forwarded
+report of a shift compressed into seventy seconds — without that sentence — reads
+as a real plant's real OEE, which is the exact overstatement this tool exists to
+refuse, committed by its own demo.
+
+```bash
+IAIOPS_REPORT_LANG=zh ./demo/oee-line/run_demo.sh   # the report in Chinese
+REPORT_OUT=~/Desktop/oee.html ./demo/oee-line/run_demo.sh
+```
 
 ## The outage is the demo
 

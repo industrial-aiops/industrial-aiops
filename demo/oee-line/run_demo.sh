@@ -29,6 +29,12 @@ REPORTED="${REPORTED:-97}"        # the figure the "site" believes
 # tell the story backwards.
 MINOR_STOP_S="${MINOR_STOP_S:-5}"
 
+# Report knobs. LANG_ rather than LANG: LANG is a POSIX locale variable and
+# overwriting it here would change how every child process formats and sorts.
+SITE="${SITE:-Plant A}"
+LANG_="${IAIOPS_REPORT_LANG:-en}"
+REPORT_OUT="${REPORT_OUT:-$PWD/oee-demo.html}"
+
 DEMO_HOME="$(mktemp -d)"
 PORT="$($PY -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
 mkdir -p "$DEMO_HOME/.iaiops"
@@ -93,8 +99,43 @@ HOME="$DEMO_HOME" $IAIOPS collect run line1 \
 
 echo
 echo "════ 4. Measure it, against what the site believes ════"
+# The note is the one from README.md, carried onto the page itself. A forwarded
+# report of a shift compressed into seventy seconds, WITHOUT that sentence, reads
+# as a real plant's real OEE — the exact overstatement this tool exists to
+# refuse, committed by its own demo. It belongs on the artefact, not only in a
+# README nobody forwards alongside it.
+# It follows --lang. The first version of this hardcoded the English text, so the
+# Chinese report carried an English caveat — which is worse than no caveat, since
+# a reader who cannot read it will scroll past the one paragraph that stops the
+# number being taken literally.
+if [ "$LANG_" = "zh" ]; then
+  NOTE="形状是真的,数字不是对任何人工厂的断言。这个班次被压缩到 ${DURATION} 秒,\
+所以损失的比例远大于真实产线 —— 公开的「人工记录 vs 实测 OEE」基准把真实差距放在 \
+8-12 个百分点。这份 demo 真正证明的是**机制**:短到写不下来的停机被算进去了,\
+而盲区时间没有被算成停机。"
+else
+  NOTE="The shape is real. The numbers are not a claim about anybody's plant. This \
+shift is compressed into ${DURATION} seconds, so its losses are proportionally far \
+larger than a real line's — published benchmarking of manual-vs-measured OEE puts \
+the real-world gap at 8-12 points. What this legitimately shows is MECHANISM: that \
+stoppages too short to write down are counted, and that blind time is not."
+fi
+
 HOME="$DEMO_HOME" $IAIOPS oee measure line1 --reported "$REPORTED" \
-  --minor-stop-s "$MINOR_STOP_S"
+  --minor-stop-s "$MINOR_STOP_S" \
+  --site "$SITE" --lang "$LANG_" --note "$NOTE" \
+  --report "$DEMO_HOME/oee.html"
+
+# Out of the temp home and into the working directory, because a report you
+# cannot find is a report you cannot forward — and forwarding it is the point.
+if [ -f "$DEMO_HOME/oee.html" ]; then
+  cp "$DEMO_HOME/oee.html" "$REPORT_OUT"
+  echo
+  echo "════ The thing you can actually hand to someone ════"
+  echo "  $REPORT_OUT"
+  echo "  Self-contained: no fonts, scripts, styles or images from anywhere, and"
+  echo "  no network request when opened. Works on an air-gapped laptop."
+fi
 
 echo
 echo "[demo] isolated home was $DEMO_HOME — your own config and store were untouched."
