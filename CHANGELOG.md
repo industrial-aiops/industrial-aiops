@@ -2,7 +2,77 @@
 
 ## Unreleased
 
+> **The theme of this cycle: a site can be measured before anyone has explained it.**
+> Everything below serves one sequence — collect what a line actually does, turn that
+> into an OEE figure honest about what it could not see, and keep what was learned when
+> the raw samples are gone. Several of the fixes below came from pointing the tool at a
+> real device or a real historian rather than at a test double; none of them were
+> findable by the test suite, which passed either way.
+
 ### Added
+- **`iaiops readiness` — what this site can run today, and what each gap is waiting
+  for.** Every capability except `scan` assumes you already know your endpoints, and
+  nothing told a new user which scenarios their site could run now. It contacts
+  nothing: readiness is a judgement about configuration and stored history, so it
+  answers instantly, offline, about a site nobody has authorised you to probe — which
+  is the site that most needs the answer. Gaps are ranked by how much supplying them
+  would unlock, and a requirement no config can express is reported as such rather
+  than as merely unconfigured.
+- **`iaiops collect` — bounded assessment runs that fill the local store.** OEE's
+  brain existed; nothing fed it. Runs are capped at 14 days and the operator must
+  state the end — there is deliberately no run-forever mode, because a resident
+  process on an OT network needs change management while a laptop running for a week
+  does not. Every run records the windows it could NOT see, so a gap is never
+  silently readable as a stoppage.
+- **Collection survives an interruption, and reports the hole it leaves.** A week-long
+  run can now resume after a closed lid. The time between stopping and resuming is
+  treated as a blind window exactly like a dropped connection: stitching the halves
+  into one continuous series would manufacture a measurement over a window nobody
+  observed, and would do it in the direction that makes availability look better.
+- **Semantic tag roles (`run_state` / `total_count` / `good_count` / `reject_count`)
+  and a line's `ideal_cycle_time_s`.** OEE could previously only be hand-fed five
+  numbers. Roles are declared, never guessed. `running_when` closes the status-word
+  trap: with the `0=stopped 1=idle 2=running 3=fault` word most PLCs actually expose,
+  "any non-zero means running" counts three of four states as productive.
+- **`iaiops oee measure` — availability from collected history, honest about blind
+  time.** Elapsed time is sorted into three buckets — running, stopped and **unknown**
+  — and the unknown one is reported, never distributed. Below 50% coverage it declines
+  to give a figure. `--reported` sets the measured number beside the one the site keeps
+  by hand.
+- **Performance and Quality, completing the OEE figure.** Each factor appears only
+  when its inputs were declared. Production counts sum positive deltas only: a counter
+  that wraps or is reset at shift start looks identical in the samples (65000, then 3),
+  and `max - min` across that window credits the line with ~65,000 phantom parts.
+- **The site knowledge base, with provenance that cannot be laundered.** Facts carry
+  `declared` / `derived` / `suggested`, and a suggested fact is withheld from
+  reasoning: used as if it were declared it makes root-cause analysis confidently
+  wrong, and unlike a wrong answer it compounds. An empty base is an ordinary starting
+  state, not an error — the product has to be useful on a site that has entered
+  nothing.
+- **Cases — the loop that lets the RCA weights learn from use.** `learn_cause_weights`
+  could always learn a per-site cause profile; it had no corpus it could grow, so the
+  tool could run for two years and stay as clever as on day one. Capture mode is
+  derived, not declared, so a cause picked from our own ranked list cannot be counted
+  as independent evidence for the ranking that suggested it.
+- **`iaiops case list` / `confirm` / `dismiss` — the entrance to that loop.** The audit
+  trail already knows who ran what four minutes after the line stopped; showing it
+  turns "what happened?" from an interrogation into a prompt.
+- **`iaiops store status` / `prune` — raw samples have a lifetime, derived facts do
+  not.** Measured before
+  designing — three tags at 200ms is 2.0 GB a week, while a year of stop events
+  derived from it is about 3 MB, a factor of 35,000. Pruning refuses to delete samples
+  whose value has not been extracted, and defaults to a dry run.
+- **Omron FINS is collectable.** `readiness` listed which endpoints can be sampled on
+  a schedule and FINS was absent only because nothing mapped a single point reference
+  onto the connector. A bare `100` is refused rather than assumed to be `DM`: `DM100`
+  and `CIO100` are different memory, and guessing returns a plausible reading from the
+  wrong area.
+- **Session reads for every collectable protocol** — one connection held for the whole
+  run instead of one per sample (see the fix below).
+- **`demo/oee-line` — ninety seconds, no hardware.** The four commands a site runs, in
+  order, against a real pymodbus server, with the device process killed part-way
+  through. The outage is the demo: the line was producing throughout, the tool simply
+  could not see it, and the measurement must not call that downtime.
 - **`iaiops scan` — site discovery from the command line.** The engine landed in
   #161 but had no entry point, so a survey could only be run by writing Python.
   Six commands: `profiles` / `plan` / `run` / `list` / `report` / `prune`.
@@ -14,6 +84,26 @@
   a container: `iaiops scan run` → SQLite → HTML with the vendor intact.
 
 ### Fixed
+- **Timestamps were truncated to whole seconds.** At a 200ms sample rate every five
+  samples shared one stamp, so the observed cadence computed as 0.000s, ordinary
+  sampling intervals were reported as lost connections, and the plan advertised
+  resolving stoppages down to 0.4s while the stored data could not distinguish
+  anything under two seconds. Found by pointing the collector at a real device.
+- **Collection opened one TCP connection per sample.** Measured at 500ms over two
+  tags: 3.7 connections a second and ~110 sockets left in `TIME_WAIT` — 1.8 million
+  connections across the week-long run this feature exists for. One session per run
+  now: `TIME_WAIT` 110 → 0. Every test passed either way, and a Python Modbus server
+  tolerates what a PLC may not.
+- **A configured TDengine historian was unusable without a vendor tarball.**
+  `HistorianConfig` could not express the wire, so every reader took the default —
+  `native`, which needs `libtaos`, a vendor download that is not on PyPI. A site that
+  configured TDengine got "the native TDengine client could not be loaded" for every
+  incident, with nothing in the config able to say "use REST". `transport:` is now a
+  config field, validated at load.
+- **The BACnet CI harness picked an address that does not exist.** It derived its
+  second address by incrementing the last octet, so a runner ending in `.255` —
+  perfectly ordinary on a /20 — produced `10.1.0.256`. Intermittent by nature, which
+  is why main stayed green for weeks with it in place.
 - **`ScanNotFound` reached the user as a traceback.** `cli_errors` translated
   `KeyError` but not its parent `LookupError`, so a carefully written teaching
   message ("nothing has been stored yet, run `scan run` first") was swallowed and
