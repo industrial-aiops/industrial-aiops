@@ -111,7 +111,21 @@
   reads exactly like a line with no rejects. "Planned time" here is stated as
   OBSERVED known time, not the plant's schedule, which nobody has given us.
 
+- **A verdict now says how much history stands behind its ranking**, not only how
+  confident it is (D24). `reliability` reports whether the shipped defaults or a
+  site profile is in use and, when known, how many confirmed incidents shaped it
+  — "90% from a site with three recorded cases is not 90% from a site with three
+  hundred", and a verdict that reports only the first invites the reader to
+  supply the second from imagination.
+
 ### Fixed
+- **`diag learn-weights` output could not be fed to `diag rca --weights`**, which
+  is exactly what that option's help text tells you to do. The learner returns
+  `{cause_weights, n_incidents, per_cause, rationale}` and the consumer expected
+  the inner map alone, so the documented composition failed with
+  `cause_weights['cause_weights'] is not a known cause` and a user had to
+  hand-extract it. A whole profile is now accepted (a bare map still is), and
+  unwrapping it is what recovers the case count reliability reports.
 - **Parts made while the collector was blind inflated Performance.**
   `count_production` summed every positive delta while `measure_availability`
   excluded blind seconds from run time, so the numerator described a longer

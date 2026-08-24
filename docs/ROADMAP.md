@@ -308,11 +308,14 @@ Design in HLD §12. It must not gate the product's day-one value.
       free-text field — shipped. `iaiops case causes` lists the seven the learner
       speaks; `case confirm --cause` takes one of them; `case dismiss` records a
       negative label for one keystroke.
-- [ ] **Reliability alongside confidence** (D24): 90% from a site with three
-      recorded cases is not 90% from a site with three hundred. **Still open** —
-      verified 2026-08-24: the RCA verdict carries `confidence_band` and nothing
-      about how much history stands behind it. The learner already refuses below
-      8 confirmed incidents ("History too thin"); the verdict does not say so.
+- [x] **Reliability alongside confidence** (D24) — shipped. Every verdict carries
+      `reliability`: whether the shipped defaults or a site profile is in use and,
+      when known, how many confirmed incidents shaped it. A thin history says how
+      thin ("2 confirmed incident(s) so far — below the learner's floor"), and a
+      bare weight map admits its basis is unknown rather than staying silent,
+      which would read as "learned from a lot". Getting there fixed a second
+      thing: `diag learn-weights` output could not be fed to `diag rca --weights`
+      despite that option's help text saying to do exactly that.
 - [x] **Self-confirmation guard** (D25 neighbourhood, HLD §12.10) — shipped. The
       capture mode is DERIVED from whether the cause was one we ranked, never
       declared by the answerer; `iaiops case agreement` reports agreement and
