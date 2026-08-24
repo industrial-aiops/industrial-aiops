@@ -214,7 +214,8 @@ def downtime_rca(
     weights are the hypothesis confidences — no new reasoning, nothing invented.
     Absent ⇒ byte-identical output to before.
     """
-    weights = _normalize_cause_weights(cause_weights)
+    supplied, cases_behind = _unwrap_weight_profile(cause_weights)
+    weights = _normalize_cause_weights(supplied)
     win = _resolve_window(window, state_series)
     if "error" in win:
         err = {"verdict": "insufficient_evidence", **win, "anti_hallucination": _AH_NOTE}
@@ -229,6 +230,7 @@ def downtime_rca(
     if historian is not None:
         summary = {**summary, **_historian_summary(historian)}
     out = _render_rca(win, verdict, primary, hypotheses, summary, alarm_ctx, tags, dataflow)
+    out["reliability"] = _reliability(weights, cases_behind)
     return _with_graph(out, include_graph)
 
 
@@ -336,6 +338,70 @@ def _first_stoppage(state_series: list[dict]) -> dict | None:
 
 
 # ─── per-site cause weighting ────────────────────────────────────────────────
+
+
+def _unwrap_weight_profile(supplied: Any) -> tuple[Any, int | None]:
+    """Accept either a ``{cause: weight}`` map or a whole ``learn_cause_weights``
+    profile, and report how many incidents stand behind it.
+
+    ``diag rca --weights`` documents its input as "e.g. from `diag learn-weights`"
+    — and the learner returns ``{cause_weights, n_incidents, per_cause,
+    rationale}``, so feeding its output straight back in failed with
+    ``cause_weights['cause_weights'] is not a known cause``. The two commands the
+    help text composes did not compose. Unwrapping here also recovers
+    ``n_incidents``, which is what lets the verdict say how much history stands
+    behind its ranking (D24) instead of only how confident it is.
+    """
+    if isinstance(supplied, dict) and "cause_weights" in supplied:
+        cases = supplied.get("n_incidents")
+        return supplied.get("cause_weights"), int(cases) if isinstance(cases, int) else None
+    return supplied, None
+
+
+def _reliability(weights: dict[str, float], cases: int | None) -> dict[str, Any]:
+    """How much history stands behind the ranking — reported beside confidence.
+
+    D24: 90% from a site with three recorded cases is not 90% from a site with
+    three hundred, and a verdict that reports only the first invites the reader to
+    supply the second from imagination. Nothing here is a score; it names the
+    basis and, when known, the count.
+    """
+    if not weights:
+        so_far = (
+            f"This site has {cases} confirmed incident(s) so far — below the learner's "
+            "floor, so it kept the defaults rather than tuning on too little. "
+            if cases is not None
+            else ""
+        )
+        return {
+            "basis": "shipped_defaults",
+            "cases": cases,
+            "note": (
+                "Ranking uses the shipped default weights — nothing learned from this "
+                f"site. {so_far}Confirm causes with `iaiops case confirm`, then `iaiops "
+                "diag learn-weights --site <site>`."
+            ),
+        }
+    if cases is None:
+        return {
+            "basis": "site_profile",
+            "cases": None,
+            "note": (
+                "Ranking is tuned by a supplied per-site profile, but how many "
+                "confirmed incidents stand behind it is unknown — the weights were "
+                "given as a bare map rather than as a `diag learn-weights` result."
+            ),
+        }
+    return {
+        "basis": "site_profile",
+        "cases": cases,
+        "note": (
+            f"Ranking is tuned by this site's own profile, learned from {cases} "
+            "confirmed incident(s). Confidence describes THIS incident's evidence; "
+            "this number describes how much history shaped the ranking. They are "
+            "different things and a high one does not imply the other."
+        ),
+    }
 
 
 def _normalize_cause_weights(cause_weights: dict[str, float] | None) -> dict[str, float]:
