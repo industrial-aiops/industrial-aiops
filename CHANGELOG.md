@@ -84,6 +84,16 @@
   a container: `iaiops scan run` → SQLite → HTML with the vendor intact.
 
 ### Fixed
+- **One command read two config files.** `IAIOPS_CONFIG` was honoured by
+  `load_config_env()` — which the shared brain modules call — and ignored by
+  `load_config()`, which the CLI and everything else call. So a single
+  `iaiops diag rca-live` took its ENDPOINTS from `~/.iaiops/config.yaml` and its
+  HISTORIAN from `$IAIOPS_CONFIG`. The visible failure is the mild one ("endpoint
+  not found"); the one that matters is quiet — point the override at a plant
+  while a stale file sits in the home directory and the copilot pairs live
+  evidence sampled from one machine with history pulled from another, with no
+  error anywhere. The override is now resolved in one place every caller goes
+  through.
 - **Timestamps were truncated to whole seconds.** At a 200ms sample rate every five
   samples shared one stamp, so the observed cadence computed as 0.000s, ordinary
   sampling intervals were reported as lost connections, and the plan advertised
