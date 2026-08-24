@@ -381,9 +381,13 @@ jobs:
           # OPC-UA test uses. It is what showed that asyncua 1.x cannot open a
           # session on that stack at all (VERIFICATION-RECORD note 8), so this has
           # to keep running: the test is written to go RED when that changes.
-          docker run -d --rm --name iaiops-opcplc -p 50000:50000 \
+          # A port BELOW the ephemeral range rather than opc-plc's own default:
+          # Linux hands out 32768-60999 as ephemeral source ports, so an outbound
+          # connection made anywhere in this job can be holding the port when
+          # docker tries to publish it. Full note in scripts/opcua_cert_harness.sh.
+          docker run -d --rm --name iaiops-opcplc -p 14840:14840 \
             mcr.microsoft.com/iotedge/opc-plc:2.12.28 \
-            --pn=50000 --autoaccept --unsecuretransport
+            --pn=14840 --autoaccept --unsecuretransport
           # TAOS_FQDN/--hostname: a taosd dnode advertises its own FQDN, and the
           # native client reconnects to whatever it is told. Left at the default
           # that is the container id, which resolves inside the container network
@@ -417,7 +421,7 @@ jobs:
           # to close. Ask the same question the test asks.
           ready iaiops-iotdb 'docker logs iaiops-iotdb 2>&1 | grep -q "DataNode is set up successfully" && (echo > /dev/tcp/127.0.0.1/6667)' IoTDB
           ready iaiops-taos 'docker exec iaiops-taos taos -s "SHOW DATABASES" && (echo > /dev/tcp/127.0.0.1/6030)' TDengine
-          ready iaiops-opcplc 'docker logs iaiops-opcplc 2>&1 | grep -q "PLC simulation started" && (echo > /dev/tcp/127.0.0.1/50000)' opc-plc
+          ready iaiops-opcplc 'docker logs iaiops-opcplc 2>&1 | grep -q "PLC simulation started" && (echo > /dev/tcp/127.0.0.1/14840)' opc-plc
 
       # Certificate TRUST needs a SECOND opc-plc — one WITHOUT --autoaccept, so it
       # actually enforces its trust store. The harness owns that container's whole

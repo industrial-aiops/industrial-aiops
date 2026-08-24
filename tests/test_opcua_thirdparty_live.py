@@ -7,8 +7,8 @@ vendor interop stayed `待核实` in `docs/VERIFICATION-RECORD.md`.
 Microsoft's **opc-plc** is an independent implementation — built on the OPC
 Foundation .NET stack, the same stack behind a large share of vendor servers::
 
-    docker run -d --rm --name iaiops-opcplc -p 50000:50000 \\
-      mcr.microsoft.com/iotedge/opc-plc:2.12.28 --pn=50000 --autoaccept --unsecuretransport
+    docker run -d --rm --name iaiops-opcplc -p 14840:14840 \\
+      mcr.microsoft.com/iotedge/opc-plc:2.12.28 --pn=14840 --autoaccept --unsecuretransport
 
 **This file used to assert that sessions were impossible.** `asyncua` 1.x sent a
 `ServerUri` in CreateSession that OPC UA Part 4 §5.6.2 says must be empty unless
@@ -40,7 +40,7 @@ from iaiops.core.runtime.connection import _build_opcua_client  # noqa: E402
 pytestmark = [pytest.mark.integration]
 
 _HOST = "127.0.0.1"
-_PORT = 50000
+_PORT = 14840
 _URL = f"opc.tcp://{_HOST}:{_PORT}"
 
 #: Nodes the simulator publishes under its own namespace. Values MOVE (the point
@@ -61,8 +61,8 @@ def _reachable() -> bool:
 needs_opcplc = pytest.mark.skipif(
     not _reachable(),
     reason=(
-        f"no third-party OPC-UA server at {_HOST}:{_PORT} (docker run -d -p 50000:50000 "
-        "mcr.microsoft.com/iotedge/opc-plc:2.12.28 --pn=50000 --autoaccept --unsecuretransport)"
+        f"no third-party OPC-UA server at {_HOST}:{_PORT} (docker run -d -p 14840:14840 "
+        "mcr.microsoft.com/iotedge/opc-plc:2.12.28 --pn=14840 --autoaccept --unsecuretransport)"
     ),
 )
 
