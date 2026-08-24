@@ -112,16 +112,26 @@ def oee_measure_cmd(
     console.print(f"\n[bold]Availability[/] — {endpoint} · tag {tag.ref}\n")
     if result["status"] != "ok":
         console.print(f"[yellow]No figure reported ({result['status']}).[/]")
-        console.print(f"[dim]{result['note']}[/]\n")
+        if result.get("observed_values") is not None:
+            # The two values side by side, because the fix is to change one of
+            # them and nobody goes and queries the store to find the other.
+            declared = ", ".join(result.get("running_when") or []) or "(none declared)"
+            console.print(f"  declared running_when : [bold]{declared}[/]")
+            console.print(
+                f"  values actually seen  : [bold]{', '.join(result['observed_values'])}[/]"
+            )
     else:
         pct = 100.0 * result["availability"]
         console.print(f"  [bold]{pct:.2f}%[/] over {result['coverage_pct']:g}% coverage")
 
-    console.print(
-        f"  running {humanize_seconds(result['running_s'])} · "
-        f"stopped {humanize_seconds(result['stopped_s'])} · "
-        f"[yellow]blind {humanize_seconds(result['unknown_s'])}[/]"
-    )
+    # Only when there is something to show: after a refusal every bucket is zero,
+    # and "running 0ms · stopped 0ms · blind 0ms" reads like a measured result.
+    if any(result[k] for k in ("running_s", "stopped_s", "unknown_s")):
+        console.print(
+            f"  running {humanize_seconds(result['running_s'])} · "
+            f"stopped {humanize_seconds(result['stopped_s'])} · "
+            f"[yellow]blind {humanize_seconds(result['unknown_s'])}[/]"
+        )
     if result.get("minor_stops"):
         console.print(
             f"  [cyan]{result['minor_stops']} minor stoppage(s)[/] totalling "
