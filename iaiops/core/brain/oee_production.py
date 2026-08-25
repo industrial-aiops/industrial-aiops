@@ -30,12 +30,11 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from iaiops.core.brain._shared import parse_ts
 
-def _parse(ts: Any) -> datetime | None:
-    try:
-        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return None
+#: One parser for the whole brain — see `_shared.parse_ts` for why this one
+#: did not coerce naive stamps, and what that cost.
+_parse = parse_ts
 
 
 def _num(value: Any) -> float | None:
@@ -64,7 +63,24 @@ def _gap_limit(rows: list[tuple[datetime, float]]) -> float:
     return max(cadence * GAP_FACTOR, cadence + GAP_FLOOR_S)
 
 
-def count_production(samples: Any) -> dict[str, Any]:
+def _blind_spans(windows: Any) -> list[tuple[datetime, datetime]]:
+    """Normalize the availability path's blind windows into comparable datetimes."""
+    out: list[tuple[datetime, datetime]] = []
+    for row in windows or ():
+        if not isinstance(row, dict):
+            continue
+        start, end = parse_ts(row.get("start")), parse_ts(row.get("end"))
+        if start is not None and end is not None and end > start:
+            out.append((start, end))
+    return out
+
+
+def _overlaps(start: datetime, end: datetime, blind: list[tuple[datetime, datetime]]) -> bool:
+    """Whether [start, end] touches any window the collector could not see."""
+    return any(a < end and start < b for a, b in blind)
+
+
+def count_production(samples: Any, blind_windows: Any = None) -> dict[str, Any]:
     """[PURE] Parts made DURING THE TIME WE WATCHED, from a counter that may wrap.
 
     Returns ``{produced, discontinuities, unobserved_steps, n_samples, status,
@@ -91,7 +107,11 @@ def count_production(samples: Any) -> dict[str, Any]:
         if not isinstance(row, dict):
             continue
         when = _parse(row.get("ts") or row.get("timestamp"))
-        value = _num(row.get("value", row.get("count")))
+        # `row.get("value", row.get("count"))` returns None for an EXPLICIT
+        # `"value": None`, because the default only fires on a missing key — so a
+        # row carrying its number under `count` was dropped.
+        raw = row.get("value")
+        value = _num(raw if raw is not None else row.get("count"))
         if when is None or value is None:
             continue
         rows.append((when, value))
@@ -101,20 +121,49 @@ def count_production(samples: Any) -> dict[str, Any]:
         return {
             "produced": 0.0,
             "discontinuities": 0,
+            # Documented as always returned; this branch omitted them, so a caller
+            # trusting the docstring would KeyError on the one path that matters.
+            "unobserved_steps": 0,
+            "unobserved_parts": 0.0,
             "n_samples": len(rows),
             "status": "insufficient_data",
             "note": "A counter needs at least two readings before it can show production.",
         }
 
+    # TWO rules, and both are needed.
+    #
+    # The first version shared only the CONSTANTS and computed the cadence per
+    # series, then claimed in a comment that the two paths "cannot disagree about
+    # what blind means". They can: a run-state tag polled at 1s gives a 3s limit
+    # while a counter polled at 10s gives 30s, so a 20s outage is blind to one and
+    # ordinary to the other — parts credited, seconds excluded, the exact inflation
+    # this rule exists to stop.
+    #
+    # But sharing the run-state THRESHOLD is wrong in the other direction: a
+    # counter legitimately polled every 10s would have every single step called
+    # blind by a 3s limit. The thing the two paths must share is not a threshold,
+    # it is the WINDOWS the collector actually could not see — the collector reads
+    # every tag in the same iteration, so an outage is common to all of them.
+    #
+    # So: a step is unobserved if it is a gap in THIS series (this tag alone
+    # failed) OR it spans a window the availability path measured as blind
+    # (everything failed). Absent the windows, only the first rule applies, which
+    # is the fallback that missed the 20s outage.
     gap_limit = _gap_limit(rows)
+    blind = _blind_spans(blind_windows)
     produced = 0.0
     drops = 0
     unobserved = 0
+    unobserved_parts = 0.0
     for i in range(1, len(rows)):
-        if (rows[i][0] - rows[i - 1][0]).total_seconds() > gap_limit:
+        span = (rows[i][0] - rows[i - 1][0]).total_seconds()
+        if span > gap_limit or _overlaps(rows[i - 1][0], rows[i][0], blind):
             # Blind. The parts are real; the seconds that made them are not in
             # run time, so counting them here would inflate Performance.
             unobserved += 1
+            step = rows[i][1] - rows[i - 1][1]
+            if step > 0:
+                unobserved_parts += step
             continue
         delta = rows[i][1] - rows[i - 1][1]
         if delta >= 0:
@@ -124,6 +173,10 @@ def count_production(samples: Any) -> dict[str, Any]:
 
     note = "Counted from rising increments only."
     if unobserved:
+        note += (
+            f" Those steps span {unobserved_parts:,.0f} part(s), which is how much"
+            " production is NOT in the figure above."
+        )
         note += (
             f" {unobserved} increment(s) spanning a blind window were NOT counted: the "
             "line kept producing but those seconds are excluded from run time, and "
@@ -140,6 +193,9 @@ def count_production(samples: Any) -> dict[str, Any]:
         "produced": round(produced, 3),
         "discontinuities": drops,
         "unobserved_steps": unobserved,
+        # The step COUNT alone does not tell a reader whether 1 skipped step cost
+        # 3 parts or 3000.
+        "unobserved_parts": round(unobserved_parts, 3),
         "n_samples": len(rows),
         "status": "ok",
         "note": note,

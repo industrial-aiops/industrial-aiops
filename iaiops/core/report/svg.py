@@ -21,6 +21,9 @@ an SVG ``<text>`` node is parsed as markup like anything else.
 
 from __future__ import annotations
 
+from typing import Any
+
+from iaiops.core.report.fmt import UNKNOWN, finite
 from iaiops.core.report.html import escape
 
 #: Bar geometry, in the SVG's own user units. The viewBox scales to the column,
@@ -46,8 +49,17 @@ _ROW_H = 22.0
 _MIN_LABEL_W = 46.0
 
 
-def _pct(value: float, total: float) -> float:
-    return 0.0 if total <= 0 else max(0.0, min(100.0, 100.0 * value / total))
+def _share(value: Any, total: float) -> str:
+    """One segment's share, or the dash. NEVER a number it could not compute.
+
+    Was ``_pct`` returning a float clamped with ``min``/``max`` — which NaN walks
+    straight through, because every NaN comparison is False. A segment of unknown
+    size then printed as "100.0%".
+    """
+    known = finite(value)
+    if known is None or total <= 0:
+        return UNKNOWN
+    return f"{max(0.0, min(100.0, 100.0 * known / total)):.1f}%"
 
 
 def stacked_bar_svg(
@@ -74,15 +86,23 @@ def stacked_bar_svg(
     renders 110% of a bar is worse than one that visibly stops at the edge,
     because only the second makes the reader check the input.
     """
-    if total <= 0 or not segments:
+    whole = finite(total)
+    if whole is None or whole <= 0 or not segments:
+        # `total <= 0` alone let NaN through: `nan <= 0` is False. The chart then
+        # drew nothing while its legend claimed every segment was 100% of planned.
         return ""
+    total = whole
     x = 0.0
     blocks: list[str] = []
     rows: list[str] = []
     for index, seg in enumerate(segments):
-        label, value = seg["label"], float(seg["value"])
-        var, opacity = seg["var"], (0.5 if seg.get("dim") else 0.85)
-        width = min(_BAR_W * (max(0.0, value) / total), _BAR_W - x)
+        label = seg.get("label", "")
+        value = finite(seg.get("value"))
+        var, opacity = seg.get("var", "muted"), (0.5 if seg.get("dim") else 0.85)
+        # An unknown-sized segment is drawn as nothing and labelled as unknown —
+        # not as zero, which is a measurement, and not as 100%, which is what the
+        # clamp produced before.
+        width = 0.0 if value is None else min(_BAR_W * (max(0.0, value) / total), _BAR_W - x)
         if width > 0:
             blocks.append(
                 f'<rect x="{x:.2f}" y="0" width="{width:.2f}" height="{_BAR_H:.0f}" '
@@ -92,7 +112,7 @@ def stacked_bar_svg(
                 blocks.append(
                     f'<text x="{x + width / 2:.2f}" y="{_BAR_H / 2 + 4:.1f}" '
                     f'text-anchor="middle" font-size="11" fill="var(--bg)" '
-                    f'font-weight="700">{_pct(value, total):.0f}%</text>'
+                    f'font-weight="700">{_share(value, total)}</text>'
                 )
             x += width
         y = _BAR_H + 14 + index * _ROW_H
@@ -101,8 +121,9 @@ def stacked_bar_svg(
             f'fill="var(--{escape(var)})" opacity="{opacity}"></rect>'
             f'<text x="18" y="{y:.0f}" font-size="12" fill="var(--fg)">{escape(label)}</text>'
             f'<text x="{_BAR_W:.0f}" y="{y:.0f}" font-size="12" text-anchor="end" '
-            f'fill="var(--muted)">{value:,.1f}{escape(unit)} · '
-            f"{_pct(value, total):.1f}%</text>"
+            f'fill="var(--muted)">'
+            f"{UNKNOWN if value is None else format(value, ',.1f') + escape(unit)} · "
+            f"{_share(value, total)}</text>"
         )
     height = _BAR_H + 14 + len(segments) * _ROW_H
     return (
@@ -124,12 +145,21 @@ def meter_svg(label: str, fraction: float | None, *, refused: str = "") -> str:
     measurement. This is the same rule the CLI follows for a refused factor.
     """
     name = escape(label)
-    if fraction is None:
+    if fraction is None:  # noqa: SIM108 — kept explicit; `finite` covers NaN below
         return (
             f'<div class="meter"><div class="meter-label">{name}</div>'
             f'<div class="meter-refused">{escape(refused) or "not measurable"}</div></div>'
         )
-    pct = max(0.0, min(100.0, 100.0 * float(fraction)))
+    known = finite(fraction)
+    if known is None:
+        # NaN is the OTHER not-a-number, and the clamp below promoted it to a full
+        # green bar labelled 100.0% — on the headline factor. It means exactly what
+        # `fraction is None` means, so it takes the same refusal.
+        return (
+            f'<div class="meter"><div class="meter-label">{name}</div>'
+            f'<div class="meter-refused">{escape(refused) or "not measurable"}</div></div>'
+        )
+    pct = max(0.0, min(100.0, 100.0 * known))
     var = "ok" if pct >= 85 else ("warn" if pct >= 60 else "bad")
     return (
         f'<div class="meter"><div class="meter-label">{name}</div>'

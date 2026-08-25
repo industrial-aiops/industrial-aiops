@@ -169,6 +169,12 @@ def document(
     all rather than an inert one, so that "this file runs nothing" stays true by
     construction on the pages where it is true.
 
+    **``title`` and ``lang`` are escaped here; ``body``, ``footer`` and ``script``
+    are NOT.** The first three are values, the last three are already-built markup
+    — a caller that escapes its own footer before passing it will double-escape,
+    which is exactly what happened once and put ``&#x27;`` through a report's
+    honesty section. Pass markup, not text.
+
     ``extra_css`` is appended rather than merged into :data:`CSS`, so a rule one
     report needs cannot change the bytes another report emits. That mattered
     immediately: the scan report's output had to stay provably identical across

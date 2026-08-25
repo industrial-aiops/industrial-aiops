@@ -26,9 +26,18 @@ be diffed, and diffing two shifts is most of what this is for.
 from __future__ import annotations
 
 import json
+import math
 from typing import Any
 
-from iaiops.core.report.fmt import humanize_seconds, pct_from_fraction, pct_from_percent
+from iaiops.core.report.fmt import (
+    UNKNOWN,
+    count,
+    finite,
+    humanize_seconds,
+    pct_from_fraction,
+    pct_from_percent,
+    total,
+)
 from iaiops.core.report.html import cell, document, escape, kv
 from iaiops.core.report.strings import strings
 from iaiops.core.report.svg import meter_svg, stacked_bar_svg
@@ -65,11 +74,10 @@ ul.needs li.want:before { content:"\\21b3"; position:absolute; left:.3rem; color
 """
 
 
-def _num(value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
+def _num(value: Any) -> float | None:
+    """A real number, or None. Was returning 0.0 for anything unparseable — which
+    renders "we do not know" as a measurement of zero."""
+    return finite(value)
 
 
 def _header(t: dict, *, endpoint: str, site: str, measured: dict, generated_at: str) -> str:
@@ -96,35 +104,47 @@ def _note(t: dict, note: str) -> str:
     plant's real OEE — which is the exact overstatement this tool exists to
     refuse, committed by the tool's own demo.
     """
-    if not str(note).strip():
+    if note is None or not str(note).strip():
+        # `str(None)` is "None" — truthy — so an explicit None rendered an empty
+        # callout with a heading and no text.
         return ""
     return f'<div class="callout"><h3>{escape(t["note_h"])}</h3>{escape(note)}</div>'
 
 
 def _seen(t: dict, measured: dict) -> str:
-    """What the measurement could see. Section one, before any figure."""
+    """What the measurement could see. Section one, before any figure.
+
+    **A refused measurement shows its reason, not a table of zeros.** The CLI
+    already guards this by name — "after a refusal every bucket is zero, and
+    'running 0ms · stopped 0ms · blind 0ms' reads like a measured result" — and
+    this module, the one whose output gets forwarded by email, did not. So the
+    zero-tile problem survived in the single place it mattered most.
+    """
+    claims = "".join(f"<li>{escape(line)}</li>" for line in t["not_claimed"])
+    head = f'<h2>{escape(t["seen_h"])}</h2><p class="sub">{escape(t["seen_lead"])}</p>'
+    tail = f'<h3>{escape(t["not_claimed_h"])}</h3><ul class="claims">{claims}</ul>'
+    if measured.get("status") != "ok":
+        return (
+            head
+            + f'<div class="callout"><h3>{escape(t["not_measurable"])}</h3>'
+            + f"{escape(measured.get('note', ''))}</div>"
+            + tail
+        )
     tiles = "".join(
         [
             kv(t["coverage"], pct_from_percent(measured.get("coverage_pct"))),
             kv(
                 t["duration"],
-                humanize_seconds(_num(measured.get("running_s")) + _num(measured.get("stopped_s"))),
+                humanize_seconds(total(measured.get("running_s"), measured.get("stopped_s"))),
             ),
-            kv(t["blind"], humanize_seconds(_num(measured.get("unknown_s")))),
-            kv(t["samples"], f"{int(_num(measured.get('n_samples'))):,}"),
-            kv(t["cadence"], humanize_seconds(_num(measured.get("sample_cadence_s")))),
-            kv(t["stops"], f"{int(_num(measured.get('stops')))}"),
-            kv(t["minor_stops"], f"{int(_num(measured.get('minor_stops')))}"),
+            kv(t["blind"], humanize_seconds(measured.get("unknown_s"))),
+            kv(t["samples"], count(measured.get("n_samples"))),
+            kv(t["cadence"], humanize_seconds(measured.get("sample_cadence_s"))),
+            kv(t["stops"], count(measured.get("stops"))),
+            kv(t["minor_stops"], count(measured.get("minor_stops"))),
         ]
     )
-    claims = "".join(f"<li>{escape(line)}</li>" for line in t["not_claimed"])
-    return (
-        f"<h2>{escape(t['seen_h'])}</h2>"
-        f'<p class="sub">{escape(t["seen_lead"])}</p>'
-        f'<dl class="grid card">{tiles}</dl>'
-        f"<h3>{escape(t['not_claimed_h'])}</h3>"
-        f'<ul class="claims">{claims}</ul>'
-    )
+    return head + f'<dl class="grid card">{tiles}</dl>' + tail
 
 
 def _figure(t: dict, payload: dict) -> str:
@@ -160,7 +180,7 @@ def _figure(t: dict, payload: dict) -> str:
     production = payload.get("production") or {}
     tiles = ""
     if production:
-        parts = [kv(t["produced"], f"{_num(production.get('produced')):,.0f}")]
+        parts = [kv(t["produced"], count(production.get("produced")))]
         if production.get("discontinuities"):
             parts.append(kv(t["discontinuities"], production["discontinuities"]))
         if production.get("unobserved_steps"):
@@ -182,7 +202,7 @@ def _losses(t: dict, losses: dict) -> str:
             f'<h2>{escape(t["losses_h"])}</h2><p class="empty">{escape(losses.get("note", ""))}</p>'
         )
 
-    total = _num(losses.get("planned_time_s"))
+    planned = _num(losses.get("planned_time_s"))
     segments: list[dict] = [
         {
             "label": t["fully_productive"],
@@ -213,14 +233,14 @@ def _losses(t: dict, losses: dict) -> str:
             + "</tr>"
         )
 
-    chart = stacked_bar_svg(segments, total=total, title=t["losses_h"])
+    chart = stacked_bar_svg(segments, total=planned, title=t["losses_h"])
     head = "".join(
         f"<th>{escape(label)}</th>"
         for label in (t["loss"], t["bucket"], t["time"], t["share"], t["produced"], t["provenance"])
     )
     biggest = losses.get("largest_loss") or {}
     largest = ""
-    if biggest and _num(biggest.get("time_s")) > 0:
+    if biggest and (_num(biggest.get("time_s")) or 0.0) > 0:
         name = t.get(f"loss_{biggest.get('loss', '')}", biggest.get("loss", ""))
         largest = (
             f'<p class="sub"><strong>{escape(t["largest"])}: {escape(name)}</strong>'
@@ -244,8 +264,8 @@ def _comparison(t: dict, comparison: dict | None) -> str:
             kv(
                 t["gap"],
                 f"{_num(comparison.get('gap_points')):+.2f} {t['points']}"
-                if comparison.get("gap_points") is not None
-                else "—",
+                if _num(comparison.get("gap_points")) is not None
+                else UNKNOWN,
             ),
         ]
     )
@@ -275,10 +295,13 @@ def _needs(t: dict, payload: dict) -> str:
     (have if factors.get("quality") is not None else want).append(t["need_good_count"])
     (have if factors.get("performance") is not None else want).append(t["need_cycle"])
 
+    # NOT escaped here: the render below escapes every entry. Escaping twice put
+    # `&#x27;` through the honesty section on the SHIPPED English strings, which
+    # contain apostrophes and quoted tag refs — visible on an ordinary run.
     if measured.get("status") != "ok":
-        want.append(escape(measured.get("note", "")))
+        want.append(measured.get("note", ""))
     if losses.get("status") == "inputs_not_declared":
-        want.append(escape(losses.get("note", "")))
+        want.append(losses.get("note", ""))
 
     items = "".join(f'<li class="have">{escape(line)}</li>' for line in have)
     items += "".join(f'<li class="want">{escape(line)}</li>' for line in want)
@@ -291,8 +314,28 @@ def _needs(t: dict, payload: dict) -> str:
     )
 
 
+def _json_safe(value: Any) -> Any:
+    """Non-finite floats as QUOTED tokens, so the appendix is parseable JSON.
+
+    `json.dumps` emits a bare `NaN` / `Infinity`, which no strict JSON parser
+    accepts — and the appendix exists precisely so a reader can take the numbers
+    away and check them. Quoting keeps it valid AND keeps the distinction: "the
+    tool received NaN" and "the tool received nothing" are different bugs to
+    chase, and `null` would conflate them.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        return "NaN" if value != value else ("Infinity" if value > 0 else "-Infinity")
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    return value
+
+
 def _appendix(t: dict, payload: dict) -> str:
-    blob = json.dumps(payload, indent=2, sort_keys=True, default=str, ensure_ascii=False)
+    blob = json.dumps(
+        _json_safe(payload), indent=2, sort_keys=True, default=str, ensure_ascii=False
+    )
     return (
         f"<h2>{escape(t['appendix_h'])}</h2>"
         f'<p class="sub">{escape(t["appendix_lead"])}</p>'
@@ -333,7 +376,7 @@ def render_oee_report(
     return document(
         title=f"{t['title']} — {endpoint or site}",
         body=body,
-        footer=escape(t["footer"]),
+        footer=escape(t["footer"]),  # a value, so escaped here — see `document`
         lang=lang,
         extra_css=_EXTRA_CSS,
     )
