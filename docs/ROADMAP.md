@@ -411,12 +411,22 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
       bucket without enough samples **refuses to learn** rather than falling back to a
       global band, which would disguise "never seen this regime" as "this regime is
       normal".
+- [x] **结论分级与假设账本**（D28-D30，HLD §10.3④）— shipped. Four grades
+      (`candidate`/`probable`/`confirmed`/`excluded`); every hypothesis carries
+      counter-evidence, gaps and one next step; a cause supported only by
+      post-onset signals is excluded with its reason and can never be primary;
+      `confirmed` is reachable only from outside the ranking, wired to the case
+      loop via `diag rca --from-case`. Borrowed from an IT-side log-analysis
+      platform's method — specifically **the parts of it that need no model**.
 - [ ] **Relationship-aware correlation** (D18). `_proximity_scale` weights evidence by
       TIME only (cause precedes effect). Without an upstream/downstream axis, one
       upstream stoppage yields a run of equally-confident downstream false root causes.
       Sources ranked by trust: a human-declared line order (enough to start) → SNMP/LLDP
       adjacency (network layer, not process layer) → co-occurrence inference (weakest,
       and readily mistakes correlation for causality).
+      **Now also the second exclusion axis**: with a declared line order, a
+      downstream false root cause is not merely down-weighted but `excluded` with
+      a reason, reusing the grading that shipped above (HLD §10.3④).
 - [ ] Event-type clustering for alarms — `alarm_bad_actors` groups by source, so ten
       phrasings of one fault count as ten bad actors. Incremental; lowest of the three.
 - [ ] **Prerequisites belong in the sales deck.** `ppt/industrial-aiops-介绍-v1.pptx`

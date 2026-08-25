@@ -179,6 +179,7 @@ def downtime_rca(
     cause_weights: dict[str, float] | None = None,
     historian: dict | None = None,
     include_graph: bool = False,
+    confirmation: Any = None,
 ) -> dict:
     """[READ] Correlate evidence around a downtime window into a cited root cause.
 
@@ -212,8 +213,18 @@ def downtime_rca(
     :func:`iaiops.core.brain.rca_graph.build_causal_graph`: ``signal → cause`` edge
     weights are the evidence contribution scores and ``cause → symptom`` edge
     weights are the hypothesis confidences — no new reasoning, nothing invented.
-    Absent ⇒ byte-identical output to before.
+    ``confirmation`` is the ONE input that can grade a conclusion ``confirmed``
+    (D29) — ``{cause, basis, by}`` where ``basis`` is ``measurement`` (somebody
+    took a reading), ``reproduction`` (the fault was reproduced, or the fix
+    verified by recovery) or ``human`` (an engineer said so, e.g. via
+    ``iaiops case confirm``). Nothing computed from the evidence can reach that
+    grade: a confidence derived from the same signals that produced the ranking
+    only means the ranking agrees with itself.
+
+    Absent ⇒ the same conclusions as before, plus the per-hypothesis grade,
+    counter-evidence, gaps and next step.
     """
+    confirmed_cause, confirmation_record = _resolve_confirmation(confirmation)
     supplied, cases_behind = _unwrap_weight_profile(cause_weights)
     weights = _normalize_cause_weights(supplied)
     win = _resolve_window(window, state_series)
@@ -224,13 +235,20 @@ def downtime_rca(
     lead = max(0.0, float(lead_window_s))
     contributions, alarm_ctx = _collect_contributions(dataflow, alarms, tags, historian, win, lead)
     contributions = _apply_cause_weights(contributions, weights)
-    hypotheses = _build_hypotheses(contributions)
+    hypotheses = _build_hypotheses(contributions, confirmed_cause)
     verdict, primary = _decide(hypotheses)
     summary = _evidence_summary(alarm_ctx, tags, dataflow, contributions)
     if historian is not None:
         summary = {**summary, **_historian_summary(historian)}
     out = _render_rca(win, verdict, primary, hypotheses, summary, alarm_ctx, tags, dataflow)
     out["reliability"] = _reliability(weights, cases_behind)
+    if confirmation_record:
+        out["confirmation"] = confirmation_record
+    out["excluded"] = [
+        {"cause": h["cause"], "counter_evidence": h["counter_evidence"], "gaps": h["gaps"]}
+        for h in hypotheses
+        if h.get("grade") == EXCLUDED
+    ]
     return _with_graph(out, include_graph)
 
 
@@ -338,6 +356,46 @@ def _first_stoppage(state_series: list[dict]) -> dict | None:
 
 
 # ─── per-site cause weighting ────────────────────────────────────────────────
+
+
+def _resolve_confirmation(supplied: Any) -> tuple[str, dict]:
+    """Validate an external confirmation and return ``(cause, record)`` (D29).
+
+    Refused rather than ignored when malformed: a confirmation is the ONE input
+    that can promote a conclusion to ``CONFIRMED``, so a typo silently doing
+    nothing would leave the operator believing a verdict had been verified when
+    it had not — which is the failure this grade exists to prevent.
+    """
+    if not supplied:
+        return "", {}
+    if not isinstance(supplied, dict):
+        raise ValueError(
+            "confirmation must be a mapping, e.g. "
+            "{'cause': 'comms_loss', 'basis': 'measurement', 'by': 'wei'}."
+        )
+    cause = str(supplied.get("cause", "")).strip()
+    basis = str(supplied.get("basis", "")).strip().lower()
+    if cause not in KNOWN_CAUSES:
+        raise ValueError(
+            f"confirmation.cause {cause!r} is not a known cause; valid causes: "
+            f"{sorted(KNOWN_CAUSES)}."
+        )
+    if basis not in CONFIRMATION_BASES:
+        raise ValueError(
+            f"confirmation.basis {basis!r} is not one of {', '.join(CONFIRMATION_BASES)}. "
+            "A conclusion may only be confirmed by something from OUTSIDE the ranking — "
+            "a direct measurement, a reproduction or recovery check, or a person."
+        )
+    return cause, {
+        "cause": cause,
+        "basis": basis,
+        "by": s(str(supplied.get("by", "")), 64),
+        "note": (
+            "Graded 'confirmed' on evidence from outside the ranking. A confidence "
+            "computed from the same evidence that produced the ranking would only "
+            "mean the ranking agrees with itself."
+        ),
+    }
 
 
 def _unwrap_weight_profile(supplied: Any) -> tuple[Any, int | None]:
@@ -463,6 +521,56 @@ def _add(contributions: dict[str, list[dict]], cause: str, weight: float, cite: 
     if w <= 0.0:
         return
     contributions.setdefault(cause, []).append({"weight": round(w, 4), **cite})
+
+
+#: RCA conclusion grades (D28). Four, not a score, because "ruled out, and here is
+#: why" and "scored low" are statements of different strength — and only the first
+#: makes a plant stop spending time on that branch.
+CANDIDATE = "candidate"
+PROBABLE = "probable"
+CONFIRMED = "confirmed"
+EXCLUDED = "excluded"
+
+#: How a conclusion may reach ``CONFIRMED`` (D29). All three come from OUTSIDE the
+#: ranking on purpose: a confidence computed from the same evidence that produced
+#: the ranking only means the ranking agrees with itself.
+CONFIRMATION_BASES = ("measurement", "reproduction", "human")
+
+#: What would raise each cause from a ranking to a verified conclusion (D30).
+#: These are FIELD ACTIONS, not further queries against data already collected —
+#: in a plant, what settles a mechanical fault is somebody with an instrument, not
+#: another pass over the same registers. That is the difference between an IT
+#: investigation, where more evidence is usually already on disk, and this one.
+CONFIRMING_EVIDENCE = {
+    "sensor_fault": (
+        "the same process value read from a second source, or a loop check of the "
+        "transmitter and its wiring"
+    ),
+    "comms_loss": (
+        "link-layer evidence over the window — switch port counters, or a capture "
+        "between the collector and the device"
+    ),
+    "material_starvation": (
+        "the upstream station's own run state over the window, or a buffer-level / "
+        "material-request signal"
+    ),
+    "mechanical_fault": (
+        "a vibration or motor-current signature for the asset, or a maintenance "
+        "record covering the window"
+    ),
+    "changeover": "the production schedule, or a changeover work order covering the window",
+    "quality_reject": (
+        "the reject-count series, or an inspection record for the parts made in the window"
+    ),
+    "utility_fault": (
+        "the utility's own metering over the window — supply voltage, air pressure, chilled water"
+    ),
+}
+
+#: The gap every unconfirmed conclusion has, whatever its cause.
+_UNCONFIRMED_GAP = (
+    "nobody has confirmed this cause; the ranking has not been checked against reality"
+)
 
 
 def _proximity_scale(at: datetime | None, onset: datetime, lead: float) -> float:
@@ -719,19 +827,106 @@ def _band(confidence: float) -> str:
     return "low"
 
 
-def _build_hypotheses(contributions: dict[str, list[dict]]) -> list[dict]:
-    """Aggregate per-cause contributions into ranked, cited hypotheses."""
+def _timing_objection(items: list[dict]) -> tuple[bool, list[dict]]:
+    """Which signals sit AFTER the onset, and whether that alone rules the cause out.
+
+    A cause cannot follow its own effect. ``_proximity_scale`` already knows this —
+    it drops a post-onset signal to a quarter weight — and then throws the reason
+    away, leaving the operator a low score with no explanation. The score and the
+    reason are not the same product: one says "unlikely", the other says "stop
+    looking down this branch", and only the second saves anybody time.
+
+    Exclusion is deliberately narrow: EVERY item must be timed and EVERY timed item
+    must be after the onset. One untimed signal, or one that precedes the onset, and
+    this says nothing. An exclusion is the strongest thing this module emits and
+    must never rest on a gap in the data.
+    """
+    timed = [it for it in items if it.get("lead_time_s") is not None]
+    after = [it for it in timed if float(it["lead_time_s"]) < 0]
+    ruled_out = bool(timed) and len(timed) == len(items) and len(after) == len(timed)
+    return ruled_out, after
+
+
+def _counter_evidence(after: list[dict]) -> list[dict]:
+    """Post-onset signals, stated as the objection they are.
+
+    These also appear under ``evidence`` — and that is not a contradiction. A
+    signal can support a cause by its CONTENT and argue against it by its TIMING,
+    and a reader who sees only the first has been shown half the picture.
+    """
+    return [
+        {
+            "signal": it.get("signal"),
+            "ref": it.get("ref"),
+            "at": it.get("at"),
+            "reason": (
+                f"occurred {abs(float(it['lead_time_s'])):.0f}s AFTER the onset — "
+                "a cause cannot follow its effect"
+            ),
+        }
+        for it in after
+    ]
+
+
+def _gaps_and_next(cause: str, grade: str) -> tuple[list[str], str]:
+    """What is missing to raise this grade, and the one thing to do next (D30).
+
+    A confidence is not an investigation plan. It says what we think, not what to
+    go and get — and in a plant the thing to go and get is usually an ACTION, not
+    another query.
+    """
+    if grade == CONFIRMED:
+        return [], ""
+    if grade == EXCLUDED:
+        # The exclusion rests entirely on timestamps, so the way to challenge it is
+        # to challenge the clocks. Worth saying out loud: clock drift between a PLC,
+        # a gateway and the collector is ordinary, and it is exactly what would make
+        # a real cause look impossible.
+        return (
+            [
+                "this rests on timestamp order alone — clock skew between the device "
+                "and the collector would invalidate it"
+            ],
+            "Check clock sync across the endpoint and the collector before dismissing this.",
+        )
+    gaps = [_UNCONFIRMED_GAP]
+    needed = CONFIRMING_EVIDENCE.get(cause)
+    if needed:
+        gaps.insert(0, needed)
+    return gaps, f"Verify, then record the outcome with `iaiops case confirm --cause {cause}`."
+
+
+def _grade(confidence: float, ruled_out: bool, confirmed: bool) -> str:
+    """The conclusion's grade. ``CONFIRMED`` is reachable only from outside (D29)."""
+    if ruled_out:
+        return EXCLUDED
+    if confirmed:
+        return CONFIRMED
+    return PROBABLE if confidence >= HIGH_CONFIDENCE else CANDIDATE
+
+
+def _build_hypotheses(
+    contributions: dict[str, list[dict]], confirmed_cause: str = ""
+) -> list[dict]:
+    """Aggregate per-cause contributions into ranked, cited, GRADED hypotheses."""
     hyps: list[dict] = []
     for cause, items in contributions.items():
         confidence = round(_noisy_or([it["weight"] for it in items]), 4)
         if confidence <= 0.0:
             continue
+        ruled_out, after = _timing_objection(items)
+        grade = _grade(confidence, ruled_out, confirmed=cause == confirmed_cause)
+        gaps, next_step = _gaps_and_next(cause, grade)
         hyps.append(
             {
                 "cause": cause,
                 "confidence": confidence,
                 "confidence_band": _band(confidence),
+                "grade": grade,
                 "evidence": sorted(items, key=lambda it: it["weight"], reverse=True),
+                "counter_evidence": _counter_evidence(after),
+                "gaps": gaps,
+                "next_step": next_step,
                 "recommended_action": RECOMMENDED_ACTIONS.get(
                     cause, RECOMMENDED_ACTIONS["unknown"]
                 ),
@@ -742,11 +937,22 @@ def _build_hypotheses(contributions: dict[str, list[dict]]) -> list[dict]:
 
 
 def _decide(hypotheses: list[dict]) -> tuple[str, dict | None]:
-    """Pick a verdict + primary cause from the ranked hypotheses."""
-    real = [h for h in hypotheses if h["cause"] != "alarm_flood"]
+    """Pick a verdict + primary cause from the ranked hypotheses.
+
+    An EXCLUDED cause is never the primary one, whatever it scored. That is the
+    whole point of grading: without it, a cause ruled out by timestamp order can
+    still top the list on content alone and be handed to the operator as the
+    answer.
+    """
+    real = [h for h in hypotheses if h["cause"] != "alarm_flood" and h.get("grade") != EXCLUDED]
     if not real:
         # Only context (e.g. a flood) and no localizing cause counts as thin.
         return "insufficient_evidence", None
+    confirmed = [h for h in real if h.get("grade") == CONFIRMED]
+    if confirmed:
+        # The only thing that outranks the score, because it is the only thing
+        # that came from outside it.
+        return "root_cause_identified", confirmed[0]
     top = real[0]
     runner = real[1]["confidence"] if len(real) > 1 else 0.0
     if top["confidence"] < MEDIUM_CONFIDENCE:
