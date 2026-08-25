@@ -15,10 +15,10 @@ Identity throughout: **wei `<zhouwei008@gmail.com>`**.
 | Tagline | Governed, vendor-neutral OT read tap + cross-protocol root-cause analysis |
 | Category | Industrial diagnostics / data connectivity |
 | Vendor | Industrial-AIOps (independent) |
-| Version | 0.22.0 (SemVer) |
+| Version | 0.23.0 (SemVer) |
 | License | MIT (core) |
 | Homepage | https://github.com/industrial-aiops/industrial-aiops |
-| Container image | `ghcr.io/industrial-aiops/iaiops:0.22.0-factory` — public GHCR, multi-arch amd64/arm64 |
+| Container image | `ghcr.io/industrial-aiops/iaiops:0.23.0-factory` — public GHCR, multi-arch amd64/arm64 |
 | Image signature | cosign-signed; verify key `deploy/margo/cosign.pub`, presence recorded in the Sigstore transparency log |
 | Architecture | x86-64 and arm64 (packaged separately, per platform rule) |
 
