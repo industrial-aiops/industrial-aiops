@@ -32,7 +32,9 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 |  |  |
 |---|---|
 | **读** | OPC-UA（含 HDA 历史访问、tag 自动发现）· Modbus TCP/RTU · S7comm · 三菱 MC · 欧姆龙 FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link —— 另有两层只读 REST 面：BAS 监控器（Metasys / Niagara）与 Ignition Gateway |
-| **想明白** | 停机根因 copilot（旗舰）、报警洪泛分析（ISA-18.2）、数据流断点定位、数据可信度打分、OEE / 停机归因、资产台账、老 PLC 程序讲解（ST/AWL/L5X） |
+| **查得清** | `scan` 现场勘察(零发包预览,给人签字的那份)· `readiness` 这个站点今天能跑什么、还差什么(零联网)· `collect` 有界评估采集 + 断点续跑 · `store` 留存与剪枝 |
+| **想明白** | 停机根因 copilot（旗舰;四级结论 + 假设账本 + 时序排除）、**从采集历史实测的 OEE**(可用率/性能/质量 + 六大损失,可出自包含 HTML 报告)、报警洪泛分析（ISA-18.2）、数据流断点定位、数据可信度打分、资产台账、老 PLC 程序讲解（ST/AWL/L5X） |
+| **越用越准** | `case` 事故案例闭环 —— 标签从审计轨迹自动来,确认只需一次点选,学出本站自己的原因权重 |
 | **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎 |
 | **归你自己** | 无遥测、不回连。有六个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`uns_publish`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这六个一并摘除，形成离线姿态 |
 
@@ -154,6 +156,77 @@ endpoints:
 ---
 
 ## 使用
+
+### 从「不知道网上有什么」到一个实测的 OEE
+
+`scan` 回答**外面有什么**。下面这几条回答**能拿它做什么、数字是多少**。
+每一条都是真命令,没有一条是路线图。
+
+```bash
+iaiops readiness                                    # 零联网
+```
+
+这套装置**今天**能跑哪些场景;跑不了的,逐条说出**缺的那个具体输入**,
+并按「补上它能解锁多少」排序。它不碰任何设备,所以可以对着一个**你还没拿到探测授权**
+的站点跑 —— 而那正是最需要这个答案的站点。它只报告缺口,**永不替你填**
+(§9.4/D16:猜出来的产量计数器会给出一个看起来很像样的 OEE,那比报错危险)。
+
+```bash
+iaiops collect plan line1 --duration 7d --interval-ms 1000   # 零联网
+iaiops collect run  line1 --duration 7d --interval-ms 1000
+iaiops collect run  line1 --duration 7d --resume             # 合过盖子之后
+iaiops store status                                          # 本地库里有什么
+iaiops store prune --sealed-before 2026-08-01 --apply        # 没有封存水位就拒绝
+```
+
+**有界**评估采集 —— 上限 14 天,而且操作员**必须说出终点**。故意没有「一直跑」模式:
+OT 网络上的常驻进程要走变更审批,笔记本跑一周不用(D21)。每次运行都记录它
+**没看见**的那些窗口,所以盲区永远不会被悄悄读成停机。
+
+要从中得到 OEE,得声明三个位号 —— 哪个值代表在跑、哪个寄存器计数、
+以及(质量因子需要)哪个计好品:
+
+```yaml
+endpoints:
+  - name: line1
+    ideal_cycle_time_s: 0.1
+    tags:
+      - {ref: "0",  role: run_state,   running_when: [2]}   # 2 = 运行
+      - {ref: "10", role: total_count}
+      - {ref: "11", role: good_count}
+```
+
+`running_when` 是**声明的,不是推断的**。在大多数 PLC 暴露的
+`0=停机 1=空闲 2=运行 3=故障` 状态字上,「非零即运行」会把四种状态里的三种算成生产。
+
+```bash
+iaiops oee measure line1 --reported 97               # 对照厂里自己在用的数字
+iaiops oee measure line1 --report oee.html --lang zh --site "一号厂区"
+```
+
+可用率只在采集器**看得见**的时间上计算,盲区被**排除**而不是算成停机;
+另有性能、质量和六大损失。每个因子**只在它的输入被声明时才报告** ——
+一个说明白缺了什么的部分 OEE,胜过一个里面塞了猜测的完整 OEE。
+
+`--report` 写出**一个自包含 HTML 文件** —— 不从任何地方加载字体、脚本、样式或图片,
+打开时零网络请求,所以离网笔记本能开,当附件转发不会坏。它的**第一节**是
+「这次测量看见了什么」(覆盖率、盲区、实际节拍),**排在数字之前**;
+而且带着销售材料通常会省掉的那一行:**每个数字要求了什么、还差什么**。
+
+```bash
+iaiops case open line1 --min-stop-s 300              # 每次长停机开一个案子
+iaiops case list                                     # 每个都带着「之后有人做了什么」
+iaiops case causes                                   # 确认时可用的固定词表
+iaiops case confirm <id> --cause material_starvation --by wei
+iaiops case agreement                                # 同意率 >90% 是警告,不是分数
+iaiops diag learn-weights --site default             # 学出本站的原因权重画像
+iaiops diag rca --input bundle.json --from-case <id> # 人的答案进入判决
+```
+
+标签是**已经在做的工作的副产品**:审计轨迹本来就记下了「谁在停机四分钟后动了什么」,
+案子直接把它显示出来。确认是从固定词表里**选一个**,永远不是自由文本;
+「不是事故」也是一个标签。而一个答案算不算**独立**,是**推导**出来的
+(看它是不是我们自己排过的),答话的人无法自称。
 
 ### CLI(读)
 

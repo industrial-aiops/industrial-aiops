@@ -20,7 +20,13 @@ The confidence and causal logic are plain, explainable Python — nothing is han
 - **Noisy-OR confidence** — `1 − Π(1 − wᵢ)`: independent evidence that agrees compounds *toward*
   (but never reaches) certainty; a single weak signal stays weak.
 - **Temporal weighting (cause precedes effect)** — a signal just *before* the stoppage outweighs one
-  *during* it; signals *after* onset are treated as consequences, not causes.
+  *during* it; signals *after* onset are treated as consequences, not causes. A cause supported
+  **only** by post-onset signals is not merely down-weighted, it is graded `excluded` and says why
+  ("occurred 420s AFTER the onset — a cause cannot follow its effect"), because *"ruled out, and
+  here is why"* and *"scored low"* are statements of different strength and only the first makes a
+  plant stop spending time on that branch. The rule is narrow on purpose — every item must be timed
+  and every timed item after the onset — since an exclusion is the strongest thing this module emits
+  and must never rest on a gap in the data.
 - **Per-site learned cause weights** (`rca_weights.py`) — from labeled past incidents, an explainable
   smoothed signal→cause precision estimator (Laplace smoothing + per-cause min-sample guard) derives
   weights for *this* plant; thin history falls back to neutral defaults.
@@ -28,6 +34,40 @@ The confidence and causal logic are plain, explainable Python — nothing is han
   input (a real alarm source+timestamp, a real tag flag, a real dataflow verdict). When evidence is
   thin the verdict downgrades to **`insufficient_evidence`** and lists *what to collect next* — it
   does not invent a cause to look confident.
+
+## A verdict that is also an investigation plan
+
+A confidence says what we think. It does not say what to go and get. So every hypothesis carries
+four things, not one number:
+
+| | |
+|---|---|
+| **evidence** | the cited signals that support it |
+| **counter_evidence** | what argues against — today, signals whose *timing* contradicts causality. A signal can support a cause by its content and argue against it by its timing; a reader shown only the first has half the picture |
+| **gaps** | what is missing to raise the grade. In a plant this is usually a **field action** — a second source for a sensor, port counters for a link, a vibration signature for a bearing — not another pass over registers already collected. That is the difference from an IT investigation, where more evidence is usually already on disk |
+| **next_step** | the one thing to do, wired to the loop that already exists (`iaiops case confirm`) |
+
+### Four grades, and one that cannot be reached from the inside
+
+`candidate` · `probable` · `confirmed` · `excluded`
+
+**`confirmed` is reachable only from OUTSIDE the ranking.** A confidence computed from the same
+evidence that produced the ranking means the ranking agrees with itself — it cannot verify it. Three
+routes, all external: a **measurement**, a **reproduction** (or recovery verification), or a
+**person**. The third already existed as `iaiops case confirm`; `iaiops diag rca --from-case <id>`
+lets a cause somebody recorded there reach the verdict, so nobody retypes it into a second place it
+can drift. A malformed confirmation is **refused, not ignored** — silently doing nothing would leave
+an operator believing a verdict had been verified when it had not.
+
+A confirmation outranks the score *and* the timing objection, and the objection is kept rather than
+erased: the person may know something the log does not, or the clocks may be wrong, and the tool may
+not silently pick one.
+
+### Reliability, beside confidence
+
+90% from a site with three recorded cases is not 90% from a site with three hundred. Every verdict
+reports whether the shipped defaults or a learned site profile is in use and, when known, how many
+confirmed incidents shaped it — so a reader is not left supplying that number from imagination.
 
 ## What it reasons over (it reuses the other analyzers, never re-derives them)
 
