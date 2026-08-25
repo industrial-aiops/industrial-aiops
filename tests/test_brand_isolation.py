@@ -25,6 +25,7 @@ and one is a citation URL frozen in published changelog history.
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -70,20 +71,7 @@ ALLOWED: dict[str, str] = {
     "tests/test_brand_isolation.py": "the gate itself",
 }
 
-#: Directories that are not source.
-SKIP_DIRS = {
-    ".git",
-    ".venv",
-    "__pycache__",
-    ".pytest_cache",
-    ".ruff_cache",
-    "dist",
-    "build",
-    "node_modules",
-    ".claude",
-}
-
-#: Extensions worth scanning. Binary and lock files are excluded.
+#: Extensions worth scanning. Binary files are excluded.
 TEXT_SUFFIXES = {".py", ".md", ".yaml", ".yml", ".toml", ".json", ".sh", ".txt", ".cfg", ".ini"}
 
 
@@ -94,16 +82,45 @@ def _allowed(rel: str) -> str | None:
     return None
 
 
+def _tracked_files() -> list[str]:
+    """The files git tracks. Not the working tree.
+
+    The first version walked the whole tree and immediately proved why that is
+    wrong: it flagged `NSX` inside a base64 integrity hash in an npm lock file
+    that is **gitignored and machine-generated**. My local copy of that file
+    contained the letters zero times; CI's contained them once. A gate whose
+    verdict depends on what npm happened to resolve on a given machine is not a
+    gate — and it is the kind that fails on somebody else's PR for a reason they
+    cannot reproduce.
+
+    Tracked files are also exactly the set the rule is about: what ships, and what
+    a customer or an auditor can read.
+    """
+    out = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "-z"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [name for name in out.stdout.split("\0") if name]
+
+
 def _scan() -> list[tuple[str, int, str, str]]:
-    """Every forbidden word outside the allowlist, as (path, line, word, text)."""
-    pattern = re.compile("|".join(re.escape(w) for w in FORBIDDEN), re.IGNORECASE)
+    """Every forbidden word outside the allowlist, as (path, line, word, text).
+
+    Matched on WORD BOUNDARIES. Without them the same npm hash matched `NSX`
+    inside `...bWlNSXkh0...` — three letters in the middle of base64 are not a
+    product name, and a gate that cries wolf gets an allowlist entry instead of a
+    fix, which is how allowlists rot.
+    """
+    pattern = re.compile(
+        r"\b(?:" + "|".join(re.escape(w) for w in FORBIDDEN) + r")\b", re.IGNORECASE
+    )
     hits: list[tuple[str, int, str, str]] = []
-    for path in ROOT.rglob("*"):
+    for rel in _tracked_files():
+        path = ROOT / rel
         if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
             continue
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
-        rel = str(path.relative_to(ROOT))
         if _allowed(rel):
             continue
         try:
@@ -126,14 +143,32 @@ class TestNoITBrandLeaksIntoTheOTRepo:
 
     def test_the_gate_can_actually_see_a_violation(self):
         """A gate nobody has watched fail is a gate nobody knows works — and this
-        one spent its whole life unimplemented while being listed as enforced."""
-        probe = ROOT / "tests" / "_brand_probe_tmp.md"
-        probe.write_text("this file mentions VMware vSphere\n", encoding="utf-8")
-        try:
-            hits = _scan()
-            assert any(p.endswith("_brand_probe_tmp.md") for p, _, _, _ in hits)
-        finally:
-            probe.unlink(missing_ok=True)
+        one spent its whole life unimplemented while being listed as enforced.
+
+        Exercised on the matcher rather than by writing a file, because the scan
+        now reads git's index: an untracked probe would be invisible to it, and a
+        self-test that cannot fail is the thing it is testing against."""
+        pattern = re.compile(
+            r"\b(?:" + "|".join(re.escape(w) for w in FORBIDDEN) + r")\b", re.IGNORECASE
+        )
+        assert pattern.search("this file mentions VMware vSphere")
+        assert pattern.search("runs on ESXi")
+
+    def test_letters_inside_a_hash_are_not_a_product_name(self):
+        """The false positive that made CI red: `NSX` inside a base64 integrity
+        hash. Word boundaries, so a gate that cries wolf does not get quieted with
+        an allowlist entry — which is how allowlists rot."""
+        pattern = re.compile(
+            r"\b(?:" + "|".join(re.escape(w) for w in FORBIDDEN) + r")\b", re.IGNORECASE
+        )
+        assert not pattern.search("sha512-NMPBRMJgiQbWlNSXkh0QUGM31RYg==")
+        assert not pattern.search("someK8sLikeIdentifier")
+
+    def test_it_reads_gits_index_not_the_working_tree(self):
+        """Untracked, machine-generated files made the verdict depend on the
+        machine — it passed locally and failed on CI over an npm lock file."""
+        assert "README.md" in _tracked_files()
+        assert not any("node_modules" in f for f in _tracked_files())
 
     def test_every_allowlist_entry_still_exists(self):
         """An allowlist entry for a deleted path is a hole waiting for a new file
