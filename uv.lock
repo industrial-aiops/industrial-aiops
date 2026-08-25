@@ -489,7 +489,7 @@ wheels = [
 
 [[package]]
 name = "iaiops"
-version = "0.22.0"
+version = "0.23.0"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
@@ -592,6 +592,10 @@ mc = [
 modbus = [
     { name = "pymodbus" },
     { name = "pyserial" },
+]
+mqtt = [
+    { name = "paho-mqtt" },
+    { name = "protobuf" },
 ]
 mtconnect = [
     { name = "requests" },
@@ -732,6 +736,7 @@ requires-dist = [
     { name = "iaiops", extras = ["s7"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["secsgem"], marker = "extra == 'fab'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'mqtt'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'renewables'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["tdengine"], marker = "extra == 'xinchuang'" },
@@ -773,7 +778,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine-rest'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "tdengine-rest", "tdengine-ws", "iotdb", "influxdb", "nats", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "warehouse", "clinical", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "tdengine-rest", "tdengine-ws", "iotdb", "influxdb", "nats", "mqtt", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "warehouse", "clinical", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [
