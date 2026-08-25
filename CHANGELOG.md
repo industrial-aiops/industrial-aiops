@@ -146,6 +146,29 @@
   no return. `discovery/report.py` now imports them back and its output is
   **byte-identical** across the change.
 
+- **A verdict that is also an investigation plan, and a grade nothing can fake**
+  (HLD §10.3④, D28-D30). Every hypothesis now carries its **counter-evidence**,
+  its **gaps** — what is missing to raise the grade — and **one next step**. In a
+  plant the gap is usually a field action (somebody with an instrument), not
+  another pass over registers already collected, so the gap table names the
+  action per cause.
+- **Four conclusion grades: `candidate` / `probable` / `confirmed` / `excluded`.**
+  "Ruled out, and here is why" and "scored low" are statements of different
+  strength, and only the first makes a plant stop spending time on that branch.
+- **Exclusion by time order.** `_proximity_scale` already knew a signal came after
+  the onset and dropped it to a quarter weight — then discarded the reason. A
+  cause supported *only* by post-onset signals is now `excluded`, saying how many
+  seconds after and that a cause cannot follow its effect, and it can never be the
+  primary cause however it scored. The exclusion names what would overturn it:
+  clock skew between the device and the collector.
+- **`confirmed` is reachable only from outside the ranking** (D29). A confidence
+  computed from the same evidence that produced the ranking only means the ranking
+  agrees with itself. `iaiops diag rca --from-case <id>` reads a cause a person
+  already recorded through `iaiops case confirm`, closing a loop whose two halves
+  could not see each other; `--confirmed-basis measurement|reproduction|human`
+  covers the other two routes, and a malformed confirmation is refused rather than
+  ignored.
+
 ### Fixed
 - **`diag learn-weights` output could not be fed to `diag rca --weights`**, which
   is exactly what that option's help text tells you to do. The learner returns

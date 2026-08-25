@@ -154,6 +154,48 @@ def historian_cmd(
     _emit(diag.historian_health(_load_json(input), gap_s))
 
 
+def _confirmation_from(from_case: str, cause: str, basis: str, by: str, site: str) -> dict | None:
+    """Build the one input that can grade a conclusion `confirmed` (D29).
+
+    Two routes, and `--from-case` is the one that matters: the loop that captures
+    a human's cause already exists (`iaiops case confirm`, #180/#191), and until
+    now the verdict could not see it. Making the operator retype the cause here
+    would be a second place for it to drift.
+    """
+    if from_case:
+        if cause or basis:
+            raise ValueError(
+                "Give either --from-case (read a cause a person already confirmed) "
+                "or --confirmed-cause/--confirmed-basis (a measurement or a "
+                "reproduction), not both."
+            )
+        from iaiops.core.knowledge.case_store import list_cases
+
+        found = [c for c in list_cases(site, base_dir=None) if c.incident_id == from_case]
+        if not found:
+            raise LookupError(
+                f"No case {from_case!r} for site {site!r}. List them with `iaiops case list`."
+            )
+        case = found[0]
+        if not case.label:
+            raise ValueError(
+                f"Case {from_case!r} has no confirmed cause yet. Answer it first: "
+                f"`iaiops case confirm {from_case} --cause <cause> --by <you>`."
+            )
+        return {"cause": case.label, "basis": "human", "by": by or "case"}
+    if cause or basis:
+        # Deliberately not defaulted. Which of the three bases applies is the whole
+        # content of the claim — a default would let 'somebody eyeballed it' be
+        # recorded as a measurement.
+        if not (cause and basis):
+            raise ValueError(
+                "--confirmed-cause and --confirmed-basis go together. "
+                "basis is one of: measurement, reproduction, human."
+            )
+        return {"cause": cause, "basis": basis, "by": by}
+    return None
+
+
 @diag_app.command("rca")
 @cli_errors
 def rca_cmd(
@@ -168,6 +210,15 @@ def rca_cmd(
         "--weights",
         help="JSON file: per-site {cause: weight} override (e.g. from 'diag learn-weights')",
     ),
+    from_case: str = typer.Option(
+        "", "--from-case", help="Incident id whose confirmed cause a person already recorded."
+    ),
+    confirmed_cause: str = typer.Option("", "--confirmed-cause"),
+    confirmed_basis: str = typer.Option(
+        "", "--confirmed-basis", help="measurement | reproduction | human."
+    ),
+    confirmed_by: str = typer.Option("", "--confirmed-by"),
+    site: str = typer.Option("default", "--site", help="Site whose cases --from-case reads."),
 ) -> None:
     """AI downtime root-cause copilot — cited, advisory-only verdict over evidence.
 
@@ -191,6 +242,9 @@ def rca_cmd(
             state_series=bundle.get("state_series"),
             lead_window_s=lead_window_s,
             cause_weights=cause_weights,
+            confirmation=_confirmation_from(
+                from_case, confirmed_cause, confirmed_basis, confirmed_by, site
+            ),
         )
     )
 
