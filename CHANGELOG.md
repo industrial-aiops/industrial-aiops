@@ -169,6 +169,14 @@
   covers the other two routes, and a malformed confirmation is refused rather than
   ignored.
 
+- **`uns_publish` — telemetry into an MQTT broker / Unified Namespace.** A new
+  user-facing MCP tool and a new `iaiops[uns]` extra. Listed here late: it shipped
+  in #163 and this section carried no entry for it until a pre-release audit found
+  the gap. That matters more than a missing line usually would — it is an
+  **egress** path, withheld by `IAIOPS_NO_EGRESS=1` along with the other five, and
+  somebody diffing release notes to decide whether to re-review their air-gap
+  posture would not have learned it existed.
+
 ### Fixed
 - **`diag learn-weights` output could not be fed to `diag rca --weights`**, which
   is exactly what that option's help text tells you to do. The learner returns

@@ -222,7 +222,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten: [issue #2
 
 *(The energy protocols — IEC-104 / DNP3 / IEC-61850 — moved to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) in 0.8.0; their tool matrix lives in that repo.)*
 
-**166 governed tools** = 156 read + 10 MOC-gated writes (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 156 reads include the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**173 governed tools** = 163 read + 10 MOC-gated writes (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 163 reads include the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -555,6 +555,86 @@ anywhere, and no network request when opened. Its **first** section is what the
 scan touched — per-class emission counts, including requests that failed —
 followed by the list of things it never does. The device table comes after that.
 
+### From a survey to a measured OEE — the path the site actually walks
+
+`scan` answers *what is out there*. These answer *what can I do with it, and what
+is the number*. Each step is a real command; nothing here is a roadmap item.
+
+```bash
+iaiops readiness                                    # contacts NOTHING
+```
+
+What this installation can run **today**, and for each thing it cannot, the
+specific input that is missing — ranked by how much supplying it would unlock. It
+touches no device, so you can run it against a site you have not been authorised
+to probe, which is the site that most needs the answer. It reports gaps; it never
+fills one in (§9.4/D16 — a guessed production counter yields a plausible-looking
+OEE, which is worse than an error).
+
+```bash
+iaiops collect plan line1 --duration 7d --interval-ms 1000   # contacts NOTHING
+iaiops collect run  line1 --duration 7d --interval-ms 1000
+iaiops collect run  line1 --duration 7d --resume             # after a closed lid
+iaiops store status                                          # what the store holds
+iaiops store prune --sealed-before 2026-08-01 --apply        # refuses without a seal
+```
+
+A **bounded** assessment run — capped at 14 days, and the operator must state the
+end. There is deliberately no run-forever mode: a resident process on an OT
+network needs change management, a laptop running for a week does not (D21). Every
+run records the windows it could **not** see, so a gap is never silently readable
+as a stoppage.
+
+To get an OEE out of it, three tags have to be declared — which value means
+running, which register counts parts, and (for Quality) which counts good ones:
+
+```yaml
+endpoints:
+  - name: line1
+    ideal_cycle_time_s: 0.1
+    tags:
+      - {ref: "0",  role: run_state,   running_when: [2]}   # 2 = running
+      - {ref: "10", role: total_count}
+      - {ref: "11", role: good_count}
+```
+
+`running_when` is **declared, never inferred**. On the `0=stopped 1=idle
+2=running 3=fault` status word most PLCs expose, "any non-zero means running"
+counts three states of four as production.
+
+```bash
+iaiops oee measure line1 --reported 97               # against the figure the site keeps
+iaiops oee measure line1 --report oee.html --lang zh --site "一号厂区"
+```
+
+Availability measured over the time the collector could **see**, with blind
+windows excluded rather than counted as downtime; plus Performance, Quality and
+the Six Big Losses. Each factor is reported only when its inputs were declared —
+a partial OEE that names what is missing beats a whole one with a guess inside it.
+
+`--report` writes **one self-contained HTML file** — no fonts, scripts, styles or
+images from anywhere, and no network request when opened, so it works on an
+air-gapped laptop and survives being forwarded as an attachment. Its **first**
+section is what the measurement could see (coverage, blind time, sample cadence),
+before the number, and it carries the row a sales deck usually leaves out: what
+had to be declared to produce each figure, and what is still missing.
+
+```bash
+iaiops case open line1 --min-stop-s 300              # one case per long stoppage
+iaiops case list                                     # each carries what someone DID after it
+iaiops case causes                                   # the vocabulary a confirmation may use
+iaiops case confirm <id> --cause material_starvation --by wei
+iaiops case agreement                                # >90% agreement is a WARNING, not a score
+iaiops diag learn-weights --site default             # learn a per-site cause profile
+iaiops diag rca --input bundle.json --from-case <id> # a person's answer reaches the verdict
+```
+
+The label is a **by-product of work already being done**: the audit trail already
+recorded that someone ran a write four minutes after the line stopped, so the
+case shows it. Confirmation is one choice from a fixed vocabulary, never free
+text, and a dismissal is a label too. Whether an answer counts as *independent* is
+**derived** from whether the tool had suggested it — the answerer cannot claim it.
+
 ### CLI (read)
 ```bash
 iaiops opcua read "ns=2;i=5" -e line1
@@ -573,7 +653,8 @@ iaiops ethercat read-sdo 0 4120 --subindex 1 -e bus1   # CoE SDO 0x1018:1
 iaiops opcua history "ns=2;i=5" -e line1 --start 2026-06-28T08:00:00Z   # HDA
 iaiops opcua monitor "ns=2;i=5" -e line1 --duration-s 20 --deadband 0.5 # CoV
 iaiops diag dataflow -e line1 --ref "ns=2;i=5" --freshness-s 30
-iaiops analytics oee 28800 25200 2.0 12000 11800   # OEE = A×P×Q
+iaiops analytics oee 28800 25200 2.0 12000 11800   # OEE from five numbers you already have
+                                                   # (for a measured one, see `oee measure` above)
 iaiops analytics asset -e press1 -e cell5           # active asset register
 ```
 
@@ -881,7 +962,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 ## Safety & governance
 
-- **Read-first.** 156 of 166 tools are read-only. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-first.** 163 of 173 tools are read-only. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Read/write authorisation is the caller's, not the tap's.** iaiops does not encode "this server may not write" by hiding tools — that decision belongs to the agent's judgement or account/permission management. The tap's guarantee is **un-bypassable audit on both front-ends**: every call, read or write, via an MCP tool **or** the `iaiops` CLI, runs through `@governed_tool` and leaves a row in `~/.iaiops/audit.db`. Writes are additionally high `risk_tier`, MOC-gated, and undo-captured (see above). High/critical calls **fail closed** when the audit DB cannot be written.
 - **No-egress mode is enforced at registration.** `IAIOPS_NO_EGRESS=1` withholds the 6 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`), fail-closed, for airgap/sealed-box deployments. This is a **data-exfiltration axis, not authorisation** — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so this switch withholds it. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.
@@ -890,11 +971,20 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 ## Roadmap
 
-- EtherNet/IP **PLC-5 / SLC-500 (PCCC)** and **Micro800** support (Logix tags are done in 0.2.0).
-- **Passive** asset discovery (SPAN/tap, no connections) alongside today's active fingerprint.
+Four items that used to sit here had in fact shipped — including two this same
+README already listed as verified, three sections above. Listing built work as
+future work is the same defect as claiming unbuilt work, so they are gone:
+**EtherNet/IP PCCC (PLC-5/SLC-500) and Micro800**, **passive asset discovery**
+(`iaiops scan --posture passive`, ARP-cache only, emits nothing),
+**OPC-UA certificate security**, and **MTConnect streaming long-poll**.
+
+What is genuinely open:
+
 - EtherCAT **EoE / FoE / SoE** mailbox protocols and full PDO-mapping decode (CoE SDO/PDO read+write and AL-state landed in 0.3.0 via the optional `pysoem` extra).
-- OPC-UA certificate security (A&C event subscriptions landed via `opcua_alarm_events`).
-- MTConnect streaming long-poll; Sparkplug B DataSet/Template deep expansion.
+- Sparkplug B **Template** deep expansion (DataSet landed in 0.17.0).
+- **Contextual baselines** — one normal band per tag today, but an OT normal range moves with shift, product and start-up. Learn per bucket, and refuse a bucket with too few samples rather than falling back to a global band, which would disguise "never seen this regime" as "this regime is normal".
+- **Relationship-aware root cause** — evidence is weighted by time only, so one upstream stoppage yields a run of equally-confident downstream false causes. A human-declared line order is enough to start.
+- **Passive discovery from a SPAN/tap** — the ARP-cache posture is built; reading a mirror port is not.
 
 **Missing a protocol, device, or feature? 缺功能提 issue/PR 欢迎留言** — open a [GitHub issue or PR](https://github.com/industrial-aiops/industrial-aiops/issues).
 

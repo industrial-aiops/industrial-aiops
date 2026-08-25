@@ -8,6 +8,8 @@ secrets resolve from the encrypted store, and the EtherCAT stub reports clearly.
 
 import asyncio
 import importlib
+import pathlib
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -451,6 +453,17 @@ def test_full_tool_surface_matches_static_count(full_tool_registry):
     static_total = sum(_tool_counts_per_module().values())
     assert len(full_tool_registry) == static_total
     assert len(full_tool_registry) >= 166  # 0.13.0 floor — may grow, must not shrink
+
+    # The README states the count as a FACT. It said 166 while the tree already
+    # had 172 at the previous release, and nothing caught it because the only
+    # assertion was a floor. A floor cannot notice drift upward.
+    readme = (pathlib.Path(__file__).parent.parent / "README.md").read_text()
+    claimed = re.search(r"\*\*(\d+) governed tools\*\*", readme)
+    assert claimed, "README no longer states a tool count in the expected form"
+    assert int(claimed.group(1)) == len(full_tool_registry), (
+        f"README claims {claimed.group(1)} governed tools; the registry has "
+        f"{len(full_tool_registry)}"
+    )
 
 
 @pytest.mark.unit
