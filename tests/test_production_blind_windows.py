@@ -186,3 +186,96 @@ class TestABlindStepIsNotProduction:
         assert _gap_limit(counter_rows) == pytest.approx(
             max(cadence * GAP_FACTOR, cadence + GAP_FLOOR_S)
         )
+
+
+class TestMixedTimestampsDoNotCrash:
+    """Found by audit 2026-08-25. `_parse` here did not coerce naive stamps to UTC
+    while the brain's `_parse_ts` did — and the local store readily produces both,
+    because `_normalize_ts` preserves whatever the device sent and falls back to an
+    AWARE `now()` for an empty one. The result was a `TypeError`, which the CLI's
+    error harness does not catch, so it reached the operator as a traceback."""
+
+    def _mixed(self) -> list[dict]:
+        return [
+            {"ts": "2026-08-25T10:00:01", "value": 100},  # naive — what a device sent
+            {"ts": "2026-08-25T10:00:02+00:00", "value": 101},  # aware — the fallback
+        ]
+
+    def test_it_counts_instead_of_raising(self):
+        assert count_production(self._mixed())["produced"] == pytest.approx(1.0)
+
+    def test_the_availability_path_survives_the_same_store(self):
+        """Both parsers had the defect; fixing only the one that crashed loudest
+        would have left the other waiting."""
+        from iaiops.core.brain.oee_measure import measure_availability
+        from iaiops.core.runtime.config import MonitorTag, TagRole
+
+        tag = MonitorTag(ref="0", role=TagRole.RUN_STATE, running_when=["2"])
+        rows = [{"ts": r["ts"], "value": 2} for r in self._mixed()] * 6
+        assert measure_availability(rows, tag)["status"] == "ok"
+
+
+class TestBothPathsShareTheSameBlindWindows:
+    """The first fix shared only the CONSTANTS and computed the cadence per series,
+    then claimed in a comment that the two paths "cannot disagree about what blind
+    means". They can — and sharing a THRESHOLD instead is wrong in the other
+    direction. What they must share is the WINDOWS the collector could not see."""
+
+    def _counter(self, cadence: float, gap_at: int | None = None, gap_s: float = 0.0):
+        start = datetime(2026, 8, 25, 10, 0, tzinfo=UTC)
+        rows, value, shift = [], 0, 0.0
+        for i in range(40):
+            if gap_at is not None and i == gap_at:
+                shift = gap_s
+                value += 200  # the line kept producing while nobody watched
+            rows.append(
+                {"ts": (start + timedelta(seconds=i * cadence + shift)).isoformat(), "value": value}
+            )
+            value += 10
+        return rows
+
+    def _window(self, at_s: float, length_s: float) -> list[dict]:
+        start = datetime(2026, 8, 25, 10, 0, tzinfo=UTC) + timedelta(seconds=at_s)
+        end = start + timedelta(seconds=length_s)
+        return [{"start": start.isoformat(), "end": end.isoformat(), "duration_s": length_s}]
+
+    def test_an_outage_shorter_than_the_counters_own_cadence_is_still_blind(self):
+        """A counter polled every 10s cannot see a 20s outage as a gap of its own —
+        its next sample is only 20s late, which its own 30s limit calls ordinary.
+        Parts credited, seconds excluded: the inflation this rule exists to stop."""
+        rows = self._counter(cadence=10.0, gap_at=20, gap_s=20.0)
+        blind = count_production(rows, blind_windows=self._window(200.0, 20.0))
+        assert blind["unobserved_steps"] == 1
+        assert blind["unobserved_parts"] > 0
+
+    def test_a_slow_counter_keeps_its_ordinary_steps(self):
+        """The other direction, and why sharing a threshold was wrong: a 3s limit
+        from a 1s run-state tag would call EVERY step of a 10s counter blind."""
+        clean = count_production(self._counter(cadence=10.0), blind_windows=[])
+        assert clean["unobserved_steps"] == 0
+        assert clean["produced"] == pytest.approx(390.0)
+
+    def test_the_skipped_parts_are_reported_not_just_the_step_count(self):
+        """A step count alone cannot tell a reader whether 1 skipped step cost 3
+        parts or 3000."""
+        rows = self._counter(cadence=10.0, gap_at=20, gap_s=20.0)
+        blind = count_production(rows, blind_windows=self._window(200.0, 20.0))
+        assert blind["unobserved_parts"] == pytest.approx(210.0)
+        assert "part(s)" in blind["note"]
+
+    def test_the_measurement_publishes_the_windows_it_found(self):
+        """So nobody has to re-derive them — which is how the two paths drifted."""
+        from iaiops.core.brain.oee_measure import measure_availability
+        from iaiops.core.runtime.config import MonitorTag, TagRole
+
+        start = datetime(2026, 8, 25, 10, 0, tzinfo=UTC)
+        rows, shift = [], 0.0
+        for i in range(40):
+            if i == 20:
+                shift = 30.0
+            rows.append(
+                {"ts": (start + timedelta(seconds=i * 0.5 + shift)).isoformat(), "value": 2}
+            )
+        tag = MonitorTag(ref="0", role=TagRole.RUN_STATE, running_when=["2"])
+        out = measure_availability(rows, tag)
+        assert out["blind_windows"] and out["blind_windows"][0]["duration_s"] > 25

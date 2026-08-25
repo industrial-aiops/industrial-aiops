@@ -29,6 +29,7 @@ from collections import Counter
 from datetime import datetime
 from typing import Any
 
+from iaiops.core.brain._shared import parse_ts
 from iaiops.core.runtime.config import MonitorTag, TagRole
 
 #: Stops at or below this are "minor" — the ones nobody writes on a sheet, and
@@ -80,11 +81,9 @@ MAX_STOP_WINDOWS = 50
 MIN_SAMPLES = 10
 
 
-def _parse(ts: Any) -> datetime | None:
-    try:
-        return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return None
+#: One parser for the whole brain — see `_shared.parse_ts` for why this one
+#: did not coerce naive stamps, and what that cost.
+_parse = parse_ts
 
 
 def _rows(samples: Any, tag: MonitorTag) -> list[tuple[datetime, bool]]:
@@ -200,6 +199,10 @@ def measure_availability(
     # than merely countable: a case has to be opened AT a time, and the audit
     # trail is searched around it.
     stops: list[tuple[float, datetime]] = []
+    #: The windows the collector could not see, as (start, end). Published so the
+    #: production count can skip increments that span them — the two figures are a
+    #: ratio, and they have to agree about which seconds existed.
+    blind: list[tuple[datetime, datetime]] = []
     open_stop = 0.0
     open_since: datetime | None = None
 
@@ -216,6 +219,7 @@ def measure_availability(
         if span > gap_limit:
             # Blind. Not a state that persisted, and emphatically not downtime.
             unknown += span
+            blind.append((rows[index - 1][0], rows[index][0]))
             _close_open_stop()
             continue
         if was_running:
@@ -239,6 +243,18 @@ def measure_availability(
         "unknown_s": round(unknown, 1),
         "n_samples": len(rows),
         "sample_cadence_s": round(cadence, 3),
+        # Published so the production count can use THE SAME line rather than
+        # deriving its own from a differently-paced series — see the note in
+        # `oee_production.count_production`.
+        "blind_gap_limit_s": round(gap_limit, 3),
+        "blind_windows": [
+            {
+                "start": a.isoformat(),
+                "end": b.isoformat(),
+                "duration_s": round((b - a).total_seconds(), 1),
+            }
+            for a, b in blind[:MAX_STOP_WINDOWS]
+        ],
         "stops": len(stops),
         "minor_stops": len(minor),
         "minor_stop_s": round(sum(minor), 1),

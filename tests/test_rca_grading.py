@@ -383,3 +383,68 @@ class TestTheConfirmationHasAnEntrance:
         from iaiops.cli.diagnostics import _confirmation_from
 
         assert _confirmation_from("", "", "", "", "default") is None
+
+
+class TestAPersonOutranksAHeuristic:
+    """Found by audit 2026-08-25. `_grade` tested `ruled_out` BEFORE `confirmed`,
+    so a cause an engineer had confirmed was graded `excluded` by a timestamp
+    comparison and handed back a lecture about clock skew — D29 inverted in the
+    one place D29 is about."""
+
+    def test_a_confirmed_cause_survives_the_timing_objection(self):
+        out = verdict(
+            alarms=[alarm("manual changeover started", AFTER, "OP_STATION")],
+            confirmation={"cause": "changeover", "basis": "measurement", "by": "wei"},
+        )
+        assert hypothesis(out, "changeover")["grade"] == CONFIRMED
+
+    def test_it_becomes_the_primary_cause(self):
+        out = verdict(
+            alarms=[alarm("manual changeover started", AFTER, "OP_STATION")],
+            confirmation={"cause": "changeover", "basis": "measurement", "by": "wei"},
+        )
+        assert out["primary_cause"]["cause"] == "changeover"
+
+    def test_the_timing_objection_is_kept_not_erased(self):
+        """Both can be true: the person may know something the log does not, or the
+        clocks may be wrong. What the tool may not do is silently pick one."""
+        out = verdict(
+            alarms=[alarm("manual changeover started", AFTER, "OP_STATION")],
+            confirmation={"cause": "changeover", "basis": "human", "by": "wei"},
+        )
+        assert hypothesis(out, "changeover")["counter_evidence"]
+
+    def test_without_a_confirmation_the_exclusion_still_stands(self):
+        """The complement: promoting on timing alone would pass the tests above."""
+        out = verdict(alarms=[alarm("manual changeover started", AFTER, "OP_STATION")])
+        assert hypothesis(out, "changeover")["grade"] == EXCLUDED
+
+
+class TestAConfirmationIsNeverSilentlyDropped:
+    """The payload published a `confirmation` block while no hypothesis carried the
+    grade, because a cause only becomes a hypothesis if the bundle scored it. A
+    reader seeing that block concluded the verdict had been checked."""
+
+    def _out(self):
+        return verdict(
+            alarms=[alarm("bearing vibration high", BEFORE, "MOTOR_01")],
+            confirmation={"cause": "utility_fault", "basis": "human", "by": "wei"},
+        )
+
+    def test_the_confirmed_cause_appears_even_with_no_supporting_signal(self):
+        assert hypothesis(self._out(), "utility_fault")["grade"] == CONFIRMED
+
+    def test_it_carries_no_invented_evidence(self):
+        h = hypothesis(self._out(), "utility_fault")
+        assert h["evidence"] == [] and h["confidence"] == 0.0
+
+    def test_the_mismatch_is_named_as_the_gap(self):
+        """ "A person confirmed this and our evidence does not show it" is a
+        finding — usually that the wrong tags were collected."""
+        gaps = " ".join(hypothesis(self._out(), "utility_fault")["gaps"])
+        assert "no signal supporting it" in gaps
+
+    def test_the_payload_and_the_hypotheses_agree(self):
+        out = self._out()
+        assert out["confirmation"]["cause"] == "utility_fault"
+        assert any(h["grade"] == CONFIRMED for h in out["hypotheses"])

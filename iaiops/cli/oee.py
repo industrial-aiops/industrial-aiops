@@ -78,7 +78,8 @@ def oee_measure_cmd(
         if not found:
             return None
         counted = count_production(
-            query_samples(SampleFilter(tag=found[0].ref, limit=MAX_STORE_SAMPLES), db_path=db)
+            query_samples(SampleFilter(tag=found[0].ref, limit=MAX_STORE_SAMPLES), db_path=db),
+            blind_windows=result.get("blind_windows"),
         )
         return counted if counted["status"] == "ok" else None
 
@@ -115,6 +116,15 @@ def oee_measure_cmd(
         "losses": losses,
     }
 
+    if report is not None and result.get("status") != "ok":
+        # The report is the thing that gets FORWARDED. Writing one for a refused
+        # measurement hands somebody a file that looks measured; the refusal is on
+        # the page, but a file existing at all is itself a claim.
+        raise ValueError(
+            f"No availability was measured ({result.get('status')}), so there is "
+            "nothing to report. Fix that first — the report inherits its honesty "
+            f"from the measurement. Reason: {result.get('note', '')}"
+        )
     if report is not None:
         # Same guard the scan report uses: refuse `..` traversal and a wrong
         # extension before writing anything.

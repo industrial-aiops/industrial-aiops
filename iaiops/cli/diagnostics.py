@@ -177,11 +177,24 @@ def _confirmation_from(from_case: str, cause: str, basis: str, by: str, site: st
                 f"No case {from_case!r} for site {site!r}. List them with `iaiops case list`."
             )
         case = found[0]
+        if case.answered and not case.label:
+            # A dismissal IS an answer — "not an incident". Telling the operator to
+            # go answer a case they deliberately closed reads as the tool having
+            # lost their decision.
+            raise ValueError(
+                f"Case {from_case!r} was dismissed as not an incident, so it names "
+                "no cause. Pick a different case, or confirm a cause on this one if "
+                "the dismissal was wrong."
+            )
         if not case.label:
             raise ValueError(
                 f"Case {from_case!r} has no confirmed cause yet. Answer it first: "
                 f"`iaiops case confirm {from_case} --cause <cause> --by <you>`."
             )
+        # `human` is the truthful basis for this route and only this route: what a
+        # case records is a person's answer. The other two bases exist precisely
+        # because they are NOT that, which is why the explicit route refuses to
+        # default one.
         return {"cause": case.label, "basis": "human", "by": by or "case"}
     if cause or basis:
         # Deliberately not defaulted. Which of the three bases applies is the whole

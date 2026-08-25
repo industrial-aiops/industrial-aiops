@@ -411,8 +411,18 @@ def _unwrap_weight_profile(supplied: Any) -> tuple[Any, int | None]:
     behind its ranking (D24) instead of only how confident it is.
     """
     if isinstance(supplied, dict) and "cause_weights" in supplied:
-        cases = supplied.get("n_incidents")
-        return supplied.get("cause_weights"), int(cases) if isinstance(cases, int) else None
+        # `isinstance(cases, int)` rejected 312.0 — a count that round-tripped
+        # through JSON or a float — and `_reliability` then told the operator the
+        # weights "were given as a bare map rather than a learn-weights result",
+        # which was flatly false. It also accepted True as 1.
+        raw = supplied.get("n_incidents")
+        cases = None
+        if not isinstance(raw, bool):
+            try:
+                cases = int(float(raw))
+            except (TypeError, ValueError):
+                cases = None
+        return supplied.get("cause_weights"), cases
     return supplied, None
 
 
@@ -425,12 +435,24 @@ def _reliability(weights: dict[str, float], cases: int | None) -> dict[str, Any]
     basis and, when known, the count.
     """
     if not weights:
-        so_far = (
-            f"This site has {cases} confirmed incident(s) so far — below the learner's "
-            "floor, so it kept the defaults rather than tuning on too little. "
-            if cases is not None
-            else ""
-        )
+        # Why the defaults are in use depends on the count, and asserting the
+        # wrong reason is its own kind of wrong answer: `_reliability({}, 312)`
+        # used to say "312 incidents — below the learner's floor", which is not a
+        # thing that can be true.
+        if cases is None:
+            so_far = ""
+        elif cases < MIN_CASES_TO_TUNE:
+            so_far = (
+                f"This site has {cases} confirmed incident(s) so far — below the "
+                "learner's floor, so it kept the defaults rather than tuning on too "
+                "little. "
+            )
+        else:
+            so_far = (
+                f"This site has {cases} confirmed incident(s), which is enough to "
+                "learn from — but the learner found no cause worth moving off its "
+                "default weight. "
+            )
         return {
             "basis": "shipped_defaults",
             "cases": cases,
@@ -465,8 +487,11 @@ def _reliability(weights: dict[str, float], cases: int | None) -> dict[str, Any]
 def _normalize_cause_weights(cause_weights: dict[str, float] | None) -> dict[str, float]:
     """Validate + clamp a per-site ``{cause: multiplier}`` override at the boundary.
 
-    Returns a NEW dict (never mutates the input) holding only non-neutral, known
-    causes. ``None``/empty ⇒ ``{}`` (no behaviour change). Teaches on unknown
+    Returns a NEW dict (never mutates the input) holding every known cause the
+    caller named, INCLUDING neutral (1.0) ones — the docstring used to claim
+    "non-neutral only", which is not what the loop does, and `_reliability` reads
+    emptiness as "no site profile". An all-neutral profile is a real profile that
+    happens to tune nothing. ``None``/empty ⇒ ``{}`` (no behaviour change). Teaches on unknown
     causes or non-numeric weights rather than silently dropping them.
     """
     if not cause_weights:
@@ -566,6 +591,12 @@ CONFIRMING_EVIDENCE = {
         "the utility's own metering over the window — supply voltage, air pressure, chilled water"
     ),
 }
+
+#: The learner's own floor (``learn_cause_weights(min_samples=...)``). Mirrored
+#: here only so `_reliability` can tell "too little history" apart from "enough
+#: history, nothing worth tuning" — two different messages, and guessing which is
+#: an invented explanation.
+MIN_CASES_TO_TUNE = 8
 
 #: The gap every unconfirmed conclusion has, whatever its cause.
 _UNCONFIRMED_GAP = (
@@ -897,11 +928,24 @@ def _gaps_and_next(cause: str, grade: str) -> tuple[list[str], str]:
 
 
 def _grade(confidence: float, ruled_out: bool, confirmed: bool) -> str:
-    """The conclusion's grade. ``CONFIRMED`` is reachable only from outside (D29)."""
-    if ruled_out:
-        return EXCLUDED
+    """The conclusion's grade. ``CONFIRMED`` is reachable only from outside (D29).
+
+    **Confirmation is checked FIRST.** The first version tested ``ruled_out``
+    first, so a cause an engineer had confirmed — by measurement, by reproduction,
+    or in person — was graded ``excluded`` by a timestamp comparison and handed
+    back a lecture about clock skew. That inverts D29 in the one place D29 is
+    about: `_decide`'s own note says confirmation "is the only thing that came
+    from outside" the ranking, and the ordering said the opposite.
+
+    The timing objection is not discarded — it stays in ``counter_evidence``, so a
+    reader sees both that a person confirmed it and that the signals arrived late.
+    Those can both be true: the person may know something the log does not, or the
+    clocks may be wrong. What the tool may not do is overrule them silently.
+    """
     if confirmed:
         return CONFIRMED
+    if ruled_out:
+        return EXCLUDED
     return PROBABLE if confidence >= HIGH_CONFIDENCE else CANDIDATE
 
 
@@ -929,6 +973,35 @@ def _build_hypotheses(
                 "next_step": next_step,
                 "recommended_action": RECOMMENDED_ACTIONS.get(
                     cause, RECOMMENDED_ACTIONS["unknown"]
+                ),
+            }
+        )
+    if confirmed_cause and not any(h["cause"] == confirmed_cause for h in hyps):
+        # A cause is only graded if it appears in `contributions` — so a cause an
+        # engineer confirmed, for which THIS bundle happens to carry no signal,
+        # silently vanished while the payload still published a `confirmation`
+        # block. The output asserted a grade that no hypothesis held, and a reader
+        # seeing that block concluded the verdict had been checked.
+        #
+        # It appears, with no evidence and the gap named, because "a person
+        # confirmed this and our evidence does not show it" is a finding — usually
+        # that the wrong tags were collected.
+        hyps.append(
+            {
+                "cause": confirmed_cause,
+                "confidence": 0.0,
+                "confidence_band": _band(0.0),
+                "grade": CONFIRMED,
+                "evidence": [],
+                "counter_evidence": [],
+                "gaps": [
+                    "confirmed from outside, but this evidence bundle carries no "
+                    "signal supporting it — usually the collected tags do not cover "
+                    "the mechanism that was confirmed"
+                ],
+                "next_step": "",
+                "recommended_action": RECOMMENDED_ACTIONS.get(
+                    confirmed_cause, RECOMMENDED_ACTIONS["unknown"]
                 ),
             }
         )

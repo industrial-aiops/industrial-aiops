@@ -230,7 +230,9 @@ nobody else has them.
 
 ### MOSTLY DONE — 3. The site knowledge base (retention, not entry)
 
-> Three items remain, listed unticked below: reliability alongside confidence
+> **Two** items remain, listed unticked below: human-declared line order and P&ID
+> extraction. (Was three — reliability alongside confidence shipped in #193, and this
+> blockquote contradicted the checklist 85 lines below it until 2026-08-25.) Formerly: reliability alongside confidence
 > on the RCA verdict, human-declared line order, and P&ID extraction. Everything
 > else shipped and was driven end to end against a real collected history
 > (#172, #173, #180, #191).
