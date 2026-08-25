@@ -1,13 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.23.0 — 2026-08-25
 
-> **The theme of this cycle: a site can be measured before anyone has explained it.**
-> Everything below serves one sequence — collect what a line actually does, turn that
-> into an OEE figure honest about what it could not see, and keep what was learned when
-> the raw samples are gone. Several of the fixes below came from pointing the tool at a
-> real device or a real historian rather than at a test double; none of them were
-> findable by the test suite, which passed either way.
+> **The release where the tool stopped needing a person to drive it.** 0.22.0 could
+> read a device once, when asked. This one surveys a network you were given no list
+> for, tells you which scenarios that site can run today, collects for a week
+> without a resident process, measures an OEE against the figure the plant keeps by
+> hand, and writes it to one self-contained file you can forward.
+>
+> **Nine defects in here were found by pointing the code at something real** — a
+> Modbus device on a LAN, a live IoTDB, a live TDengine — and none of them were
+> findable by the test suite, which was green throughout. Two more came from a
+> pre-release audit that read only the code written for this release. The pattern is
+> in the entries below and it is the same one every time: **a value that means "I do
+> not know" rendered as a confident number**, almost always in the direction that
+> flatters the tool.
+>
+> Everything below serves one sequence — **collect what a line actually does, turn
+> that into an OEE figure honest about what it could not see, and keep what was
+> learned when the raw samples are gone.**
 
 ### Added
 - **`iaiops readiness` — what this site can run today, and what each gap is waiting
