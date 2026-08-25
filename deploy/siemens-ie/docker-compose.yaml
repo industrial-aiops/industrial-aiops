@@ -1,0 +1,75 @@
+# Industrial Edge app definition — imported by the IE App Publisher (IEAP) to produce a `.app`.
+#
+# This is NOT a general-purpose compose file. IEAP validates a constrained subset and the platform
+# imposes rules a normal compose file does not have:
+#
+#   * `mem_limit` is MANDATORY — IEAP rejects a service without one.
+#   * IEAP ENFORCES a CPU limit on every container; `cpus` is set here so the value is ours rather
+#     than whatever the tool defaults to.
+#   * Bind mounts may only map paths starting with `./`. Everything else must be a named volume —
+#     which is what the state volume below is.
+#   * `proxy-redirect` is the platform's default app network; an app that wants to be reachable
+#     through the IED's management interface joins it.
+#
+# The image is the SAME published, cosign-signed artifact used everywhere else — Industrial Edge is
+# a distribution target, not a fork. Verify before packaging:
+#   cosign verify --key ../margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.23.0-factory
+#
+# 待核实 on a real IED/IEVD: the exact compose-version string IEAP accepts (it varies by IEAP
+# release — check the drop-down in the tool), and whether `cap_drop`/`security_opt` survive the
+# import unchanged.
+version: "2.4"
+
+services:
+  iaiops:
+    image: ghcr.io/industrial-aiops/iaiops:0.23.0-factory
+
+    # Least-privilege posture, carried over from deploy/margo/. The Industrial Edge Operator is
+    # SHOWN an app's requested privileges at install time, so every capability we do not ask for is
+    # one less question a plant's reviewer has to answer.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    user: "10001:10001"
+
+    # Mandatory on Industrial Edge. Sized for the deterministic analytics path: the brain modules
+    # are stdlib Python over supplied series, not a model runtime.
+    mem_limit: 1g
+    mem_reservation: 256m
+    cpus: 1.0
+
+    environment:
+      # Edition profile. `factory` is the broadest field-protocol bundle; swap the tag AND this
+      # value together for another edition (fab | process | building | water | ...).
+      IAIOPS_MCP: factory
+      # Socket transport: an IE app runs headless under the container runtime, so MCP is served
+      # over a port rather than stdio.
+      IAIOPS_MCP_TRANSPORT: streamable-http
+      IAIOPS_MCP_HOST: "0.0.0.0"
+      IAIOPS_MCP_PORT: "8000"
+      # Defence in depth on top of the platform's own network isolation.
+      IAIOPS_ALLOWLIST_IPS: "127.0.0.1/32"
+      # Secret REFERENCE model: the value is injected by the device secret facility at deploy time
+      # and never travels inside the .app package.
+      IAIOPS_MASTER_PASSWORD: ${IAIOPS_MASTER_PASSWORD:?inject from the IED secret store}
+
+    volumes:
+      # Named volume, not a bind mount — the audit chain, encrypted secrets and undo store live
+      # here and must survive app updates.
+      - iaiops-state:/home/iaiops/.iaiops
+
+    networks:
+      - proxy-redirect
+
+    restart: unless-stopped
+
+volumes:
+  iaiops-state:
+
+networks:
+  proxy-redirect:
+    external: true
