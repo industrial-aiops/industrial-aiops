@@ -125,11 +125,22 @@ class TestPushCanChooseATransport:
     def _cli(self, *args):
         from iaiops.cli.compliance import historian_app
 
-        return runner.invoke(historian_app, list(args))
+        # COLUMNS pinned: rich renders the help into whatever width the terminal
+        # reports, and on a narrow one it breaks "--transport" across lines. The
+        # first version of this file asserted on the rendered text without it and
+        # was green locally, red on CI — a test whose result depended on the
+        # window it ran in.
+        return runner.invoke(historian_app, list(args), env={"COLUMNS": "200"})
 
     def test_the_flag_exists(self):
-        out = self._cli("push", "--help")
-        assert "--transport" in out.stdout
+        """Asserted against the declared parameter, not the rendered help, so it
+        cannot be defeated by line wrapping."""
+        import typer.main
+
+        from iaiops.cli.compliance import historian_app
+
+        push = typer.main.get_command(historian_app).commands["push"]
+        assert "--transport" in {opt for p in push.params for opt in p.opts}
 
     def test_the_help_names_the_transports(self):
         """A flag whose values you have to read the source to learn is a flag
