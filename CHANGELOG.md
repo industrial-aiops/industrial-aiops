@@ -67,6 +67,26 @@ equal to the server's own. Before the fix those four returned four different
 values. Five mutations checked, including the one that looks right — relabelling
 a naive stamp as UTC instead of converting it.
 
+### Fixed — the demo opened by warning about itself
+
+`./demo/oee-line/run_demo.sh` starts with `iaiops readiness`, so the first line a
+prospect saw was:
+
+```
+Security warning: /var/folders/.../.iaiops has permissions 0o755 (should be 700).
+```
+
+The warning was **right** — `mkdir -p`'s mode is masked by umask, so the demo's
+own config directory landed world-readable. The product does this correctly
+(`iaiops/cli/init.py` chmods both directories it creates, and
+`core/governance/audit.py` carries the comment explaining why `mkdir(mode=...)`
+alone is not enough); the showcase was the one place that did not.
+
+`tests/test_demo_script.py` now **executes the shipped setup lines** rather than
+restating them, so deleting the `chmod` fails the suite. It also pins that every
+`iaiops` call in the demo carries the temporary `HOME` — the isolation the script
+promises at the end.
+
 
 ## 0.23.0 — 2026-08-25
 
