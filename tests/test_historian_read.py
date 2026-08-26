@@ -133,7 +133,13 @@ class _FakeTaosConn:
 
 @pytest.fixture()
 def fake_taos(monkeypatch):
-    cursor = _FakeCursor(rows=[("2026-07-02 09:30:00", 21.5, "line1.temp")])
+    # The shape a REAL TDengine client returns, captured from taosws against a
+    # live server on 2026-08-26: offset-carrying, with a space before the offset
+    # that `datetime.fromisoformat` rejects. The previous fixture used
+    # "2026-07-02 09:30:00" — a shape no client produces — and its assertion
+    # pinned the reader's str() passthrough, which is how a naive local stamp
+    # reached callers as if it were UTC. See test_tdengine_reader_returns_utc.py.
+    cursor = _FakeCursor(rows=[("2026-07-02 09:30:00.000 +08:00", 21.5, "line1.temp")])
     conn = _FakeTaosConn(cursor)
     mod = types.ModuleType("taos")
     mod.connect = lambda **kwargs: conn  # type: ignore[attr-defined]
@@ -163,7 +169,7 @@ def test_tdengine_reader_query_sql_and_shape(fake_taos):
     )
     assert rows == [
         {
-            "ts": "2026-07-02 09:30:00",
+            "ts": "2026-07-02T01:30:00+00:00",  # normalized to UTC, like every reader
             "endpoint": "",
             "protocol": "",
             "tag": "line1.temp",
@@ -176,7 +182,9 @@ def test_tdengine_reader_query_sql_and_shape(fake_taos):
 
 @pytest.mark.unit
 def test_tdengine_reader_coverage_and_validation(fake_taos):
-    fake_taos.rows = [("line1.temp", 42, "2026-07-01", "2026-07-02")]
+    fake_taos.rows = [
+        ("line1.temp", 42, "2026-07-01 08:00:00.000 +08:00", "2026-07-02 08:00:00.000 +08:00")
+    ]
     reader = TDengineReader()
     cov = reader.coverage(limit=10)
     # FIRST/LAST, not MIN/MAX: TDengine 3.x rejects MIN()/MAX() on a TIMESTAMP
@@ -187,7 +195,12 @@ def test_tdengine_reader_coverage_and_validation(fake_taos):
         " FROM iaiops.ot_metric GROUP BY metric LIMIT 10"
     )
     assert cov == [
-        {"tag": "line1.temp", "rows": 42, "first_ts": "2026-07-01", "last_ts": "2026-07-02"}
+        {
+            "tag": "line1.temp",
+            "rows": 42,
+            "first_ts": "2026-07-01T00:00:00+00:00",
+            "last_ts": "2026-07-02T00:00:00+00:00",
+        }
     ]
     with pytest.raises(ValueError, match="ISO-8601"):
         reader.query(SampleFilter(since="yesterday"))
