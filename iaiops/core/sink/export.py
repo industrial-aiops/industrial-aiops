@@ -1,15 +1,26 @@
-"""Open-format export from the local SQLite sink — CSV / SQLite / Parquet.
+"""Open-format export from the local SQLite sink — CSV / JSON / SQLite / Parquet.
 
 The other half of the queryability layer (docs/MARKET-INSIGHTS.md R5): once
 samples land in ``~/.iaiops/data.db`` (``historian_push(sink="sqlite")``), an
 operator gets them into Excel / Power BI / SQL in one command. CSV uses the
 stdlib, SQLite writes a fresh single-table db file, and Parquet lazy-imports
 ``pyarrow`` (optional extra ``iaiops[export]``) with a teaching error if missing.
+
+**JSON is not a fourth spreadsheet format — it is the only route from a
+collection run into a historian.** ``iaiops historian push --input`` consumes a
+JSON list of points; the three formats above are all spreadsheet-shaped, so
+until this existed the collected history that ``iaiops oee measure`` reads had
+no supported path into TDengine or IoTDB. Its shape is therefore fixed by
+:func:`iaiops.core.sink.base.normalize_points`, not chosen for looks — the store
+column ``tag`` is emitted as ``metric`` and ``ts`` as ``timestamp`` because those
+are the keys the sinks read. Found 2026-08-26 driving the demo through a lab
+LAN; the bridge had to be written by hand in Python to finish the run.
 """
 
 from __future__ import annotations
 
 import csv
+import json
 import sqlite3
 from pathlib import Path
 
@@ -21,8 +32,8 @@ from iaiops.core.sink.sqlite_local import (
     query_samples,
 )
 
-EXPORT_FORMATS = ("csv", "sqlite", "parquet")
-FORMAT_EXTENSIONS = {"csv": "csv", "sqlite": "db", "parquet": "parquet"}
+EXPORT_FORMATS = ("csv", "json", "sqlite", "parquet")
+FORMAT_EXTENSIONS = {"csv": "csv", "json": "json", "sqlite": "db", "parquet": "parquet"}
 
 
 def export_samples(
@@ -97,6 +108,36 @@ def _write_parquet(out: Path, rows: list[dict]) -> None:
     pq.write_table(pa.table(columns), str(out))
 
 
-_WRITERS = {"csv": _write_csv, "sqlite": _write_sqlite, "parquet": _write_parquet}
+def _write_json(out: Path, rows: list[dict]) -> None:
+    """Write points in the shape ``historian push --input`` accepts.
+
+    ``tag`` → ``metric`` and ``ts`` → ``timestamp`` are the whole reason this
+    writer exists: ``normalize_points`` looks for those keys and DROPS a point
+    that has neither, so a straight dump of the store row exports a file that
+    push rejects with "No usable points to write" — a file that looks right and
+    is silently useless. ``endpoint`` and ``protocol`` ride along for whoever
+    reads the file; ``quality`` and ``unit`` are carried through as point tags.
+    """
+    points = [
+        {
+            "metric": row["tag"],
+            "value": row["value"],
+            "timestamp": row["ts"],
+            "endpoint": row["endpoint"],
+            "protocol": row["protocol"],
+            "quality": row["quality"],
+            "unit": row["unit"],
+        }
+        for row in rows
+    ]
+    out.write_text(json.dumps(points, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+_WRITERS = {
+    "csv": _write_csv,
+    "json": _write_json,
+    "sqlite": _write_sqlite,
+    "parquet": _write_parquet,
+}
 
 __all__ = ["EXPORT_FORMATS", "FORMAT_EXTENSIONS", "export_samples"]

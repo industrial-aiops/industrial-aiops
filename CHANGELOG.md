@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Fixed — the historian had no reachable write path
+
+Found by walking the shipped demo through two lab VMs: the Modbus device on one
+machine across a real LAN, TDengine and IoTDB on another. Collection worked;
+every documented route from "I collected data" to "it is in my historian" was
+broken, in three independent places.
+
+- **`iaiops export json`** — a new export format, and the missing link. `push
+  --input` consumes a JSON list of points; the existing formats (csv / sqlite /
+  parquet) are all spreadsheet-shaped, so the collected history that `oee
+  measure` reads had **no supported route into a historian at all**. Its shape is
+  fixed by `normalize_points` (`tag`→`metric`, `ts`→`timestamp`) rather than
+  chosen, because a straight dump of the store row is rejected with "No usable
+  points to write" — a file that looks right and is silently useless.
+- **`iaiops historian push --transport native|rest|websocket`** — the flag was
+  missing entirely, so push always used the native client, which needs `libtaos`
+  (a vendor tarball, not a PyPI wheel). On macOS and on any air-gapped Linux
+  without it, `push --sink tdengine` **could not run**. The REST and WebSocket
+  transports were built and working the whole time; only the CLI could not reach
+  them. Passing it to a sink that has no transport is now refused, not dropped.
+- **A failed write's message is no longer cut mid-sentence.** The 200-character
+  cap truncated the libtaos error at `"It is a ve"` — exactly where our own text
+  starts naming the way out. Bounded at 600 now; the cap is for a client library
+  echoing a query back, not for our remediation sentence. That message also names
+  the CLI flag rather than only the Python keyword.
+- **`docs/CHINA.md` §4** documented `iaiops modbus read-holding` — a command that
+  does not exist (it is `holding`), whose output shape push rejects anyway.
+
+Verified against the lab historians, not only in tests: 999 of 999 points from a
+real cross-LAN collection run written to live TDengine over `--transport rest`
+and to live IoTDB, from the same exported file with no conversion.
+
+
 ## 0.23.0 — 2026-08-25
 
 > **The release where the tool stopped needing a person to drive it.** 0.22.0 could
