@@ -74,7 +74,18 @@ def test_collected_series_feeds_tag_health_flatline(patch_readers):
 
 
 @pytest.mark.unit
-def test_read_error_becomes_bad_quality_not_raise(monkeypatch):
+def test_read_error_is_reported_as_unreadable_not_as_a_reading(monkeypatch):
+    """Half of this test's original name was right and half was the bug.
+
+    "not raise" still holds: a dead endpoint must not blow up collection. But it
+    also asserted that the failure "becomes bad quality" — filed as a reading
+    about the tag — which is how a switched-off device came back as
+    "sensor_fault, confidence 0.70, field-verify the transmitter and wiring".
+    A read nobody answered is data about our reach, not about the sensor.
+
+    See tests/test_rca_unreachable_is_not_evidence.py for the full account.
+    """
+
     def boom(target, ref):
         raise ConnectionError("plc dropped")
 
@@ -85,9 +96,10 @@ def test_read_error_becomes_bad_quality_not_raise(monkeypatch):
     bundle = rca_collect.collect_evidence(
         _modbus_target(), refs=["1"], sample_count=3, interval_ms=50, include_alarms=False
     )
-    samples = bundle["tags"][0]["samples"]
-    assert all(s["good"] is False for s in samples)
-    assert "error" in samples[0]
+    assert bundle["tags"] == []
+    assert [u["ref"] for u in bundle["unreadable"]] == ["1"]
+    assert "plc dropped" in bundle["unreadable"][0]["error"]
+    assert bundle["collected"]["refs_sampled"] == 0
 
 
 @pytest.mark.unit
