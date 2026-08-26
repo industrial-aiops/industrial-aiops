@@ -31,9 +31,11 @@ import os
 import socket
 import time
 from collections.abc import Iterator
+from datetime import UTC, datetime
 
 import pytest
 
+from iaiops.core.brain._shared import parse_ts
 from iaiops.core.sink.reader import get_reader
 from iaiops.core.sink.sqlite_local import SampleFilter
 
@@ -370,7 +372,7 @@ def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -
                 "metric": "line1.temperature",
                 "value": 21.5,
                 "numeric": True,
-                "timestamp": "2026-08-02T00:00:00.000",
+                "timestamp": "2026-08-02T00:00:00.000Z",
             },
             # A second sample of the SAME metric, later: it is what makes
             # `latest()` and the coverage window falsifiable — with one point per
@@ -380,13 +382,13 @@ def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -
                 "metric": "line1.temperature",
                 "value": 23.75,
                 "numeric": True,
-                "timestamp": "2026-08-02T00:05:00.000",
+                "timestamp": "2026-08-02T00:05:00.000Z",
             },
             {
                 "metric": "line1.pressure",
                 "value": 4.25,
                 "numeric": True,
-                "timestamp": "2026-08-02T00:00:01.000",
+                "timestamp": "2026-08-02T00:00:01.000Z",
             },
             {"metric": "line1.state", "value": "RUN", "numeric": False},
         ]
@@ -411,7 +413,13 @@ def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -
     ], f"ORDER BY ts did not hold, or tags were misattributed: {rows}"
     first = rows[0]
     assert first["value"] == pytest.approx(21.5)
-    assert first["ts"].startswith("2026-08-02 00:00:00"), first
+    # The instant that was WRITTEN, not a string shape. Until 2026-08-26 this
+    # asserted `"2026-08-02 00:00:00"` — the naive, client-LOCAL text the reader
+    # forwarded straight from the client — and so it pinned the defect instead of
+    # catching it: the same row read on a UTC+8 laptop said 08:00 and this test,
+    # running on a UTC runner, never saw it. Comparing instants is what makes the
+    # assertion independent of where it runs.
+    assert parse_ts(first["ts"]) == datetime(2026, 8, 2, tzinfo=UTC), first
 
     latest_by_tag = {row["tag"]: row for row in latest}
     assert set(latest_by_tag) == {"line1.temperature", "line1.pressure"}, latest
@@ -424,8 +432,8 @@ def test_tdengine_points_survive_the_ddl_and_come_back(tdengine_database: str) -
     # FIRST(ts) before LAST(ts): a swapped pair would report the window backwards,
     # which is how a caller decides there is no data for their incident.
     assert temperature["first_ts"] < temperature["last_ts"], coverage
-    assert temperature["first_ts"].startswith("2026-08-02 00:00:00"), coverage
-    assert temperature["last_ts"].startswith("2026-08-02 00:05:00"), coverage
+    assert parse_ts(temperature["first_ts"]) == datetime(2026, 8, 2, tzinfo=UTC), coverage
+    assert parse_ts(temperature["last_ts"]) == datetime(2026, 8, 2, 0, 5, tzinfo=UTC), coverage
 
 
 @needs_tdengine
