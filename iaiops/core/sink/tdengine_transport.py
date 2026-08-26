@@ -111,8 +111,9 @@ def open_connection(
         raise SinkError(
             f"The native TDengine client (libtaos) could not be loaded: {exc}. It is "
             f"a vendor download, not a PyPI wheel — or use a transport that needs no "
-            f"native library: transport='rest' (HTTP :{DEFAULT_ADAPTER_PORT}) or "
-            f"transport='websocket'."
+            f"native library: '--transport rest' (HTTP :{DEFAULT_ADAPTER_PORT}) or "
+            f"'--transport websocket' on the CLI; transport='rest' via the MCP tool "
+            f"or the config's 'historian:' block."
         ) from exc
     return taos.connect(
         host=host,

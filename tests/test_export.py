@@ -114,4 +114,7 @@ def test_export_input_validation_fails_fast(store, tmp_path):
         export_samples("csv", tmp_path / "o.csv", limit=0, db_path=store)
     with pytest.raises(FileNotFoundError, match="No local store"):
         export_samples("csv", tmp_path / "o.csv", db_path=tmp_path / "missing.db")
-    assert set(EXPORT_FORMATS) == {"csv", "sqlite", "parquet"}
+    # json joined the three spreadsheet formats in 0.24.0 — it is the shape
+    # `iaiops historian push --input` consumes, and the only route from a
+    # collection run into a historian. See tests/test_historian_write_path_is_reachable.py
+    assert set(EXPORT_FORMATS) == {"csv", "json", "sqlite", "parquet"}

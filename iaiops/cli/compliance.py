@@ -131,8 +131,18 @@ def push_cmd(
     user: str = typer.Option("", "--user"),
     password: str = typer.Option("", "--password"),
     database: str = typer.Option("", "--database"),
+    transport: str = typer.Option(
+        "",
+        "--transport",
+        help="TDengine wire: native | rest | websocket. native needs libtaos "
+        "(a vendor download, not a PyPI wheel); rest and websocket do not.",
+    ),
 ) -> None:
-    """Write a JSON list of collected points to a TDengine / IoTDB historian."""
+    """Write a JSON list of collected points to a TDengine / IoTDB historian.
+
+    Produce the input with ``iaiops export json`` — that format exists to be
+    this command's input, and the other export formats are not accepted here.
+    """
     points = json.loads(Path(input).read_text("utf-8"))
     opts: dict = {"host": host}
     if port:
@@ -143,4 +153,15 @@ def push_cmd(
         opts["password"] = password
     if database:
         opts["database"] = database
+    if transport:
+        # Refused rather than dropped. Only TDengine has more than one wire, and
+        # silently ignoring the flag would leave the operator believing they had
+        # selected a transport that was never applied — the failure they are
+        # here to escape.
+        if sink.strip().lower() != "tdengine":
+            raise ValueError(
+                f"--transport applies to the tdengine sink only, not '{sink}'. "
+                "Drop the flag, or pass --sink tdengine."
+            )
+        opts["transport"] = transport
     _emit(historian_push(points, sink, **opts))

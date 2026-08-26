@@ -61,12 +61,30 @@ Push **already-collected** telemetry into a domestic TSDB — *data egress to th
 operator's own historian*, never a control-system write (low-risk, governed).
 
 ```bash
-pip install "iaiops[tdengine]"        # or iaiops[iotdb], or iaiops[xinchuang] for both
+pip install "iaiops[tdengine-rest]"   # or iaiops[iotdb], or iaiops[xinchuang] for both
 
-# CLI: write a JSON list of points (e.g. from `iaiops modbus read-holding`)
+# 1. get the collected history out of the local store, in the shape push takes
+iaiops export json -o points.json --endpoint line1
+
+# 2. write it to the historian
 iaiops historian push --sink tdengine --input points.json \
-  --host 10.0.0.20 --database iaiops
+  --host 10.0.0.20 --database iaiops --transport rest
 ```
+
+**`--transport rest` is not optional on most machines.** The default `native`
+transport needs `libtaos`, a vendor download rather than a PyPI wheel — absent on
+macOS and on any air-gapped Linux that has not fetched the tarball. `rest`
+(taosAdapter, HTTP :6041) and `websocket` need no native library. The same choice
+belongs in the `historian:` config block for the read side (`transport: rest`).
+
+**Use `iaiops export json`, not the other export formats.** csv / sqlite / parquet
+are spreadsheet-shaped; `push --input` wants a list of points
+(`{metric, value, timestamp}`). Feeding it anything else — including the output of
+a one-shot read like `iaiops modbus holding` — is refused with *"No usable points
+to write"*. Until 2026-08-26 this page named a command that does not exist
+(`modbus read-holding`) whose output push would have rejected anyway; there was no
+working route from a collection run into a historian, which is what `export json`
+now is.
 
 Or via the `historian_push` MCP tool (`sink="tdengine"|"iotdb"`). Points are
 normalized from any connector's output (`{ref|metric, value|present_value,

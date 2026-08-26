@@ -21,6 +21,14 @@ from iaiops.core.sink.base import (
     normalize_points,
 )
 
+#: How much of a failed write's message survives. The cap is here because a
+#: client library can echo an entire generated query back at us; it is 600 and
+#: not 200 because at 200 the LONGEST message it truncated was one of our own —
+#: the libtaos one — cut at "It is a ve", exactly where it starts naming the
+#: transports that need no native library. Bounding a client's output is right;
+#: bounding our own remediation sentence is how an operator never learns the fix.
+MAX_ERROR_CHARS = 600
+
 
 def historian_push(points: list[Any], sink: str, **opts: Any) -> dict:
     """[WRITE→historian] Normalize and write points to a historian sink.
@@ -48,9 +56,9 @@ def historian_push(points: list[Any], sink: str, **opts: Any) -> dict:
         adapter = get_sink(kind, **opts)
         written = int(adapter.write(writable))
     except (SinkError, ValueError) as exc:
-        return {"error": s(str(exc), 200), "sink": kind}
+        return {"error": s(str(exc), MAX_ERROR_CHARS), "sink": kind}
     except Exception as exc:  # noqa: BLE001 — any client-lib failure → a teaching tally error
-        return {"error": s(f"{kind} write failed: {exc}", 200), "sink": kind}
+        return {"error": s(f"{kind} write failed: {exc}", MAX_ERROR_CHARS), "sink": kind}
     finally:
         close = getattr(adapter, "close", None)
         if callable(close):
