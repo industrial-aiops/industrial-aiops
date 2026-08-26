@@ -28,8 +28,10 @@ thrift wheel and needs nothing but `pip install iaiops[iotdb]`.
 from __future__ import annotations
 
 import os
+import re
 import socket
 import time
+import warnings
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
@@ -61,8 +63,15 @@ def _reachable(port: int) -> bool:
         return False
 
 
+#: Probed ONCE at import. The session-scoped sweeper reuses these rather than
+#: re-opening sockets — on a machine with no TSDB that is a pointless wait on
+#: every single pytest run, including the ones that touch none of this.
+_HAS_IOTDB = _reachable(_IOTDB_PORT)
+_HAS_TAOS = _reachable(_TAOS_PORT)
+_HAS_TAOS_ADAPTER = _reachable(_TAOS_ADAPTER_PORT)
+
 needs_iotdb = pytest.mark.skipif(
-    not _reachable(_IOTDB_PORT),
+    not _HAS_IOTDB,
     reason=(
         f"no IoTDB at {_HOST}:{_IOTDB_PORT} "
         "(docker run -d -p 6667:6667 apache/iotdb:1.3.2-standalone)"
@@ -70,7 +79,7 @@ needs_iotdb = pytest.mark.skipif(
 )
 
 needs_tdengine = pytest.mark.skipif(
-    not _reachable(_TAOS_PORT),
+    not _HAS_TAOS,
     reason=(
         f"no TDengine at {_HOST}:{_TAOS_PORT} "
         "(docker run -d -p 6030:6030 tdengine/tdengine:3.3.5.0)"
@@ -86,6 +95,186 @@ def _unique(prefix: str) -> str:
     that the code under test no longer earns.
     """
     return f"{prefix}{os.getpid()}_{int(time.monotonic() * 1000) % 1_000_000}"
+
+
+#: Exactly what `_unique` emits: one of OUR prefixes, then the pid, then the run
+#: suffix. Tight on purpose — this pattern decides what the sweeper DROPS, so
+#: anything it matches by accident is somebody's data. In particular it must
+#: never match `iaiops`, the name `TDengineSink` uses when a site names none.
+_THROWAWAY_RE = re.compile(r"^iaiops_(?:test|tr)_(\d+)_\d+$")
+
+
+def _is_throwaway_name(database: str) -> bool:
+    """Was this database created by this file, as scratch?"""
+    return bool(_THROWAWAY_RE.fullmatch(str(database or "")))
+
+
+def _is_sweepable(database: str) -> bool:
+    """Is it ours AND left behind by a process that is no longer running?
+
+    The pid check is what makes the sweep safe to run while another pytest
+    session shares the same lab server: that session's database is ours by name,
+    but dropping it would delete its data mid-test. Every uncertain case — a pid
+    we cannot query, a name we cannot parse — resolves toward LEAVING it, because
+    a leftover database costs a DROP and a wrongly-dropped one costs the data.
+    """
+    match = _THROWAWAY_RE.fullmatch(str(database or ""))
+    if match is None:
+        return False
+    try:
+        os.kill(int(match.group(1)), 0)
+    except ProcessLookupError:
+        return True
+    except (PermissionError, OverflowError, ValueError, OSError):
+        return False  # cannot tell → leave it
+    return False  # the process is alive; not ours to remove
+
+
+def _is_ours_this_run(database: str) -> bool:
+    """Ours, from THIS pytest process. Complement of `_is_sweepable`, which
+    deliberately refuses live pids — at session end our own pid IS live, and its
+    leftovers are the ones we are certain about."""
+    match = _THROWAWAY_RE.fullmatch(str(database or ""))
+    return match is not None and match.group(1) == str(os.getpid())
+
+
+def _scratch_databases_named_by(server_names: list[str], predicate) -> list[str]:
+    return [name for name in server_names if predicate(name)]
+
+
+def _any_tdengine_connection(database: str = ""):
+    """Open a TDengine connection over whatever transport works here.
+
+    NOT the native client. The transport tests exist because `libtaos` is a
+    vendor download absent from most machines, so a native-only teardown skips
+    on precisely the hosts where the leak happens — which is how five scratch
+    databases accumulated on the lab server and exhausted its vnodes.
+    """
+    from iaiops.core.sink.base import SinkError
+    from iaiops.core.sink.tdengine_transport import default_port, open_connection
+
+    for transport in ("rest", "websocket", "native"):
+        if not _transport_available(transport):
+            continue
+        try:
+            return open_connection(
+                transport, _HOST, default_port(transport), "root", "taosdata", database
+            )
+        except (SinkError, Exception):  # noqa: BLE001 — try the next transport
+            continue
+    return None
+
+
+def _drop_tdengine_database(database: str) -> None:
+    """Drop a scratch database, warning loudly if it could not be done.
+
+    Swallowed silently, a failed cleanup IS the bug this function exists to fix,
+    so it warns instead: a teardown must not turn a passing test into an erroring
+    one, but it must not hide a leak either.
+    """
+    if not _is_throwaway_name(database):
+        raise AssertionError(f"refusing to drop {database!r}: not a scratch database")
+    if not (_HAS_TAOS_ADAPTER or _HAS_TAOS):
+        # No server was reachable when this session started, so every test that
+        # would have created something skipped and there is nothing of ours to
+        # drop. Without this the teardown still ran on every machine with no
+        # TSDB — the common case — and warned twice per run about failing to
+        # delete a database that never existed. A cleanup that cries wolf on a
+        # healthy machine is one people learn to ignore on a sick one.
+        return
+    connection = _any_tdengine_connection()
+    if connection is None:
+        warnings.warn(f"could not reach TDengine to drop {database}", stacklevel=2)
+        return
+    try:
+        connection.cursor().execute(f"DROP DATABASE IF EXISTS {database}")  # nosec B608
+    except Exception as exc:  # noqa: BLE001 — any client type; the leak matters, not the type
+        warnings.warn(f"could not drop {database}: {exc}", stacklevel=2)
+    finally:
+        try:
+            connection.close()
+        except Exception:  # noqa: BLE001 — close must not mask anything
+            pass
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _sweep_leftover_scratch_databases() -> Iterator[None]:
+    """Drop scratch databases abandoned by earlier, dead runs — once, at start.
+
+    A crashed or killed run leaves its database behind however careful the
+    teardown is, and TDengine allocates vnodes per database: five leftovers were
+    enough to make the lab server refuse new writes with `Vnodes exhausted`,
+    which reads like a product failure and cost two debugging detours.
+
+    At session START rather than end, so one crashed run cannot poison every run
+    after it.
+    """
+    if not _HAS_TAOS_ADAPTER and not _HAS_TAOS:
+        yield
+        return
+    connection = _any_tdengine_connection()
+    if connection is None:
+        yield
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SHOW DATABASES")
+        names = [str(row[0]) for row in cursor.fetchall()]
+        for name in names:
+            if _is_sweepable(name):
+                cursor.execute(f"DROP DATABASE IF EXISTS {name}")  # nosec B608 — regex-matched
+                warnings.warn(f"swept a leftover scratch database: {name}", stacklevel=1)
+    except Exception as exc:  # noqa: BLE001 — a best-effort sweep never fails the session
+        warnings.warn(f"leftover-database sweep skipped: {exc}", stacklevel=1)
+    finally:
+        try:
+            connection.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    yield
+
+    # And the half that gives the whole thing teeth. A leaked database is
+    # INVISIBLE to the suite — the run that first leaked five of them was green
+    # every time — so the session ends by asking the server what this pid left
+    # behind. Anything here is a missing teardown, named while the change that
+    # caused it is still on screen.
+    connection = _any_tdengine_connection()
+    if connection is None:
+        return
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SHOW DATABASES")
+        names = [str(row[0]) for row in cursor.fetchall()]
+        for name in _scratch_databases_named_by(names, _is_ours_this_run):
+            warnings.warn(
+                f"a live test leaked the scratch database {name} — its teardown is missing. "
+                "Dropping it now, but the fixture should have.",
+                stacklevel=1,
+            )
+            cursor.execute(f"DROP DATABASE IF EXISTS {name}")  # nosec B608 — regex-matched
+    except Exception as exc:  # noqa: BLE001
+        warnings.warn(f"leak check skipped: {exc}", stacklevel=1)
+    finally:
+        try:
+            connection.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@pytest.fixture
+def throwaway_tdengine_db() -> Iterator[str]:
+    """A scratch database dropped over ANY available transport.
+
+    Deliberately not `tdengine_database`: that fixture cleans up through the
+    native client, so on a host without libtaos it skips — exactly the host the
+    transport tests exist to cover, and exactly where the leak was.
+    """
+    database = _unique("iaiops_tr_")
+    try:
+        yield database
+    finally:
+        _drop_tdengine_database(database)
 
 
 # ─── Apache IoTDB ────────────────────────────────────────────────────────────
@@ -568,7 +757,9 @@ def _transport_available(transport: str) -> bool:
 
 
 @pytest.mark.parametrize("transport", ["rest", "websocket"])
-def test_tdengine_round_trip_over_a_libtaos_free_transport(transport: str, tmp_path) -> None:
+def test_tdengine_round_trip_over_a_libtaos_free_transport(
+    transport: str, tmp_path, throwaway_tdengine_db: str
+) -> None:
     """The whole write→read path, without the native client at all.
 
     This is the point of the transports: `libtaos` is a vendor download that is
@@ -581,14 +772,14 @@ def test_tdengine_round_trip_over_a_libtaos_free_transport(transport: str, tmp_p
     transport is a real alternative, it has to answer identically, DDL and
     reserved word and all.
     """
-    if not _reachable(_TAOS_ADAPTER_PORT):
+    if not _HAS_TAOS_ADAPTER:
         pytest.skip(f"no taosAdapter at {_HOST}:{_TAOS_ADAPTER_PORT} (publish -p 6041:6041)")
     if not _transport_available(transport):
         pytest.skip(f"the {transport} client is not installed")
 
     from iaiops.core.sink.tdengine import TDengineSink
 
-    database = _unique("iaiops_tr_")
+    database = throwaway_tdengine_db
     sink = TDengineSink(host=_HOST, database=database, transport=transport)
     written = sink.write(
         [
