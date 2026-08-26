@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Fixed — the live TSDB tests leaked a database on every run
+
+Found on the lab TDengine while verifying the three fixes above: five leftover
+`iaiops_tr_*` databases had accumulated, and the server began refusing writes
+with `[0x03BA] Vnodes exhausted` — twice, presenting as an unrelated product
+failure mid-way through an unrelated verification.
+
+Not flaky teardown. `test_tdengine_round_trip_over_a_libtaos_free_transport`
+built its database name **inline with no cleanup at all**, leaking one per
+transport parameter, every run. It could not use the existing
+`tdengine_database` fixture because that one cleans up through the **native**
+client and would skip on exactly the machines the transport tests exist to
+cover.
+
+- A `throwaway_tdengine_db` fixture that drops over **any** available transport.
+- A session-start sweep of scratch databases abandoned by **dead** processes, so
+  one crashed run cannot poison every run after it. Its pattern is deliberately
+  tight — it can never match `iaiops`, the sink's default database name — and it
+  skips any pid still running, so two concurrent sessions cannot delete each
+  other's data. Every uncertain case resolves toward **leaving** a database:
+  a leftover costs a `DROP`, a wrongly-dropped one costs the data.
+- A session-**end** check that names anything this run left behind. A leaked
+  database is invisible to the suite — the run that leaked five of them was
+  green every time — so the leak now reports itself while the change that caused
+  it is still on screen.
+
+Verified against the live lab server: a planted leftover with a dead pid was
+swept, a same-shaped decoy under a different prefix and an unrelated `rcatest`
+were untouched, and a full run now ends with nothing of ours on the server.
+Removing the teardown reproduces the leak exactly (two databases, one run).
+
 ### Fixed — the historian had no reachable write path
 
 Found by walking the shipped demo through two lab VMs: the Modbus device on one
