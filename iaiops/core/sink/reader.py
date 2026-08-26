@@ -24,6 +24,7 @@ ISO timestamps, quote-escaped tag literals, and Python ints.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -233,7 +234,7 @@ class TDengineReader:
             f"SELECT ts, `value`, metric FROM {self._database}.{self._stable}"
             f"{where} ORDER BY ts {order} LIMIT {int(checked.limit)}"  # nosec B608
         )
-        rows = [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in self._run(sql)]
+        rows = [_sample_row(_tsdb_ts_to_iso(r[0]), str(r[2]), num(r[1])) for r in self._run(sql)]
         return list(reversed(rows)) if checked.newest_first else rows
 
     def latest(self, limit: int = 5_000) -> list[dict]:
@@ -243,7 +244,7 @@ class TDengineReader:
             f"SELECT LAST(ts), LAST(`value`), metric "  # nosec B608
             f"FROM {self._database}.{self._stable} GROUP BY metric LIMIT {capped}"
         )
-        return [_sample_row(str(r[0]), str(r[2]), num(r[1])) for r in self._run(sql)]
+        return [_sample_row(_tsdb_ts_to_iso(r[0]), str(r[2]), num(r[1])) for r in self._run(sql)]
 
     def coverage(self, limit: int = DEFAULT_COVERAGE_LIMIT) -> list[dict]:
         capped = _cap_coverage_limit(limit)
@@ -264,8 +265,8 @@ class TDengineReader:
             {
                 "tag": s(str(r[0]), 128),
                 "rows": int(r[1]),
-                "first_ts": s(str(r[2]), 40),
-                "last_ts": s(str(r[3]), 40),
+                "first_ts": _tsdb_ts_to_iso(r[2]),
+                "last_ts": _tsdb_ts_to_iso(r[3]),
             }
             for r in self._run(sql)
         ]
@@ -554,6 +555,56 @@ def _millis_to_iso(millis: Any) -> str:
     if value is None:
         return ""
     return datetime.fromtimestamp(value / 1000.0, tz=UTC).isoformat()
+
+
+#: A space between the seconds and the offset — `taosws`'s shape, which
+#: `datetime.fromisoformat` rejects. Anchored on the offset so it cannot eat a
+#: space anywhere else in the string.
+_OFFSET_SPACE = re.compile(r"\s+(?=[+-]\d{2}:?\d{2}$)")
+
+
+def _tsdb_ts_to_iso(value: Any) -> str:
+    """Any TDengine client's timestamp → ISO-8601 UTC, like every other reader.
+
+    The three transports hand back three different things for one instant, and
+    the reader used to forward whatever arrived via ``str()``:
+
+    * ``rest`` → ``datetime(2026, 8, 26, 15, 47, 13, 436000)`` — the right instant
+      converted into the CLIENT's local zone, ``tzinfo`` dropped. Stringified it
+      became ``"2026-08-26 15:47:13.436000"``, which :func:`parse_ts` then read as
+      UTC **by design** — an eight-hour error, silent, on data an operator
+      compares against a collection run.
+    * ``websocket`` → the string ``"2026-08-26 15:47:13.436 +08:00"``. The offset
+      is there but the space before it is not ISO-8601, so ``parse_ts`` returned
+      ``None`` and the window quietly held nothing.
+    * ``native`` → a datetime, aware or naive depending on the client build.
+
+    Meanwhile the IoTDB reader returns ``2026-08-26T07:47:13.436000+00:00`` and
+    the server itself, asked over plain HTTP, says ``2026-08-26T07:47:13.436Z``.
+    Nothing was ambiguous on the wire; the meaning was lost on this side of it.
+
+    A naive value is read as **client-local, not UTC** — that is what taosrest
+    produces, confirmed against a live server under three different ``TZ``
+    settings. Anything unrecognisable is passed through rather than guessed: a
+    visibly wrong stamp can be spotted, an invented one cannot.
+    """
+    from datetime import UTC, datetime
+
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        # A naive datetime is assumed LOCAL by astimezone(), which is exactly the
+        # assumption that recovers taosrest's conversion; an aware one is simply
+        # converted. One call is correct for both.
+        return value.astimezone(UTC).isoformat()
+    text = str(value).strip()
+    if not text:
+        return ""
+    try:
+        parsed = datetime.fromisoformat(_OFFSET_SPACE.sub("", text).replace("Z", "+00:00"))
+    except ValueError:
+        return s(text, 40)
+    return parsed.astimezone(UTC).isoformat()
 
 
 # ─── factory (mirrors get_sink) ──────────────────────────────────────────────

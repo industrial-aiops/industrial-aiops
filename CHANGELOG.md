@@ -34,6 +34,39 @@ Verified against the lab historians, not only in tests: 999 of 999 points from a
 real cross-LAN collection run written to live TDengine over `--transport rest`
 and to live IoTDB, from the same exported file with no conversion.
 
+### Fixed — the TDengine reader returned a timestamp that was wrong or unreadable
+
+Found the same day, pushing one cross-LAN collection run into BOTH lab
+historians and reading it back. The same 999 samples came back as two different
+instants:
+
+```
+IoTDB      2026-08-26T07:47:13.436000+00:00     ISO-8601, offset-aware
+TDengine   2026-08-26 15:47:13.436000           naive, client-LOCAL
+```
+
+Through this codebase's own `parse_ts` — which coerces a naive stamp to UTC, by
+design — those land **28,800 seconds apart**. And over the WebSocket transport it
+was worse: `'2026-08-26 15:47:13.436 +08:00'` carries its offset but has a space
+before it, which is not ISO-8601, so `parse_ts` returned `None` and the window
+quietly held nothing.
+
+The server was never ambiguous — asked over plain HTTP it answers
+`2026-08-26T07:47:13.436Z`. The meaning was lost on our side: `taosrest` converts
+the instant into the CLIENT's zone and drops `tzinfo`, and the reader forwarded
+whatever arrived through `str()`.
+
+`query`, `latest` and `coverage` now normalise to ISO-8601 UTC, matching the
+IoTDB and SQLite readers. A naive value is read as client-local (which is what it
+is), not as UTC. An unrecognisable stamp is passed through rather than guessed —
+a visibly wrong stamp can be spotted; an invented one cannot.
+
+Verified against the live lab TDengine over **both** `rest` and `websocket`, under
+`TZ` of UTC / Asia/Shanghai / America/New_York / Australia/Sydney: one answer,
+equal to the server's own. Before the fix those four returned four different
+values. Five mutations checked, including the one that looks right — relabelling
+a naive stamp as UTC instead of converting it.
+
 
 ## 0.23.0 — 2026-08-25
 
