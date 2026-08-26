@@ -38,6 +38,12 @@ REPORT_OUT="${REPORT_OUT:-$PWD/oee-demo.html}"
 DEMO_HOME="$(mktemp -d)"
 PORT="$($PY -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')"
 mkdir -p "$DEMO_HOME/.iaiops"
+# 700 explicitly: mkdir's mode is masked by umask, so the directory lands at
+# 0755 and the very first command prints a security warning about the demo's
+# own directory — in front of whoever is being shown the demo. The product
+# does this correctly (iaiops/cli/init.py chmods both dirs it creates); only
+# this script did not.
+chmod 700 "$DEMO_HOME/.iaiops"
 
 cleanup() { pkill -f "simulate_line.py .*--port $PORT" 2>/dev/null || true; }
 trap cleanup EXIT
