@@ -54,16 +54,27 @@ def collect_evidence(
     ref_list = [r for r in (refs or []) if r][:MAX_REFS]
     primary = ref_list[0] if ref_list else None
     dataflow = diagnose_dataflow(target, primary, freshness_threshold_s)
-    tags = [_sample_tag(target, ref, sample_count, interval_ms) for ref in ref_list]
+    sampled = [(ref, *_sample_tag(target, ref, sample_count, interval_ms)) for ref in ref_list]
+    # A ref the device never answered is NOT handed on as evidence. It is named
+    # instead, under `unreadable`: dropping it silently would leave the operator
+    # believing those tags were examined and found innocent.
+    tags = [tag for _ref, tag, error in sampled if not error]
+    unreadable = [{"ref": s(ref, 96), "error": error} for ref, _tag, error in sampled if error]
     alarms = _collect_alarms(target) if include_alarms else []
     return {
         "dataflow": dataflow,
         "tags": tags,
+        "unreadable": unreadable,
         "alarms": alarms,
         "collected": {
             "endpoint": s(getattr(target, "name", ""), 64),
             "protocol": s(getattr(target, "protocol", ""), 16),
+            "refs_requested": len(ref_list),
+            # What was OBTAINED, not what was attempted. `refs_sampled: 3` on a
+            # run where nothing answered is the same overstatement in smaller
+            # print than the verdict it produced.
             "refs_sampled": len(tags),
+            "refs_unreadable": len(unreadable),
             "alarms_found": len(alarms),
             "dataflow_verdict": dataflow.get("verdict") if isinstance(dataflow, dict) else None,
         },
@@ -120,20 +131,44 @@ def downtime_rca_live(
     return verdict
 
 
-def _sample_tag(target: Any, ref: str, sample_count: int, interval_ms: int) -> dict:
-    """Sample one ref into a {ref, samples:[{value, good}]} series + config bounds."""
+def _sample_tag(target: Any, ref: str, sample_count: int, interval_ms: int) -> tuple[dict, str]:
+    """Sample one ref → ``({ref, samples, bounds...}, error)``.
+
+    ``error`` is non-empty only when the device ANSWERED NOTHING — every read
+    raised — and it is what separates two situations the old code merged:
+
+    * the device answered with a bad value → real bad-quality data, and exactly
+      the signal ``sensor_fault`` is for;
+    * the device did not answer at all → data about our reach, not about the
+      sensor.
+
+    The old comment here read "a per-read failure is bad-quality data". Against a
+    switched-off endpoint that turned every requested ref into one bad-quality
+    signal, out-voted the single ``cannot_connect`` dataflow signal, and produced
+    "sensor_fault, confidence 0.70 — field-verify the transmitter and wiring" for
+    sensors that were fine. Confidence rose with the number of refs asked about,
+    which is the proof it was an artifact rather than a reading.
+    """
     n = max(1, min(int(sample_count), MAX_SAMPLES_PER_REF))
     interval = max(MIN_INTERVAL_MS, int(interval_ms))
     samples: list[dict] = []
+    answered = False
+    first_error = ""
     for i in range(n):
         try:
             value, _src_ts = _read_point(target, ref)
+            answered = True
             samples.append({"value": value, "good": value is not None})
-        except Exception as exc:  # noqa: BLE001 — a per-read failure is bad-quality data
-            samples.append({"value": None, "good": False, "error": s(str(exc), 120)})
+        except Exception as exc:  # noqa: BLE001 — record it, but do not call it a reading
+            message = s(str(exc), 120)
+            first_error = first_error or message
+            samples.append({"value": None, "good": False, "error": message})
         if i < n - 1:
             time.sleep(interval / 1000.0)
-    return {"ref": s(ref, 96), "samples": samples, **_config_bounds(target, ref)}
+    tag = {"ref": s(ref, 96), "samples": samples, **_config_bounds(target, ref)}
+    # Partly answered still counts: one dropped read inside an answering series
+    # is ordinary jitter, and discarding the series would lose real evidence.
+    return tag, ("" if answered else (first_error or "no response"))
 
 
 def _config_bounds(target: Any, ref: str) -> dict:

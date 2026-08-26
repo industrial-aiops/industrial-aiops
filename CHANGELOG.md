@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+### Fixed — the RCA copilot turned its own blindness into a fault at the plant
+
+Found by running the flagship command the way a plant would — *"the line stopped
+this morning, tell me why"* — against an endpoint that was **switched off**,
+which is the ordinary case: the incident is over and nobody has powered the cell
+back up.
+
+Every read failed with `Connection refused`. `_sample_tag` filed each failure as
+a bad-quality sample (its comment said so: *"a per-read failure is bad-quality
+data"*), and the verdict came back:
+
+```
+primary_cause: sensor_fault, confidence 0.70
+recommended_action: Field-verify the sensor/transmitter and wiring.
+```
+
+The sensors were fine. **It knew** — `dataflow_verdict` was already
+`cannot_connect` and `comms_loss` was a candidate at 0.60. It lost, because a
+dead transport manufactures one bad-quality signal **per requested ref** while
+the truth gets a single dataflow signal:
+
+| refs | primary | sensor_fault | comms_loss |
+|---:|---|---:|---:|
+| 0 | comms_loss ✓ | 0.0000 | 0.6000 |
+| 1 | comms_loss ✓ | 0.4500 | 0.6000 |
+| 2 | **sensor_fault ✗** | 0.6975 | 0.6000 |
+| 3 | **sensor_fault ✗** | 0.8336 | 0.6000 |
+
+Confidence that the plant's sensors are broken, as a function of how many tags
+you asked about. That monotonicity is the proof it was an artifact.
+
+The fix is at **collection**, not scoring: a read the device never answered is
+not handed on as evidence, and the refs are named under `unreadable` instead —
+dropping them silently would leave the operator believing those tags were
+examined and found innocent. `refs_sampled` now counts what was obtained rather
+than what was attempted. A device that **answers** with a bad value still
+produces real `sensor_fault` evidence, and `downtime_rca` is untouched, so a
+hand-authored bundle scores exactly as before.
+
+Verified against the switched-off lab endpoint: `sensor_fault` is 0.0000 at
+every ref count, the verdict is `comms_loss`, and the recommended action is to
+check the network path rather than to field-verify wiring. Four mutations
+checked.
+
 ### Fixed — the live TSDB tests leaked a database on every run
 
 Found on the lab TDengine while verifying the three fixes above: five leftover
