@@ -204,9 +204,9 @@ def advance(inv: Investigation, db_path: Any = None) -> Investigation:
         "collect_evidence": _run_collect(samples),
         "normalize_and_check": _run_normalize(samples),
         "compress_and_rank": _run_compress(),
-        "correlate_timeline": _run_timeline(),
+        "correlate_timeline": _run_timeline(inv, samples),
         "test_hypotheses": _run_hypotheses(inv, samples),
-        "knowledge_check": _run_knowledge(),
+        "knowledge_check": _run_knowledge(inv, samples),
         "conclude_and_close": _run_conclude(inv, samples),
     }
     return replace(
@@ -321,9 +321,69 @@ def _run_compress() -> tuple[str, str]:
     )
 
 
-def _run_timeline() -> tuple[str, str]:
-    """Delivery step 3 (§13.10). Declared as not_possible rather than skipped."""
-    return NOT_POSSIBLE, "cross-asset timelines need declared line relations; not built yet"
+def _run_timeline(inv: Investigation, samples: list[dict]) -> tuple[str, str]:
+    """Step 05 — `core/brain/timeline`. A re-ordering, never a story (§13.7).
+
+    Both inputs are DECLARED, never inferred: which value means running comes
+    from the config, and which asset feeds which from `iaiops relations declare`.
+    Missing either one degrades the step explicitly rather than silently.
+    """
+    if not samples:
+        return REFUSED, "no samples in the window to place on a timeline"
+    from iaiops.core.brain.timeline import build_timeline
+    from iaiops.core.knowledge.relations import downstream_of
+
+    primary = inv.scope.asset or inv.scope.endpoint
+    result = build_timeline(
+        {"start": inv.scope.start, "end": inv.scope.end, "asset": primary},
+        [
+            {**row, "asset": primary, "id": f"{primary}/{row.get('tag')}@{row.get('ts')}"}
+            for row in samples
+        ],
+        run_state_tag=_declared_run_state(inv.scope.endpoint),
+        downstream=downstream_of(primary, site=inv.site),
+    )
+    entries = result["entries"]
+    if not entries:
+        return REFUSED, str(result["note"])
+    if not result["segmented"]:
+        return DONE, f"{len(entries)} change(s) in time order — {result['note']}"
+    # Counts, not a list. The first version enumerated every label and printed
+    # "symptom" two hundred times, which is a data dump wearing a summary's
+    # clothes — the trigger and recovery were in there, invisible.
+    counts: dict[str, int] = {}
+    for entry in entries:
+        if entry["segment"]:
+            counts[entry["segment"]] = counts.get(entry["segment"], 0) + 1
+    tally = ", ".join(f"{n} {name}" for name, n in sorted(counts.items())) or "none labelled"
+    return DONE, (
+        f"{len(entries)} change(s), {result['scope'].replace('_', '-')}; {tally} — {result['note']}"
+    )
+
+
+def _declared_run_state(endpoint: str) -> dict[str, Any] | None:
+    """The endpoint's run-state tag AS DECLARED, or None.
+
+    None is not a failure — it is the honest input to a step that refuses its
+    labels without it. Guessing "non-zero means running" here would count idle
+    and fault as production, which is the mistake the config's `running_when`
+    exists to prevent.
+    """
+    from iaiops.core.runtime.config import TagRole, load_config
+
+    try:
+        config = load_config()
+    except Exception:  # noqa: BLE001 — an unconfigured site is an ordinary state
+        return None
+    for target in getattr(config, "targets", ()) or ():
+        if str(getattr(target, "name", "")) != endpoint:
+            continue
+        for tag in getattr(target, "tags", ()) or ():
+            if getattr(tag, "role", None) == TagRole.RUN_STATE:
+                running = list(getattr(tag, "running_when", ()) or ())
+                if running:
+                    return {"ref": str(getattr(tag, "ref", "")), "running_when": running}
+    return None
 
 
 def _run_hypotheses(inv: Investigation, samples: list[dict]) -> tuple[str, str]:
@@ -370,9 +430,52 @@ def _run_hypotheses(inv: Investigation, samples: list[dict]) -> tuple[str, str]:
     )
 
 
-def _run_knowledge() -> tuple[str, str]:
-    """D36. Mechanisms are hardcoded constants and nothing can be mounted."""
-    return NOT_POSSIBLE, "no fault-mechanism library can be mounted; mechanisms are built in"
+def _run_knowledge(inv: Investigation, samples: list[dict]) -> tuple[str, str]:
+    """Step 07 — what a mounted library says about the candidate causes.
+
+    Was `not_possible` until `iaiops knowledge mount` existed (§13.8). Now it is
+    an ordinary step that refuses when nothing is mounted.
+
+    The refusal wording matters: **nothing mounted is not "nothing wrong"**. A
+    knowledge base that has never heard of a cause has not cleared it, and the
+    one thing this step must never do is let silence read as agreement.
+    """
+    from iaiops.core.knowledge.mechanisms import check_candidate, mounted_mechanisms
+
+    library = mounted_mechanisms(site=inv.site)
+    if not library:
+        return REFUSED, (
+            "no fault-mechanism library is mounted for this site — nothing is known "
+            "here about how this equipment fails, which is NOT the same as nothing "
+            "being wrong (`iaiops knowledge mount`)"
+        )
+    if not samples:
+        return REFUSED, "no candidate causes to check — the window holds no evidence"
+
+    protocol = _endpoint_protocol(inv.scope.endpoint)
+    causes = sorted({m.cause for m in library})
+    verdicts = [check_candidate(c, protocol=protocol, site=inv.site) for c in causes]
+    excluded = [v["cause"] for v in verdicts if v["excluded"]]
+    applicable = [v["cause"] for v in verdicts if v["status"] == "known" and not v["excluded"]]
+    return DONE, (
+        f"{len(library)} mounted mechanism(s) over {len(causes)} cause(s); "
+        f"{len(applicable)} applicable here"
+        + (f", {len(excluded)} excluded ({', '.join(excluded)})" if excluded else "")
+    )
+
+
+def _endpoint_protocol(endpoint: str) -> str:
+    """The endpoint's protocol, for applicability. Unknown reads as unconstrained."""
+    from iaiops.core.runtime.config import load_config
+
+    try:
+        config = load_config()
+    except Exception:  # noqa: BLE001 — an unconfigured site is an ordinary state
+        return ""
+    for target in getattr(config, "targets", ()) or ():
+        if str(getattr(target, "name", "")) == endpoint:
+            return str(getattr(target, "protocol", ""))
+    return ""
 
 
 def _run_conclude(inv: Investigation, samples: list[dict]) -> tuple[str, str]:

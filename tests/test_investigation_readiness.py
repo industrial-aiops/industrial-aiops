@@ -149,30 +149,108 @@ class TestHowFarThisSiteCouldGet:
         assert any(s["status"] == "blocked" for s in d["steps"])
 
 
-class TestTheKnowledgeStepAdmitsThereIsNoWayToSupplyIt:
-    """D36. This is the one step where "you have not configured it" is a lie."""
+class TestTheKnowledgeStepIsNowSupplyable:
+    """This class used to assert the opposite, and was right to.
 
-    def test_it_is_marked_not_yet_expressible(self, collecting):
-        step = _step(collecting, "knowledge_check")
-        unmet = [r for r in step["requirements"] if not r["met"]]
-        assert unmet, "the knowledge step cannot be satisfiable today"
-        assert any(r.get("not_yet_expressible") for r in unmet), unmet
+    Until `iaiops knowledge mount` existed, fault mechanisms were hardcoded
+    constants with no slot at all, so the requirement carried
+    `expressible=False` — "you CANNOT supply this", a different sentence from
+    "you have NOT". The command closed that gap on 2026-08-27 and the flag came
+    off with it: a flag left on after the gap closed sends somebody to build a
+    feature that is already there.
+    """
 
-    def test_it_is_not_silently_skipped(self, collecting):
-        """A skipped step reads as 'checked, nothing wrong' — the worst of the
-        three possible messages."""
+    def test_it_is_an_ordinary_unmet_requirement_now(self, collecting):
+        req = _requirement(collecting, "knowledge_check", "mechanism_library")
+        assert not req["met"]
+        assert not req.get("not_yet_expressible"), req
+
+    def test_the_fix_names_the_command_that_supplies_it(self, collecting):
+        req = _requirement(collecting, "knowledge_check", "mechanism_library")
+        assert "knowledge mount" in req["fix"], req["fix"]
+
+    def test_the_step_is_still_not_ready(self, collecting):
+        """Closing the EXPRESSIBILITY gap does not close the gap. Nothing is
+        mounted on this site, so the step still cannot run."""
         assert _step(collecting, "knowledge_check")["status"] != "ready"
 
-    def test_the_others_are_not_marked_that_way(self, collecting):
-        """The complement: `not_yet_expressible` must mean something. If every
-        gap carried it, it would carry no information."""
-        flagged = {
-            s["key"]
+
+class TestTheExpressibilityMechanismStillWorks:
+    """Both investigation gaps are closed as of 2026-08-27, so no step produces
+    `expressible=False` today. That is a good state to be in and a dangerous one
+    to leave untested: the flag went years with NO producer, which is how its
+    render branch stayed dead and unnoticed.
+
+    So this tests the machinery rather than any particular gap — it keeps working
+    for the next thing the product genuinely cannot express.
+    """
+
+    def test_the_flag_reaches_the_serialized_form(self):
+        from iaiops.core.readiness.model import Requirement
+
+        req = Requirement(key="k", label="l", met=False, detail="d", fix="", expressible=False)
+        assert req.as_dict()["not_yet_expressible"] is True
+
+    def test_an_ordinary_gap_does_not_carry_it(self):
+        from iaiops.core.readiness.model import Requirement
+
+        req = Requirement(key="k", label="l", met=False, detail="d", fix="do this")
+        assert "not_yet_expressible" not in req.as_dict()
+
+    def test_a_step_carrying_one_says_not_yet_possible(self):
+        """The headline has to distinguish it, or the two sentences collapse
+        back into one in the only place an operator reads."""
+        from iaiops.core.investigate.model import Step
+        from iaiops.core.readiness.model import Requirement
+
+        step = Step(
+            number=1,
+            key="k",
+            label="l",
+            value="v",
+            requirements=(
+                Requirement(key="r", label="a thing", met=False, detail="", expressible=False),
+            ),
+        )
+        assert "not yet possible" in step.headline
+
+
+class TestClosingAGapTurnsTheFlagOff:
+    """`expressible` has to stop being set the moment a command can supply it.
+
+    Cross-asset propagation reported "this product offers no way to supply it
+    yet" until `iaiops relations declare` existed. It was accurate then. A flag
+    left True after the gap closed would send somebody to write a feature that is
+    already there — and worse, it would make the flag mean nothing (D36).
+    """
+
+    def test_propagation_relations_is_now_an_ordinary_unmet_requirement(self, collecting):
+        req = _requirement(collecting, "correlate_timeline", "propagation_relations")
+        assert not req["met"]
+        assert not req.get("not_yet_expressible"), req
+        assert "relations declare" in req["fix"], req["fix"]
+
+    def test_declaring_one_satisfies_it(self, tmp_path, monkeypatch):
+        """The complement, and the proof the count is read rather than assumed."""
+        from iaiops.core.knowledge import relations as rel
+
+        monkeypatch.setattr(
+            rel, "line_relations", lambda site="default", base_dir=None: (object(),)
+        )
+        report = assess_investigation(config=_config(["line1"]), db_path=tmp_path / "none.db")
+        assert _requirement(report, "correlate_timeline", "propagation_relations")["met"]
+
+    def test_no_step_still_claims_to_be_impossible(self, collecting):
+        """Both investigation gaps closed the same week. Any step still claiming
+        `not_yet_expressible` would now be lying about the product — see
+        TestTheExpressibilityMechanismStillWorks for the machinery guard."""
+        flagged = [
+            (s["key"], r["key"])
             for s in collecting.as_dict()["steps"]
             for r in s["requirements"]
             if r.get("not_yet_expressible")
-        }
-        assert "collect_evidence" not in flagged and "define_incident" not in flagged
+        ]
+        assert flagged == [], flagged
 
 
 class TestTheGapsAreActionable:
@@ -191,6 +269,10 @@ class TestTheGapsAreActionable:
         met = [r for s in collecting.as_dict()["steps"] for r in s["requirements"] if r["met"]]
         assert met, "a collecting site must satisfy something"
         assert all(r["detail"] for r in met)
+
+
+def _requirement(report, step_key: str, req_key: str) -> dict:
+    return next(r for r in _step(report, step_key)["requirements"] if r["key"] == req_key)
 
 
 def _step(report, key: str) -> dict:

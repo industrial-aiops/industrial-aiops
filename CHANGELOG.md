@@ -2,6 +2,105 @@
 
 ## Unreleased
 
+### Added — `iaiops knowledge mount`: the knowledge slot, and the last product-side hole
+
+HLD §13.10 delivery step 4. Step 07 asked whether a candidate cause is even
+possible on this equipment; until now the honest answer was *"this product
+offers no way to tell you"*, because fault mechanisms were hardcoded constants
+with no slot at all.
+
+**The shape comes from what the field standardised.** ISO 14224 keeps three
+levels apart, and this repo's seven `CAUSE_KEYWORDS` collapse all three into one
+word:
+
+| level | meaning | example | answers |
+|---|---|---|---|
+| failure **mode** | the observed effect | reading frozen | what you SAW |
+| failure **mechanism** | the physical process | transmitter drift | what to go and CHECK |
+| failure **cause** | the root condition | `sensor_fault` | what to FIX |
+
+**Seven top-level causes is the right number and a library does not add to
+them.** Practitioner consensus is blunt: past roughly forty codes two operators
+stop picking the same one and the data degrades. Entries attach to the taxonomy
+the learner already speaks. (The commercial libraries of tens of thousands of
+failure codes are for machine-emitted codes, where nobody has to choose — a
+different layer.)
+
+Four refusals, in order of the damage each would do:
+
+1. **Silence is not agreement.** Nothing known about a candidate reports
+   `nothing_known`, never "no objection". A knowledge base that has never heard
+   of a cause has not cleared it, and that reading would make the step worse
+   than not having it.
+2. **It may exclude, never confirm** (D28/D29). Applicability constraints rule a
+   candidate out — the strong move a ranker cannot make. `confirmed` still comes
+   only from outside the ranking.
+3. **Every entry names its source.** A mechanism with no source is
+   indistinguishable from a guess a year later.
+4. **All-or-nothing mounting.** A half-mounted library is one nobody can reason
+   about.
+
+The exclusion is not theoretical. This morning's RCA defect diagnosed
+`sensor_fault` on a Modbus endpoint that was merely switched off; a library
+saying *"every sensor_fault mechanism here needs HART or OPC-UA"* rules that out
+on applicability alone, before any evidence is weighed.
+
+### Changed — the eight-step map has no product-side holes left
+
+With relations, the timeline and the mechanism library, **every remaining gap in
+`investigate plan` is something a site can supply** — no alarm source, nothing
+collected, nothing mounted. No step reports "this product cannot do it".
+
+That is a good state and a dangerous one to leave untested: `Requirement.
+expressible` went years with **no producer at all**, which is how its render
+branch stayed dead and unnoticed. Both flags now have tests on the **machinery**
+rather than on any particular gap, ready for the next thing the product
+genuinely cannot express.
+
+### Added — declared line relations, and the timeline they unlock
+
+HLD §13.10 delivery step 3, in two halves.
+
+**`iaiops relations declare <upstream> <downstream> --by <you>`** — the second
+axis of root-cause analysis (§10.3②). With time alone, an upstream stoppage
+produces a string of equally-confident downstream false causes, because on a
+line downstream co-occurrence is *guaranteed* whatever the cause. That guarantee
+is exactly why this is a declaration and not a detector (D25): a person stating
+the line order needs no inference. Stored as `declared` facts, isolated per site
+(D34), and refusing self-loops and cycles at declaration time — where somebody
+can still fix them — rather than at analysis time.
+
+This is also the **first thing to close an `expressible` gap**. `investigate
+plan` reported cross-asset propagation as "this product offers no way to supply
+it yet", which was true. It now reports it as an ordinary unmet requirement with
+the command that satisfies it. A flag left set after the gap closed would stop
+meaning anything.
+
+**Step 05, the timeline** (`core/brain/timeline`) — Trigger · Symptom ·
+Propagation · Recovery, fenced so it stays a re-ordering rather than a story:
+
+* every entry cites the evidence id it came from, and nothing is interpolated
+* **propagation follows only declared relations**, and only forward in time —
+  a declared edge alone would launder any co-occurrence into a causal claim
+* the four labels need a **declared run-state tag**; without it the step returns
+  an ordered change list and says why, rather than guessing which value means
+  running
+* with no relations it degrades to a single-asset timeline **and says so**
+
+Three things the real data taught, none of them visible from the tests alone:
+
+* **A counter is not a timeline of events.** Measured on the cross-LAN
+  collection: run state changed on 2% of its samples, the two production
+  counters on 77%. Treating "the value changed" as an event made every sample an
+  event — 500 entries, cap hit, the actual trigger buried under 361 "symptoms".
+  Tags that change on more than half their samples are excluded **and named**.
+* **A window that opens already stopped has no trigger in view**, and saying so
+  ("widen the window") is more useful than an unlabelled list. Without that
+  check, the first transition found is the *recovery*, labelled as the trigger.
+* **Truncation is announced.** A partial timeline that does not say so reads as
+  a complete one, and the part it drops is the later part — where a recovery
+  lives.
+
 ### Added — `iaiops investigate open/show/list`: the investigation as an object
 
 HLD §13, delivery step 2. `plan` answers "how far COULD we get here"; this walks

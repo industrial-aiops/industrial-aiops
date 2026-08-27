@@ -25,6 +25,7 @@ from iaiops.cli.historian import coverage_cmd, query_cmd
 from iaiops.cli.init import init_cmd
 from iaiops.cli.investigate import investigate_app
 from iaiops.cli.iolink import iolink_app
+from iaiops.cli.knowledge import knowledge_app
 from iaiops.cli.mc import mc_app
 from iaiops.cli.metrics import metrics_app
 from iaiops.cli.modbus import modbus_app
@@ -35,6 +36,7 @@ from iaiops.cli.opcua import opcua_app
 from iaiops.cli.profinet import profinet_app
 from iaiops.cli.program import program_app
 from iaiops.cli.readiness import readiness_cmd
+from iaiops.cli.relations import relations_app
 from iaiops.cli.s7 import s7_app
 from iaiops.cli.scan import scan_app
 from iaiops.cli.secret import secret_app
@@ -80,6 +82,8 @@ app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
 app.command("readiness")(readiness_cmd)
 app.add_typer(investigate_app, name="investigate")
+app.add_typer(relations_app, name="relations")
+app.add_typer(knowledge_app, name="knowledge")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
 app.add_typer(store_app, name="store")

@@ -133,17 +133,27 @@ class TestEveryStepRecordsItsOwnOutcome:
         assert step.state == "refused"
         assert "alarm" in step.summary.lower()
 
-    def test_the_knowledge_step_says_the_product_cannot_do_it(self, store, opened):
-        """D36 — distinct from 'refused'. "We had no input" and "this product has
-        no such capability" send a person to two different places."""
+    def test_the_knowledge_step_refuses_rather_than_being_impossible(self, store, opened):
+        """This asserted `not_possible` until 2026-08-27, and was right to: there
+        was no way to mount a mechanism library at all. `iaiops knowledge mount`
+        made it an ordinary site gap."""
         step = _step(advance(opened, db_path=store), "knowledge_check")
-        assert step.state == "not_possible"
+        assert step.state == "refused"
 
-    def test_refused_and_not_possible_are_different_states(self, store, opened):
-        """The complement. Collapsing them would make the flag meaningless, which
-        is what `expressible` exists to prevent."""
+    def test_nothing_mounted_is_never_worded_as_nothing_wrong(self, store, opened):
+        """The one thing this step must never do. A knowledge base that has never
+        heard of a cause has not cleared it, and a refusal that reads as a clean
+        bill of health is worse than no step at all."""
+        summary = _step(advance(opened, db_path=store), "knowledge_check").summary.lower()
+        assert "not the same as nothing being wrong" in summary, summary
+
+    def test_no_step_claims_the_product_cannot_do_it_any_more(self, store, opened):
+        """A milestone worth pinning: after relations and the mechanism library,
+        the eight-step map has no PRODUCT-side holes left — every remaining gap
+        is something a site can supply. A step reverting to `not_possible` would
+        be a regression in capability, and this is where it would show."""
         states = {s.key: s.state for s in advance(opened, db_path=store).steps}
-        assert states["compress_and_rank"] != states["knowledge_check"]
+        assert "not_possible" not in states.values(), states
 
 
 class TestTheDataCheckMeasuresTheRightThing:
@@ -286,3 +296,24 @@ class TestAdvancingIsIdempotent:
 
 def _step(inv, key: str):
     return next(s for s in inv.steps if s.key == key)
+
+
+class TestTheImpossibleStateStillWorks:
+    """No step produces `not_possible` today, and that is a good state to be in
+    and a dangerous one to leave untested — `Requirement.expressible` went years
+    with no producer, which is how its render branch stayed dead and unnoticed.
+
+    So the machinery is tested directly, ready for the next thing the product
+    genuinely cannot do.
+    """
+
+    def test_the_state_is_distinct_from_refused(self):
+        from iaiops.core.investigate.live import NOT_POSSIBLE, REFUSED
+
+        assert NOT_POSSIBLE != REFUSED
+
+    def test_the_cli_renders_it_differently(self):
+        """Two states that print the same are one state."""
+        from iaiops.cli.investigate import _STATE
+
+        assert _STATE["not_possible"] != _STATE["refused"]
