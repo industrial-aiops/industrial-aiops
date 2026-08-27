@@ -2,6 +2,50 @@
 
 ## Unreleased
 
+### Added — declared line relations, and the timeline they unlock
+
+HLD §13.10 delivery step 3, in two halves.
+
+**`iaiops relations declare <upstream> <downstream> --by <you>`** — the second
+axis of root-cause analysis (§10.3②). With time alone, an upstream stoppage
+produces a string of equally-confident downstream false causes, because on a
+line downstream co-occurrence is *guaranteed* whatever the cause. That guarantee
+is exactly why this is a declaration and not a detector (D25): a person stating
+the line order needs no inference. Stored as `declared` facts, isolated per site
+(D34), and refusing self-loops and cycles at declaration time — where somebody
+can still fix them — rather than at analysis time.
+
+This is also the **first thing to close an `expressible` gap**. `investigate
+plan` reported cross-asset propagation as "this product offers no way to supply
+it yet", which was true. It now reports it as an ordinary unmet requirement with
+the command that satisfies it. A flag left set after the gap closed would stop
+meaning anything.
+
+**Step 05, the timeline** (`core/brain/timeline`) — Trigger · Symptom ·
+Propagation · Recovery, fenced so it stays a re-ordering rather than a story:
+
+* every entry cites the evidence id it came from, and nothing is interpolated
+* **propagation follows only declared relations**, and only forward in time —
+  a declared edge alone would launder any co-occurrence into a causal claim
+* the four labels need a **declared run-state tag**; without it the step returns
+  an ordered change list and says why, rather than guessing which value means
+  running
+* with no relations it degrades to a single-asset timeline **and says so**
+
+Three things the real data taught, none of them visible from the tests alone:
+
+* **A counter is not a timeline of events.** Measured on the cross-LAN
+  collection: run state changed on 2% of its samples, the two production
+  counters on 77%. Treating "the value changed" as an event made every sample an
+  event — 500 entries, cap hit, the actual trigger buried under 361 "symptoms".
+  Tags that change on more than half their samples are excluded **and named**.
+* **A window that opens already stopped has no trigger in view**, and saying so
+  ("widen the window") is more useful than an unlabelled list. Without that
+  check, the first transition found is the *recovery*, labelled as the trigger.
+* **Truncation is announced.** A partial timeline that does not say so reads as
+  a complete one, and the part it drops is the later part — where a recovery
+  lives.
+
 ### Added — `iaiops investigate open/show/list`: the investigation as an object
 
 HLD §13, delivery step 2. `plan` answers "how far COULD we get here"; this walks

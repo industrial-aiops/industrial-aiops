@@ -175,6 +175,38 @@ class TestTheKnowledgeStepAdmitsThereIsNoWayToSupplyIt:
         assert "collect_evidence" not in flagged and "define_incident" not in flagged
 
 
+class TestClosingAGapTurnsTheFlagOff:
+    """`expressible` has to stop being set the moment a command can supply it.
+
+    Cross-asset propagation reported "this product offers no way to supply it
+    yet" until `iaiops relations declare` existed. It was accurate then. A flag
+    left True after the gap closed would send somebody to write a feature that is
+    already there — and worse, it would make the flag mean nothing (D36).
+    """
+
+    def test_propagation_relations_is_now_an_ordinary_unmet_requirement(self, collecting):
+        req = _requirement(collecting, "correlate_timeline", "propagation_relations")
+        assert not req["met"]
+        assert not req.get("not_yet_expressible"), req
+        assert "relations declare" in req["fix"], req["fix"]
+
+    def test_declaring_one_satisfies_it(self, tmp_path, monkeypatch):
+        """The complement, and the proof the count is read rather than assumed."""
+        from iaiops.core.knowledge import relations as rel
+
+        monkeypatch.setattr(
+            rel, "line_relations", lambda site="default", base_dir=None: (object(),)
+        )
+        report = assess_investigation(config=_config(["line1"]), db_path=tmp_path / "none.db")
+        assert _requirement(report, "correlate_timeline", "propagation_relations")["met"]
+
+    def test_the_knowledge_step_is_still_flagged(self, collecting):
+        """The one gap that is still genuinely impossible must keep the flag, or
+        closing one gap would have quietly disarmed the whole mechanism."""
+        req = _requirement(collecting, "knowledge_check", "mechanism_library")
+        assert req.get("not_yet_expressible") is True
+
+
 class TestTheGapsAreActionable:
     def test_every_unmet_requirement_carries_a_next_step(self, bare):
         """`fix` is the difference between a gap analysis and a list of
@@ -191,6 +223,10 @@ class TestTheGapsAreActionable:
         met = [r for s in collecting.as_dict()["steps"] for r in s["requirements"] if r["met"]]
         assert met, "a collecting site must satisfy something"
         assert all(r["detail"] for r in met)
+
+
+def _requirement(report, step_key: str, req_key: str) -> dict:
+    return next(r for r in _step(report, step_key)["requirements"] if r["key"] == req_key)
 
 
 def _step(report, key: str) -> dict:

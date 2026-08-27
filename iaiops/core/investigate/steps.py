@@ -168,14 +168,24 @@ def _correlate_timeline(facts: dict[str, Any]) -> Step:
             Requirement(
                 key="propagation_relations",
                 label="declared relations for cross-asset propagation",
-                met=False,
-                detail="no line relationships are declared",
-                fix="",
+                met=facts["declared_relations"] > 0,
+                detail=(
+                    f"{facts['declared_relations']} relation(s) declared"
+                    if facts["declared_relations"]
+                    else "no line relationships are declared"
+                ),
+                # Was `expressible=False` until `iaiops relations declare` existed.
+                # The moment a command can supply it, this becomes an ordinary
+                # unmet requirement — a flag that stayed True after the gap was
+                # closed would stop meaning anything (D36).
+                fix=(
+                    "State the line order: "
+                    "`iaiops relations declare <upstream> <downstream> --by <you>`."
+                ),
                 # Optional on purpose: without relations the timeline degrades to
                 # a SINGLE-asset one rather than disappearing (§13.7), and the
                 # degradation has to be stated rather than silently applied.
                 optional=True,
-                expressible=False,
             ),
         ),
     )

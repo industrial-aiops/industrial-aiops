@@ -19,7 +19,12 @@ def assess_investigation(
     config: Any = None, db_path: Any = None, site: str = "default"
 ) -> InvestigationReadiness:
     """Eight steps judged against this site, and how far the walk gets."""
+    from iaiops.core.knowledge.relations import line_relations
     from iaiops.core.readiness.assess import gather_facts
 
     facts = gather_facts(config=config, db_path=db_path)
+    # Declared line order is a SITE fact, not a config or store one, so it is not
+    # part of what `readiness` gathers. Counted here rather than fetched inside a
+    # step builder, which must stay pure (they take facts, not the world).
+    facts["declared_relations"] = len(line_relations(site=str(site or "default")))
     return InvestigationReadiness(site=str(site or "default"), steps=build_steps(facts))
