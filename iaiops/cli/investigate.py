@@ -88,6 +88,103 @@ def plan_cmd(
     console.print("[dim]Nothing was contacted to produce this.[/]")
 
 
-investigate_app.command("plan")(plan_cmd)
+_STATE = {
+    "done": ("✅", "green"),
+    "refused": ("⚠️ ", "yellow"),
+    "not_possible": ("🚧", "magenta"),
+    "pending": ("·", "dim"),
+}
 
-__all__ = ["investigate_app", "plan_cmd"]
+
+@cli_errors
+def open_cmd(
+    endpoint: str = typer.Argument(..., help="Endpoint the incident happened on."),
+    start: str = typer.Option(..., "--start", help="Incident onset (ISO-8601)."),
+    end: str = typer.Option(..., "--end", help="Incident end (ISO-8601)."),
+    asset: str = typer.Option("", "--asset", help="Machine / line label."),
+    site: str = typer.Option("default", "--site", help="Site / plant boundary (D34)."),
+    db: Path = typer.Option(None, "--db", help="Local store (default: the iaiops store)."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable report."),
+) -> None:
+    """Open an investigation over one window and walk what can be walked.
+
+    Contacts no device — the window is already past, and the evidence for it is
+    whatever was collected at the time. Every step records its own outcome, so a
+    step that could not run says why, and one this product cannot do at all says
+    that instead.
+
+    The investigation is saved, so it can be re-read and advanced later.
+    """
+    from iaiops.core.investigate.live import (
+        advance,
+        open_investigation,
+        save_investigation,
+    )
+
+    inv = advance(
+        open_investigation(endpoint=endpoint, start=start, end=end, asset=asset, site=site),
+        db_path=db,
+    )
+    save_investigation(inv)
+    _render(inv, as_json)
+
+
+@cli_errors
+def show_cmd(
+    investigation_id: str = typer.Argument(..., help="Investigation id (see `investigate list`)."),
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable report."),
+) -> None:
+    """Re-read a saved investigation — the state it was left in."""
+    from iaiops.core.investigate.live import load_investigation
+
+    _render(load_investigation(investigation_id), as_json)
+
+
+@cli_errors
+def list_cmd(
+    as_json: bool = typer.Option(False, "--json", help="Machine-readable report."),
+) -> None:
+    """List saved investigations, newest first."""
+    from iaiops.core.investigate.live import list_investigations
+
+    found = list_investigations()
+    if as_json:
+        _emit([i.as_dict() for i in found])
+        return
+    if not found:
+        console.print(
+            "\nNo investigations yet. Open one over a window you care about:\n"
+            "  [dim]iaiops investigate open <endpoint> --start <iso> --end <iso>[/]\n"
+        )
+        return
+    console.print(f"\n[bold]{len(found)} investigation(s)[/]\n")
+    for inv in found:
+        console.print(
+            f"  [bold]{inv.id}[/]  {inv.scope.start} → {inv.scope.end}  "
+            f"[dim]reached {inv.reached}/{len(inv.steps)}[/]"
+        )
+    console.print()
+
+
+def _render(inv, as_json: bool) -> None:
+    if as_json:
+        _emit(inv.as_dict())
+        return
+    console.print(
+        f"\n[bold]Investigation {inv.id}[/] — site [bold]{inv.site}[/]\n"
+        f"{inv.scope.asset or inv.scope.endpoint}  {inv.scope.start} → {inv.scope.end}\n"
+        f"Walked [bold]{inv.reached} of {len(inv.steps)}[/] steps.\n"
+    )
+    for step in inv.steps:
+        mark, colour = _STATE.get(step.state, ("·", "dim"))
+        console.print(f"{mark} [{colour}]{step.number:02d} · {step.label}[/]")
+        console.print(f"   [dim]{step.summary}[/]")
+    console.print("\n[dim]No device was contacted — the window is already past.[/]")
+
+
+investigate_app.command("plan")(plan_cmd)
+investigate_app.command("open")(open_cmd)
+investigate_app.command("show")(show_cmd)
+investigate_app.command("list")(list_cmd)
+
+__all__ = ["investigate_app", "plan_cmd", "open_cmd", "show_cmd", "list_cmd"]

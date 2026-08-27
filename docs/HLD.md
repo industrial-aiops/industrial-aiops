@@ -826,7 +826,15 @@ Trigger / Symptom / Propagation / Recovery 四段，看起来最像「智能」�
 纯函数 + 确定性状态机，落在四层架构的 **brain/runtime 那一层**，
 因此受 §1 的零模型守卫覆盖。
 
-**持久化**：走 `core/knowledge/store.py` 既有的站点知识库，而不是新开一个库。
+**持久化**：每次调查一个 JSON，跟随 `core/collect/session.py` 的形状
+（原子写、0600、带 `version`）。
+
+> ⚠️ **本条在实现时被修正（2026-08-26）。** 初稿写的是「走
+> `core/knowledge/store.py` 既有的站点知识库，而不是新开一个库」——
+> 在代码上站不住:`KnowledgeBase` 是**只追加的事实集合**，而一次调查是
+> **会变的活动记录**。`sessions/` 才是形状对得上的先例。
+> 知识库仍然是**结论**的落点（经 `case confirm`），这一条没变。
+
 每一步的推进都是一次受治理调用（`@governed_tool`），审计链因此天然覆盖
 「这次调查走到哪、谁推进的」。
 
