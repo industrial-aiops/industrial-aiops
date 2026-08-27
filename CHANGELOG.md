@@ -2,6 +2,88 @@
 
 ## Unreleased
 
+### Added — `iaiops investigate open/show/list`: the investigation as an object
+
+HLD §13, delivery step 2. `plan` answers "how far COULD we get here"; this walks
+the eight steps over a **real window** and records what each one produced. It is
+persisted, so it can be re-read and advanced later — that is what makes it an
+object rather than a command (D31).
+
+**It adds no analysis.** Each step calls something that already exists
+(`query_samples`, `historian_health`, `downtime_rca`, the `case` loop) and
+records the outcome, in one of three states:
+
+* **done** — it ran, here is what it found
+* **refused** — it could not run *here* (no samples in the window, no alarm
+  source on this endpoint); a site fact, usually fixable
+* **not possible** — *this product cannot do it at all yet*; nothing the
+  operator does will change it
+
+Against the real cross-LAN collection: 3 of 8 steps, 04 refused for a site
+reason, 05 and 07 not possible for a product reason.
+
+Two corrections during implementation, both caught by running it on real data
+rather than by reading it:
+
+* **Step 3 reported "0 gaps" over a window with a genuine 13-second outage.**
+  `historian_health` defaults to a 60 s gap threshold, and this collection ran
+  at 200 ms. The threshold now comes from the window's own cadence, using the
+  `GAP_FACTOR`/`GAP_FLOOR_S` rule `oee_measure` already measured against a real
+  device. It finds the outage.
+* **It also reported a "6 ms cadence" for a run that sampled every 200 ms.** The
+  store interleaves tags, so the median interval of the *mixed* series is the
+  spacing between tags, not the sampling rate — off by thirty times, in the
+  direction that makes the data look finer-grained than it was. Each tag is now
+  checked against its own cadence. Reports 220 ms, which is the real rate plus
+  round-trip.
+
+And one refusal that had to be added: **the ranking step used to claim "no
+candidate cause is supported"** while being handed a raw sample series with
+every point marked good. `downtime_rca` reads alarms, a dataflow verdict and
+quality flags; a series has none of them. "We looked and found nothing" when the
+truth is "we handed it nothing to look at" is the same error the RCA copilot
+made this morning, pointed the other way. It now refuses and names what would
+make it runnable.
+
+**HLD §13.9 corrected in the same commit**: persistence does not go through the
+site knowledge base. A `KnowledgeBase` is an append-only set of *facts*; an
+investigation is a mutable record of an *activity*. `core/collect/session.py` is
+the precedent that fits.
+
+### Added — `iaiops investigate plan`: how far an investigation could get here
+
+HLD §13, delivery step 1. `readiness` answers "which scenarios can this site run
+today"; this answers the next question down — **if something stopped tomorrow,
+how many of the eight evidence steps could we actually walk**, and for each one
+we could not, what is missing.
+
+Contacts nothing: no device, no network, no historian, same as `scan plan`. That
+is what makes it runnable on a site nobody has authorised you to probe yet —
+which is the site that most needs the answer.
+
+The report distinguishes three things a single "missing" would blur:
+
+* **blocked** — you have not supplied it, and here is the command that would
+* **degraded** — it runs without this, and here is what you lose
+* **not yet possible** — *this product offers no way to supply it at all*
+
+That last one made `Requirement.expressible` real. The field, its serialization
+and a CLI branch to render it had all existed since `readiness` was written —
+**with no producer anywhere in the codebase**, so the line "this product offers
+no way to supply it yet" had never printed. It was also unreachable twice over:
+the branch was nested under `if req.fix`, and an inexpressible requirement has
+no fix by definition. Both fixed; `readiness` renders it correctly now too.
+
+Two steps report it today, for different reasons: cross-asset timeline
+propagation needs declared line relationships (D25 — there is no command to
+declare them), and the knowledge check needs a mountable fault-mechanism library
+(§13.8 — mechanisms are hardcoded constants and there is no knowledge base).
+
+`reachable_through` is a **walk**, not a count of unblocked steps. On a
+Modbus-only line the two differ — the walk reaches 3, the count says 6 — and
+only the walk answers the question. Steps blocked further along are reported
+separately, so a gap at step 7 does not read as the reason the walk stopped at 3.
+
 ### Fixed — the RCA copilot turned its own blindness into a fault at the plant
 
 Found by running the flagship command the way a plant would — *"the line stopped
