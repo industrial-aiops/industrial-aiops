@@ -149,30 +149,70 @@ class TestHowFarThisSiteCouldGet:
         assert any(s["status"] == "blocked" for s in d["steps"])
 
 
-class TestTheKnowledgeStepAdmitsThereIsNoWayToSupplyIt:
-    """D36. This is the one step where "you have not configured it" is a lie."""
+class TestTheKnowledgeStepIsNowSupplyable:
+    """This class used to assert the opposite, and was right to.
 
-    def test_it_is_marked_not_yet_expressible(self, collecting):
-        step = _step(collecting, "knowledge_check")
-        unmet = [r for r in step["requirements"] if not r["met"]]
-        assert unmet, "the knowledge step cannot be satisfiable today"
-        assert any(r.get("not_yet_expressible") for r in unmet), unmet
+    Until `iaiops knowledge mount` existed, fault mechanisms were hardcoded
+    constants with no slot at all, so the requirement carried
+    `expressible=False` — "you CANNOT supply this", a different sentence from
+    "you have NOT". The command closed that gap on 2026-08-27 and the flag came
+    off with it: a flag left on after the gap closed sends somebody to build a
+    feature that is already there.
+    """
 
-    def test_it_is_not_silently_skipped(self, collecting):
-        """A skipped step reads as 'checked, nothing wrong' — the worst of the
-        three possible messages."""
+    def test_it_is_an_ordinary_unmet_requirement_now(self, collecting):
+        req = _requirement(collecting, "knowledge_check", "mechanism_library")
+        assert not req["met"]
+        assert not req.get("not_yet_expressible"), req
+
+    def test_the_fix_names_the_command_that_supplies_it(self, collecting):
+        req = _requirement(collecting, "knowledge_check", "mechanism_library")
+        assert "knowledge mount" in req["fix"], req["fix"]
+
+    def test_the_step_is_still_not_ready(self, collecting):
+        """Closing the EXPRESSIBILITY gap does not close the gap. Nothing is
+        mounted on this site, so the step still cannot run."""
         assert _step(collecting, "knowledge_check")["status"] != "ready"
 
-    def test_the_others_are_not_marked_that_way(self, collecting):
-        """The complement: `not_yet_expressible` must mean something. If every
-        gap carried it, it would carry no information."""
-        flagged = {
-            s["key"]
-            for s in collecting.as_dict()["steps"]
-            for r in s["requirements"]
-            if r.get("not_yet_expressible")
-        }
-        assert "collect_evidence" not in flagged and "define_incident" not in flagged
+
+class TestTheExpressibilityMechanismStillWorks:
+    """Both investigation gaps are closed as of 2026-08-27, so no step produces
+    `expressible=False` today. That is a good state to be in and a dangerous one
+    to leave untested: the flag went years with NO producer, which is how its
+    render branch stayed dead and unnoticed.
+
+    So this tests the machinery rather than any particular gap — it keeps working
+    for the next thing the product genuinely cannot express.
+    """
+
+    def test_the_flag_reaches_the_serialized_form(self):
+        from iaiops.core.readiness.model import Requirement
+
+        req = Requirement(key="k", label="l", met=False, detail="d", fix="", expressible=False)
+        assert req.as_dict()["not_yet_expressible"] is True
+
+    def test_an_ordinary_gap_does_not_carry_it(self):
+        from iaiops.core.readiness.model import Requirement
+
+        req = Requirement(key="k", label="l", met=False, detail="d", fix="do this")
+        assert "not_yet_expressible" not in req.as_dict()
+
+    def test_a_step_carrying_one_says_not_yet_possible(self):
+        """The headline has to distinguish it, or the two sentences collapse
+        back into one in the only place an operator reads."""
+        from iaiops.core.investigate.model import Step
+        from iaiops.core.readiness.model import Requirement
+
+        step = Step(
+            number=1,
+            key="k",
+            label="l",
+            value="v",
+            requirements=(
+                Requirement(key="r", label="a thing", met=False, detail="", expressible=False),
+            ),
+        )
+        assert "not yet possible" in step.headline
 
 
 class TestClosingAGapTurnsTheFlagOff:
@@ -200,11 +240,17 @@ class TestClosingAGapTurnsTheFlagOff:
         report = assess_investigation(config=_config(["line1"]), db_path=tmp_path / "none.db")
         assert _requirement(report, "correlate_timeline", "propagation_relations")["met"]
 
-    def test_the_knowledge_step_is_still_flagged(self, collecting):
-        """The one gap that is still genuinely impossible must keep the flag, or
-        closing one gap would have quietly disarmed the whole mechanism."""
-        req = _requirement(collecting, "knowledge_check", "mechanism_library")
-        assert req.get("not_yet_expressible") is True
+    def test_no_step_still_claims_to_be_impossible(self, collecting):
+        """Both investigation gaps closed the same week. Any step still claiming
+        `not_yet_expressible` would now be lying about the product — see
+        TestTheExpressibilityMechanismStillWorks for the machinery guard."""
+        flagged = [
+            (s["key"], r["key"])
+            for s in collecting.as_dict()["steps"]
+            for r in s["requirements"]
+            if r.get("not_yet_expressible")
+        ]
+        assert flagged == [], flagged
 
 
 class TestTheGapsAreActionable:

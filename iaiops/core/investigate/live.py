@@ -206,7 +206,7 @@ def advance(inv: Investigation, db_path: Any = None) -> Investigation:
         "compress_and_rank": _run_compress(),
         "correlate_timeline": _run_timeline(inv, samples),
         "test_hypotheses": _run_hypotheses(inv, samples),
-        "knowledge_check": _run_knowledge(),
+        "knowledge_check": _run_knowledge(inv, samples),
         "conclude_and_close": _run_conclude(inv, samples),
     }
     return replace(
@@ -430,9 +430,52 @@ def _run_hypotheses(inv: Investigation, samples: list[dict]) -> tuple[str, str]:
     )
 
 
-def _run_knowledge() -> tuple[str, str]:
-    """D36. Mechanisms are hardcoded constants and nothing can be mounted."""
-    return NOT_POSSIBLE, "no fault-mechanism library can be mounted; mechanisms are built in"
+def _run_knowledge(inv: Investigation, samples: list[dict]) -> tuple[str, str]:
+    """Step 07 — what a mounted library says about the candidate causes.
+
+    Was `not_possible` until `iaiops knowledge mount` existed (§13.8). Now it is
+    an ordinary step that refuses when nothing is mounted.
+
+    The refusal wording matters: **nothing mounted is not "nothing wrong"**. A
+    knowledge base that has never heard of a cause has not cleared it, and the
+    one thing this step must never do is let silence read as agreement.
+    """
+    from iaiops.core.knowledge.mechanisms import check_candidate, mounted_mechanisms
+
+    library = mounted_mechanisms(site=inv.site)
+    if not library:
+        return REFUSED, (
+            "no fault-mechanism library is mounted for this site — nothing is known "
+            "here about how this equipment fails, which is NOT the same as nothing "
+            "being wrong (`iaiops knowledge mount`)"
+        )
+    if not samples:
+        return REFUSED, "no candidate causes to check — the window holds no evidence"
+
+    protocol = _endpoint_protocol(inv.scope.endpoint)
+    causes = sorted({m.cause for m in library})
+    verdicts = [check_candidate(c, protocol=protocol, site=inv.site) for c in causes]
+    excluded = [v["cause"] for v in verdicts if v["excluded"]]
+    applicable = [v["cause"] for v in verdicts if v["status"] == "known" and not v["excluded"]]
+    return DONE, (
+        f"{len(library)} mounted mechanism(s) over {len(causes)} cause(s); "
+        f"{len(applicable)} applicable here"
+        + (f", {len(excluded)} excluded ({', '.join(excluded)})" if excluded else "")
+    )
+
+
+def _endpoint_protocol(endpoint: str) -> str:
+    """The endpoint's protocol, for applicability. Unknown reads as unconstrained."""
+    from iaiops.core.runtime.config import load_config
+
+    try:
+        config = load_config()
+    except Exception:  # noqa: BLE001 — an unconfigured site is an ordinary state
+        return ""
+    for target in getattr(config, "targets", ()) or ():
+        if str(getattr(target, "name", "")) == endpoint:
+            return str(getattr(target, "protocol", ""))
+    return ""
 
 
 def _run_conclude(inv: Investigation, samples: list[dict]) -> tuple[str, str]:

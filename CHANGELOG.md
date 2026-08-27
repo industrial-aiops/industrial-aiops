@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+### Added — `iaiops knowledge mount`: the knowledge slot, and the last product-side hole
+
+HLD §13.10 delivery step 4. Step 07 asked whether a candidate cause is even
+possible on this equipment; until now the honest answer was *"this product
+offers no way to tell you"*, because fault mechanisms were hardcoded constants
+with no slot at all.
+
+**The shape comes from what the field standardised.** ISO 14224 keeps three
+levels apart, and this repo's seven `CAUSE_KEYWORDS` collapse all three into one
+word:
+
+| level | meaning | example | answers |
+|---|---|---|---|
+| failure **mode** | the observed effect | reading frozen | what you SAW |
+| failure **mechanism** | the physical process | transmitter drift | what to go and CHECK |
+| failure **cause** | the root condition | `sensor_fault` | what to FIX |
+
+**Seven top-level causes is the right number and a library does not add to
+them.** Practitioner consensus is blunt: past roughly forty codes two operators
+stop picking the same one and the data degrades. Entries attach to the taxonomy
+the learner already speaks. (The commercial libraries of tens of thousands of
+failure codes are for machine-emitted codes, where nobody has to choose — a
+different layer.)
+
+Four refusals, in order of the damage each would do:
+
+1. **Silence is not agreement.** Nothing known about a candidate reports
+   `nothing_known`, never "no objection". A knowledge base that has never heard
+   of a cause has not cleared it, and that reading would make the step worse
+   than not having it.
+2. **It may exclude, never confirm** (D28/D29). Applicability constraints rule a
+   candidate out — the strong move a ranker cannot make. `confirmed` still comes
+   only from outside the ranking.
+3. **Every entry names its source.** A mechanism with no source is
+   indistinguishable from a guess a year later.
+4. **All-or-nothing mounting.** A half-mounted library is one nobody can reason
+   about.
+
+The exclusion is not theoretical. This morning's RCA defect diagnosed
+`sensor_fault` on a Modbus endpoint that was merely switched off; a library
+saying *"every sensor_fault mechanism here needs HART or OPC-UA"* rules that out
+on applicability alone, before any evidence is weighed.
+
+### Changed — the eight-step map has no product-side holes left
+
+With relations, the timeline and the mechanism library, **every remaining gap in
+`investigate plan` is something a site can supply** — no alarm source, nothing
+collected, nothing mounted. No step reports "this product cannot do it".
+
+That is a good state and a dangerous one to leave untested: `Requirement.
+expressible` went years with **no producer at all**, which is how its render
+branch stayed dead and unnoticed. Both flags now have tests on the **machinery**
+rather than on any particular gap, ready for the next thing the product
+genuinely cannot express.
+
 ### Added — declared line relations, and the timeline they unlock
 
 HLD §13.10 delivery step 3, in two halves.

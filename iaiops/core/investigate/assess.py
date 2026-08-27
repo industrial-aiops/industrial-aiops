@@ -19,6 +19,7 @@ def assess_investigation(
     config: Any = None, db_path: Any = None, site: str = "default"
 ) -> InvestigationReadiness:
     """Eight steps judged against this site, and how far the walk gets."""
+    from iaiops.core.knowledge.mechanisms import mounted_mechanisms
     from iaiops.core.knowledge.relations import line_relations
     from iaiops.core.readiness.assess import gather_facts
 
@@ -27,4 +28,5 @@ def assess_investigation(
     # part of what `readiness` gathers. Counted here rather than fetched inside a
     # step builder, which must stay pure (they take facts, not the world).
     facts["declared_relations"] = len(line_relations(site=str(site or "default")))
+    facts["mounted_mechanisms"] = len(mounted_mechanisms(site=str(site or "default")))
     return InvestigationReadiness(site=str(site or "default"), steps=build_steps(facts))

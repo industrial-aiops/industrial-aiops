@@ -214,13 +214,15 @@ def _test_hypotheses(facts: dict[str, Any]) -> Step:
 
 
 def _knowledge_check(facts: dict[str, Any]) -> Step:
-    """The step this product cannot satisfy at all today (HLD §13.8, D36).
+    """Whether anything is known about how this equipment fails (HLD §13.8).
 
-    Fault mechanisms are hardcoded constants; there is no knowledge base, no
-    per-protocol mechanism library and no way to mount one. Reporting that as
-    "you have not configured it" would send somebody looking for a setting that
-    does not exist — and skipping the step would read as "checked, nothing
-    wrong", which is worse still.
+    This was the step the product could not satisfy at all: mechanisms were
+    hardcoded constants with no slot to mount anything into, so the requirement
+    carried `expressible=False` — "you cannot supply this", which is a different
+    sentence from "you have not". `iaiops knowledge mount` closed that gap on
+    2026-08-27, so it is now an ordinary unmet requirement with a command that
+    satisfies it. Leaving the flag on would send somebody to build a feature that
+    already exists, and would make the flag itself mean nothing.
     """
     return Step(
         number=7,
@@ -233,10 +235,19 @@ def _knowledge_check(facts: dict[str, Any]) -> Step:
             Requirement(
                 key="mechanism_library",
                 label="a mounted fault-mechanism library",
-                met=False,
-                detail="fault mechanisms are built in and fixed; nothing can be mounted",
-                fix="",
-                expressible=False,
+                met=facts["mounted_mechanisms"] > 0,
+                detail=(
+                    f"{facts['mounted_mechanisms']} mechanism(s) mounted"
+                    if facts["mounted_mechanisms"]
+                    else "no fault-mechanism library is mounted"
+                ),
+                # Was `expressible=False` until `iaiops knowledge mount` existed:
+                # mechanisms were hardcoded constants with no slot at all. The
+                # flag comes off the moment a command can supply it (D36).
+                fix=(
+                    "Mount what is known about how this equipment fails: "
+                    "`iaiops knowledge mount <library.yaml> --by <you>`."
+                ),
             ),
             Requirement(
                 key="site_cases",
