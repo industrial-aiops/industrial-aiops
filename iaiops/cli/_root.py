@@ -23,6 +23,7 @@ from iaiops.cli.fins import fins_app
 from iaiops.cli.hart import hart_app
 from iaiops.cli.historian import coverage_cmd, query_cmd
 from iaiops.cli.init import init_cmd
+from iaiops.cli.investigate import investigate_app
 from iaiops.cli.iolink import iolink_app
 from iaiops.cli.mc import mc_app
 from iaiops.cli.metrics import metrics_app
@@ -78,6 +79,7 @@ app.command("export")(export_cmd)
 app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
 app.command("readiness")(readiness_cmd)
+app.add_typer(investigate_app, name="investigate")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
 app.add_typer(store_app, name="store")

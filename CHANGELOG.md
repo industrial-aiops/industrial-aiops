@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Added — `iaiops investigate plan`: how far an investigation could get here
+
+HLD §13, delivery step 1. `readiness` answers "which scenarios can this site run
+today"; this answers the next question down — **if something stopped tomorrow,
+how many of the eight evidence steps could we actually walk**, and for each one
+we could not, what is missing.
+
+Contacts nothing: no device, no network, no historian, same as `scan plan`. That
+is what makes it runnable on a site nobody has authorised you to probe yet —
+which is the site that most needs the answer.
+
+The report distinguishes three things a single "missing" would blur:
+
+* **blocked** — you have not supplied it, and here is the command that would
+* **degraded** — it runs without this, and here is what you lose
+* **not yet possible** — *this product offers no way to supply it at all*
+
+That last one made `Requirement.expressible` real. The field, its serialization
+and a CLI branch to render it had all existed since `readiness` was written —
+**with no producer anywhere in the codebase**, so the line "this product offers
+no way to supply it yet" had never printed. It was also unreachable twice over:
+the branch was nested under `if req.fix`, and an inexpressible requirement has
+no fix by definition. Both fixed; `readiness` renders it correctly now too.
+
+Two steps report it today, for different reasons: cross-asset timeline
+propagation needs declared line relationships (D25 — there is no command to
+declare them), and the knowledge check needs a mountable fault-mechanism library
+(§13.8 — mechanisms are hardcoded constants and there is no knowledge base).
+
+`reachable_through` is a **walk**, not a count of unblocked steps. On a
+Modbus-only line the two differ — the walk reaches 3, the count says 6 — and
+only the walk answers the question. Steps blocked further along are reported
+separately, so a gap at step 7 does not read as the reason the walk stopped at 3.
+
 ### Fixed — the RCA copilot turned its own blindness into a fault at the plant
 
 Found by running the flagship command the way a plant would — *"the line stopped

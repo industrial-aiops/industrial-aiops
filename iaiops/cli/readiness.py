@@ -59,9 +59,17 @@ def readiness_cmd(
         for req in shown:
             bullet = "[green]·[/]" if req.met else f"[{colour}]·[/]"
             console.print(f"   {bullet} [dim]{req.label}: {req.detail}[/]")
-            if not req.met and req.fix:
-                note = "" if req.expressible else " [yellow](no way to supply this yet)[/]"
-                console.print(f"     [dim]→ {req.fix}[/]{note}")
+            if req.met:
+                continue
+            # NOT nested under `if req.fix`. An inexpressible requirement has no
+            # fix BY DEFINITION, so guarding on `fix` made this the one line that
+            # could never print — the honesty note was unreachable from the day
+            # it was written. Found 2026-08-26 while adding the first producer of
+            # `expressible=False` (iaiops/core/investigate/steps.py).
+            if not req.expressible:
+                console.print("     [yellow]→ this product offers no way to supply it yet[/]")
+            elif req.fix:
+                console.print(f"     [dim]→ {req.fix}[/]")
         console.print()
 
     if report.blocked_on:
