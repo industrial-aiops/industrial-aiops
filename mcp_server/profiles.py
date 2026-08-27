@@ -85,6 +85,11 @@ BRAIN_MODULES = (
     # Legacy PLC program explainer (A8): outline/xref/section over EXPORTED
     # ST/AWL/L5X text files — read-only, cite-first, never a live PLC upload.
     "plc_program_tools",
+    # The investigation layer (§13): the eight-step readiness map, a stateful
+    # investigation over a past window, declared line relations and the mounted
+    # fault-mechanism library. Added 2026-08-27 — the layer had shipped CLI-only
+    # while §3.1 claimed both front-ends.
+    "investigation_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are
@@ -171,15 +176,16 @@ NO_BRAIN_ENV = "IAIOPS_MCP_NO_BRAIN"
 
 # Above this the server logs a tool-flood warning. The always-on brain (~49) plus
 # a full edition's protocols and per-edition EDITION_MODULES lands a legitimate
-# edition in the ~68-129 range (e.g. building = 91, factory = 129 — the largest
+# edition in the ~68-143 range (e.g. building = 105, factory = 143 — the largest
 # intended named edition). The threshold sits above factory yet below the catch-all
-# IAIOPS_MCP=all (14 protocols + brain = 141 tools) — the "you probably don't want
-# everything" case the warning is meant to catch. Raised from 100, which fired on a
-# normal ``factory`` launch (129 > 100) — alarm fatigue that eroded the one real
-# signal. Keep this above the largest LEGITIMATE named edition; the flood-invariant
-# test (tests/test_flood_threshold.py) fails if a named edition (other than ``all``)
+# IAIOPS_MCP=all (14 protocols + brain = 156 tools) — the "you probably don't want
+# everything" case the warning is meant to catch. Raised from 100 → 135 → 150 as
+# the brain grew; each rise followed a real ``factory`` launch crossing it, which
+# is alarm fatigue eroding the one signal this warning carries. Keep this above the
+# largest LEGITIMATE named edition; the flood-invariant test
+# (tests/test_flood_threshold.py) fails if a named edition (other than ``all``)
 # would cross it, or if ``all`` would not.
-TOOL_FLOOD_WARN_THRESHOLD = 135
+TOOL_FLOOD_WARN_THRESHOLD = 150
 
 _TOOL_DECORATOR_RE = re.compile(r"^@mcp\.tool\(\)", re.MULTILINE)
 
