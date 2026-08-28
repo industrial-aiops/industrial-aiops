@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Fixed — the Chinese README was missing everything built this week
+
+`investigate`, `relations`, `knowledge` and `tags` had **zero** mentions in
+`README.zh-CN.md`. The English half was written; the Chinese half was not. Same
+shape as the gap #205 closed — a capability with one way in — one level up.
+
+Both now carry the same sections, and the capability table gains the row that was
+missing entirely.
+
+### Fixed — a README that taught a command which does not exist
+
+`iaiops modbus detect-byte-order` has been in the Chinese README for several
+releases. `modbus_detect_byte_order` exists — **only as an MCP tool**. There is
+no such CLI command, so a reader following the README got an error. Same shape as
+every gap found this week, pointing the other way.
+
+### Added — a gate so that cannot happen again
+
+`test_readme_commands_exist.py` extracts every `iaiops <group> <command>` from
+the shell blocks of both READMEs and resolves it through Typer — 55 invocations
+guarded. Resolved through Typer rather than grepped, because a command that is
+defined but never registered would pass a grep and still fail for the reader.
+
+Its own first version reported `iaiops is designed` — an English sentence that
+began a line — which is how a guard like this loses its credibility, so
+extraction is scoped to fenced shell blocks and a test asserts the finder matches
+something at all.
+
 ### Added — `iaiops tags page`, the App front end as one static file
 
 HLD §13.9's last front end, and its narrow justification: the App page exists for

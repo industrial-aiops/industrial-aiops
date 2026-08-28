@@ -34,6 +34,7 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 | **读** | OPC-UA（含 HDA 历史访问、tag 自动发现）· Modbus TCP/RTU · S7comm · 三菱 MC · 欧姆龙 FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link —— 另有两层只读 REST 面：BAS 监控器（Metasys / Niagara）与 Ignition Gateway |
 | **查得清** | `scan` 现场勘察(零发包预览,给人签字的那份)· `readiness` 这个站点今天能跑什么、还差什么(零联网)· `collect` 有界评估采集 + 断点续跑 · `store` 留存与剪枝 |
 | **想明白** | 停机根因 copilot（旗舰;四级结论 + 假设账本 + 时序排除）、**从采集历史实测的 OEE**(可用率/性能/质量 + 六大损失,可出自包含 HTML 报告)、报警洪泛分析（ISA-18.2）、数据流断点定位、数据可信度打分、资产台账、老 PLC 程序讲解（ST/AWL/L5X） |
+| **查得完** | `investigate` 八步证据闭环 —— 定义事件 → 取证 → 归一校验 → 压缩排序 → 关联时间线 → 验假设 → 知识校验 → 结论闭环;每一步走不通时说清是**你**没给还是**产品**给不了 · `tags` 点表语义确认(导出表 / 静态页 / 产出 config 补丁) |
 | **越用越准** | `case` 事故案例闭环 —— 标签从审计轨迹自动来,确认只需一次点选,学出本站自己的原因权重 |
 | **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎 |
 | **归你自己** | 无遥测、不回连。有六个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`uns_publish`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这六个一并摘除，形成离线姿态 |
@@ -228,13 +229,106 @@ iaiops diag rca --input bundle.json --from-case <id> # 人的答案进入判决
 「不是事故」也是一个标签。而一个答案算不算**独立**,是**推导**出来的
 (看它是不是我们自己排过的),答话的人无法自称。
 
+### 调查本身 —— 八步,以及每一步需要什么
+
+`readiness` 回答**这个站点能跑哪些场景**。这一条回答再往下一层的问题:
+**如果明天出事了,我们实际能查到第几步?**
+
+```bash
+iaiops investigate plan                              # 什么都不联
+```
+
+八步证据闭环 —— 定义事件、收集证据、归一与校验、压缩排序、关联时间线、
+验证假设、对照已知机理、结论与闭环。对每一步走不通的,它说清那是**你**还没提供的
+(并给出该跑哪条命令),还是**这个产品**根本没法表达的。这两者把人送去完全不同的地方。
+
+```bash
+iaiops investigate open line1 --start <iso> --end <iso> --asset "一号线"
+iaiops investigate show <id>                         # 它被留在什么状态
+iaiops investigate list
+```
+
+同样的八步,跑在一个**真实的过去窗口**上,并持久化下来,可以回读和继续推进。
+不联任何设备 —— 窗口已经过去了,它的证据就是当时采到的那些。
+
+三条命令都能出可转发的那一份 —— 一个自包含 HTML 文件,离网笔记本能开:
+
+```bash
+iaiops investigate plan --report readiness.html --lang zh
+iaiops investigate open line1 --start <iso> --end <iso> --report incident.html
+```
+
+和 `oee measure --report` **反着来,而且是故意的**:那条会**拒绝**为一次被拒的测量写文件,
+因为 OEE 报告的内容是一个数字,文件存在本身就是「测过了」的断言。这一份的内容是
+**走到哪、每一步还差什么** —— 所以卡住的那种情况**才是最值得转发的**,
+对一个还没上仪表的站点,这就是全部交付物。它唯一不做的,是让一次卡住的调查看起来像做完了:
+头条永远是那个走位(`2 / 8`),不是结论。
+
+其中两步需要人先说出一件事:
+
+```bash
+iaiops relations declare press oven --by wei         # 谁喂谁
+iaiops relations downstream press                    # 最近的在前
+```
+
+根因分析的**第二根轴**。只有时间的话,一次上游停机会产出一串同样自信的下游假原因 ——
+在产线上,下游的同时发生**不管什么原因都是必然的**。正因为这个必然,它只能是声明,
+不能是推断(D25)。没有它时间线照样跑,只是退化成单个设备 —— **并且它会说出来**。
+
+```bash
+iaiops knowledge mount pump-library.yaml --by wei    # ISO 14224 三层分离
+iaiops knowledge check sensor_fault --protocol modbus
+```
+
+三个答案,而且前两个的区别就是全部要点:**一无所知**(库里没听说过这个原因 ——
+这和「它没问题」完全是两回事)、**知道**、**知道且可排除**(这个原因的每一条机理
+在这台设备上都不适用)。第三个是排序器做不到的强动作。它**永不确认** ——
+把一个原因升到「已确认」只能来自排序之外:一次测量、一次复现,或一个人(D29)。
+
+### 确认点表的含义
+
+这个产品唯一拒绝推断的东西。在此之前,提供它的唯一办法是手改配置文件里的 `role:` ——
+正是一百行就撑不住的那个办法。
+
+```bash
+iaiops tags export sheet.csv          # 每个被监控的位号一行;role 列是空的
+# 人填 role + running_when
+iaiops tags apply sheet.csv --by wei  # 打印出要贴进 config.yaml 的那几行
+```
+
+`role` 列导出时是**空的,哪怕紧挨着一个叫 `GoodPartsCounter` 的位号**。
+名字不是声明;有的是工厂的 `GoodPartsCounter` 数的是别的东西,而选错产量计数器
+会得出一个看着合理的 OEE —— 比报错更糟(D16)。
+
+`apply` **产出补丁而不是替你写**。config.yaml 仍是唯一的真相源:`oee measure` 是直接
+从配置里的位号对象读 `role` 的,所以另建一个存储会让 `readiness` 说「已满足」而
+`oee measure` 仍然跑不了。`run_state` 没有 `running_when` 会被拒绝,理由和 `MonitorTag`
+拒绝它一样 —— 「非零即运行」会把空闲和故障算成生产。
+
+也可以在页面上逐行勾,而不是开表格软件:
+
+```bash
+iaiops tags page confirm.html --lang zh
+```
+
+HLD §13.9 的 App 前端,交付成**一个文件而不是一个服务**。在工控盒子里起 localhost 服务,
+要回答绑哪个地址、谁认证;而这里每一处声明都强制 `--by`,**一个没有身份的页面
+回答不了「是谁勾的」** —— 而那正是这一步存在的意义。所以页面只负责收集,作者在 `apply` 时给。
+
+页面**不重新实现任何一条拒绝**。`run_state` 要 `running_when`、ref 必须被监控、
+一个角色不能被两个位号认领 —— 用 JavaScript 抄一遍就是让它们和真正把关配置的那些漂移开,
+而「页面说没问题、`apply` 拒绝」比没有页面更糟。它带脚本(它是个表单),但**不发任何网络请求**:
+拔了网线照样用。
+
+**这里故意没有 MCP 工具。** 让 agent 去填 role 列,正是 D16 存在就是为了禁止的那个猜测。
+
 ### CLI(读)
 
 ```bash
 iaiops opcua read "ns=2;i=5" -e line1
 iaiops opcua discover -e line1                       # tag 自动发现 → 语义资产模型
 iaiops modbus holding 0 -e plc2 --count 4 --decode float32
-iaiops modbus detect-byte-order 0 -e plc2 --count 2  # 字节序自动探测
+# 字节序自动探测目前只有 MCP 工具 `modbus_detect_byte_order`,没有 CLI 命令
 iaiops hart pv -e xmtr1                               # HART 主变量(过程仪表)
 iaiops fins words 100 --area DM -e omron1 --count 8   # 欧姆龙 FINS 内存区读
 iaiops iolink scan -e iolm1                           # IO-Link 主站 + 连接设备扫描
