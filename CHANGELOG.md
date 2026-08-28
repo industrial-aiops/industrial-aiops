@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+### Added — `site_readiness`, the last CLI-only command (§3.1)
+
+The previous entry gave the investigation layer its MCP tools and said in its own
+first paragraph that `readiness` had the same gap — then left it there rather
+than smuggling an unrelated change into that PR. This closes it.
+
+`site_readiness` is the companion to `protocols_supported`, one altitude down:
+that one says what the product can do, this says what **this installation** can
+do. An agent that calls the first without the second plans a scenario the site
+has no inputs for. It contacts nothing — derived from `config.yaml` and the local
+store — so it runs against a site nobody has authorised anyone to probe.
+
+It recomputes nothing: the test asserts the tool's output is the engine's
+`as_dict()` **verbatim**, not merely equivalent. `readiness`'s own engine test has
+carried `test_the_report_serializes_for_a_second_front_end` since the day it was
+written; the second front end just did not exist.
+
+What the tests actually guard is the gap-reporting, since that is what `readiness`
+is for: that `blocked_on` (the ranked "supply these first") survives, that the
+"nothing was contacted" note survives, and that the `db` argument really routes —
+accepting `db` and ignoring it would have passed every other assertion while the
+tool answered about a different site. Three mutations confirm each is load-bearing.
+
+### Fixed — a docstring asserting a limit its own code had removed
+
+`iaiops/core/readiness/assess.py`'s module docstring still said the OEE role
+mapping was **inexpressible** ("there is no way to supply this"). `role:` made it
+expressible, and `_oee_mapping_req`'s own docstring records that — the paragraph
+above it went on claiming the product was worse than it is. It now points at
+`iaiops.core.investigate.steps`, where the live `expressible=False` producers are.
+
 ### Added — the investigation layer on the MCP front end (§3.1)
 
 `iaiops investigate` / `relations` / `knowledge` — and `readiness` before them —

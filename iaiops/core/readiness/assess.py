@@ -17,8 +17,11 @@ plausible-looking OEE numbers — considerably worse than an error. So this modu
 names what is missing and stops (``docs/HLD.md §9.4``, D16).
 
 Where a prerequisite cannot be supplied at all yet, it says so rather than
-implying the operator forgot: ``MonitorTag`` has no semantic role field, so the
-OEE run/stop/count mapping is currently **inexpressible**, not merely unset.
+implying the operator forgot (``Requirement.expressible``). No capability here
+is in that state today — the OEE role mapping was the example until ``role:``
+existed, and this paragraph went on asserting the limitation after its own
+``_oee_mapping_req`` docstring recorded that it was gone. The live producers of
+``expressible=False`` are in :mod:`iaiops.core.investigate.steps`.
 """
 
 from __future__ import annotations

@@ -59,3 +59,40 @@ def protocols_supported() -> dict:
         "no_egress_mode": no_egress,
         "no_egress_note": _NO_EGRESS_ON if no_egress else _NO_EGRESS_OFF,
     }
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def site_readiness(db: str = "") -> dict:
+    """[READ][risk=low] Which scenarios THIS site can run today, and what each gap needs.
+
+    The companion to `protocols_supported`, one altitude down. That one says what
+    the product can do; this says what this installation can do — and calling the
+    first without the second is how an agent plans a scenario the site has no
+    inputs for.
+
+    Contacts nothing: no device, no network, no historian. It is derived from
+    `config.yaml` and the local store, which is what makes it runnable against a
+    site nobody has authorised you to probe — the site that most needs it.
+
+    Three states, and the middle one carries the value: `ready`, `degraded` (it
+    RUNS, on less than full evidence — root cause without a historian still ranks
+    causes, it just cannot see the two hours before the stoppage) and `blocked`.
+
+    `blocked_on` is the actionable half: one missing input usually unlocks several
+    scenarios, ranked by how many.
+
+    It never fills a gap in for you. Which tag is the production counter is
+    process knowledge, and a wrong guess yields plausible-looking OEE numbers —
+    considerably worse than an error (D16). Where a prerequisite cannot be
+    supplied at all yet, the row says `not_yet_expressible` rather than implying
+    somebody forgot to configure it.
+
+    `db` overrides the local store path; empty means the iaiops store.
+    """
+    from pathlib import Path
+
+    from iaiops.core.readiness import assess
+
+    return assess(db_path=Path(db).expanduser() if db else None).as_dict()
