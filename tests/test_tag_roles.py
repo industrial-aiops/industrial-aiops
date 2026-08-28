@@ -162,3 +162,80 @@ class TestFindingTheRolesOnALine:
         )
         with pytest.raises(ValueError, match="(?i)total_count"):
             roles_present(tags)
+
+
+class TestAddressZeroIsAnAddress:
+    """`ref: 0` is an ordinary address, and it used to be deleted in silence.
+
+    Found by walking the documented path on a real Modbus line whose run-state
+    register is holding register 0 — the register `iaiops tags export` exists to
+    let a person label. `parse_tags` resolved the address with an `or` chain, so
+    `0` fell through to the aliases and then to `""`, and the tag was dropped
+    before anything downstream saw it. `readiness` then reported the run-state
+    role as something the site had not supplied. It had; we had deleted it.
+
+    The whole suite passed before the fix and passes after it, which is why
+    these are written from the value `0` rather than from the code path.
+    """
+
+    def test_ref_zero_survives(self):
+        tags = parse_tags([{"ref": 0, "label": "RunState"}])
+        assert [t.ref for t in tags] == ["0"]
+
+    @pytest.mark.parametrize("alias", ["ref", "node_id", "address"])
+    def test_every_documented_alias_accepts_zero(self, alias):
+        tags = parse_tags([{alias: 0, "label": "zero"}])
+        assert [t.ref for t in tags] == ["0"], f"{alias}=0 was dropped"
+
+    def test_zero_as_a_string_also_survives(self):
+        assert [t.ref for t in parse_tags([{"ref": "0"}])] == ["0"]
+
+    def test_a_later_alias_still_wins_when_the_earlier_key_is_absent(self):
+        """The alias fallback must survive the fix — only its trigger changes."""
+        assert [t.ref for t in parse_tags([{"address": 7}])] == ["7"]
+
+    def test_an_empty_earlier_alias_falls_through(self):
+        assert [t.ref for t in parse_tags([{"ref": "  ", "address": 7}])] == ["7"]
+
+    def test_a_tag_with_no_address_is_refused_not_skipped(self):
+        """Silence here made every report below describe a different point list."""
+        with pytest.raises(ValueError) as exc:
+            parse_tags([{"label": "no address here"}], endpoint="line1")
+        message = str(exc.value)
+        assert "line1" in message, "the operator cannot find the entry without it"
+        assert "no address" in message
+
+    def test_the_refusal_counts_from_one_and_points_at_the_right_entry(self):
+        with pytest.raises(ValueError) as exc:
+            parse_tags([{"ref": 0}, {"ref": 5}, {"label": "broken"}])
+        assert "Tag #3" in str(exc.value)
+
+
+class TestTheSheetOffersTheRowYouCameToFillIn:
+    """End-to-end over the seam the bug actually broke.
+
+    `tags export` exists so a person can declare which tag is the run state. A
+    line whose run state is register 0 got a sheet with that row missing — the
+    one row the feature is for.
+    """
+
+    def test_register_zero_reaches_the_confirmation_sheet(self):
+        from iaiops.core.runtime.config import TargetConfig
+        from iaiops.core.runtime.tag_sheet import sheet_rows
+
+        target = TargetConfig(
+            name="line1",
+            protocol="modbus",
+            tags=parse_tags(
+                [
+                    {"ref": 0, "label": "RunState"},
+                    {"ref": 10, "label": "PartsCounter"},
+                ]
+            ),
+        )
+
+        class _Cfg:
+            targets = (target,)
+
+        refs = [row["ref"] for row in sheet_rows(_Cfg())]
+        assert refs == ["0", "10"], "the run-state row is the one you came to fill in"
