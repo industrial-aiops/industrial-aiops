@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+### Added — the investigation layer on the MCP front end (§3.1)
+
+`iaiops investigate` / `relations` / `knowledge` — and `readiness` before them —
+had shipped **CLI-only**, while §3.1 and the README both claimed *two front-ends,
+one engine*. The claim sat there and nothing checked it. Same shape as every gap
+this repo keeps finding: the capability exists, one of the two ways in does not.
+
+Eight tools, all delegating to the same functions the CLI calls —
+`investigation_readiness`, `investigation_open`, `investigation_show`,
+`investigation_list`, `line_relation_declare`, `line_relations_list`,
+`mechanism_library_check`, `mechanism_library_list`.
+
+The tests are mostly about **agreement**, because a tool that computes a
+plausible answer of its own is worse than a missing one: it lets the two
+front-ends drift while both look healthy, and nothing marks where they diverged.
+They assert the same `reachable_through`, the same per-step statuses, the same
+refusals (a cycle, a missing author, `nothing_known` rather than "cleared"), and
+that a relation declared through the tool is visible to the engine — the proof
+that it is one store and not two.
+
+Two guards fired on the way in and both were right:
+
+* **The tool-flood threshold** (135 → 150). `factory` now exposes 143 tools, and
+  a threshold that warns on every legitimate launch is one nobody reads. The
+  invariant it protects — largest named edition ≤ threshold < `all` — still holds.
+* **The `[WRITE]` tag contradicted the derived `readOnlyHint`.** I had tagged
+  `line_relation_declare` `[WRITE]` from first principles. In this repo `[READ]`
+  means *does not write to a device* — `baseline_record_change` and
+  `adopt_alias_map` are the same shape — and `readOnlyHint` is derived from risk
+  level, preview mode and egress, not from local writes. The convention is the
+  repo's; my test was rewritten to assert it, and the docstring still says
+  plainly that it writes.
+
+### Fixed — the README omitted every command added this week
+
+`investigate`, `relations` and `knowledge` had **zero mentions in either README**,
+which is exactly the omission caught before the 0.23.0 release and repeated. The
+English README now documents the eight-step walk in the place a reader reaches it
+— after the case loop, where it sits on the customer's path. Both tool counts
+corrected (English 173 → 181; the Chinese one still said 166, one release behind
+even before this work).
+
 ### Added — `iaiops knowledge mount`: the knowledge slot, and the last product-side hole
 
 HLD §13.10 delivery step 4. Step 07 asked whether a candidate cause is even

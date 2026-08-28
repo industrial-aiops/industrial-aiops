@@ -222,7 +222,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten: [issue #2
 
 *(The energy protocols — IEC-104 / DNP3 / IEC-61850 — moved to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) in 0.8.0; their tool matrix lives in that repo.)*
 
-**173 governed tools** = 163 read + 10 MOC-gated writes (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 163 reads include the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**181 governed tools** = 171 read + 10 MOC-gated writes (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 163 reads include the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -634,6 +634,68 @@ recorded that someone ran a write four minutes after the line stopped, so the
 case shows it. Confirmation is one choice from a fixed vocabulary, never free
 text, and a dismissal is a label too. Whether an answer counts as *independent* is
 **derived** from whether the tool had suggested it — the answerer cannot claim it.
+
+### The investigation itself — eight steps, and what each one needs
+
+`readiness` answers *which scenarios this site can run*. This answers the next
+question down: **if something stopped tomorrow, how far could we actually get?**
+
+```bash
+iaiops investigate plan                              # contacts NOTHING
+```
+
+Eight evidence steps — define the incident, collect the evidence, normalize and
+check it, compress and rank, correlate the timeline, test the hypotheses, check
+against known mechanisms, conclude and close. For each one it cannot walk, it
+says whether that is something **you** have not supplied (with the command that
+would) or something **this product** cannot express at all. Those two send a
+person to very different places.
+
+```bash
+iaiops investigate open line1 --start <iso> --end <iso> --asset "Line 1"
+iaiops investigate show <id>                         # the state it was left in
+iaiops investigate list
+```
+
+The same eight steps over a **real past window**, persisted so it can be re-read
+and advanced later. No device is contacted — the window is already over, and its
+evidence is whatever was collected at the time.
+
+Two of the steps need something a person has to state:
+
+```bash
+iaiops relations declare press oven --by wei         # which asset feeds which
+iaiops relations downstream press                    # nearest first
+```
+
+The **second axis** of root-cause analysis. With time alone, an upstream stoppage
+produces a string of equally-confident downstream false causes — on a line,
+downstream co-occurrence is *guaranteed whatever the cause*. That guarantee is
+why this is declared and not inferred (D25). Without it the timeline still runs;
+it degrades to a single asset **and says so**.
+
+```bash
+iaiops knowledge mount mechanisms.yaml --by wei      # what is known about this equipment
+iaiops knowledge check sensor_fault --protocol modbus
+```
+
+A fault-mechanism library, shaped by **ISO 14224**: the failure *mode* (what you
+saw), the *mechanism* (what to go and check) and the *cause* (what to fix) stay
+separate, because they answer different questions. Entries attach to the seven
+taxonomy causes; they never add new ones — past roughly forty codes, two
+operators stop picking the same one.
+
+It may **exclude** and never **confirm**. A mechanism that cannot apply to this
+equipment rules the candidate out, which is the strong move a ranker cannot make:
+
+```
+✗ sensor_fault — excluded
+  every mounted mechanism for 'sensor_fault' applies only to hart, opcua — not to modbus
+```
+
+And a cause the library has never heard of reports **nothing known** — never "no
+objection". A knowledge base that knows nothing about something has not cleared
+it.
 
 ### CLI (read)
 ```bash
