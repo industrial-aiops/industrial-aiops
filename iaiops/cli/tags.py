@@ -122,7 +122,46 @@ def apply_cmd(
     )
 
 
+@cli_errors
+def page_cmd(
+    out: Path = typer.Argument(..., help="Where to write the page (.html)."),
+    lang: str = typer.Option("en", "--lang", help="Page language (en, zh)."),
+) -> None:
+    """Write the same sheet as a page a person ticks through, then downloads.
+
+    HLD §13.9's App front end, delivered as a file rather than a served app: a
+    localhost server in an OT box has to answer which address it binds and who
+    authenticates, and a page with no identity cannot record WHO confirmed a tag
+    — which is the one thing this step exists to capture. The author is supplied
+    at `tags apply`, where the refusals also live.
+
+    The page decides nothing. It re-implements no rule: `apply` remains the only
+    judge, so the two can never disagree.
+    """
+    from iaiops.core.governance.evidence import validate_output_path
+    from iaiops.core.runtime.config import load_config
+    from iaiops.core.runtime.tag_page import render_tag_page
+
+    path = validate_output_path(out, suffixes=(".html", ".htm"))
+    from datetime import UTC, datetime
+
+    path.write_text(
+        render_tag_page(
+            load_config(),
+            lang=lang,
+            generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        ),
+        encoding="utf-8",
+    )
+    console.print(
+        f"\n[green]✓[/] page written to [bold]{path}[/]\n"
+        "  [dim]Open it, set the roles, download the sheet, then:\n"
+        "  iaiops tags apply sheet.csv --by <you>[/]\n"
+    )
+
+
 tags_app.command("export")(export_cmd)
+tags_app.command("page")(page_cmd)
 tags_app.command("apply")(apply_cmd)
 
 __all__ = ["tags_app", "export_cmd", "apply_cmd"]

@@ -702,6 +702,25 @@ still could not run. A `run_state` with no `running_when` is refused here, for
 the same reason `MonitorTag` refuses it — "anything non-zero" counts idle and
 fault as production.
 
+Or tick it through in a page instead of a spreadsheet:
+
+```bash
+iaiops tags page confirm.html --lang zh
+```
+
+HLD §13.9's App front end, delivered as **a file rather than a served app**. A
+localhost server inside an OT box has to answer which address it binds and who
+authenticates — and since every declaration here requires `--by`, a page with no
+identity cannot record *who* confirmed a tag, which is the one thing this step
+exists to capture. So the page collects, and the author is supplied at `apply`.
+
+The page **re-implements no refusal**. `run_state` needing `running_when`, a ref
+having to be monitored, a role claimed twice — reproducing any of those in
+JavaScript is how they drift from the ones that actually gate the config, and a
+page that says "looks fine" while `apply` refuses is worse than no page. It ships
+script (it is a form) but makes **no network request**: it works with the cable
+out.
+
 **There is deliberately no MCP tool for this.** An agent filling in the role
 column is precisely the guess D16 exists to forbid.
 

@@ -93,13 +93,13 @@ def sheet_rows(config: Any) -> tuple[dict[str, str], ...]:
     ``declared_role`` shows what config.yaml already says, so the reader can see
     it without it being pre-filled: copying it into ``role`` would make
     re-applying an untouched sheet re-declare everything, and a no-op would read
-    as a confirmation.
+    as a confirmation. The same holds for ``running_when`` — everything already
+    declared is read-only context here, everything editable starts empty.
     """
     rows: list[dict[str, str]] = []
     for target in getattr(config, "targets", ()) or ():
         endpoint = str(getattr(target, "name", ""))
         for tag in getattr(target, "tags", ()) or ():
-            running = getattr(tag, "running_when", ()) or ()
             rows.append(
                 {
                     "endpoint": endpoint,
@@ -107,7 +107,12 @@ def sheet_rows(config: Any) -> tuple[dict[str, str], ...]:
                     "label": _attr(tag, "label"),
                     "declared_role": _attr(tag, "role"),
                     "role": "",
-                    "running_when": " ".join(str(v) for v in running),
+                    # Empty for the same reason `role` is, and — found by looking
+                    # at the rendered page — for consistency with it. Echoing the
+                    # existing value into an EDITABLE cell while leaving `role`
+                    # blank meant somebody who changed the role to a counter got
+                    # refused over a field they never touched.
+                    "running_when": "",
                 }
             )
     return tuple(rows)
