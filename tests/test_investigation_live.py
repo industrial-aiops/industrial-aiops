@@ -25,9 +25,14 @@ where the *conclusion* lands, through `case confirm`, exactly as before.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from iaiops.core.investigate import live
 from iaiops.core.investigate.live import (
+    MAX_SUMMARY,
+    _summary,
     advance,
     load_investigation,
     open_investigation,
@@ -317,3 +322,77 @@ class TestTheImpossibleStateStillWorks:
         from iaiops.cli.investigate import _STATE
 
         assert _STATE["not_possible"] != _STATE["refused"]
+
+
+class TestABoundedSummaryStillEndsOnAWord:
+    """A step summary was cut at offset 240, mid-word, and stored that way.
+
+    Observed walking a real investigation on the lab line: step 5 ended
+    "...so no change on another asse" — in the JSON record and in the `--report`
+    HTML somebody forwards. `s()` is the sanitizer for an OT VALUE read off a
+    device; these sentences are composed here, and a fixed-offset cut on one
+    reads as data loss with no way to tell what was lost.
+    """
+
+    def _long(self) -> str:
+        return (
+            "single-asset timeline: no line relations are declared, so no change "
+            "on another asset can be correlated here "
+        ) * 4
+
+    def test_the_bound_is_still_a_bound(self):
+        assert len(_summary(self._long())) <= MAX_SUMMARY
+
+    def test_it_says_that_it_was_cut(self):
+        assert _summary(self._long()).endswith("…")
+
+    def test_it_does_not_stop_in_the_middle_of_a_word(self):
+        kept = _summary(self._long()).removesuffix("…")
+        rest = self._long()[len(kept) :]
+        assert rest[:1] in " ·,;，、；" or not rest, f"cut mid-word before {rest[:12]!r}"
+
+    def test_a_summary_that_fits_is_untouched_and_unmarked(self):
+        assert _summary("3 change(s), single-asset") == "3 change(s), single-asset"
+
+    def test_a_summary_with_no_break_to_land_on_is_still_bounded_and_marked(self):
+        """Never fall back to keeping the whole thing just because there is no space."""
+        out = _summary("x" * 900)
+        assert len(out) <= MAX_SUMMARY and out.endswith("…")
+
+    def test_every_stored_summary_goes_through_the_boundary_aware_cut(self, store, opened):
+        """The defect was at the CALL SITE, not in the helper.
+
+        The first version of these tests only exercised `_summary`, so reverting
+        `advance` to the old fixed-offset `s(..., MAX_SUMMARY)` left all of them
+        green — a guard on the helper says nothing about what `advance` calls.
+        """
+        for step in advance(opened, db_path=store).steps:
+            if len(step.summary) >= MAX_SUMMARY:
+                assert step.summary.endswith("…"), (
+                    f"step {step.number} was cut at the bound without saying so: "
+                    f"{step.summary[-40:]!r}"
+                )
+
+    def test_advance_does_not_bound_summaries_any_other_way(self):
+        """Structural, because a summary long enough to be cut needs real data.
+
+        `s()` is the sanitizer for an OT value read off a device. Handing it a
+        sentence this module composed is the category error that produced
+        "...on another asse", and it reappears the moment somebody reaches for
+        the obvious helper again.
+        """
+        source = Path(live.__file__).read_text("utf-8")
+        body = source.split("def advance(")[1].split("\ndef ")[0]
+        assert "MAX_SUMMARY" not in body, (
+            "advance() bounds a summary itself; it must go through _summary()"
+        )
+
+    def test_chinese_clause_marks_count_as_breaks(self):
+        """The zh reports are a first-class front end, and 、，； are the breaks there."""
+        text = "无声明的产线关系，因此无法关联另一台设备上的变化；" * 20
+        out = _summary(text)
+        assert out.endswith("…") and len(out) <= MAX_SUMMARY
+        kept = out.removesuffix("…")
+        assert text.startswith(kept)
+        assert not kept.endswith(("，", "；")), "the break mark itself is stripped"
+        assert text[len(kept)] in "，；", "cut did not land on a clause mark"
