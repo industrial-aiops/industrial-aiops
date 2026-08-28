@@ -17,11 +17,18 @@ plausible-looking OEE numbers — considerably worse than an error. So this modu
 names what is missing and stops (``docs/HLD.md §9.4``, D16).
 
 Where a prerequisite cannot be supplied at all yet, it says so rather than
-implying the operator forgot (``Requirement.expressible``). No capability here
-is in that state today — the OEE role mapping was the example until ``role:``
-existed, and this paragraph went on asserting the limitation after its own
-``_oee_mapping_req`` docstring recorded that it was gone. The live producers of
-``expressible=False`` are in :mod:`iaiops.core.investigate.steps`.
+implying the operator forgot (``Requirement.expressible``). **Nothing in the
+product sets that flag today** — not here and not in
+:mod:`iaiops.core.investigate.steps`, which held the last two until
+``iaiops relations declare`` and ``iaiops knowledge mount`` shipped (D36: the
+flag comes off the moment a command can supply the thing). The flag and its
+rendering are kept for the next genuine gap and are exercised by synthetic
+requirements in the tests; ``test_readiness.py`` fails if this paragraph and the
+code stop agreeing, in either direction.
+
+This paragraph has been wrong once already in the other direction — it went on
+asserting the OEE role mapping was inexpressible after ``role:`` made it
+expressible, while its own ``_oee_mapping_req`` docstring recorded the change.
 """
 
 from __future__ import annotations
