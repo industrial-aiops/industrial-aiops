@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+### Added — `iaiops tags export|apply`, the point-list confirmation sheet
+
+HLD §10.1 named this and then nobody built it: point-list semantic confirmation
+is naturally a table, and *the CLI need only export a CSV, let a person edit it,
+and import it back*. The App page was ordered "after" — and this, the CLI
+fallback it was supposed to rest on, **did not exist either**. Until now the only
+way to say "this tag is the production counter" was hand-editing `role:` in
+config.yaml, which is exactly the method §10.1 says stops working at a hundred
+rows. That is what "the semantic layer still has to come from a person" has
+really been blocked on: not a design gap, no usable way to supply it.
+
+The `role` column is exported **empty**, including beside a tag called
+`GoodPartsCounter`. A name is not a declaration.
+
+**It emits a config patch instead of storing its own declarations, and the first
+version got that wrong.** Roles were stored as `declared` facts with an author,
+the way `relations declare` and `knowledge mount` do. The coupling that makes it
+wrong here: `oee measure` reads `role` off the config tag OBJECTS, and
+`MonitorTag` refuses a `run_state` that carries no `running_when`. A parallel
+store would have let `readiness` report the mapping as met while `oee measure`
+still could not run — the flattering error this product keeps having to remove.
+
+### Fixed — a patch that re-parsed into something that matched nothing
+
+`ref: 40001` came back from YAML as an **int**, while a tag's `ref` is a string,
+so a pasted patch annotated no tag at all. Every assertion about the patch text
+passed while the patch was unusable; the round-trip test — merge it into a real
+config, load it with the real loader, assert `readiness` changes its mind — is
+what caught it. Refs are now emitted JSON-quoted (YAML 1.2 is a JSON superset).
+
 ### Added — `investigate --report`, the file that gets forwarded
 
 §13.9's front-end table orders these: CLI **first**, the self-contained HTML

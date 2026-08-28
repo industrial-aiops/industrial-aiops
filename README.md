@@ -678,6 +678,33 @@ instrumented yet it is the whole deliverable. What it will not do is let a
 blocked investigation look finished: the headline is always the walk (`2 / 8`),
 never a conclusion, and no step's own words appear above it.
 
+### Confirming what the point list means
+
+The one thing this product refuses to infer, and until now the only way to supply
+it was hand-editing `role:` in a config file — which is exactly what stops working
+at a hundred rows.
+
+```bash
+iaiops tags export sheet.csv          # every monitored tag; `role` column EMPTY
+# a person fills in role + running_when
+iaiops tags apply sheet.csv --by wei  # prints the exact config.yaml edit
+```
+
+The `role` column comes out **empty even next to a tag called
+`GoodPartsCounter`**. A name is not a declaration; plenty of plants have one that
+counts something else, and a wrong production counter yields a plausible OEE —
+worse than an error (D16).
+
+`apply` emits the patch rather than writing it. config.yaml stays the single
+source of truth: `oee measure` reads roles off the config tag objects, so a
+parallel store would let `readiness` call the mapping met while `oee measure`
+still could not run. A `run_state` with no `running_when` is refused here, for
+the same reason `MonitorTag` refuses it — "anything non-zero" counts idle and
+fault as production.
+
+**There is deliberately no MCP tool for this.** An agent filling in the role
+column is precisely the guess D16 exists to forbid.
+
 Two of the steps need something a person has to state:
 
 ```bash
