@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### Added — `iaiops tags page`, the App front end as one static file
+
+HLD §13.9's last front end, and its narrow justification: the App page exists for
+the steps where a person must go **row by row and tick** — point-list
+confirmation, timeline review. Not a dashboard.
+
+Delivered as a file, not a served app. A localhost server inside an OT box has to
+answer which address it binds, who authenticates and how the firewall is opened —
+and every declaration in this product requires `--by`, so **a page with no
+identity cannot record who ticked a row**, which is the one thing the step exists
+to capture. The page collects; the author is supplied at `tags apply`, where the
+refusals already live.
+
+**It re-implements no refusal**, and a test asserts that: `run_state` needing
+`running_when`, a ref having to be monitored, a role claimed twice — reproducing
+any of those in JavaScript is how they drift from the ones that gate the config,
+and a page that says "looks fine" while `apply` refuses is worse than no page.
+The role options come from `TagRole.ALL` at render time for the same reason.
+
+It ships script, unlike the investigation and OEE reports. What stays true is the
+property that matters in a plant: **no network request**, data embedded rather
+than fetched. Embedding is in a JavaScript context rather than HTML text, so a
+tag label containing `</script>` would end the block early — every `<` is emitted
+as `\u003c`.
+
+### Fixed — two editable cells, one of them pre-filled
+
+Found by looking at the rendered page. `running_when` was echoed into its
+**editable** input while `role` was left blank, so somebody who changed that row
+to a counter got refused over a field they never touched. Everything already
+declared is now read-only context (`run_state (running_when: 2)`), and everything
+editable starts empty — in the exported CSV too.
+
+### Fixed — a hardcoded column order in code no test runs
+
+The page's CSV builder is JavaScript, which pytest never executes, and it named
+its fields in order. A reordering of `SHEET_COLUMNS` would have shifted every
+value one column right with nothing to catch it. It now maps over
+`SHEET.columns`, and a test pins that it does.
+
 ### Added — `iaiops tags export|apply`, the point-list confirmation sheet
 
 HLD §10.1 named this and then nobody built it: point-list semantic confirmation
