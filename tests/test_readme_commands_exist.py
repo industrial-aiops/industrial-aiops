@@ -89,3 +89,77 @@ def test_the_check_can_actually_fail():
 def test_a_known_good_command_is_seen_by_both_halves():
     assert ("investigate", "plan") in _documented()
     assert ("investigate", "plan") in _registered()
+
+
+class TestTheStatedToolCountsAreTrue:
+    """The READMEs state how many governed tools there are and, more importantly,
+    **which ones can change something**. That list is a security claim.
+
+    It was wrong at 0.24.0 prep: both READMEs said "182 = 172 read + 10 writes"
+    and listed ten. There are **eleven** writes — `historian_push` was being
+    counted as a read. Understating the write surface is the direction that
+    matters, and nothing checked it.
+    """
+
+    @staticmethod
+    def _tools() -> dict[str, str]:
+        import importlib
+        import os
+        import pkgutil
+
+        os.environ["IAIOPS_MCP"] = "all"
+        import mcp_server.tools as pkg
+
+        found: dict[str, str] = {}
+        for module in pkgutil.iter_modules(pkg.__path__):
+            loaded = importlib.import_module(f"mcp_server.tools.{module.name}")
+            for name in dir(loaded):
+                fn = getattr(loaded, name)
+                if getattr(fn, "_is_governed_tool", False):
+                    found[name] = (fn.__doc__ or "").split("\n")[0]
+        return found
+
+    def test_the_total_matches_what_both_readmes_say(self):
+        total = len(self._tools())
+        for name in READMES:
+            text = (_root() / name).read_text("utf-8")
+            assert str(total) in text, f"{name} does not state the real total of {total}"
+
+    @staticmethod
+    def _tool_count_line(text: str, total: int) -> str:
+        """The one line that states the total and enumerates the writes.
+
+        Scoped to that line on purpose. The first version asked whether each name
+        appeared ANYWHERE in the README, which `historian_push` does — it is also
+        in the list of tools that can send data off-box. Deleting it from the
+        write list left that test green, which is the whole failure mode this
+        class exists to catch.
+        """
+        lines = [ln for ln in text.splitlines() if str(total) in ln and "governed" in ln.lower()]
+        if not lines:
+            lines = [ln for ln in text.splitlines() if str(total) in ln and "受治理" in ln]
+        assert lines, f"no line states the total of {total}"
+        return "\n".join(lines)
+
+    def test_every_write_tool_is_named_where_the_writes_are_enumerated(self):
+        """Not the count — the NAMES, and not anywhere — in the list itself. A
+        reader deciding what to expose has to find each one there, and a tool
+        missing from that list reads as safe."""
+        tools = self._tools()
+        writes = sorted(n for n, doc in tools.items() if doc.startswith("[WRITE]"))
+        assert writes, "no write tools found — the classifier stopped working"
+        for name in READMES:
+            text = (_root() / name).read_text("utf-8")
+            line = self._tool_count_line(text, len(tools))
+            missing = [w for w in writes if w not in line]
+            assert not missing, (
+                f"{name}'s tool-count line omits write tools: {', '.join(missing)}. "
+                "Appearing elsewhere in the file does not count — a reader looking "
+                "for what can change something reads this line."
+            )
+
+    def test_no_read_tool_is_listed_among_the_writes(self):
+        """The complement. A README that listed everything would pass the test
+        above and tell a reader nothing."""
+        reads = {n for n, doc in self._tools().items() if doc.startswith("[READ]")}
+        assert len(reads) > 100, len(reads)
