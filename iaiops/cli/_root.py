@@ -41,6 +41,7 @@ from iaiops.cli.s7 import s7_app
 from iaiops.cli.scan import scan_app
 from iaiops.cli.secret import secret_app
 from iaiops.cli.store import store_app
+from iaiops.cli.tags import tags_app
 
 app = typer.Typer(
     name="iaiops",
@@ -84,6 +85,7 @@ app.command("readiness")(readiness_cmd)
 app.add_typer(investigate_app, name="investigate")
 app.add_typer(relations_app, name="relations")
 app.add_typer(knowledge_app, name="knowledge")
+app.add_typer(tags_app, name="tags")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
 app.add_typer(store_app, name="store")
