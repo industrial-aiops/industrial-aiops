@@ -229,7 +229,15 @@ def diagnose_empty_sweep(results: Sequence[HostResult]) -> tuple[str, ...]:
     The two failure modes look identical in a summary and are completely
     different to act on, so they are always separated: every port timing out
     points at a firewall or the wrong VLAN, whereas refusals mean the hosts are
-    right there and simply are not running industrial services.
+    right there and are not answering on **the ports this scan tried**.
+
+    That last qualifier is the whole correctness of this function. The port set
+    is a fixed allowlist and ``--protocols`` may only narrow it, never widen it
+    — which is a safety property worth keeping, and exactly why a refusal on
+    those ports cannot be reported as a fact about what the host speaks. Found
+    by scanning a lab host whose Modbus server listens on 15020: the note said
+    it was "not running any protocol this tool speaks", and ``iaiops modbus
+    holding`` read its registers on the same box a minute later.
     """
     if any(h.protocols for h in results):
         return ()
@@ -247,10 +255,15 @@ def diagnose_empty_sweep(results: Sequence[HostResult]) -> tuple[str, ...]:
         return tuple(notes)
 
     if alive:
+        tried = sorted({port.port for host in alive for port in host.ports})
+        ports = ", ".join(str(port) for port in tried) if tried else "none"
         notes.append(
-            f"{len(alive)} host(s) are ALIVE but refused every allowlisted industrial "
-            "port. They exist; they are not running any protocol this tool speaks. "
-            "That is a finding, not a failure."
+            f"{len(alive)} host(s) are ALIVE but refused every port this scan tried "
+            f"({ports}). They are there and are not answering industrial protocols "
+            "on THOSE ports — which is not the same as not speaking them. The port "
+            "set is a fixed allowlist and is never widened, so a device on a "
+            "non-standard port is invisible here. If you expect one, give it an "
+            "endpoint in config.yaml and read it directly."
         )
     if filtered_only:
         notes.append(

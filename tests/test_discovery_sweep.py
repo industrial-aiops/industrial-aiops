@@ -321,7 +321,40 @@ class TestEmptySweepDiagnosis:
             HostResult(ip="10.0.0.1", ports=(PortResult(port=502, state=PORT_REFUSED),)),
         ]
         notes = diagnose_empty_sweep(hosts)
-        assert any("ALIVE" in n and "not a failure" in n for n in notes)
+        assert any("ALIVE" in n for n in notes)
+
+    def test_the_note_names_the_ports_it_actually_tried(self):
+        """Without them the reader cannot tell what the conclusion is scoped to."""
+        hosts = [
+            HostResult(
+                ip="10.0.0.1",
+                ports=(
+                    PortResult(port=502, state=PORT_REFUSED),
+                    PortResult(port=4840, state=PORT_REFUSED),
+                ),
+            ),
+        ]
+        note = " ".join(diagnose_empty_sweep(hosts))
+        assert "502" in note and "4840" in note
+
+    def test_the_note_never_claims_the_host_speaks_no_protocol_we_support(self):
+        """The port allowlist is fixed and `--protocols` may only narrow it.
+
+        So a refusal on those ports says nothing about what the host speaks. A
+        lab box running Modbus on 15020 was described as "not running any
+        protocol this tool speaks", and `iaiops modbus holding` read its
+        registers on the same box a minute later — our own scope reported as a
+        property of the plant, the shape of #202.
+        """
+        hosts = [
+            HostResult(ip="10.0.0.1", ports=(PortResult(port=502, state=PORT_REFUSED),)),
+        ]
+        note = " ".join(diagnose_empty_sweep(hosts)).lower()
+        assert "not running any protocol this tool speaks" not in note
+        for overreach in ("they exist; they are not running", "speaks nothing"):
+            assert overreach not in note
+        # and it must say why the conclusion is bounded
+        assert "non-standard port" in note or "never widened" in note
 
     def test_filtered_only_is_reported_as_probably_an_acl(self):
         hosts = [
