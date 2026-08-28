@@ -237,24 +237,45 @@ def _dataitem(di: ET.Element) -> dict:
     }
 
 
+#: The agent's own device stream. It is not a machine, it is the agent
+#: reporting on itself, and its Availability is AVAILABLE whenever the agent is
+#: answering at all — which is exactly when you are asking.
+AGENT_DEVICE = "Agent"
+
+
 def _observations(root: ET.Element) -> list[dict]:
-    """Walk a Streams document; collect every element carrying a dataItemId."""
+    """Walk a Streams document; collect every element carrying a dataItemId.
+
+    Each observation carries the DeviceStream it came from. One agent commonly
+    serves several machines and always streams its own ``Agent`` device too, so
+    an observation with no device on it cannot be attributed to anything. This
+    was invisible against our own harness, which serves exactly one device and
+    no Agent stream; a real cppagent shows two device streams on an empty
+    configuration, whose Availability values are AVAILABLE and UNAVAILABLE.
+    """
     out: list[dict] = []
-    for el in root.iter():
-        if "dataItemId" not in el.attrib:
+    for stream in root.iter():
+        if _strip(stream.tag) != "DeviceStream":
             continue
-        out.append(
-            {
-                "data_item_id": s(el.get("dataItemId", ""), 64),
-                "type": s(_strip(el.tag), 48),
-                "name": s(el.get("name", ""), 64),
-                "timestamp": s(el.get("timestamp", ""), 40),
-                "sequence": s(el.get("sequence", ""), 24),
-                "value": s((el.text or "").strip(), 256),
-            }
-        )
-        if len(out) >= MAX_OBSERVATIONS:
-            break
+        device = s(stream.get("name", ""), 64)
+        device_uuid = s(stream.get("uuid", ""), 64)
+        for el in stream.iter():
+            if "dataItemId" not in el.attrib:
+                continue
+            out.append(
+                {
+                    "data_item_id": s(el.get("dataItemId", ""), 64),
+                    "type": s(_strip(el.tag), 48),
+                    "name": s(el.get("name", ""), 64),
+                    "device": device,
+                    "device_uuid": device_uuid,
+                    "timestamp": s(el.get("timestamp", ""), 40),
+                    "sequence": s(el.get("sequence", ""), 24),
+                    "value": s((el.text or "").strip(), 256),
+                }
+            )
+            if len(out) >= MAX_OBSERVATIONS:
+                return out
     return out
 
 
@@ -433,17 +454,88 @@ def mtconnect_assets(target: Any) -> dict:
     }
 
 
+def _devices_seen(obs: list[dict]) -> list[tuple[str, str]]:
+    """(name, uuid) per device stream, in document order, deduplicated."""
+    seen: list[tuple[str, str]] = []
+    for o in obs:
+        key = (o.get("device", ""), o.get("device_uuid", ""))
+        if key not in seen:
+            seen.append(key)
+    return seen
+
+
+def _resolve_device(target: Any, obs: list[dict]) -> tuple[str, str]:
+    """Which device this endpoint means. Returns ``(device, refusal)``.
+
+    Picking by data-item TYPE across the whole document keeps whichever device
+    came last, which against a real cppagent means the machine's Availability
+    can be replaced by the AGENT's own — and the agent is AVAILABLE whenever it
+    answers. That direction of error reports a stopped machine as available and
+    would inflate every availability figure downstream, so an ambiguous agent is
+    refused rather than resolved.
+    """
+    seen = _devices_seen(obs)
+    label = ", ".join(name or uuid for name, uuid in seen) or "none"
+    wanted = (getattr(target, "device", "") or "").strip()
+    if wanted:
+        for name, uuid in seen:
+            if wanted in (name, uuid):
+                return name or uuid, ""
+        return "", (
+            f"No device named {wanted!r} on this agent. It streams: {label}. "
+            "Fix `device:` on this endpoint in config.yaml."
+        )
+
+    machines = [(name, uuid) for name, uuid in seen if name != AGENT_DEVICE]
+    if len(machines) == 1:
+        return machines[0][0] or machines[0][1], ""
+    if not machines:
+        return "", (
+            f"This agent streams no machine device (only: {label}). An agent with "
+            "no adapter connected reports on itself and nothing else."
+        )
+    names = ", ".join(name or uuid for name, uuid in machines)
+    return "", (
+        f"This agent serves {len(machines)} devices ({names}) and this endpoint "
+        "does not say which one it means. Set `device:` on the endpoint — picking "
+        "one here would put a different machine's numbers under this name."
+    )
+
+
 def mtconnect_oee_snapshot(target: Any) -> dict:
     """[READ] Availability / Execution / mode / program from /current (OEE inputs).
 
     Pulls the key data items an availability/performance calculation needs. Does
     NOT compute a single OEE percentage (that needs planned-time + ideal-cycle
     context this preview cannot know) — it surfaces the live inputs for an agent.
+
+    Scoped to ONE device, and ``UNAVAILABLE`` is its own verdict. In MTConnect
+    that word is the agent saying it has no valid value — usually a disconnected
+    adapter. Calling it ``down`` turns "we cannot see the machine" into "the
+    machine has stopped", which is the same substitution #202 removed from RCA.
     """
     root = _fetch_xml(target, "current")
     obs = _observations(root)
+    device, refusal = _resolve_device(target, obs)
+    if refusal:
+        return {
+            "endpoint": s(target.name, 64),
+            "device": "",
+            "devices": [name or uuid for name, uuid in _devices_seen(obs)],
+            "availability": "",
+            "execution": "",
+            "controller_mode": "",
+            "program": "",
+            "available": False,
+            "running": False,
+            "verdict": "unknown",
+            "note": refusal,
+        }
+
     picks: dict[str, dict] = {}
     for o in obs:
+        if device not in (o.get("device", ""), o.get("device_uuid", "")):
+            continue
         key = (o["type"] or "").upper()
         if key in (_OEE_AVAILABILITY, _OEE_EXECUTION, _OEE_MODE, _OEE_PROGRAM):
             picks[key] = o
@@ -451,9 +543,29 @@ def mtconnect_oee_snapshot(target: Any) -> dict:
     execution = (picks.get(_OEE_EXECUTION, {}).get("value", "") or "").upper()
     available = availability == "AVAILABLE"
     active = execution == "ACTIVE"
-    verdict = "running" if (available and active) else "available_idle" if available else "down"
+    if available:
+        verdict = "running" if active else "available_idle"
+    elif availability == "UNAVAILABLE":
+        verdict = "unavailable"
+    else:
+        verdict = "unknown"
+    notes = {
+        "running": "",
+        "available_idle": "",
+        "unavailable": (
+            "The agent reports this device UNAVAILABLE — it has no valid value, "
+            "usually a disconnected adapter. That is not the same as the machine "
+            "being down, and counting it as downtime would overstate losses."
+        ),
+        "unknown": (
+            "This device publishes no AVAILABILITY data item, so whether it is "
+            "running is not observable here."
+        ),
+    }
     return {
         "endpoint": s(target.name, 64),
+        "device": s(device, 64),
+        "devices": [name or uuid for name, uuid in _devices_seen(obs)],
         "availability": s(availability, 32),
         "execution": s(execution, 32),
         "controller_mode": s(picks.get(_OEE_MODE, {}).get("value", ""), 32),
@@ -461,8 +573,11 @@ def mtconnect_oee_snapshot(target: Any) -> dict:
         "available": available,
         "running": active,
         "verdict": verdict,
-        "note": "OEE availability/performance inputs from /current. Full OEE % needs "
-        "planned production time + ideal cycle time (not exposed by MTConnect).",
+        "note": (
+            notes[verdict]
+            or "OEE availability/performance inputs from /current. Full OEE % needs "
+            "planned production time + ideal cycle time (not exposed by MTConnect)."
+        ),
     }
 
 

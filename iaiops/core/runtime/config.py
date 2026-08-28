@@ -293,7 +293,9 @@ class TargetConfig:
                         + 仿西门子 国产 PLCs, ISO-on-TCP).
       * ``mc``        — ``host`` / ``port`` (5007) / ``plctype`` (Mitsubishi
                         Q/L/QnA/iQ-R, MC 3E binary).
-      * ``mtconnect`` — ``agent_url`` (HTTP agent base, e.g. http://host:5000).
+      * ``mtconnect`` — ``agent_url`` (HTTP agent base, e.g. http://host:5000)
+                        + optional ``device`` (name or uuid — required when the
+                        agent serves more than one machine).
       * ``mqtt``      — ``host`` / ``port`` (1883/8883) / ``topic`` / ``use_tls``
                         / ``username`` (Sparkplug B / UNS).
       * ``ethernetip``— ``host`` / ``slot`` (Rockwell/Allen-Bradley Logix,
@@ -351,6 +353,12 @@ class TargetConfig:
     plctype: str = "Q"
     # MTConnect + IO-Link master (HTTP): base URL of the agent/master.
     agent_url: str = ""
+    # MTConnect: which DEVICE on that agent this endpoint means, by name or uuid.
+    # One agent commonly serves several machines, and it also streams its OWN
+    # `Agent` device, whose Availability is AVAILABLE whenever it is answering.
+    # Empty is allowed and resolves when the agent has exactly one real device;
+    # with more than one, the tools refuse rather than pick.
+    device: str = ""
     # IO-Link master JSON dialect: 'iotcore' (ifm IoT-Core POST envelope,
     # default) or 'rest' (plain-REST GET). Empty = protocol default (iotcore).
     flavor: str = ""
@@ -852,6 +860,7 @@ def _parse_target(d: dict) -> TargetConfig:
         slot=int(d["slot"]) if d.get("slot") not in (None, "") else 1,
         plctype=str(d.get("plctype", "Q") or "Q"),
         agent_url=str(d.get("agent_url", "")),
+        device=str(d.get("device", "")),
         flavor=str(d.get("flavor", "") or "").strip().lower(),
         topic=str(d.get("topic", "")),
         use_tls=use_tls,

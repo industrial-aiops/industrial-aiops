@@ -54,7 +54,7 @@ for every protocol in both repos.** Nothing below changes that.
 | **Modbus RTU** | 2a | `test_modbus_rtu_live.py` | Real `pymodbus` `ModbusSerialServer` over a socat PTY pair — actual RTU/CRC framing, all four function codes, float32 | Physical RS-485 bus / USB adapter; multi-drop addressing; baud/parity mismatch behaviour |
 | **MQTT / Sparkplug B** | 2a | `test_uns_live_integration.py`, `test_mqtt_retained_undo.py` | Real **mosquitto** broker through the full paho loop: UNS audit, Sparkplug schema from NBIRTH, retained-publish BEFORE capture and inverse round-trip | Production EoN node / Sparkplug host application; broker auth/TLS |
 | **BACnet/IP** | 2a | `test_bacnet_live.py` + `scripts/bacnet_live_harness.sh` | Real `bacpypes3` virtual device, **two IPs on one subnet**, real UDP broadcast Who-Is/I-Am round-trip; **the write path** — dry-run verified by reading back, BEFORE capture checked against what the device held, and the read-back `after`/`verified` reporting | Physical HVAC/BMS controller; COV subscription; trend logs; **whether a real controller accepts the write** — this virtual device does not, which is how the unverified `applied: true` was found (note ⁵) |
-| **MTConnect** | **2b**¹ | `test_mtconnect_live.py` | Real HTTP agent: URL from host/port, `/sample?from=&count=` query, streamed body, **DTD/XXE guard on the first chunk** (discriminated from the full-body guard), size cap while reading, long-poll cursor advance + `instance_changed` stop, **`/assets` fetched and parsed** | Real machine-tool agent (Mazak/Okuma/…); MTConnect ≥2.0 schema |
+| **MTConnect** | **2a**¹⁰ | `test_mtconnect_agent_live.py` (2a, `scripts/mtconnect_agent_harness.sh`) · `test_mtconnect_live.py` (2b) | **2a**: the MTConnect Institute's `cppagent` (`mtconnect/agent:2.7.0.13`) serving a two-machine model — its own `Agent` device stream, `AVAILABLE` while the machines are `UNAVAILABLE`, `/probe` device model, `/current` attribution. **2b**: URL from host/port, `/sample?from=&count=` query, streamed body, **DTD/XXE guard on the first chunk** (discriminated from the full-body guard), size cap while reading, long-poll cursor advance + `instance_changed` stop, **`/assets` fetched and parsed** | Real machine-tool agent (Mazak/Okuma/…) with a **connected adapter** — the reference agent runs with none, so every value is `UNAVAILABLE` and no live SAMPLE has been decoded |
 | **SECS/GEM** | 2a⁴ | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
 | **Mitsubishi MC** | **2b** | `test_mc_live.py` + `mc_plc_harness.py` | Real `pymcprotocol` `Type3E` client vs **our** SLMP-3E server: CPU identity, batch word/bit read, signed-word decode, offsets, random read of words+dwords, write BEFORE capture verified by read-back | Physical MELSEC CPU; 1E/4E frames; ASCII mode; iQ-R addressing |
 | **S7comm** | **2b** | `test_s7_live.py` + `s7_plc_harness.py` | Real `pyS7` client vs **our** ISO-TSAP server: COTP connect, PDU negotiation, DB/merker reads, signed INT, big-endian REAL, **WORD/DWORD/DINT/LREAL widths**, offsets, write BEFORE capture verified by read-back | Physical S7 CPU; PUT/GET access control; optimized-DB blocks; STRING/WSTRING; **our own bit handling** (see note ³) |
@@ -66,6 +66,30 @@ for every protocol in both repos.** Nothing below changes that.
 | **EtherCAT** | mock only | `test_ethercat.py` | Nothing on a wire | **Everything.** Structurally untestable without hardware — no software simulator exists |
 | **BAS (Metasys/Niagara)** | mock only | `test_bas_tools.py` | Vendor REST mocked | Real supervisory controller; vendor API drift |
 | **Ignition gateway** | mock only | `test_ignition_tools.py` | Vendor REST mocked | Real Ignition gateway; API version drift |
+
+¹⁰ **MTConnect reached 2a by running the reference agent, and it cost two product
+fixes.** Everything in the MTConnect suite talked to a server this repo wrote —
+which proves the parser reads what we emit and nothing about what the MTConnect
+Institute's `cppagent` emits. Running `mtconnect/agent:2.7.0.13` on an empty
+configuration showed two things our fixtures could not:
+
+* the agent streams its **own `Agent` device** beside the machines, and its
+  `Availability` is `AVAILABLE` whenever it is answering. `mtconnect_oee_snapshot`
+  picked data items by TYPE across the whole document and kept the last, so a
+  stopped machine could be reported as available — the direction that INFLATES
+  availability. Now scoped to one device, with an optional `device:` on the
+  endpoint and a refusal when an agent serves more than one.
+* a machine whose adapter is not connected is `UNAVAILABLE` — MTConnect's own
+  word for "the agent has no valid value" — and that was rendered as `down`.
+  Blindness reported as downtime, the substitution #202 removed from RCA.
+
+Neither is exotic: one agent in front of several machines is the ordinary
+deployment, and the `Agent` device appears on a default install. Both were
+invisible for as long as the only server was ours.
+
+**What 2a here does NOT cover:** the reference agent runs with no adapter, so
+every machine value is `UNAVAILABLE` and no live SAMPLE observation has been
+decoded end to end. A real machine tool remains rung 3, unchanged.
 
 ¹ **Corrected from 2a after review.** The first version of this file argued that
 because the transport is HTTP + stdlib XML rather than a bespoke binary frame, the
@@ -265,7 +289,7 @@ same reason: so nobody has to reconstruct it.
    **ST** string files are live. Still open: **UDT / structured tags** (needs template
    upload in the harness), **A** (ASCII) files, PLC-5-specific addressing, and a PCCC
    route bridged through a ControlLogix backplane.
-5. **MTConnect ≥2.0 schema** — the live agent speaks 1.7.
+5. **MTConnect ≥2.0 schema** — the 2b harness speaks 1.7; the 2a agent serves 2.0 (`SchemaVersion = 2.0`), so the ≥2.0 gap is closed for parsing and remains open only for a machine-tool vendor's own dialect.
 6. ~~**Truncation keeps the OLDEST samples, everywhere.**~~ **Done 2026-08-02** —
    `SampleFilter.newest_first` is pushed into all three readers' `ORDER BY` (not
    faked by reversing in Python; the live tests assert *which* samples came back),
