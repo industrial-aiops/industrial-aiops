@@ -20,9 +20,9 @@ Prefer a container? The published image is **cosign-signed** and runs **non-root
 over stdio, so keep stdin open and mount a volume for the audit store:
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.23.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.24.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.23.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.24.0-factory
 ```
 
 For a hardened or air-gapped deployment (read-only rootfs, `cap_drop: ALL`, no-new-privileges,
@@ -222,7 +222,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten: [issue #2
 
 *(The energy protocols — IEC-104 / DNP3 / IEC-61850 — moved to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) in 0.8.0; their tool matrix lives in that repo.)*
 
-**182 governed tools** = 172 read + 10 MOC-gated writes (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 172 reads include the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**182 governed tools** = 169 read + 10 MOC-gated **device** writes + `historian_push` (a write, to a historian rather than to a device: `[WRITE][risk=low]`) + the 2 deprecated aliases below. The device writes are (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 2 deprecated aliases are the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 

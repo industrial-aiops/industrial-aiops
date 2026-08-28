@@ -13,7 +13,7 @@
 #
 # The image is the SAME published, cosign-signed artifact used everywhere else — Industrial Edge is
 # a distribution target, not a fork. Verify before packaging:
-#   cosign verify --key ../margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.23.0-factory
+#   cosign verify --key ../margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.24.0-factory
 #
 # 待核实 on a real IED/IEVD: the exact compose-version string IEAP accepts (it varies by IEAP
 # release — check the drop-down in the tool), and whether `cap_drop`/`security_opt` survive the
@@ -22,7 +22,7 @@ version: "2.4"
 
 services:
   iaiops:
-    image: ghcr.io/industrial-aiops/iaiops:0.23.0-factory
+    image: ghcr.io/industrial-aiops/iaiops:0.24.0-factory
 
     # Least-privilege posture, carried over from deploy/margo/. The Industrial Edge Operator is
     # SHOWN an app's requested privileges at install time, so every capability we do not ask for is
