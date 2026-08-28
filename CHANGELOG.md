@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## 0.24.0 — 2026-08-28
+
+**The investigation, end to end — and the input path that was missing under it.**
+
+An investigation is now an object with eight evidence steps rather than a single
+command, and every step says whether a gap is something **you** have not supplied
+(naming the command that would) or something **this product** cannot express at
+all. Those two send a person to entirely different places.
+
+Underneath it, the thing that has really been blocking sites: **there was no
+usable way to tell the product what a tag MEANS.** HLD §10.1 named a
+point-list confirmation sheet and nothing was ever built for it, so the only
+route was hand-editing `role:` in config.yaml — exactly the method §10.1
+says stops working at a hundred rows. `iaiops tags export|apply|page` is that
+route.
+
+Both fronts of the architecture's own claim are closed too: `investigate`,
+`relations`, `knowledge` and `readiness` had all shipped **CLI-only** while the
+HLD and the README both said *two front-ends, one engine*. 182 governed tools.
+
+And five defects found by walking a demo through two lab VMs rather than through
+mocks — the sharpest being a root-cause analysis that diagnosed a **sensor fault
+at the plant** when the endpoint had merely been switched off, and grew *more*
+confident the more tags you asked about.
+
 ### Fixed — the Chinese README was missing everything built this week
 
 `investigate`, `relations`, `knowledge` and `tags` had **zero** mentions in
