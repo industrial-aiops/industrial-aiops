@@ -528,13 +528,49 @@ class AppConfig:
         return self.targets[0]
 
 
-def parse_tags(raw_tags: list) -> tuple[MonitorTag, ...]:
-    """Parse the optional ``tags`` list of a config endpoint."""
-    out: list[MonitorTag] = []
-    for t in raw_tags or []:
-        ref = str(t.get("ref") or t.get("node_id") or t.get("address") or "").strip()
-        if not ref:
+#: The documented aliases for a tag's address, in precedence order.
+_REF_KEYS = ("ref", "node_id", "address")
+
+
+def _tag_ref(t: dict) -> str:
+    """The tag's address, accepting the documented aliases.
+
+    Keys are tried in order and the first one **present** wins — not the first
+    one *truthy*. ``ref: 0`` is an ordinary Modbus holding register, coil,
+    discrete input and input register, an ordinary S7 DB offset, and an ordinary
+    MC/FINS address. The `or` chain this replaces treated it as absent, so the
+    tag was dropped before anything downstream ever saw it.
+    """
+    for key in _REF_KEYS:
+        value = t.get(key)
+        if value is None:
             continue
+        text = str(value).strip()
+        if text:
+            return text
+    return ""
+
+
+def parse_tags(raw_tags: list, endpoint: str = "") -> tuple[MonitorTag, ...]:
+    """Parse the optional ``tags`` list of a config endpoint.
+
+    A tag with no address is **refused**, not skipped. It used to `continue`,
+    which meant a point list silently stopped being the one the site wrote:
+    `readiness` then reported the missing role as something the operator had not
+    supplied, when the operator had supplied it and this function had deleted it.
+    """
+    out: list[MonitorTag] = []
+    where = f" on endpoint {endpoint!r}" if endpoint else ""
+    for position, t in enumerate(raw_tags or [], start=1):
+        ref = _tag_ref(t)
+        if not ref:
+            raise ValueError(
+                f"Tag #{position}{where} has no address: none of "
+                f"{', '.join(_REF_KEYS)} is set to a usable value ({t!r}). "
+                "Give it one, or remove the entry — a tag with no address "
+                "cannot be read, and dropping it silently would make every "
+                "report below it describe a different point list than yours."
+            )
         out.append(
             MonitorTag(
                 ref=ref,
@@ -830,6 +866,6 @@ def _parse_target(d: dict) -> TargetConfig:
         nic=str(d.get("nic", "") or d.get("interface", "")),
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
         timeout_s=_parse_timeout_s(d),
-        tags=parse_tags(d.get("tags", [])),
+        tags=parse_tags(d.get("tags", []), endpoint=str(d.get("name", ""))),
         ideal_cycle_time_s=_opt_float(d.get("ideal_cycle_time_s")),
     )
