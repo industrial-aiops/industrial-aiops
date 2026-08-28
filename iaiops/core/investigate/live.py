@@ -50,6 +50,9 @@ VERSION = 1
 #: belongs to the command that produced it; this is the trail back to it.
 MAX_SUMMARY = 240
 
+#: What a cut may land on, so a bounded summary still ends on a clause.
+_BREAKS = " ·,;，、；"
+
 #: Only when a window has too few samples to have a cadence of its own.
 DEFAULT_GAP_S = 60.0
 
@@ -212,10 +215,36 @@ def advance(inv: Investigation, db_path: Any = None) -> Investigation:
     return replace(
         inv,
         steps=tuple(
-            replace(st, state=outcomes[st.key][0], summary=s(outcomes[st.key][1], MAX_SUMMARY))
+            replace(st, state=outcomes[st.key][0], summary=_summary(outcomes[st.key][1]))
             for st in inv.steps
         ),
     )
+
+
+def _summary(text: Any) -> str:
+    """Bound a step summary without lying about where it ends.
+
+    ``s()`` bounds an OT VALUE read off a device — untrusted, arbitrary, and cut
+    to a fixed width because nothing about its shape is known. These are
+    sentences this module composes itself, and cutting one at offset 240
+    produced, in a stored record and in the HTML somebody forwards:
+
+        ... single-asset timeline: no line relations are declared, so no change
+        on another asse
+
+    A record that stops mid-word reads as data loss, and the reader cannot tell
+    whether the clause they lost said something they needed. The bound stays —
+    an investigation record should not grow without limit — but the cut lands on
+    a clause break and says that it happened.
+    """
+    text = s(text, MAX_SUMMARY * 4)
+    if len(text) <= MAX_SUMMARY:
+        return text
+    head = text[: MAX_SUMMARY - 1]
+    cut = max(head.rfind(ch) for ch in _BREAKS)
+    if cut > MAX_SUMMARY // 2:
+        head = head[:cut]
+    return head.rstrip(_BREAKS) + "…"
 
 
 # ─── the steps: each one calls something that already exists ─────────────────
