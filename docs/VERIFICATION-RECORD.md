@@ -58,7 +58,7 @@ for every protocol in both repos.** Nothing below changes that.
 | **SECS/GEM** | 2a⁴ | `test_secsgem_live.py` + `secsgem_equipment_harness.py` | Real `GemEquipmentHandler` in HSMS PASSIVE, our real `GemHostHandler` ACTIVE: S1F1/F2, S1F11/F12, S1F3/F4, S2F29/F30, S2F13/F14, S5F5/F6, and an **unsupported S7F19 teaching instead of returning raw bytes** | Real fab equipment; S7 process-program transfer; collection events / alarms in motion; **repeated short-lived sessions** (see note ²) |
 | **Mitsubishi MC** | **2b** | `test_mc_live.py` + `mc_plc_harness.py` | Real `pymcprotocol` `Type3E` client vs **our** SLMP-3E server: CPU identity, batch word/bit read, signed-word decode, offsets, random read of words+dwords, write BEFORE capture verified by read-back | Physical MELSEC CPU; 1E/4E frames; ASCII mode; iQ-R addressing |
 | **S7comm** | **2b** | `test_s7_live.py` + `s7_plc_harness.py` | Real `pyS7` client vs **our** ISO-TSAP server: COTP connect, PDU negotiation, DB/merker reads, signed INT, big-endian REAL, **WORD/DWORD/DINT/LREAL widths**, offsets, write BEFORE capture verified by read-back | Physical S7 CPU; PUT/GET access control; optimized-DB blocks; STRING/WSTRING; **our own bit handling** (see note ³) |
-| **EtherNet/IP** | **2b** | `test_eip_live.py`, `test_eip_pccc_live.py` + `eip_plc_harness.py` + `eip_pccc_plc.py` | Real `pycomm3` vs **our** CIP PLC, on all three driver routes. **Logix** (`LogixDriver`): RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back. **PCCC/`slc`** (`SLCDriver`, CIP service 0x4B carrying DF1): processor-type diagnostic, the File-0 directory sequence behind `eip_list_tags` (including its POSITIONAL file numbering), typed reads of N/F/B/T elements, **ST string files** with their swapped words, a masked bit write that leaves its neighbour alone — on a wide element as well as a 2-byte one — and **a device-side refusal of a bad address**. **Program-scoped tags** are listed, read and written on the Logix route. **Micro800**: pycomm3's own catalog-number detection, asserted by the batching that does NOT happen on the wire | Physical ControlLogix/CompactLogix/SLC-5-05/MicroLogix/Micro8xx; UDT/structured tags; program-scoped tags; PLC-5 addressing; ST/A files; a PCCC route bridged through a ControlLogix backplane |
+| **EtherNet/IP** | **2b** (tag layer) · **2a**¹¹ (identification) | `test_eip_live.py`, `test_eip_pccc_live.py` + `eip_plc_harness.py` + `eip_pccc_plc.py` · `test_discovery_eip_live.py` (2a, `scripts/enip_simulator_harness.sh`) | Real `pycomm3` vs **our** CIP PLC, on all three driver routes. **Logix** (`LogixDriver`): RegisterSession, ListIdentity, Forward Open, connected messaging, tag-list upload, single + Multiple-Service-Packet reads, write BEFORE capture verified by read-back. **PCCC/`slc`** (`SLCDriver`, CIP service 0x4B carrying DF1): processor-type diagnostic, the File-0 directory sequence behind `eip_list_tags` (including its POSITIONAL file numbering), typed reads of N/F/B/T elements, **ST string files** with their swapped words, a masked bit write that leaves its neighbour alone — on a wide element as well as a 2-byte one — and **a device-side refusal of a bad address**. **Program-scoped tags** are listed, read and written on the Logix route. **Micro800**: pycomm3's own catalog-number detection, asserted by the batching that does NOT happen on the wire | Physical ControlLogix/CompactLogix/SLC-5-05/MicroLogix/Micro8xx; UDT/structured tags; program-scoped tags; PLC-5 addressing; ST/A files; a PCCC route bridged through a ControlLogix backplane |
 | **Omron FINS** | **2c** | `test_fins.py` | Real UDP/TCP sockets — but the client is **in-repo** (stdlib) *and* the server is ours, so no independent implementation is involved | Physical Omron CPU; everything about the wire format is our reading of it |
 | **HART-IP** | 1 + **2c** | `test_hart.py` | Command codec against the third-party `hart_protocol` (rung 1); the HART-IP UDP/TCP **transport is in-tree** and exercised against our own socket server (rung 2c) | Physical HART-IP gateway / multiplexer; burst mode against real devices |
 | **IO-Link** | **2c** | `test_iolink.py` | Real HTTP against our mock master — **the vendor JSON API shape is our assumption** | Any real IO-Link master (ifm/Balluff/…); JSON schema drift |
@@ -90,6 +90,35 @@ invisible for as long as the only server was ours.
 **What 2a here does NOT cover:** the reference agent runs with no adapter, so
 every machine value is `UNAVAILABLE` and no live SAMPLE observation has been
 decoded end to end. A real machine tool remains rung 3, unchanged.
+
+¹¹ **EtherNet/IP identification reached 2a against `cpppo`, and the survey was
+doing something other than what it said.** The discovery probe is named
+`eip_list_identity`, its rationale reads "CIP identity object read over explicit
+messaging", and it called `eip_controller_info` — which opens a
+`pycomm3.LogixDriver`. `LogixDriver.open()` runs `_initialize_driver`, which ends
+in `get_tag_list(program="*")`: **the controller's entire symbol table, every
+program-scoped tag included**. The default `inventory` profile's preview says
+"one minimal in-spec read per candidate", "never walks an address space", and
+"authorization: not required", and the signed wire summary recorded the whole
+thing as `eip_list_identity: 1`. For a product whose claim is that the artifact
+you sign is what happened, this was the worst place to be wrong.
+
+Measured against the simulator, the probe went from **6 requests / 324 bytes to
+3 / 76** (RegisterSession, ListIdentity, close). Against a real ControlLogix the
+old path would have continued into the symbol upload, so the true difference is
+larger than that.
+
+The same call also failed on anything that is not a Logix controller. A device
+answering ListIdentity as a drive or an I/O adapter — most of the EtherNet/IP
+installed base by device count — came back as an open port with no vendor, which
+reads as "we found nothing here".
+
+**What 2a here does NOT cover:** cpppo implements the Identity object and a tag
+interface but none of the Logix objects `LogixDriver` needs — 0x64 returns a
+reply pycomm3 cannot parse, 0x6B and 0x6C drop the connection. The Logix TAG
+layer stays at 2b against our own `eip_plc_harness.py`, and a physical
+ControlLogix stays rung 3. Recorded so the next person does not re-evaluate
+cpppo for that purpose.
 
 ¹ **Corrected from 2a after review.** The first version of this file argued that
 because the transport is HTTP + stdlib XML rather than a bespoke binary frame, the

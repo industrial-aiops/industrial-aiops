@@ -442,23 +442,62 @@ class TestExtractors:
 
         monkeypatch.setattr(
             ops,
-            "eip_controller_info",
-            lambda t, plctype=None: {
-                "plctype": "logix",
-                "controller": {
-                    "vendor": "Rockwell Automation/Allen-Bradley",
-                    "product_name": "1769-L33ER",
-                    "serial": "0x60C0FFEE",
-                    "revision": {"major": 32, "minor": 11},
-                    "name": "Line3_PLC",
-                },
-                "info_error": "",
+            "eip_list_identity",
+            lambda t: {
+                "vendor": "Rockwell Automation/Allen-Bradley",
+                "product_name": "1769-L33ER",
+                "serial": "0x60C0FFEE",
+                "revision": "32.11",
             },
         )
         out = identify._probe_eip("10.0.0.5", 44818, 2.0, wirelog.WireLog())
         assert out["model"] == "1769-L33ER"
         assert out["serial"] == "0x60C0FFEE"
-        assert out["name"] == "Line3_PLC"
+
+    def test_eip_identification_never_opens_a_logix_session(self, monkeypatch):
+        """The probe is named for ListIdentity; it used to upload the tag list.
+
+        `eip_controller_info` opens a `LogixDriver`, and pycomm3's
+        `LogixDriver.open()` ends in `get_tag_list(program="*")` — the whole
+        symbol table, every program-scoped tag — under a preview that promises
+        "one minimal in-spec read per candidate" and "never walks an address
+        space". The old test monkeypatched `eip_controller_info`, so it pinned
+        the implementation instead of the promise and the mismatch was invisible.
+        """
+        from iaiops.connectors.eip import ops
+
+        def _forbidden(*args, **kwargs):
+            raise AssertionError("identification opened a Logix session; that uploads the tag list")
+
+        monkeypatch.setattr(ops, "eip_controller_info", _forbidden)
+        monkeypatch.setattr(ops, "eip_list_tags", _forbidden)
+        monkeypatch.setattr(ops, "eip_list_identity", lambda t: {"vendor": "v"})
+        assert identify._probe_eip("10.0.0.5", 44818, 2.0, wirelog.WireLog())["vendor"] == "v"
+
+    def test_a_non_logix_device_is_still_identified(self, monkeypatch):
+        """Drives, I/O adapters and gateways answer ListIdentity and are not Logix.
+
+        They are most of the EtherNet/IP installed base by device count, and the
+        Logix path failed on all of them — reported as an open port with no
+        vendor, which reads as "we found nothing here".
+        """
+        from iaiops.connectors.eip import ops
+
+        monkeypatch.setattr(
+            ops,
+            "eip_list_identity",
+            lambda t: {
+                "vendor": "Schneider Electric",
+                "product_name": "ATV320 Drive",
+                "serial": "00a1b2c3",
+                "revision": "1.7",
+            },
+        )
+        out = identify._probe_eip("10.0.0.9", 44818, 2.0, wirelog.WireLog())
+        assert out["vendor"] == "Schneider Electric" and out["model"] == "ATV320 Drive"
+        assert "name" not in out, (
+            "ListIdentity carries no controller name; an absent column beats a blank one"
+        )
 
     def test_mtconnect_keeps_only_the_head_of_the_device_tree(self, monkeypatch):
         """The full probe response carries every data item of every component.
@@ -594,7 +633,7 @@ class TestEveryProbeCanActuallyRun:
         "modbus": ("iaiops.connectors.modbus.ops", "modbus_read_device_identification"),
         "opcua": ("iaiops.connectors.opcua.ops", "opcua_endpoints"),
         "s7": ("iaiops.connectors.s7.ops", "s7_cpu_info"),
-        "ethernetip": ("iaiops.connectors.eip.ops", "eip_controller_info"),
+        "ethernetip": ("iaiops.connectors.eip.ops", "eip_list_identity"),
         "mc": ("iaiops.connectors.mc.ops", "mc_cpu_status"),
         "mtconnect": ("iaiops.connectors.mtconnect.ops", "mtconnect_probe"),
         "iolink": ("iaiops.connectors.iolink.ops", "master_info"),

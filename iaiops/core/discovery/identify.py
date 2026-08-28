@@ -271,16 +271,25 @@ def _probe_eip(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> 
         slot=0,
     )
     log.record(wirelog.EIP_LIST_IDENTITY, host=host, detail=str(port))
-    raw = ops.eip_controller_info(target)
-    ctrl = raw.get("controller") or {}
+    # ListIdentity, which is what this probe is named after and what its
+    # rationale promises. It used to call `eip_controller_info`, and
+    # `LogixDriver.open()` ends in `get_tag_list(program="*")` — a full symbol
+    # table upload — under a preview that says "one minimal in-spec read per
+    # candidate" and "never walks an address space". It also failed outright on
+    # anything that is not a Logix controller, so a drive or an I/O adapter that
+    # answers ListIdentity with a vendor and a model came back as "port only".
+    raw = ops.eip_list_identity(target)
     return _identity(
-        vendor=ctrl.get("vendor", ""),
-        model=ctrl.get("product_name", "") or ctrl.get("processor_type", ""),
-        serial=str(ctrl.get("serial", "") or ""),
-        firmware=str(ctrl.get("revision", "") or ""),
-        name=ctrl.get("name", ""),
-        plctype=raw.get("plctype", ""),
-        info_error=raw.get("info_error", ""),
+        vendor=raw.get("vendor", ""),
+        model=raw.get("product_name", ""),
+        serial=str(raw.get("serial", "") or ""),
+        firmware=str(raw.get("revision", "") or ""),
+        # ListIdentity carries no controller NAME and no driver kind. Both are
+        # Logix-specific and belong to a fingerprint stage the operator has
+        # authorised, not to an inventory sweep.
+        name="",
+        plctype="",
+        info_error="",
     )
 
 
