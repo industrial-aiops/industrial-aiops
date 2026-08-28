@@ -183,3 +183,40 @@ def test_secret_set_does_not_log_the_secret_value(monkeypatch):
     blob = str(rows[-1])
     assert "SUPERSECRET" not in blob
     assert "***" in str(rows[-1]["params"])
+
+
+class TestALongRunIsNotAHang:
+    """`collect run --duration 7d` used to end by warning that it took too long.
+
+    The governance timeout is a hang detector with a 300s default. On the
+    command whose RUNTIME IS THE REQUEST, it fired on every successful
+    assessment run — the flagship workflow the README documents as `--duration
+    7d` — and a line reading "exceeded timeout_seconds=300" at the end of a run
+    that did exactly what was asked reads as a fault. Observed on a real
+    10-minute collection against the lab Modbus line.
+    """
+
+    def test_collect_run_tolerates_the_longest_window_it_will_accept(self):
+        from iaiops.cli.collect import collect_run_cmd
+        from iaiops.core.collect.plan import MAX_DURATION_S
+
+        assert collect_run_cmd._cli_timeout_seconds >= MAX_DURATION_S, (
+            "a run of the longest duration the planner accepts would still warn"
+        )
+
+    def test_the_declared_ceiling_reaches_the_governed_wrapper(self):
+        """Declaring it is worthless if `_wrap` drops it on the floor."""
+        from iaiops.cli._govern import _wrap
+
+        def cmd() -> None: ...
+
+        cmd._cli_timeout_seconds = 999_999
+        assert _wrap(cmd)._timeout_seconds == 999_999
+
+    def test_a_command_that_declares_nothing_keeps_the_hang_detector(self):
+        """The ceiling is per-command opt-in, not a global relaxation."""
+        from iaiops.cli._govern import _wrap
+
+        def cmd() -> None: ...
+
+        assert _wrap(cmd)._timeout_seconds == 300
