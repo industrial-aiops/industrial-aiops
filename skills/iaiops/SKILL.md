@@ -72,12 +72,12 @@ monitor-direction only。**不要**尝试用本 server 的 profile 覆盖能源�
 
 - **Read-first**：默认只读；先 `protocols_supported` 看能力、`iaiops doctor` /
   `<protocol> doctor` 验链路，再谈读，最后才谈写。
-- **写 = MOC（Management-of-Change）**：10 个设备写工具（`s7_write_db`、
+- **写 = MOC（Management-of-Change）**：The 10 write tools（`s7_write_db`、
   `mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、
   `ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`）全部
   `risk=HIGH`、默认 `dry_run=True`、捕获改前值供 undo（`bas_command` 另对生命安全点一律拒绝）。
-  另有 **`historian_push`** 也是写（`[WRITE][risk=low]`，写的是历史库不是设备）——
-  它不在上面那 10 个里，但仍然是「会改变东西」的工具。
+  这 10 个是**设备**写。写历史库/时序库那类不改变现场状态的写另计，
+  由 edition skill 逐个列明 —— 别把「10」当成全部写面。
 - **审批**：真实写入需具名审批人 —— CLI `iaiops approve` 双重确认后才放行。
 - **未经授权绝不写生产控制系统**；AI 结论仅 advisory，引用真实信号出处，宁可
   `insufficient_evidence` 不臆测。
@@ -88,28 +88,31 @@ monitor-direction only。**不要**尝试用本 server 的 profile 覆盖能源�
 
 路由到 edition **之前**，这两条不分行业、任何现场都先跑，而且**零联网**：
 
-- `site_readiness`（MCP）/ `iaiops readiness`（CLI）——「这个站点今天能跑哪些场景、
-  每个缺口还差什么」，按「补上它能解锁多少」排序。它**只报告，绝不代填**。
-- `investigation_readiness` / `iaiops investigate plan` ——「真出事时能走到第八步里的第几步」。
-  缺口分两种，别混：**你还没供**（给出该跑的命令）与 **产品供不了**（`not_yet_expressible`）。
+- `iaiops readiness` ——「这个站点今天能跑哪些场景、每个缺口还差什么」，
+  按「补上它能解锁多少」排序。它**只报告，绝不代填**。
+- `iaiops investigate plan` ——「真出事时能走到那八步里的第几步」。缺口分两种，别混：
+  **你还没供**（会直接给出该跑的命令）与 **产品供不了**（标 `not_yet_expressible`）。
   这两个把人送去完全不同的地方。
 
-对一个**已经过去的**窗口逐步走完并留档：`investigation_open` / `investigation_show` /
-`investigation_list`（`iaiops investigate open|show|list`）。不碰设备 —— 窗口已经过去，
-证据就是当时采到的。三条都能 `--report x.html` 出可转发的自包含文件。
+对一个**已经过去的**窗口逐步走完并留档：`iaiops investigate open|show|list`。
+不碰设备 —— 窗口已经过去，证据就是当时采到的。三条都能 `--report x.html`
+出可转发的自包含文件。
 
 两步需要**人先声明**，agent 不许代答：
 
-- `line_relation_declare`（`iaiops relations declare`）—— 产线上下游。D25：线上下游
-  共现是必然，从时间推不出因果，所以只能声明。
-- `knowledge mount`（CLI）—— ISO 14224 故障机理库，**可排除、绝不确认**；库里没有这条
-  原因返回 `nothing_known`，**那不是「无异议」**。
+- `iaiops relations declare` —— 产线上下游。D25：线上下游共现是必然，
+  从时间推不出因果，所以只能声明。
+- `iaiops knowledge mount` —— ISO 14224 故障机理库，**可排除、绝不确认**；
+  库里没有这条原因返回 `nothing_known`，**那不是「无异议」**。
 
 **点表语义（`role:`）只能人给** —— 哪个位号是产量计数器是工艺知识，猜错会得出一个
 看着合理的 OEE，比报错更糟（D16）。输入口是 `iaiops tags export|apply|page`：
 导出的 `role` 列是**空的**，哪怕紧挨着一个叫 `GoodPartsCounter` 的位号。
 **这一层故意没有 MCP 工具 —— 让 agent 填 role 列正是 D16 禁止的那个猜测。**
 遇到它，把表交给现场的人，不要自己填。
+
+以上除 tags 外都是**双前端**：CLI 与 MCP 同一个引擎。对应的 MCP 工具名由
+edition skill 列明（本 skill 是路由，不带工具表）。
 
 ## Setup（各 edition 相同）
 
