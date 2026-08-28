@@ -195,15 +195,12 @@ def oee_measure_cmd(
             console.print(f"  [dim]{totals['note']}[/]")
 
     console.print("\n[bold]OEE factors[/]")
-    for name, value, note in (
-        ("Availability", factors["availability"], result.get("note", "")),
-        ("Performance", factors["performance"], perf["note"]),
-        ("Quality", factors["quality"], qual["note"]),
+    for name, value, note, raw in (
+        ("Availability", factors["availability"], result.get("note", ""), None),
+        ("Performance", factors["performance"], perf["note"], perf.get("performance_raw")),
+        ("Quality", factors["quality"], qual["note"], None),
     ):
-        if value is None:
-            console.print(f"  {name:13} [dim]not reported[/] — {note}")
-        else:
-            console.print(f"  {name:13} [bold]{value:.1%}[/]")
+        console.print(_factor_line(name, value, note, raw))
     if perf.get("warning"):
         console.print(f"  [yellow]{perf['warning']}[/]")
 
@@ -220,6 +217,26 @@ def oee_measure_cmd(
 
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
+
+
+def _factor_line(name: str, value: float | None, note: str, raw: float | None = None) -> str:
+    """One row of the OEE factor block.
+
+    A factor clamped to 100% says so **on its own line**. The raw value was
+    already in the warning paragraph below, so it was not hidden — but the
+    factor block is the part that gets read aloud and pasted into a slide, and
+    a lab line whose declared cycle time gave Performance 494% showed there as a
+    bare "Performance 100.0%": indistinguishable from a line running exactly to
+    spec. Clamping itself stays (``core/brain/oee.py``: OEE uses the clamped
+    factors, and a slightly optimistic cycle time is ordinary); what changes is
+    that the clamp is visible where the number is.
+    """
+    if value is None:
+        return f"  {name:13} [dim]not reported[/] — {note}"
+    mark = ""
+    if raw is not None and round(float(raw), 4) > round(float(value), 4):
+        mark = f" [yellow](clamped from {float(raw):.1%})[/]"
+    return f"  {name:13} [bold]{value:.1%}[/]{mark}"
 
 
 def _print_losses(losses: dict) -> None:

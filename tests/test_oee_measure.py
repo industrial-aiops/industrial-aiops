@@ -22,9 +22,12 @@ learning it was measured over two thirds of the window.
 from __future__ import annotations
 
 from datetime import UTC
+from pathlib import Path
 
 import pytest
 
+from iaiops.cli import oee as oee_cli
+from iaiops.cli.oee import _factor_line
 from iaiops.core.brain.oee_measure import (
     DEFAULT_MINOR_STOP_S,
     MIN_COVERAGE_PCT,
@@ -286,3 +289,44 @@ class TestTheThresholdMatchesMeasuredJitter:
         cadence = 1.081
         assert cadence * GAP_FACTOR > cadence + GAP_FLOOR_S
         assert cadence * GAP_FACTOR > cadence * 1.21
+
+
+class TestAClampedFactorSaysSoWhereTheNumberIs:
+    """`Performance 100.0%` was the ONLY thing the factor block showed.
+
+    Measured on the lab line with a cycle time that turned out to be wrong:
+    Performance computed to 494%, was clamped to 100% (deliberately — see
+    `core/brain/oee.py`, OEE uses the clamped factors), and the factor block
+    printed a bare 100.0%. The raw value was in the paragraph below, so it was
+    not hidden; but the factor block is what gets read aloud and pasted into a
+    slide, and there it was indistinguishable from a line running to spec.
+    """
+
+    def test_a_clamped_factor_carries_the_raw_value(self):
+        line = _factor_line("Performance", 1.0, "note", 4.94)
+        assert "100.0%" in line and "494.0%" in line
+
+    def test_an_unclamped_factor_is_not_decorated(self):
+        assert "clamped" not in _factor_line("Quality", 0.96, "note", 0.96)
+
+    def test_a_factor_with_no_raw_counterpart_is_not_decorated(self):
+        assert "clamped" not in _factor_line("Availability", 0.7688, "note", None)
+
+    def test_an_unreported_factor_still_explains_itself(self):
+        line = _factor_line("Performance", None, "No ideal cycle time declared", None)
+        assert "not reported" in line and "No ideal cycle time declared" in line
+
+    def test_the_command_does_not_format_a_factor_itself(self):
+        """Structural: the defect was at the call site, not in the formatter.
+
+        Extracting the helper is worthless if `oee_measure_cmd` keeps its own
+        `{value:.1%}` — the same call-site/helper split that let a mid-word cut
+        survive its own unit tests in #217.
+        """
+        source = Path(oee_cli.__file__).read_text("utf-8")
+        body = source.split("def oee_measure_cmd(")[1].split("\ndef ")[0]
+        assert "not reported" not in body, "the command renders a factor row itself"
+        assert "name:13" not in body, "the command still builds the factor row template"
+        # The composite OEE line is the command's own and stays there; this is
+        # about the three FACTOR rows, which is where the clamp had to show.
+        assert body.count(":.1%") == 1, "only the composite OEE line formats a percent"
