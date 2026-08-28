@@ -263,7 +263,35 @@ jobs:
       # to the Dockerfile, not to the wheel it installs.
       - name: Build the edge image
         run: |
-          published=$(curl -fsS https://pypi.org/pypi/iaiops/json | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])')
+          # `set -e` alone does not cover this: the exit status of
+          # `a | b` is b's, so a curl failure used to surface as a
+          # JSONDecodeError traceback from python reading an empty stdin --
+          # fifteen lines of the wrong cause burying one line of the right one.
+          # Seen for real: `curl: (35) Recv failure: Connection reset by peer`
+          # red-flagged a docs-only PR, and the log said the JSON was malformed.
+          set -o pipefail
+          published=""
+          for attempt in 1 2 3; do
+            # Fetch and parse are SEPARATE on purpose. Piping them meant a curl
+            # failure fed python an empty stdin, so the log showed a JSON
+            # traceback instead of the network error -- and retrying it three
+            # times would have printed that traceback three times.
+            if body=$(curl -fsS --max-time 30 https://pypi.org/pypi/iaiops/json); then
+              published=$(printf '%s' "${body}" \
+                | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])') && break
+              echo "attempt ${attempt}: PyPI answered, but not with the JSON this expects"
+            else
+              echo "attempt ${attempt}: could not reach PyPI"
+            fi
+            published=""
+            [ "${attempt}" -lt 3 ] && sleep $((attempt * 5))
+          done
+          if [ -z "${published}" ]; then
+            echo "::error::PyPI did not answer after 3 attempts. This step needs the"
+            echo "::error::last PUBLISHED version to build against; the failure is"
+            echo "::error::upstream, not in this branch."
+            exit 1
+          fi
           echo "building against the published iaiops ${published}"
           docker build -f deploy/margo/Dockerfile \
             --build-arg PROFILE=modbus \
