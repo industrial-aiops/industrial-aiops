@@ -58,8 +58,8 @@ container round-trip and a synthetic fixture are not the same claim.
 
 | Rung | What it means | Status |
 |---|---|---|
-| Real libraries / containers / in-process servers | OPC-UA (incl. cert `Sign`/`SignAndEncrypt` + A&C), Modbus-RTU over a `socat` PTY + `pymodbus`, BACnet/IP via `bacpypes3` on a two-IP subnet, IoTDB / TDengine live write→read, HART codec vs `hart-protocol`, PLCnext route via `asyncua` | ✅ |
-| Mock-verified (protocol logic exercised, no real device) | Omron FINS, IO-Link, BAS (Metasys / Niagara), Ignition Gateway, EtherNet/IP PCCC, MTConnect long-poll, Sparkplug B, S7 / MC / SECS-GEM | ⚠️ |
+| Real libraries / containers / in-process servers | OPC-UA (incl. cert `Sign`/`SignAndEncrypt` + A&C), Modbus-RTU over a `socat` PTY + `pymodbus`, BACnet/IP via `bacpypes3` on a two-IP subnet, **MTConnect against the Institute's own `cppagent`**, IoTDB / TDengine live write→read, HART codec vs `hart-protocol`, PLCnext route via `asyncua` | ✅ |
+| Mock-verified (protocol logic exercised, no real device) | Omron FINS, IO-Link, BAS (Metasys / Niagara), Ignition Gateway, EtherNet/IP PCCC, Sparkplug B, S7 / MC / SECS-GEM | ⚠️ |
 | **Real gear** | physical RS-485 devices, EtherCAT slaves, live HART gateways, live HVAC / BAS / Ignition, real PLCs | **zero, for every protocol** |
 
 **Per-protocol evidence — including what each test does *not* cover — is in
