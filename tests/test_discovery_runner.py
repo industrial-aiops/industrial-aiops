@@ -188,7 +188,8 @@ class TestAnEmptyResultExplainsItself:
             connector=connector_for({}, refusing={"10.0.0.5"}),
             arp_reader=NO_ARP,
         )
-        assert any("ALIVE" in n and "not a failure" in n for n in result.notes)
+        assert any("ALIVE" in n for n in result.notes)
+        assert any("firewall or ACL" not in n for n in result.notes)
 
 
 class TestPassiveIsFoldedIn:
