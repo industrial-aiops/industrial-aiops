@@ -15,7 +15,9 @@ Three properties carry this feature, and each is the kind that decays quietly:
 
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -431,3 +433,68 @@ class TestCollectabilityIsAProtocolFactNotAConfigMistake:
         cfg = FakeConfig(targets=(FakeTarget("tool1", "secsgem", ({"ref": "x"},)),))
         report = assess(config=cfg, db_path=store_with(tmp_path))
         assert "collectable_endpoint" in {r.key for r in cap(report, "oee").missing_required}
+
+
+@pytest.mark.unit
+def test_the_expressible_docstring_and_the_code_agree():
+    """`Requirement.expressible` is documented in one place; keep it true.
+
+    The docstring in ``assess.py`` has been wrong in BOTH directions already: it
+    claimed the OEE role mapping was inexpressible after ``role:`` made it
+    expressible, and then — once corrected — it pointed readers at
+    ``investigate.steps`` for "the live producers" after #204/#207 removed the
+    last two. A guard that only catches one direction is the failure this repo
+    keeps re-learning, so this one fails whichever way they drift apart.
+    """
+    src_root = Path(__file__).resolve().parent.parent / "iaiops"
+
+    def _sets_the_flag(path: Path) -> bool:
+        """A real ``expressible=False`` argument — not the phrase in a docstring.
+
+        Grepping was the first attempt and it reported two false producers,
+        because both modules *describe* the flag they no longer set. Parsing is
+        the difference between what the code does and what it talks about.
+        """
+        tree = ast.parse(path.read_text("utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and node.arg == "expressible":
+                if isinstance(node.value, ast.Constant) and node.value.value is False:
+                    return True
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                named = any(
+                    isinstance(t, (ast.Name, ast.Attribute))
+                    and (t.id if isinstance(t, ast.Name) else t.attr) == "expressible"
+                    for t in targets
+                )
+                value = node.value
+                if named and isinstance(value, ast.Constant) and value.value is False:
+                    return True
+        return False
+
+    producers = sorted(
+        path.relative_to(src_root).as_posix()
+        for path in src_root.rglob("*.py")
+        if _sets_the_flag(path)
+    )
+
+    doc = (src_root / "core" / "readiness" / "assess.py").read_text("utf-8")
+    docstring = doc.split('"""')[1]
+    claims_none = "Nothing in the\nproduct sets that flag today" in docstring
+
+    if producers:
+        assert not claims_none, (
+            f"assess.py says nothing sets expressible=False, but these do: {producers}. "
+            f"Name them in the docstring so a reader can find the real gaps."
+        )
+        for module in producers:
+            stem = module.removesuffix(".py").replace("/", ".")
+            assert stem in docstring.replace("iaiops.", ""), (
+                f"assess.py does not name {stem}, which sets expressible=False"
+            )
+    else:
+        assert claims_none, (
+            "No production code sets expressible=False, but assess.py's docstring still "
+            "sends the reader somewhere to find 'the live producers'. Fix the pointer — "
+            "an empty destination reads as 'I looked and found nothing', not 'there is nothing'."
+        )
