@@ -55,6 +55,9 @@ def _with_denial_handling(callback: Callable, governed: Callable) -> Callable:
     # ``_sensitive_params`` off the registered command would see nothing and
     # conclude the command declares no credentials. Re-expose it.
     cli_governed._sensitive_params = list(getattr(governed, "_sensitive_params", []))
+    # Same reasoning for the advisory ceiling: a command that declares a longer
+    # one would otherwise read, from outside, as still carrying the 300s default.
+    cli_governed._timeout_seconds = getattr(governed, "_timeout_seconds", None)
     return cli_governed
 
 
@@ -93,8 +96,17 @@ def _wrap(callback: Any) -> Any:
         return governed
 
     risk = getattr(callback, "_cli_risk_level", "low")
+    # A command whose RUNTIME is the thing the operator asked for declares its own
+    # advisory ceiling. The 300s default is a hang detector, and on `collect run
+    # --duration 7d` it fired on every successful assessment — the tool warning
+    # about the thing it was told to do reads as a fault to the person reading it.
+    extra: dict[str, Any] = {}
+    timeout_seconds = getattr(callback, "_cli_timeout_seconds", None)
+    if timeout_seconds is not None:
+        extra["timeout_seconds"] = int(timeout_seconds)
     governed = _with_denial_handling(
-        callback, governed_tool(risk_level=risk, sensitive_params=sensitive)(callback)
+        callback,
+        governed_tool(risk_level=risk, sensitive_params=sensitive, **extra)(callback),
     )
     governed._is_governed_tool = True
     governed._risk_level = risk

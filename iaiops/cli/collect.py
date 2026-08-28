@@ -21,6 +21,9 @@ import typer
 
 from iaiops.cli._common import _emit, cli_errors, console, humanize_seconds
 
+# Light enough for module scope: `plan` imports only `re` and `dataclasses`.
+from iaiops.core.collect.plan import MAX_DURATION_S
+
 collect_app = typer.Typer(help="Bounded collection runs — fill the local store for OEE.")
 
 
@@ -209,6 +212,14 @@ def collect_run_cmd(
             f"[dim]Window not finished — resume with `iaiops collect run {endpoint} --resume`.[/]"
         )
 
+
+# The governance timeout is a hang detector, and this command is SUPPOSED to run
+# for as long as it was asked to — up to MAX_DURATION_S. At the 300s default,
+# every real assessment run ended with "exceeded timeout_seconds=300", which
+# reads as a fault at the end of a run that did exactly what was asked. The
+# ceiling is the longest window the planner will accept, plus room for startup
+# and the final write, so a genuine hang is still caught.
+collect_run_cmd._cli_timeout_seconds = MAX_DURATION_S + 300
 
 collect_app.command("plan")(collect_plan_cmd)
 collect_app.command("run")(collect_run_cmd)
