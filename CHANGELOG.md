@@ -2,6 +2,48 @@
 
 ## Unreleased
 
+### Added — `investigate --report`, the file that gets forwarded
+
+§13.9's front-end table orders these: CLI **first**, the self-contained HTML
+report **alongside it**, the App page after, MCP **last**. The last one got built
+first (#205/#206) and this — ordered ahead of it — was skipped. `scan` and
+`oee measure` could both put their answer on paper; the investigation, which is
+what an integrator actually hands to a plant, could not.
+
+`investigate plan|open|show --report x.html [--lang zh]`. Self-contained: no CDN,
+no font, no image, and no `<script>` at all — "this file runs nothing" is true
+here by construction, not by policy.
+
+**Deliberately unlike `oee measure --report`, which refuses to write for a refused
+measurement.** That is right for OEE: the report is a number, so a file existing
+at all asserts one was measured. This report's content is *how far this got and
+what each step still needs*, which makes the blocked case the one most worth
+handing over — for a site nobody has instrumented, it is the entire deliverable.
+Copying the OEE guard across would have deleted the most useful output for exactly
+the sites that need it.
+
+What it must never do is let a blocked investigation look finished, so the
+headline is the walk (`2 / 8`) and no step's own words may appear above it. The
+first version of that test asserted "2" and "8" appeared near the top — which
+every step number also satisfies; deleting the progress figure outright left it
+green. Rewritten to pin the element and the document order, four mutations now
+fail it.
+
+### Fixed — a gap list that repeated one action four times
+
+Found by reading the rendered page, not by an assertion. On a bare site the
+"what to supply next" section listed eleven gaps, four of which were `collect
+run` under four different step numbers — in a list whose own lead sentence says
+it is ranked by where the walk stops.
+
+Deduping by requirement key was the obvious move and changed nothing: those four
+steps want four differently *named* things ("collected samples", "samples to
+check", "a sampled series", "evidence to rank") that one command supplies. It
+now groups by **action**, so that reads `2, 3, 5, 6, 8. collected samples in the
+local store`. Inexpressible requirements have no action by definition and still
+group by key, or every "this product cannot accept it" in a report would collapse
+into one line.
+
 ### Added — `site_readiness`, the last CLI-only command (§3.1)
 
 The previous entry gave the investigation layer its MCP tools and said in its own

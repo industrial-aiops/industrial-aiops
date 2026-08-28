@@ -661,6 +661,23 @@ The same eight steps over a **real past window**, persisted so it can be re-read
 and advanced later. No device is contacted — the window is already over, and its
 evidence is whatever was collected at the time.
 
+Any of the three writes the forwardable version — one self-contained HTML file
+that opens on an air-gapped laptop in a plant office:
+
+```bash
+iaiops investigate plan --report readiness.html --lang zh
+iaiops investigate open line1 --start <iso> --end <iso> --report incident.html
+```
+
+Unlike `oee measure --report`, which **refuses** to write a file for a refused
+measurement, this one writes for a blocked investigation on purpose. An OEE
+report is a number, so a file existing at all claims one was measured. This
+report's content is *how far this got and what each step still needs* — which
+makes the blocked case the one most worth handing over, and for a site nobody has
+instrumented yet it is the whole deliverable. What it will not do is let a
+blocked investigation look finished: the headline is always the walk (`2 / 8`),
+never a conclusion, and no step's own words appear above it.
+
 Two of the steps need something a person has to state:
 
 ```bash

@@ -11,6 +11,7 @@ probe yet, which is the site that most needs the answer.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import typer
@@ -21,6 +22,45 @@ investigate_app = typer.Typer(
     help="Investigation readiness — how far the eight evidence steps could get here.",
     no_args_is_help=True,
 )
+
+
+def _plan_html(payload: dict, *, lang: str, generated_at: str) -> str:
+    from iaiops.core.investigate.report import render_plan_report
+
+    return render_plan_report(payload, lang=lang, generated_at=generated_at)
+
+
+def _live_html(payload: dict, *, lang: str, generated_at: str) -> str:
+    from iaiops.core.investigate.report import render_live_report
+
+    return render_live_report(payload, lang=lang, generated_at=generated_at)
+
+
+def _write_report(report: Path | None, html_for: Callable[[str, str], str], lang: str) -> None:
+    """Write the forwardable file, or nothing at all when it was not asked for.
+
+    Deliberately WITHOUT the guard `oee measure --report` carries. That command
+    refuses to write when the measurement was refused, and is right to: an OEE
+    report is a number, so a file existing at all asserts one was measured. Here
+    the content IS how far this got and what each step still needs, so a blocked
+    investigation is the case most worth handing over — an uninstrumented site is
+    precisely who this report is for.
+
+    The path guard is the same one `scan` and `oee` use: `..` traversal and a
+    wrong extension are refused before a byte is written.
+    """
+    if report is None:
+        return
+    from datetime import UTC, datetime
+
+    from iaiops.core.governance.evidence import validate_output_path
+
+    path = validate_output_path(report, suffixes=(".html", ".htm"))
+    path.write_text(
+        html_for(lang, datetime.now(UTC).isoformat(timespec="seconds")), encoding="utf-8"
+    )
+    console.print(f"[dim]report written to {path}[/]")
+
 
 _MARK = {"ready": ("✅", "green"), "degraded": ("⚠️ ", "yellow"), "blocked": ("❌", "red")}
 
@@ -33,6 +73,10 @@ def plan_cmd(
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show every prerequisite, met or not."
     ),
+    report_path: Path = typer.Option(
+        None, "--report", help="Also write a self-contained HTML report here."
+    ),
+    lang: str = typer.Option("en", "--lang", help="Report language (en, zh)."),
 ) -> None:
     """Report how far an investigation could get here, and what each gap needs.
 
@@ -47,6 +91,11 @@ def plan_cmd(
     from iaiops.core.investigate import assess_investigation
 
     report = assess_investigation(db_path=db, site=site)
+    _write_report(
+        report_path,
+        lambda lg, at: _plan_html(report.as_dict(), lang=lg, generated_at=at),
+        lang,
+    )
     if as_json:
         _emit(report.as_dict())
         return
@@ -105,6 +154,10 @@ def open_cmd(
     site: str = typer.Option("default", "--site", help="Site / plant boundary (D34)."),
     db: Path = typer.Option(None, "--db", help="Local store (default: the iaiops store)."),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable report."),
+    report_path: Path = typer.Option(
+        None, "--report", help="Also write a self-contained HTML report here."
+    ),
+    lang: str = typer.Option("en", "--lang", help="Report language (en, zh)."),
 ) -> None:
     """Open an investigation over one window and walk what can be walked.
 
@@ -126,6 +179,9 @@ def open_cmd(
         db_path=db,
     )
     save_investigation(inv)
+    _write_report(
+        report_path, lambda lg, at: _live_html(inv.as_dict(), lang=lg, generated_at=at), lang
+    )
     _render(inv, as_json)
 
 
@@ -133,11 +189,19 @@ def open_cmd(
 def show_cmd(
     investigation_id: str = typer.Argument(..., help="Investigation id (see `investigate list`)."),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable report."),
+    report_path: Path = typer.Option(
+        None, "--report", help="Also write a self-contained HTML report here."
+    ),
+    lang: str = typer.Option("en", "--lang", help="Report language (en, zh)."),
 ) -> None:
     """Re-read a saved investigation — the state it was left in."""
     from iaiops.core.investigate.live import load_investigation
 
-    _render(load_investigation(investigation_id), as_json)
+    inv = load_investigation(investigation_id)
+    _write_report(
+        report_path, lambda lg, at: _live_html(inv.as_dict(), lang=lg, generated_at=at), lang
+    )
+    _render(inv, as_json)
 
 
 @cli_errors
