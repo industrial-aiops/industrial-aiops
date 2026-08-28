@@ -133,6 +133,68 @@ def eip_controller_info(target: Any, plctype: str | None = None) -> dict:
     }
 
 
+def eip_list_identity(target: Any) -> dict:
+    """[READ] ListIdentity — the one encapsulation command EVERY device answers.
+
+    This is the ODVA ``ListIdentity`` (0x63) request against the CIP Identity
+    object: vendor, product type and code, revision, serial, product name. It is
+    the whole of what a discovery pass is entitled to, and it is what a discovery
+    pass claimed to be doing.
+
+    It is deliberately NOT :func:`eip_controller_info`, which opens a
+    ``LogixDriver``. pycomm3's ``LogixDriver.open()`` calls ``_initialize_driver``,
+    which ends in ``get_tag_list(program="*")`` — **a full upload of the
+    controller's symbol table including every program-scoped tag**. That is a
+    reasonable thing for a connector the operator pointed at their own PLC. It is
+    not a thing a survey may do to a PLC it has just found.
+
+    A second consequence, found against a third-party EtherNet/IP device: the
+    Logix path fails on anything that is not a Logix controller, so drives, I/O
+    adapters and gateways — most of the installed base by device count — came
+    back unidentified even though they answer ListIdentity with a vendor and a
+    product name.
+    """
+    from iaiops.connectors.eip.transport import _translate_eip
+
+    try:
+        from pycomm3 import CIPDriver
+    except ImportError as exc:  # pragma: no cover — same guard as the transport
+        raise OTConnectionError(
+            "pycomm3 is not installed. Install the EtherNet/IP connector: "
+            "'pip install iaiops[eip]'.",
+            endpoint=getattr(target, "name", ""),
+            protocol="ethernetip",
+        ) from exc
+
+    # ListIdentity is answered by the Ethernet interface itself, not by a module
+    # across the backplane, so the CPU slot is not part of this request.
+    path = str(getattr(target, "host", ""))
+    try:
+        identity = CIPDriver.list_identity(path)
+    except Exception as exc:  # noqa: BLE001 — translated into a teaching error
+        raise _translate_eip(exc, target) from exc
+    if not identity:
+        raise OTConnectionError(
+            f"No ListIdentity reply from {path}. TCP 44818 answered, but nothing "
+            "identified itself — the port may be forwarded, or the device may "
+            "speak only implicit I/O.",
+            endpoint=getattr(target, "name", ""),
+            protocol="ethernetip",
+        )
+    revision = identity.get("revision") or {}
+    return {
+        "endpoint": s(getattr(target, "name", ""), 64),
+        "host": s(getattr(target, "host", ""), 64),
+        "vendor": s(identity.get("vendor", ""), 64),
+        "product_name": s(identity.get("product_name", ""), 96),
+        "product_type": s(identity.get("product_type", ""), 64),
+        "product_code": identity.get("product_code", 0),
+        "revision": s(f"{revision.get('major', '')}.{revision.get('minor', '')}".strip("."), 16),
+        "serial": s(identity.get("serial", ""), 32),
+        "state": identity.get("state", 0),
+    }
+
+
 def _slc_file_directory(target: Any) -> dict:
     """PCCC analog to a Logix tag list: the SLC/PLC-5/MicroLogix data-file directory.
 
