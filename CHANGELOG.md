@@ -2,6 +2,67 @@
 
 ## Unreleased
 
+**A walkthrough and two third-party servers.** Nothing here was found by the test
+suite, which was green before and after every one of these. They came from
+installing 0.24.0 from PyPI and following the README against a real Modbus line,
+and from putting somebody else's protocol implementation on the other end.
+
+### Fixed — what the tool said about the plant
+
+- **`iaiops scan` on EtherNet/IP uploaded the controller's entire symbol table**
+  (#220). The identify probe is named `eip_list_identity` and its rationale
+  promises a CIP identity read; it opened a `pycomm3.LogixDriver`, whose
+  `open()` ends in `get_tag_list(program="*")` — every tag, program-scoped
+  included — under a signed preview that says "one minimal in-spec read per
+  candidate" and "never walks an address space", recorded as one wire event.
+  Measured against a third-party stack: **6 requests / 324 bytes → 3 / 76**. The
+  same call also failed on every non-Logix device, so drives, I/O adapters and
+  gateways were reported as an open port with no vendor.
+- **A tag at address 0 was deleted in silence** (#214). `ref: 0` is falsy, fell
+  through the alias chain to `""`, and the entry was dropped — then `readiness`
+  reported the missing role as something the SITE had not supplied. Zero is an
+  ordinary Modbus register, coil, S7 DB offset and MC/FINS address. A tag with
+  no address is now refused, naming the endpoint and the position.
+- **A scan told the customer their host speaks no protocol we support** (#215)
+  after trying six ports. `iaiops modbus holding` read that host's registers a
+  minute later. The note now names the ports tried and says the set is never
+  widened.
+- **MTConnect: the agent's own health could be reported as the machine's**
+  (#219). A real agent streams its own `Agent` device, `AVAILABLE` whenever it
+  answers; the snapshot picked data items by type across the whole document. A
+  stopped machine could read as available. Now scoped to one device, with a new
+  optional `device:` on the endpoint and a refusal when an agent serves several.
+- **MTConnect `UNAVAILABLE` is no longer `down`** (#219). That word is the
+  agent saying it has no valid value, usually a disconnected adapter — not a
+  stopped machine.
+
+### Fixed — what the tool said about itself
+
+- **A successful `collect run` ended by warning that it took too long** (#216).
+  The 300s governance timeout is a hang detector; this command's runtime is the
+  request, and `--duration 7d` is the documented workflow. Commands may now
+  declare their own ceiling; everything else keeps the hang detector.
+- **A clamped OEE factor now says so where the number is** (#218):
+  `Performance 100.0% (clamped from 494.0%)`. The raw value was already in the
+  warning below, but the factor block is what gets read aloud.
+- **A stored investigation summary stopped mid-word** (#217) — the OT-value
+  sanitizer applied to composed prose. The bound stays; the cut lands on a
+  clause and is marked.
+- **`readiness`'s docstring pointed at an empty module** (#213) for "the live
+  producers of `expressible=False`"; #204/#207 removed the last two.
+- **The router skill mentioned nothing from 0.24.0** (#212), and the first fix
+  for it broke two guards — one by rewording the sentence a guard was anchored on.
+
+### Verification
+
+- **MTConnect → rung 2a**: `scripts/mtconnect_agent_harness.sh` +
+  `tests/test_mtconnect_agent_live.py` run against the MTConnect Institute's own
+  `cppagent`. Still not covered: a connected adapter, so no live SAMPLE has been
+  decoded.
+- **EtherNet/IP identification → rung 2a**: `scripts/enip_simulator_harness.sh`
+  + `tests/test_discovery_eip_live.py` against `cpppo`. The Logix tag layer
+  stays 2b — cpppo implements no Logix objects — and physical gear stays rung 3.
+
 ## 0.24.0 — 2026-08-28
 
 **The investigation, end to end — and the input path that was missing under it.**
