@@ -242,7 +242,12 @@ def diagnose_empty_sweep(results: Sequence[HostResult]) -> tuple[str, ...]:
     if any(h.protocols for h in results):
         return ()
 
-    alive = [h for h in results if h.alive]
+    # A host is "alive" if its MAC is known OR a port answered, so ARP alone
+    # qualifies — and a scan that aborted, or a passive-only pass, leaves such a
+    # host with no port results at all. Saying it "refused every port" would be a
+    # claim about probes that never ran.
+    alive = [h for h in results if h.alive and h.ports]
+    seen_never_probed = [h for h in results if h.alive and not h.ports]
     filtered_only = [h for h in results if h.ports and not h.alive]
 
     notes: list[str] = []
@@ -254,9 +259,16 @@ def diagnose_empty_sweep(results: Sequence[HostResult]) -> tuple[str, ...]:
         )
         return tuple(notes)
 
+    if seen_never_probed:
+        notes.append(
+            f"{len(seen_never_probed)} host(s) are known to exist but were never "
+            "probed — seen in the ARP/route tables, or left unprobed because the "
+            "sweep stopped. Nothing at all is claimed about what they speak."
+        )
+
     if alive:
         tried = sorted({port.port for host in alive for port in host.ports})
-        ports = ", ".join(str(port) for port in tried) if tried else "none"
+        ports = ", ".join(str(port) for port in tried)
         notes.append(
             f"{len(alive)} host(s) are ALIVE but refused every port this scan tried "
             f"({ports}). They are there and are not answering industrial protocols "
