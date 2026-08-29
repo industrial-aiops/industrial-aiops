@@ -330,3 +330,237 @@ class TestAClampedFactorSaysSoWhereTheNumberIs:
         # The composite OEE line is the command's own and stays there; this is
         # about the three FACTOR rows, which is where the clamp had to show.
         assert body.count(":.1%") == 1, "only the composite OEE line formats a percent"
+
+
+class TestTheMeasurementWindow:
+    """`oee measure` could only measure an endpoint's ENTIRE stored history.
+
+    Found while building demo material: two collection runs on the same endpoint
+    fifteen minutes apart. The second run's own coverage was 76.84%. Measuring
+    reported 46.75% and refused, because the window was implicitly
+    first-sample-to-last-sample and the idle gap between the runs counted as one
+    enormous blind span. A site that assesses in March and again in August can
+    measure neither one.
+
+    `investigate open` already took `--start` / `--end`; the flagship number did
+    not.
+    """
+
+    def _two_runs(self):
+        """Ten minutes of samples, a fifty-minute gap, ten minutes more."""
+        first = [
+            {"ts": f"2026-08-01T09:{s // 60:02d}:{s % 60:02d}+00:00", "value": 2}
+            for s in range(0, 600)
+        ]
+        second = [
+            {"ts": f"2026-08-01T10:{s // 60:02d}:{s % 60:02d}+00:00", "value": 2}
+            for s in range(0, 600)
+        ]
+        return first + second
+
+    def test_without_a_window_the_idle_gap_between_runs_sinks_both(self):
+        """The defect, pinned. If this ever passes cleanly the bug is back."""
+        result = measure_availability(self._two_runs(), RUN)
+        assert result["status"] == "insufficient_coverage"
+        assert result["coverage_pct"] < 50
+
+    def test_a_window_around_one_run_measures_that_run(self):
+        result = measure_availability(
+            self._two_runs(),
+            RUN,
+            window=("2026-08-01T09:00:00+00:00", "2026-08-01T09:09:59+00:00"),
+        )
+        assert result["status"] == "ok"
+        assert result["availability"] == 1.0
+        assert result["coverage_pct"] > 99
+
+    def test_the_window_travels_with_the_result(self):
+        result = measure_availability(
+            self._two_runs(),
+            RUN,
+            window=("2026-08-01T09:00:00+00:00", "2026-08-01T09:09:59+00:00"),
+        )
+        assert result["window"] == {
+            "start": "2026-08-01T09:00:00+00:00",
+            "end": "2026-08-01T09:09:59+00:00",
+        }
+        assert "2026-08-01T09:00:00+00:00" in result["note"]
+
+    def test_no_window_says_so_rather_than_leaving_it_implied(self):
+        result = measure_availability(series(*steady(2, 0, 600)), RUN)
+        assert result["window"] is None
+        assert "the period the samples span" in result["note"]
+
+
+class TestNarrowingCannotFlatterTheCoverage:
+    """The half that makes the option safe to have.
+
+    Filtering samples to a window WITHOUT charging for its unsampled parts would
+    let anybody raise their coverage by narrowing the question to the minutes
+    that happen to have data — and report "100% coverage" of a shift they saw two
+    hours of. That is the flattering error this product exists to refuse, and the
+    option would have introduced a fresh way to produce it.
+    """
+
+    def _ten_minutes(self):
+        return [
+            {"ts": f"2026-08-01T09:{s // 60:02d}:{s % 60:02d}+00:00", "value": 2}
+            for s in range(0, 600)
+        ]
+
+    def test_asking_about_a_shift_you_observed_a_tenth_of_is_refused(self):
+        """Ten minutes of samples, an eight-hour question."""
+        result = measure_availability(
+            self._ten_minutes(),
+            RUN,
+            window=("2026-08-01T09:00:00+00:00", "2026-08-01T17:00:00+00:00"),
+        )
+        assert result["status"] == "insufficient_coverage"
+        assert result["coverage_pct"] < 5, "the unsampled 7h50m was not charged for"
+
+    def test_the_unsampled_head_and_tail_become_blind_windows(self):
+        result = measure_availability(
+            self._ten_minutes(),
+            RUN,
+            window=("2026-08-01T08:00:00+00:00", "2026-08-01T10:00:00+00:00"),
+        )
+        blind = result["blind_windows"]
+        assert len(blind) == 2, f"expected a head and a tail, got {blind}"
+        assert blind[0]["start"] == "2026-08-01T08:00:00+00:00"
+        assert blind[-1]["end"] == "2026-08-01T10:00:00+00:00"
+
+    def test_blind_windows_stay_in_time_order(self):
+        """The production count walks them; out of order it skips the wrong increments."""
+        result = measure_availability(
+            self._ten_minutes(),
+            RUN,
+            window=("2026-08-01T08:00:00+00:00", "2026-08-01T10:00:00+00:00"),
+        )
+        starts = [w["start"] for w in result["blind_windows"]]
+        assert starts == sorted(starts)
+
+    def test_a_window_that_hugs_the_samples_adds_no_phantom_blindness(self):
+        """Sampling jitter at the edge is not blindness — same rule as the interior."""
+        result = measure_availability(
+            self._ten_minutes(),
+            RUN,
+            window=("2026-08-01T09:00:00+00:00", "2026-08-01T09:09:59+00:00"),
+        )
+        assert result["blind_windows"] == []
+        assert result["coverage_pct"] > 99
+
+    def test_a_window_with_no_samples_in_it_refuses_and_says_to_widen(self):
+        result = measure_availability(
+            self._ten_minutes(),
+            RUN,
+            window=("2026-08-02T09:00:00+00:00", "2026-08-02T17:00:00+00:00"),
+        )
+        assert result["status"] == "insufficient_data"
+        assert "widen it" in result["note"]
+        assert "2026-08-02T09:00:00+00:00" in result["note"]
+
+
+class TestTheWindowIsValidated:
+    def test_one_bound_alone_is_refused(self):
+        with pytest.raises(ValueError, match="BOTH a start and an end"):
+            measure_availability(
+                series(*steady(2, 0, 600)), RUN, window=("2026-08-01T09:00:00Z", "")
+            )
+
+    def test_a_start_after_its_end_is_refused(self):
+        with pytest.raises(ValueError, match="is after its end"):
+            measure_availability(
+                series(*steady(2, 0, 600)),
+                RUN,
+                window=("2026-08-01T10:00:00+00:00", "2026-08-01T09:00:00+00:00"),
+            )
+
+    def test_a_naive_bound_is_comparable_with_an_aware_sample(self):
+        """The mixed-tz store this repo already had a TypeError over."""
+        result = measure_availability(
+            series(*steady(2, 0, 600)), RUN, window=("2026-08-01T00:00:00", "2026-08-01T00:09:59")
+        )
+        assert result["status"] == "ok"
+
+
+class TestTheCommandPassesTheWindowOn:
+    """Declaring an option is worthless if the call site drops it.
+
+    Three defects in two days came from testing a helper and not what reaches
+    it, so these go through `oee_measure_cmd` itself.
+    """
+
+    def _run(self, monkeypatch, argv, seen):
+        import typer
+        from typer.testing import CliRunner
+
+        from iaiops.core.brain import oee_measure as engine
+
+        real = engine.measure_availability
+
+        def _spy(samples, tag, minor_stop_s=300.0, window=None):
+            seen["window"] = window
+            return real(samples, tag, minor_stop_s=minor_stop_s, window=window)
+
+        monkeypatch.setattr(engine, "measure_availability", _spy)
+        monkeypatch.setattr(
+            oee_cli, "run_state_samples", lambda *a, **k: (RUN, series(*steady(2, 0, 600)))
+        )
+
+        class _Target:
+            tags = ()
+            ideal_cycle_time_s = None
+
+        monkeypatch.setattr(
+            "iaiops.core.runtime.config.load_config",
+            lambda *a, **k: type("C", (), {"get_target": lambda self, n: _Target()})(),
+        )
+        app = typer.Typer()
+        app.command()(oee_cli.oee_measure_cmd)
+        return CliRunner().invoke(app, argv)
+
+    def test_the_window_reaches_the_engine(self, monkeypatch):
+        seen = {}
+        self._run(
+            monkeypatch,
+            ["line1", "--since", "2026-08-01T00:00:00Z", "--until", "2026-08-01T00:09:59Z"],
+            seen,
+        )
+        assert seen["window"] == ("2026-08-01T00:00:00Z", "2026-08-01T00:09:59Z")
+
+    def test_without_the_options_the_engine_gets_no_window(self, monkeypatch):
+        seen = {}
+        self._run(monkeypatch, ["line1"], seen)
+        assert seen["window"] is None
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["line1", "--since", "2026-08-01T00:00:00Z"],
+            ["line1", "--until", "2026-08-01T00:09:59Z"],
+        ],
+    )
+    def test_one_bound_alone_is_refused_by_the_command(self, monkeypatch, argv):
+        """One bound leaves the other end of the measured period undefined."""
+        seen = {}
+        result = self._run(monkeypatch, argv, seen)
+        assert result.exit_code != 0
+        assert "go together" in result.output
+        assert "window" not in seen, "the engine was reached with half a window"
+
+
+def test_the_production_count_is_scoped_to_the_same_window():
+    """Availability and production are a ratio; they must agree on which seconds existed.
+
+    Structural, because reaching this path needs a populated store. If the
+    production query stopped carrying the bounds, the parts counted would come
+    from the whole of history while availability came from one shift — and the
+    Performance factor built from them would be nonsense that still looks like a
+    percentage.
+    """
+    source = Path(oee_cli.__file__).read_text("utf-8")
+    body = source.split("def oee_measure_cmd(")[1].split("\ndef ")[0]
+    production = body.split("def _count_for(")[1].split("return counted")[0]
+    assert "since=since" in production and "until=until" in production, (
+        "the production query no longer carries the measurement window"
+    )

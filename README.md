@@ -604,8 +604,20 @@ counts three states of four as production.
 
 ```bash
 iaiops oee measure line1 --reported 97               # against the figure the site keeps
+iaiops oee measure line1 --since 2026-03-02T06:00:00Z --until 2026-03-09T06:00:00Z
 iaiops oee measure line1 --report oee.html --lang zh --site "一号厂区"
 ```
+
+**Scope the measurement with `--since` / `--until`, together.** Without them the
+period is everything the store holds for that endpoint — fine for one assessment
+run, wrong the moment there are two: the idle weeks between a March run and an
+August one become one enormous blind span and neither run can be measured.
+
+The window is **charged for in full**. The parts of it that were never sampled —
+before the first sample and after the last — count as blind exactly like a gap in
+the middle, so narrowing the question to the minutes that happen to have data
+cannot raise your coverage. Ask about a shift you observed two hours of, and the
+answer is 25% coverage and a refusal, not "100% of what we saw".
 
 Availability measured over the time the collector could **see**, with blind
 windows excluded rather than counted as downtime; plus Performance, Quality and

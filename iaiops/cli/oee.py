@@ -41,6 +41,12 @@ def oee_measure_cmd(
     minor_stop_s: float = typer.Option(
         300.0, "--minor-stop-s", help="Stops at or under this count as minor."
     ),
+    since: str = typer.Option(
+        None, "--since", help="Measure from this time (ISO-8601). Use with --until."
+    ),
+    until: str = typer.Option(
+        None, "--until", help="Measure up to this time (ISO-8601). Use with --since."
+    ),
     db: Path = typer.Option(None, "--db", help="Local store (default: the iaiops store)."),
     report: Path = typer.Option(None, "--report", help="Also write a self-contained HTML report."),
     lang: str = typer.Option("en", "--lang", help="Report language: en | zh."),
@@ -66,8 +72,18 @@ def oee_measure_cmd(
     from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
     target = load_config().get_target(endpoint)
-    tag, rows = run_state_samples(endpoint, db)
-    result = measure_availability(rows, tag, minor_stop_s=minor_stop_s)
+    # Both bounds or neither. One alone leaves the other side of the period
+    # undefined, and the unsampled part of the window is precisely what the
+    # coverage figure has to account for.
+    if bool(since) != bool(until):
+        raise typer.BadParameter(
+            "--since and --until go together. One alone leaves the other end of the "
+            "measured period undefined, so the coverage figure would describe a window "
+            "nobody asked for."
+        )
+    window = (since, until) if since else None
+    tag, rows = run_state_samples(endpoint, db, since=since, until=until)
+    result = measure_availability(rows, tag, minor_stop_s=minor_stop_s, window=window)
     comparison = compare_to_reported(result, reported) if reported is not None else None
 
     # The other two factors, each reported only when its inputs were DECLARED.
@@ -78,7 +94,10 @@ def oee_measure_cmd(
         if not found:
             return None
         counted = count_production(
-            query_samples(SampleFilter(tag=found[0].ref, limit=MAX_STORE_SAMPLES), db_path=db),
+            query_samples(
+                SampleFilter(tag=found[0].ref, since=since, until=until, limit=MAX_STORE_SAMPLES),
+                db_path=db,
+            ),
             blind_windows=result.get("blind_windows"),
         )
         return counted if counted["status"] == "ok" else None
@@ -151,7 +170,17 @@ def oee_measure_cmd(
         _emit(payload)
         return
 
-    console.print(f"\n[bold]Availability[/] — {endpoint} · tag {tag.ref}\n")
+    console.print(f"\n[bold]Availability[/] — {endpoint} · tag {tag.ref}")
+    # The window belongs in the heading, not only in the note. A figure whose
+    # period is not stated beside it is the figure that gets pasted somewhere
+    # else and read as "the line".
+    asked = result.get("window")
+    console.print(
+        f"[dim]{asked['start']} → {asked['end']}[/]\n"
+        if asked
+        else "[dim]over everything this store holds for the endpoint — "
+        "scope it with --since / --until[/]\n"
+    )
     if result["status"] != "ok":
         console.print(f"[yellow]No figure reported ({result['status']}).[/]")
         if result.get("observed_values") is not None:

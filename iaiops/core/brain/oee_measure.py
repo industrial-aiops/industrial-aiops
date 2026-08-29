@@ -127,16 +127,47 @@ def _cadence(rows: list[tuple[datetime, bool]]) -> float:
     return deltas[mid] if len(deltas) % 2 else (deltas[mid - 1] + deltas[mid]) / 2.0
 
 
+def _window(window: tuple[Any, Any] | None) -> tuple[datetime, datetime] | None:
+    """Normalize the caller's window, or None. Both bounds are required together."""
+    if window is None:
+        return None
+    start, end = window
+    lo, hi = _parse(start), _parse(end)
+    if lo is None or hi is None:
+        raise ValueError(
+            "A measurement window needs BOTH a start and an end — one bound alone "
+            "leaves the other side of the period undefined, and the unsampled part "
+            "of it is exactly what the coverage figure has to account for."
+        )
+    if lo > hi:
+        raise ValueError(f"Window start {lo.isoformat()} is after its end {hi.isoformat()}.")
+    return lo, hi
+
+
 def measure_availability(
     samples: Any,
     run_state_tag: MonitorTag,
     minor_stop_s: float = DEFAULT_MINOR_STOP_S,
+    window: tuple[Any, Any] | None = None,
 ) -> dict:
     """[PURE] Availability from a run-state series, honest about blind windows.
 
     Returns running / stopped / unknown seconds, the availability over known time,
     the coverage that produced it, and the minor stoppages — or an explicit
     refusal when there is too little to say anything.
+
+    ``window`` is the period the CALLER asked about, as ``(start, end)``. Without
+    it the measured period is implicitly first-sample-to-last-sample, which is
+    fine when the store holds one assessment run and wrong the moment it holds
+    two: the idle months between them become one enormous blind span and neither
+    run can be measured.
+
+    With a window, the parts of it that were never sampled — before the first
+    sample and after the last — are counted as blind, exactly like a gap in the
+    middle. That is the half that makes the option safe to have. Filtering
+    samples to a window WITHOUT this would let anyone raise their coverage by
+    narrowing the question to the minutes that happen to have data, and report
+    "100% coverage" of a shift they observed two hours of.
     """
     if run_state_tag.role != TagRole.RUN_STATE:
         raise ValueError(
@@ -146,8 +177,15 @@ def measure_availability(
         )
 
     rows = _rows(samples, run_state_tag)
+    asked = _window(window)
+    if asked is not None:
+        # The window is the authority, not a hint to whoever queried the store.
+        # A caller that filtered and a window that says otherwise would be two
+        # sources of truth for the same period, free to disagree in silence.
+        rows = [row for row in rows if asked[0] <= row[0] <= asked[1]]
     base = {
         "tag": run_state_tag.ref,
+        "window": ({"start": asked[0].isoformat(), "end": asked[1].isoformat()} if asked else None),
         "running_s": 0.0,
         "stopped_s": 0.0,
         "unknown_s": 0.0,
@@ -159,12 +197,19 @@ def measure_availability(
         "coverage_pct": 0.0,
     }
     if len(rows) < MIN_SAMPLES:
+        where = f" in {asked[0].isoformat()} → {asked[1].isoformat()}" if asked else " in the store"
         return {
             **base,
             "status": "insufficient_data",
             "note": (
-                f"{len(rows)} usable samples — below {MIN_SAMPLES}. Collect first "
+                f"{len(rows)} usable samples{where} — below {MIN_SAMPLES}. Collect first "
                 "(`iaiops collect run`), then measure."
+                + (
+                    " If you collected outside this window, widen it — narrowing to a "
+                    "period with no data is not the same as there being no data."
+                    if asked
+                    else ""
+                )
             ),
         }
 
@@ -232,6 +277,17 @@ def measure_availability(
             open_stop += span
     _close_open_stop()
 
+    # The requested window's unsampled head and tail. Same rule as the interior:
+    # a gap under `gap_limit` is sampling jitter, not blindness, and recording it
+    # would add meaningless entries without changing any figure.
+    if asked is not None:
+        for edge_start, edge_end in ((asked[0], rows[0][0]), (rows[-1][0], asked[1])):
+            edge = (edge_end - edge_start).total_seconds()
+            if edge > gap_limit:
+                unknown += edge
+                blind.append((edge_start, edge_end))
+        blind.sort(key=lambda w: w[0])
+
     known = running + stopped
     total = known + unknown
     coverage = round(100.0 * known / total, 2) if total else 0.0
@@ -278,9 +334,22 @@ def measure_availability(
             **result,
             "status": "insufficient_coverage",
             "note": (
-                f"Collection saw only {coverage:g}% of the window — below the "
-                f"{MIN_COVERAGE_PCT:g}% floor, so no availability is reported. The blind "
-                "time is NOT counted as downtime; it is simply unknown."
+                f"Collection saw only {coverage:g}% of "
+                + (
+                    f"the requested window ({asked[0].isoformat()} → {asked[1].isoformat()})"
+                    if asked
+                    else "the window it holds samples for"
+                )
+                + f" — below the {MIN_COVERAGE_PCT:g}% floor, so no availability is "
+                "reported. The blind time is NOT counted as downtime; it is simply "
+                "unknown."
+                + (
+                    ""
+                    if asked
+                    else " If this store holds more than one collection run, the idle "
+                    "time between them is counted here — scope the measurement with "
+                    "`--since` / `--until`."
+                )
             ),
         }
 
@@ -289,7 +358,13 @@ def measure_availability(
         "status": "ok",
         "availability": round(running / known, 4) if known else None,
         "note": (
-            f"Availability is over KNOWN time ({coverage:g}% coverage); "
+            f"Availability is over KNOWN time ({coverage:g}% coverage"
+            + (
+                f" of {asked[0].isoformat()} → {asked[1].isoformat()}"
+                if asked
+                else ", over the period the samples span"
+            )
+            + "); "
             f"{round(unknown, 1)}s was blind and is excluded rather than counted as "
             "downtime. Stops at or under "
             f"{minor_stop_s:g}s are counted as minor — those are the ones a manual "

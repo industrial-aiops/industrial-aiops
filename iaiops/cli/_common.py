@@ -78,12 +78,21 @@ def cli_errors(fn: Callable) -> Callable:
 MAX_STORE_SAMPLES = 200_000
 
 
-def run_state_samples(endpoint: str, db: Path | None = None):
+def run_state_samples(
+    endpoint: str,
+    db: Path | None = None,
+    since: str | None = None,
+    until: str | None = None,
+):
     """The endpoint's declared run-state tag and its collected samples.
 
     Shared by `oee measure` and `case open` so both agree on which tag decides
     what running means. A second copy of this would be a second place for the
     status-word rule to drift.
+
+    ``since`` / ``until`` scope the samples to one period. They are validated by
+    ``SampleFilter`` (ISO-8601, and a start after an end is refused), so a bad
+    bound is rejected before anything is read.
     """
     from iaiops.core.runtime.config import TagRole, load_config
     from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
@@ -97,7 +106,10 @@ def run_state_samples(endpoint: str, db: Path | None = None):
             "run `iaiops readiness` to see what else is missing."
         )
     tag = run_tags[0]
-    return tag, query_samples(SampleFilter(tag=tag.ref, limit=MAX_STORE_SAMPLES), db_path=db)
+    return tag, query_samples(
+        SampleFilter(tag=tag.ref, since=since, until=until, limit=MAX_STORE_SAMPLES),
+        db_path=db,
+    )
 
 
 def get_manager(config_path: Path | None = None):
