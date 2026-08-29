@@ -43,6 +43,34 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 renewables · plcnext，各自带只读的行业建议检查。变电/电力（IEC-104 · DNP3 · IEC-61850）为独立包
 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)。
 
+## 头五分钟
+
+四条命令。其中只有一条会碰设备，而且它在发出任何东西之前，先把要发的内容原样打印出来。
+
+```bash
+pip install "iaiops[modbus]"     # 选你真有的那个协议，或者 [all]
+iaiops init                      # 交互式配一个端点
+iaiops doctor                    # 配置、凭据、连通性 —— 以及版本号
+iaiops readiness                 # ← 先跑这条。零联网。
+```
+
+`readiness` 只读你的配置和本地库，回答一个问题：**这个站点今天能跑哪些场景，每个缺口还差什么？**
+每个缺口都附带能补上它的那条命令，并按"补上它能解锁多少"排序。不需要 agent、不需要云、
+不需要账号，线上不发一个包。
+
+然后是顺序不能颠倒的那三件事 —— 先看现场有什么，再取一份有界的样本，最后才谈说明：
+
+| | | 碰设备吗 |
+|---|---|---|
+| **勘察** | `iaiops scan plan` → `iaiops scan run` | 预览零发包；run 会逐类列出它发过的每一个包 |
+| **取数** | `iaiops collect run line1 --duration 7d` | 会 —— 而且会报告它看见了什么**以及漏掉了什么** |
+| **声明** | `iaiops tags export` → 人填 `role` → `iaiops tags apply --by <你>` | **不会** —— `role` 列是故意留空的 |
+| **说明** | `iaiops oee measure --since … --until …` · `iaiops investigate open` · `iaiops diag rca` | **不会** —— 全部基于已采集的历史 |
+
+**想看完整流程对着真实设备跑一遍（约两分钟，含一次真实的中途断连）**，执行
+`./demo/oee-line/run_demo.sh` —— 不需要硬件、不需要配置，也不会在临时目录外写任何东西。
+[demo/oee-line/](demo/oee-line/) 说明了每一步是干什么的，以及那些数字能和不能说明什么。
+
 ## 为什么"读优先"
 
 OT 正是最该给智能体上紧箍咒的地方。**读**路径才是产品本体；少数写路径属 OT 高危，默认关闭，
