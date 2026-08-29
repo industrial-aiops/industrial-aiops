@@ -32,7 +32,7 @@ class TestTheToolCanSayWhatItIs:
         assert result.exit_code == 0, result.output
         assert iaiops.__version__ in result.output
 
-    def test_it_reports_the_INSTALLED_version_not_a_literal(self, monkeypatch):
+    def test_it_reports_the_installed_version_not_a_literal(self, monkeypatch):
         """A hardcoded string is the same defect one release later.
 
         This repo already has `test_version_parity.py` because version strings
