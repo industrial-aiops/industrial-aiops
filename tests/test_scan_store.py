@@ -14,6 +14,7 @@ Two properties carry most of the weight:
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 
 import pytest
@@ -343,3 +344,56 @@ class TestItDoesNotDisturbTheSamplesTable:
             assert conn.execute("SELECT COUNT(*) FROM scans").fetchone()[0] == 1
         finally:
             conn.close()
+
+
+class TestSectionNumbersMatchWhatIsThere:
+    """A clean scan rendered `1 · 2 · 4` and looked like it was missing a section.
+
+    `_diagnosis` renders nothing when there are no notes and no per-host errors,
+    and the numbers were typed into each heading — so the BEST possible result
+    produced the most suspicious-looking document, on the one artifact whose
+    whole job is to be checkable against a packet capture.
+    """
+
+    def _sections(self, html: str) -> list[str]:
+        return re.findall(r"<h2>(\d+) &middot; ([^<]+)</h2>", html)
+
+    def test_a_clean_scan_numbers_consecutively(self, db):
+        from iaiops.core.discovery.report import render_html
+
+        scan_id = save_scan(result_with(plc()), db)
+        record = load_scan(scan_id, db)
+        record["notes"] = []
+        for host in record["hosts"]:
+            host["errors"] = []
+        numbers = [int(n) for n, _ in self._sections(render_html(record))]
+        assert numbers == list(range(1, len(numbers) + 1)), (
+            f"headings jump: {self._sections(render_html(record))}"
+        )
+
+    def test_a_scan_with_a_diagnosis_also_numbers_consecutively(self, db):
+        from iaiops.core.discovery.report import render_html
+
+        scan_id = save_scan(result_with(plc()), db)
+        record = load_scan(scan_id, db)
+        record["notes"] = ["something worth saying"]
+        sections = self._sections(render_html(record))
+        assert [int(n) for n, _ in sections] == list(range(1, len(sections) + 1))
+        assert any("Diagnosis" in title for _, title in sections)
+
+    def test_the_diagnosis_section_really_does_disappear(self, db):
+        """Otherwise the test above passes for the wrong reason."""
+        from iaiops.core.discovery.report import render_html
+
+        scan_id = save_scan(result_with(plc()), db)
+        record = load_scan(scan_id, db)
+        record["notes"] = []
+        for host in record["hosts"]:
+            host["errors"] = []
+        assert not any("Diagnosis" in title for _, title in self._sections(render_html(record)))
+
+    def test_no_placeholder_survives_into_the_page(self, db):
+        from iaiops.core.discovery.report import render_html
+
+        scan_id = save_scan(result_with(plc()), db)
+        assert "[[N]]" not in render_html(load_scan(scan_id, db))

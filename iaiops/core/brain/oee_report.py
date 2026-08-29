@@ -54,6 +54,7 @@ _EXTRA_CSS = """
 .meter-label { font-size:.75rem; text-transform:uppercase; letter-spacing:.04em;
                color:var(--muted); margin-bottom:.35rem; }
 .meter-value { font-size:1.05rem; font-weight:700; margin-top:.3rem; }
+.meter-clamp { font-size:.78rem; color:var(--warn); margin-top:.15rem; }
 .meter-refused { font-size:.82rem; color:var(--muted); font-style:italic; padding:.15rem 0; }
 .headline { font-size:2.6rem; font-weight:800; line-height:1.1; margin:.2rem 0 .1rem; }
 .headline-sub { color:var(--muted); font-size:.85rem; margin:0 0 1rem; }
@@ -158,7 +159,12 @@ def _figure(t: dict, payload: dict) -> str:
             meter_svg(
                 t["availability"], factors.get("availability"), refused=measured.get("note", "")
             ),
-            meter_svg(t["performance"], factors.get("performance"), refused=perf.get("note", "")),
+            meter_svg(
+                t["performance"],
+                factors.get("performance"),
+                refused=perf.get("note", ""),
+                clamped_from=perf.get("performance_raw"),
+            ),
             meter_svg(t["quality"], factors.get("quality"), refused=qual.get("note", "")),
         ]
     )
