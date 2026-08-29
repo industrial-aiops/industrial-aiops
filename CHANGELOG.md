@@ -27,6 +27,11 @@ and from putting somebody else's protocol implementation on the other end.
   after trying six ports. `iaiops modbus holding` read that host's registers a
   minute later. The note now names the ports tried and says the set is never
   widened.
+- **…and a host that was never probed is not a host that refused** (#223).
+  Pointing #215's new wording at a real /24 produced "ALIVE but refused every
+  port this scan tried (none)" — the sweep had aborted after 50 consecutive
+  failures and those hosts were known only from ARP. The two populations are now
+  separate, and nothing is claimed about what an unprobed host speaks.
 - **MTConnect: the agent's own health could be reported as the machine's**
   (#219). A real agent streams its own `Agent` device, `AVAILABLE` whenever it
   answers; the snapshot picked data items by type across the whole document. A
@@ -37,6 +42,13 @@ and from putting somebody else's protocol implementation on the other end.
   stopped machine.
 
 ### Fixed — what the tool said about itself
+
+- **There was no way to ask the tool what version it is** (#222). Not
+  `--version`, not a `version` command, not `doctor` — so the opening question
+  of every support conversation was unanswerable from the product, on boxes that
+  are usually air-gapped. `--version` / `-V` prints one parseable line, and
+  `doctor` now leads with the version and the Python under it, because that
+  output is what a site pastes into a support thread.
 
 - **A successful `collect run` ended by warning that it took too long** (#216).
   The 300s governance timeout is a hang detector; this command's runtime is the
