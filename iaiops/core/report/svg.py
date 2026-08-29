@@ -137,12 +137,24 @@ def stacked_bar_svg(
     )
 
 
-def meter_svg(label: str, fraction: float | None, *, refused: str = "") -> str:
+def meter_svg(
+    label: str,
+    fraction: float | None,
+    *,
+    refused: str = "",
+    clamped_from: float | None = None,
+) -> str:
     """One 0–100% meter, or an explicit refusal where the bar would have been.
 
     ``fraction is None`` means the factor was not measurable. It renders the
     reason, not an empty track: a blank meter reads as zero, and zero is a
     measurement. This is the same rule the CLI follows for a refused factor.
+
+    ``clamped_from`` is the raw value when it exceeded the bar's ceiling. A
+    Performance of 3726% clamps to 100%, and a FULL GREEN BAR is the strongest
+    "everything is perfect" signal a page can send — on the one artifact that
+    gets forwarded into a report. The paragraph below the meters already carried
+    the raw number; the bar did not, and the bar is what gets looked at.
     """
     name = escape(label)
     if fraction is None:  # noqa: SIM108 — kept explicit; `finite` covers NaN below
@@ -161,15 +173,25 @@ def meter_svg(label: str, fraction: float | None, *, refused: str = "") -> str:
         )
     pct = max(0.0, min(100.0, 100.0 * known))
     var = "ok" if pct >= 85 else ("warn" if pct >= 60 else "bad")
+
+    raw = finite(clamped_from)
+    clamp_note = ""
+    reading = f"{pct:.1f}%"
+    if raw is not None and round(raw, 4) > round(known, 4):
+        # The bar is at its ceiling because the input is wrong, not because the
+        # line is perfect. Say so on the meter, and in the accessible name.
+        clamp_note = f'<div class="meter-clamp">clamped from {100.0 * raw:.1f}%</div>'
+        reading = f"{pct:.1f}%, clamped from {100.0 * raw:.1f}%"
+
     return (
         f'<div class="meter"><div class="meter-label">{name}</div>'
         f'<svg viewBox="0 0 200 8" style="width:100%;height:auto" role="img" '
-        f'aria-label="{name} {pct:.1f} percent">'
-        f"<title>{name} {pct:.1f}%</title>"
+        f'aria-label="{name} {escape(reading)}">'
+        f"<title>{name} {escape(reading)}</title>"
         f'<rect x="0" y="0" width="200" height="8" rx="4" fill="var(--line)"></rect>'
         f'<rect x="0" y="0" width="{pct * 2:.2f}" height="8" rx="4" '
         f'fill="var(--{var})"></rect></svg>'
-        f'<div class="meter-value">{pct:.1f}%</div></div>'
+        f'<div class="meter-value">{pct:.1f}%</div>{clamp_note}</div>'
     )
 
 

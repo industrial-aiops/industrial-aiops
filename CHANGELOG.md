@@ -65,6 +65,21 @@ and from putting somebody else's protocol implementation on the other end.
 - **The router skill mentioned nothing from 0.24.0** (#212), and the first fix
   for it broke two guards — one by rewording the sentence a guard was anchored on.
 
+### Fixed — the forwardable reports
+
+Both found by opening the generated HTML and looking at it, not by reading code.
+
+- **A clamped OEE factor rendered as a full green bar** (#225). #218 marked the
+  clamp in the CLI; the HTML report — the file that actually gets forwarded —
+  still drew Performance at the ceiling with no marker, which is the strongest
+  "everything is perfect" signal a page can send. The meter and its accessible
+  name now say `clamped from 3726.0%`.
+- **A clean scan report numbered its sections `1 · 2 · 4`** (#225). The
+  diagnosis section renders nothing when there are no notes and no per-host
+  errors, and the numbers were typed into each heading — so the BEST possible
+  result produced the most suspicious-looking document, on the artifact whose
+  whole job is to be checkable against a packet capture.
+
 ### Verification
 
 - **MTConnect → rung 2a**: `scripts/mtconnect_agent_harness.sh` +

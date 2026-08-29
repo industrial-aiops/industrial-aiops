@@ -24,9 +24,9 @@ import re
 
 import pytest
 
-from iaiops.core.brain.oee_report import render_oee_report
+from iaiops.core.brain.oee_report import _figure, render_oee_report
 from iaiops.core.report.strings import EN, ZH, strings
-from iaiops.core.report.svg import _BAR_W
+from iaiops.core.report.svg import _BAR_W, meter_svg
 
 pytestmark = pytest.mark.unit
 
@@ -474,3 +474,43 @@ class TestThePrerequisiteRow:
         )
         assert 'class="want"' in html
         assert EN["nothing_missing"] not in html
+
+
+class TestAClampedMeterIsNotAFullGreenBar:
+    """A Performance of 3726% clamps to 100% and rendered as a full green bar.
+
+    Seen in the real report from a lab line whose declared cycle time was wrong.
+    The paragraph under the meters carried the raw number, so it was not hidden —
+    but the bar is what a reader looks at, and a full bar at the ceiling is the
+    strongest "everything is perfect" signal a page can send, on the artifact
+    that gets forwarded into a report. #218 fixed this for the CLI only.
+    """
+
+    def test_the_meter_says_it_was_clamped(self):
+        html = meter_svg("Performance", 1.0, clamped_from=37.26)
+        assert "clamped from 3726.0%" in html
+
+    def test_the_accessible_name_says_it_too(self):
+        html = meter_svg("Performance", 1.0, clamped_from=37.26)
+        assert 'aria-label="Performance 100.0%, clamped from 3726.0%"' in html
+
+    def test_an_unclamped_meter_is_not_decorated(self):
+        assert "clamped" not in meter_svg("Quality", 0.96, clamped_from=0.96)
+
+    def test_a_meter_with_no_raw_value_is_not_decorated(self):
+        assert "clamped" not in meter_svg("Availability", 0.876)
+
+    def test_a_nan_raw_value_does_not_produce_a_clamp_note(self):
+        """`finite` covers it; NaN comparisons are all False and would slip through."""
+        assert "clamped" not in meter_svg("Performance", 1.0, clamped_from=float("nan"))
+
+    def test_the_oee_report_passes_the_raw_value_through(self):
+        """The seam. Testing meter_svg alone says nothing about what calls it."""
+        payload = {
+            "factors": {"availability": 0.876, "performance": 1.0, "quality": 0.96},
+            "performance": {"performance_raw": 37.26, "note": ""},
+            "quality": {"note": ""},
+            "measured": {"note": ""},
+            "oee": 0.841,
+        }
+        assert "clamped from 3726.0%" in _figure(strings("en"), payload)
