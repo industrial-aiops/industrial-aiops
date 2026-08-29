@@ -15,6 +15,8 @@ from __future__ import annotations
 EN: dict[str, str] = {
     "title": "OEE",
     "generated": "Generated",
+    "window_asked": "Measured window",
+    "window_all": "everything this store holds",
     "site": "Site",
     "endpoint": "Endpoint",
     "tag": "Run-state tag",
@@ -114,6 +116,8 @@ EN: dict[str, str] = {
 ZH: dict[str, str] = {
     "title": "OEE 设备综合效率",
     "generated": "生成时间",
+    "window_asked": "测量窗口",
+    "window_all": "该端点在本地库中的全部历史",
     "site": "站点",
     "endpoint": "端点",
     "tag": "运行状态位号",

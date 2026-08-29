@@ -514,3 +514,55 @@ class TestAClampedMeterIsNotAFullGreenBar:
             "oee": 0.841,
         }
         assert "clamped from 3726.0%" in _figure(strings("en"), payload)
+
+
+class TestTheReportStatesItsWindow:
+    """A figure whose period is not beside it gets read as "the line".
+
+    The report is the forwardable artifact, so the window it applies to belongs
+    in the header tiles, not only in a note under the number.
+    """
+
+    def _payload(self, window):
+        return {
+            "measured": {
+                "tag": "40001",
+                "window": window,
+                "status": "ok",
+                "coverage_pct": 99.0,
+                "availability": 0.9,
+                "running_s": 100.0,
+                "stopped_s": 10.0,
+                "unknown_s": 0.0,
+                "n_samples": 110,
+                "note": "",
+                "blind_windows": [],
+                "stop_windows": [],
+                "minor_stops": 0,
+                "minor_stop_s": 0.0,
+                "stops": 0,
+            },
+            "factors": {"availability": 0.9, "performance": None, "quality": None},
+            "performance": {"note": "n"},
+            "quality": {"note": "n"},
+            "oee": None,
+            "losses": {},
+        }
+
+    def test_the_window_appears_in_the_header(self):
+        html = render_oee_report(
+            self._payload(
+                {"start": "2026-08-01T09:00:00+00:00", "end": "2026-08-01T17:00:00+00:00"}
+            ),
+            endpoint="line1",
+        )
+        assert "2026-08-01T09:00:00+00:00" in html
+        assert "2026-08-01T17:00:00+00:00" in html
+
+    def test_no_window_says_what_it_measured_instead_of_leaving_it_blank(self):
+        html = render_oee_report(self._payload(None), endpoint="line1")
+        assert "everything this store holds" in html
+
+    def test_the_chinese_report_says_it_too(self):
+        html = render_oee_report(self._payload(None), endpoint="line1", lang="zh")
+        assert "该端点在本地库中的全部历史" in html

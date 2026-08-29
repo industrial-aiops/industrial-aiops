@@ -83,11 +83,17 @@ def _num(value: Any) -> float | None:
 
 def _header(t: dict, *, endpoint: str, site: str, measured: dict, generated_at: str) -> str:
     tag = measured.get("tag", "")
+    # The period the figure applies to, beside the figure's own identity. A
+    # report whose window is not stated is one that gets read as "the line",
+    # whatever fortnight of history happened to be in the store.
+    asked = measured.get("window") or {}
+    window = f"{asked['start']} → {asked['end']}" if asked.get("start") else t["window_all"]
     tiles = "".join(
         [
             kv(t["site"], site),
             kv(t["endpoint"], endpoint),
             kv(t["tag"], tag),
+            kv(t["window_asked"], window),
             kv(t["generated"], generated_at),
         ]
     )

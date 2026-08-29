@@ -7,6 +7,28 @@ suite, which was green before and after every one of these. They came from
 installing 0.24.0 from PyPI and following the README against a real Modbus line,
 and from putting somebody else's protocol implementation on the other end.
 
+### Added
+
+- **`iaiops oee measure --since` / `--until`** (#226). The flagship number could
+  only be measured over an endpoint's ENTIRE stored history. Two collection runs
+  fifteen minutes apart, and the idle gap between them counted as one blind span:
+  the second run's own coverage was 76.84%, the measurement reported 46.75% and
+  refused. A site assessing in March and again in August could measure neither.
+  `investigate open` already took `--start` / `--end`; the flagship figure did not.
+
+  **The window is charged for in full.** Its unsampled head and tail count as
+  blind exactly like a gap in the middle, so narrowing the question to the
+  minutes that happen to have data cannot raise your coverage — asking about a
+  shift you observed a tenth of returns a refusal, not "100% of what we saw".
+  Without that half the option would have been a fresh way to produce the
+  flattering answer this product exists to refuse.
+
+  The window is authoritative inside the engine (samples outside it are dropped
+  even if the caller forgot to filter), it scopes the production count with the
+  same bounds — the two figures are a ratio and must agree about which seconds
+  existed — and it is stated in the CLI heading and in the report header rather
+  than only in a note. With no window, both say so.
+
 ### Fixed — what the tool said about the plant
 
 - **`iaiops scan` on EtherNet/IP uploaded the controller's entire symbol table**
