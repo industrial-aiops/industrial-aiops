@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.25.0 — 2026-08-29
 
 **A walkthrough and two third-party servers.** Nothing here was found by the test
 suite, which was green before and after every one of these. They came from
