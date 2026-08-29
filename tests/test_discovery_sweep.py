@@ -337,6 +337,30 @@ class TestEmptySweepDiagnosis:
         note = " ".join(diagnose_empty_sweep(hosts))
         assert "502" in note and "4840" in note
 
+    def test_a_host_known_only_from_arp_is_not_said_to_have_refused_anything(self):
+        """It was never probed. The sweep may have aborted before reaching it.
+
+        Seen for real on an aborted /24 sweep, where the note read "refused every
+        port this scan tried (none)" — a claim about probes that never ran, with
+        an empty list where the evidence should be.
+        """
+        hosts = [HostResult(ip="10.0.0.1", sources=("arp",), mac="aa:bb:cc:dd:ee:ff")]
+        note = " ".join(diagnose_empty_sweep(hosts))
+        assert "refused" not in note
+        assert "(none)" not in note
+        assert "never probed" in note and "Nothing at all is claimed" in note
+
+    def test_the_two_populations_are_reported_separately(self):
+        """One was probed and said no; the other was never asked."""
+        hosts = [
+            HostResult(ip="10.0.0.1", ports=(PortResult(port=502, state=PORT_REFUSED),)),
+            HostResult(ip="10.0.0.2", sources=("arp",), mac="aa:bb:cc:dd:ee:ff"),
+        ]
+        notes = diagnose_empty_sweep(hosts)
+        assert len(notes) == 2
+        refused = next(n for n in notes if "refused" in n)
+        assert "502" in refused and "1 host(s)" in refused
+
     def test_the_note_never_claims_the_host_speaks_no_protocol_we_support(self):
         """The port allowlist is fixed and `--protocols` may only narrow it.
 
