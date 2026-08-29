@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
 import typer
 
 from iaiops.cli._common import no_audit
@@ -51,6 +53,38 @@ app = typer.Typer(
     "writes are MOC-gated.",
     no_args_is_help=True,
 )
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        from iaiops import __version__
+
+        typer.echo(f"iaiops {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            "-V",
+            help="Print the installed version and exit.",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = False,
+) -> None:
+    """Nothing to do here — this exists so `--version` has somewhere to live.
+
+    There was no way to ask this tool what version it is. Not `--version`, not a
+    `version` command, not `doctor`. For a product whose first iron rule is that
+    the supported version of every connector is a first-class fact, the first
+    question of every support conversation was unanswerable from the tool — and
+    on an air-gapped plant network you cannot go and look it up.
+    """
+
 
 app.add_typer(opcua_app, name="opcua")
 app.add_typer(modbus_app, name="modbus")

@@ -6,6 +6,8 @@ probe is reported as a status line, never raised as a traceback.
 
 from __future__ import annotations
 
+import sys
+
 from rich.console import Console
 
 from iaiops.core.runtime.capabilities import (
@@ -25,12 +27,22 @@ from iaiops.core.runtime.secretstore import SECRETS_FILE, check_permissions, has
 _console = Console()
 
 
+def _python_version() -> str:
+    return f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+
+
 def run_doctor(skip_probe: bool = False) -> int:
     """Check config, the encrypted store, and endpoint reachability.
 
     Returns a process exit code: 0 healthy, 1 problems found.
     """
     problems = 0
+
+    # First line, because this is the output a site pastes into a support thread
+    # and "which version are you on" was previously unanswerable from any command.
+    from iaiops import __version__
+
+    _console.print(f"[bold]iaiops {__version__}[/]  ·  python {_python_version()}")
 
     if CONFIG_FILE.exists():
         _console.print(f"[green]✓ Config file present: {CONFIG_FILE}[/]")
