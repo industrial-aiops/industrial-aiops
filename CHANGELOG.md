@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Docs
+
+- **The demo caught up with the product** — `demo/oee-line/run_demo.sh` covered
+  four commands and predated `scan`, `tags` and `investigate` entirely. It now
+  walks eight, and starts from a config with **no tag roles declared**, which is
+  what a site actually has after `iaiops init`: `readiness` reports OEE blocked,
+  `tags export` hands over a sheet whose `role` column is empty beside a tag
+  called "Good-parts counter", a person fills it in, and only then is the figure
+  computable. Starting from a pre-configured endpoint hid the one step the
+  product refuses to take for you. Step 7 now scopes the measurement with
+  `--since` / `--until` around the run it just did.
+- **`README` and `README.zh-CN` gained a "first five minutes"** — the repository
+  is where people land, and the path from `pip install` to a measured number was
+  documented only in scattered pieces further down.
+
 ## 0.25.0 — 2026-08-29
 
 **A walkthrough and two third-party servers.** Nothing here was found by the test

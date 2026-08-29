@@ -4,8 +4,8 @@
 ./demo/oee-line/run_demo.sh
 ```
 
-Ninety seconds, no hardware, nothing installed. It runs the four commands a site
-runs, in order, against a **real pymodbus TCP server** — real sockets, real FC03
+About two minutes, no hardware, nothing installed beyond the package. It runs the
+commands a site runs, in order, against a **real pymodbus TCP server** — real sockets, real FC03
 reads, real decoding — and kills the device part-way through.
 
 ## ⚠️ Read this before showing it to anyone
@@ -27,18 +27,33 @@ there rather than what would sell.
 
 | | command | contacts a device? |
 |---|---|---|
-| 1 | `iaiops readiness` | **no** — what this site can run, and what each gap needs |
-| 2 | `iaiops collect plan` | **no** — what a run would cost, and what it could not see |
-| 3 | `iaiops collect run` | yes — a bounded assessment run |
-| 4 | `iaiops oee measure --reported 97 --report oee.html` | **no** — measured over collected history |
+| 1 | `iaiops scan plan` | **no** — the worst case, and the refusals, before a packet is sent |
+| 2 | `iaiops readiness` | **no** — what this site can run, and what each gap needs |
+| 3 | `iaiops tags export` | **no** — the point list, with the `role` column **empty** |
+| 4 | `iaiops tags apply --by` | **no** — a config patch to merge; nothing is written for you |
+| 5 | `iaiops collect plan` | **no** — what a run would cost, and what it could not see |
+| 6 | `iaiops collect run` | yes — a bounded assessment run |
+| 7 | `iaiops oee measure --since/--until --report` | **no** — measured over collected history |
+| 8 | `iaiops investigate open` | **no** — the window is already past |
 
-Two of the four contact nothing, which is the point of ordering them this way:
-you can answer "what would this take" on a site you have not been given
-permission to probe.
+**Seven of the eight contact nothing.** That is the point of ordering them this
+way: you can answer "what would this take, and what would it find" on a site you
+have not been given permission to probe.
+
+**Steps 2-4 are the sequence worth watching.** The demo starts with tags and no
+roles — what a site actually has after `iaiops init`. `readiness` reports OEE as
+blocked; `tags export` hands you a sheet whose `role` column is empty *next to a
+tag called "Good-parts counter"*; a person fills it in; only then is the figure
+computable. A demo that started from a pre-configured endpoint would hide the one
+step this product refuses to take for you.
+
+Step 7 passes `--since` / `--until` around the collection it just did. Without a
+window the measurement covers everything the store holds for that endpoint, which
+is right for one run and wrong the moment there are two.
 
 ## What you can hand to someone afterwards
 
-Step 4 writes **`oee-demo.html`** into the directory you ran it from — one
+Step 7 writes **`oee-demo.html`** into the directory you ran it from — one
 self-contained file with the whole story: what the measurement could see, the
 A×P×Q figure, the Six Big Losses, the gap against the site's own number, and the
 prerequisite row saying what had to be declared to produce each figure.

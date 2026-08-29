@@ -33,9 +33,13 @@ REPO = Path(__file__).resolve().parents[1]
 DEMO = REPO / "demo" / "oee-line" / "run_demo.sh"
 
 #: The setup block, delimited by lines that are load-bearing for the demo itself
-#: (the isolated HOME, and the config the four commands read).
+#: (the isolated HOME, and the config every step reads). The end moved when the
+#: config write became a function: the demo now starts from a config with NO tag
+#: roles and declares them mid-run, so the block ends at the CALL rather than at
+#: the chmod inside it — slicing to the chmod cut the function in half, and the
+#: extracted block did not parse.
 _START = 'DEMO_HOME="$(mktemp -d)"'
-_END = 'chmod 600 "$DEMO_HOME/.iaiops/config.yaml"'
+_END = "write_config bare"
 
 
 def _setup_block() -> str:

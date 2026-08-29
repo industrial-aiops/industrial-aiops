@@ -44,6 +44,39 @@ warehouse · clinical · renewables · plcnext — each adding its own read-only
 Substation / utility telecontrol (IEC-104 · DNP3 · IEC-61850) ships separately as
 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
 
+## Your first five minutes
+
+Four commands. Only one of them touches a device, and it prints what it will send
+before it sends anything.
+
+```bash
+pip install "iaiops[modbus]"     # pick the protocol you actually have, or [all]
+iaiops init                      # interactive: one endpoint
+iaiops doctor                    # config, secrets, reachability — and the version
+iaiops readiness                 # ← run this first. Contacts NOTHING.
+```
+
+`readiness` reads your config and local store and answers one question: **which
+scenarios can this site run today, and what does each gap need?** Every gap comes
+with the command that closes it, ranked by how much it unlocks. No agent, no
+cloud, no account, and nothing on the wire.
+
+Then the path, in the order that matters — survey what is there, take a bounded
+sample, and only then explain it:
+
+| | | contacts a device? |
+|---|---|---|
+| **Survey** | `iaiops scan plan` → `iaiops scan run` | preview sends nothing; the run itemises every packet class it sent |
+| **Tap** | `iaiops collect run line1 --duration 7d` | yes — and it reports what it saw **and what it missed** |
+| **Declare** | `iaiops tags export` → a person fills in `role` → `iaiops tags apply --by <you>` | **no** — the `role` column comes out empty on purpose |
+| **Explain** | `iaiops oee measure --since … --until …` · `iaiops investigate open` · `iaiops diag rca` | **no** — all over collected history |
+
+**See the whole thing run against a real device in about two minutes**, including
+a genuine mid-run outage, with `./demo/oee-line/run_demo.sh` — no hardware, no
+configuration, nothing written outside a temporary directory.
+[demo/oee-line/](demo/oee-line/) explains what each step is for and what the
+numbers do and do not claim.
+
 ## Why read-first
 
 OT is exactly where you want an agent on a tight leash. The read paths are the product; the few
