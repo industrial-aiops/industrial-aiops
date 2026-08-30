@@ -477,7 +477,7 @@ list lives in `docs/VERIFICATION-RECORD.md` — it is short, and it is the hones
 
 Still true, and now with more behind it: the remaining value is in **real-device**
 verification (rung 3 is zero everywhere, see
-[issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28)) and
+`docs/VERIFICATION-RECORD.md`, which grades it per protocol) and
 ecosystem conformance. Everything that does NOT need hardware is reproducible on a
 developer machine — see the container recipes in `VERIFICATION-RECORD.md`.
 
@@ -509,9 +509,9 @@ Both items that were open here on 2026-07-19 are now closed:
 
 **Nothing non-hardware-gated is currently open.** Feature development is effectively
 complete; the remaining value is in real-device verification and ecosystem conformance,
-and both need a field partner rather than more code — see
-[issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28). The
-hardware-gated 待核实 list below is unchanged.
+and both need a field partner rather than more code — see the README's
+*Beta testing & co-creation* section for how to reach us. The hardware-gated
+待核实 list below is unchanged.
 
 ## Status — 2026-07-13 (historical: `iaiops 0.14.0` · `iaiops-energy 0.1.5`)
 

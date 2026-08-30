@@ -89,7 +89,7 @@ OT 正是最该给智能体上紧箍咒的地方。**读**路径才是产品本�
 
 **逐协议证据（包括每个测试"没覆盖什么"）见
 [docs/VERIFICATION-RECORD.md](docs/VERIFICATION-RECORD.md)**，一协议一行，注明支撑该结论的测试。
-每一条 `待核实` 都是卡在硬件上，不是忘了：[issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28)。
+每一条 `待核实` 都是卡在硬件上，不是忘了 —— 每一条都点名了能了结它的那台设备。
 
 ## 🧪 测试与共创 / Beta testing & co-creation
 
@@ -97,7 +97,7 @@ OT 正是最该给智能体上紧箍咒的地方。**读**路径才是产品本�
 
 **We're looking for field-testing partners.** Everything software-verifiable has been verified; what's left on the honest `待核实` list only real equipment can answer. Run `iaiops doctor` against your gear and tell us what happened — **verified-equipment reports get credited in the support matrix**, field-reported issues get fast triage, and features are co-designed in the open.
 
-👉 **参与入口 | Start here: [#28 — 招募现场测试伙伴 | Call for field-testing partners (v0.10.0)](https://github.com/industrial-aiops/industrial-aiops/issues/28)**(置顶 issue)
+👉 **参与入口：[开一个 issue](https://github.com/industrial-aiops/industrial-aiops/issues/new)，标题里带上协议名和设备型号；或者直接邮件 <zhouwei008@gmail.com>。** 两条都是真人在看，而且会以当前版本为准回复。
 
 ### 边缘部署与生态定位(edge-native / Margo)
 iaiops 以**边缘应用(edge application)**的形态跑在加固、集中管理的**边缘主机**上——不抢主机、也不抢编排层。它天然对齐 [Margo](https://margo.org/) 工业边缘互操作标准的角色划分:*主机/设备* = 不可变边缘 OS,*合规编排器* 按期望状态下发工作负载,而 **iaiops = OT 域应用**(只读 tap + 跨协议 RCA,以受治理的 MCP 工具暴露),并可对接**本机 LLM 脑**做完全离线(气隙)诊断,数据不出厂。

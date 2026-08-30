@@ -13,6 +13,14 @@
   computable. Starting from a pre-configured endpoint hid the one step the
   product refuses to take for you. Step 7 now scopes the measurement with
   `--since` / `--until` around the run it just did.
+- **The "Start here" link pointed at a closed issue** — the field-testing call
+  (#28) was closed as `NOT_PLANNED` on 2026-07-29 because its version numbers and
+  tool counts had gone stale, and its closing note says to **open a new issue or
+  email** instead. Six places still sent readers to it, including the READMEs'
+  call to action, which also described it as pinned. All six now point where that
+  note says to go, or at `docs/VERIFICATION-RECORD.md` where they were citing the
+  rung-3 gap. The issue is deliberately left closed.
+
 - **The README contradicted itself about the tool count** — one line said
   "182 governed tools", another said "163 of 173 tools are read-only", nine
   apart. The guard added at 0.24.0 prep is scoped to the line that enumerates the

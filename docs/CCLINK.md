@@ -105,7 +105,8 @@ discovery, IE-TSN-specific diagnostics — each row `待核实` until live-verif
 
 **Verification plan:** GX Works3 simulator SLMP behaviour `待核实`; a real FX5/iQ-R master with a
 CC-Link IE (TSN) segment is the honest target — candidate for the field-testing call
-(issue #28). No live pass exists today; nothing in this doc claims one.
+(see the README's *Beta testing & co-creation* section). No live pass exists today;
+nothing in this doc claims one.
 
 ## 6. Sources
 

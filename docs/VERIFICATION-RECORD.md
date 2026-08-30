@@ -357,8 +357,9 @@ carrying; the notes above hold the detail and the defects each one found.
   counterpart to test against; only real gear (rung 3) can lift them.
 - **BAS (Metasys/Niagara) and Ignition.** Vendor REST APIs — only a real supervisory
   controller or gateway moves them.
-- **Rung 3, everywhere.** Hardware-gated by definition. See
-  [issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28).
+- **Rung 3, everywhere.** Hardware-gated by definition — it needs a field
+  partner, not more code. The README's *Beta testing & co-creation* section
+  says how to reach one of us.
 
 ### Open questions carried forward
 
