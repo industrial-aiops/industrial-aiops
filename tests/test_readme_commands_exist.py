@@ -125,6 +125,32 @@ class TestTheStatedToolCountsAreTrue:
             text = (_root() / name).read_text("utf-8")
             assert str(total) in text, f"{name} does not state the real total of {total}"
 
+    def test_no_other_stated_total_contradicts_the_registry(self):
+        """The scoping below protects the WRITE list; it left every other count free.
+
+        `README.md` carried "163 of 173 tools are read-only" long after the
+        surface reached 182 — the same document, nine tools apart from itself,
+        with a guard sitting two paragraphs away. Narrowing a check to the line
+        it was written for is correct; assuming that line is the only one making
+        the claim is not.
+        """
+        tools = self._tools()
+        registered = len(tools)
+        # `[WRITE]` is the same classifier the write-list test uses, so the two
+        # cannot disagree about what counts as a write.
+        writes = sum(1 for doc in tools.values() if doc.startswith("[WRITE]"))
+        pattern = re.compile(r"(\d+) of (?:the )?(\d+) tools")
+        for name in ("README.md", "README.zh-CN.md"):
+            text = (_root() / name).read_text("utf-8")
+            for read_only, total in pattern.findall(text):
+                assert int(total) == registered, (
+                    f"{name} says {total} tools; the registry has {registered}"
+                )
+                assert int(read_only) <= registered - writes, (
+                    f"{name} calls {read_only} of {total} read-only, but {writes} are "
+                    f"high-risk writes — at most {registered - writes} can be read-only"
+                )
+
     @staticmethod
     def _tool_count_line(text: str, total: int) -> str:
         """The one line that states the total and enumerates the writes.
