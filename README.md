@@ -97,7 +97,7 @@ container round-trip and a synthetic fixture are not the same claim.
 
 **Per-protocol evidence — including what each test does *not* cover — is in
 [docs/VERIFICATION-RECORD.md](docs/VERIFICATION-RECORD.md)**, one row per protocol, naming the test
-behind each claim. Every `待核实` is hardware-gated, not forgotten: [issue #28](https://github.com/industrial-aiops/industrial-aiops/issues/28).
+behind each claim. Every `待核实` is hardware-gated, not forgotten — each one names the equipment that would settle it.
 
 ## 🧪 测试与共创 / Beta testing & co-creation
 
@@ -105,7 +105,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten: [issue #2
 
 **We're looking for field-testing partners.** Everything software-verifiable has been verified; what's left on the honest `待核实` list only real equipment can answer — physical Modbus-RTU (RS-485), EtherCAT slaves, HART gateways, live BACnet HVAC, live Metasys/Niagara BAS controllers, live Ignition gateway, domestic PLCs (Inovance/Xinje), live PLCnext, substation RTUs/IEDs, live Omron FINS PLCs, IO-Link masters. If you're an OT engineer, integrator, or factory team with access to any of these: install `iaiops`, run `iaiops doctor` against your gear, and tell us what happened. **Verified-equipment reports get credited in the support matrix**, field-reported issues get fast triage, and features are co-designed in the open via GitHub Issues/Discussions.
 
-👉 **参与入口 | Start here: [#28 — 招募现场测试伙伴 | Call for field-testing partners (v0.10.0)](https://github.com/industrial-aiops/industrial-aiops/issues/28)** (pinned)
+👉 **参与入口 | Start here: [open an issue](https://github.com/industrial-aiops/industrial-aiops/issues/new) with the protocol and device model in the title, or email <zhouwei008@gmail.com>.** Either reaches a person, and a report gets answered against the current release.
 
 ---
 
