@@ -13,6 +13,13 @@
   computable. Starting from a pre-configured endpoint hid the one step the
   product refuses to take for you. Step 7 now scopes the measurement with
   `--since` / `--until` around the run it just did.
+- **The README contradicted itself about the tool count** — one line said
+  "182 governed tools", another said "163 of 173 tools are read-only", nine
+  apart. The guard added at 0.24.0 prep is scoped to the line that enumerates the
+  writes (deliberately — a looser version went green on a deleted write), and
+  that scoping left every other stated count unchecked. A second assertion now
+  covers every "N of M tools" claim in both READMEs.
+
 - **`README` and `README.zh-CN` gained a "first five minutes"** — the repository
   is where people land, and the path from `pip install` to a measured number was
   documented only in scattered pieces further down.
