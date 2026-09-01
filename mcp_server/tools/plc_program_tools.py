@@ -1,4 +1,4 @@
-"""Legacy PLC program explainer MCP tools (READ-ONLY, exported files only).
+"""PLC program explainer + change-baseline MCP tools (READ-ONLY, exported files only).
 
 A8 / market-research R3 #1 ask: "explain the legacy logic somebody else left
 behind". These tools do the **structural extraction** — the agent does the
@@ -7,7 +7,16 @@ AWL/STL, Rockwell L5X) — never a live PLC upload, never a directory walk —
 and every element carries source_file + line (rung number for ladder) so the
 explanation must cite real locations. Advisory + regex/line/xml based, not a
 full grammar; parse_errors are reported instead of raised.
+
+``plc_program_snapshot`` / ``plc_program_drift`` / ``plc_program_history`` add the
+change-control half: record the structure of the version you consider approved,
+then ask a later export whether anything moved. The local store holds block
+names, hashes and counts — never a declaration, a source line or a comment.
+Deleting that history is CLI-only on purpose — an agent should not be one call
+away from removing change-control evidence.
 """
+
+from typing import Optional
 
 from iaiops.core.brain import plc_program as ops
 from iaiops.core.brain.plc_visibility import plc_visibility
@@ -161,3 +170,119 @@ def plc_program_visibility(path: str) -> dict:
     Example: plc_program_visibility(path="~/exports/Line3_Conveyor.scl").
     """
     return plc_visibility(ops.outline_program(path))
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def plc_program_snapshot(
+    path: str,
+    name: Optional[str] = None,
+    label: str = "",
+    note: str = "",
+) -> dict:
+    """[READ][risk=low] Record an exported program's structure as a change baseline.
+
+    A control program is a controlled document, and the usual way an undocumented
+    change to one gets noticed is that somebody remembers. This gives the
+    comparison a number: the file's SHA-256, plus a per-block structural
+    fingerprint (name/kind/language, declared variables, calls, branch conditions,
+    timers) that deliberately excludes line numbers, comments and block order — so
+    adding a comment at the top of a file does not report the whole program as
+    changed. Stored locally under the iaiops home as block names, hashes and
+    counts — never a declaration, a source line or a comment — so the store is not
+    a second copy of the program. Reads the named EXPORTED file only; never a live
+    PLC upload.
+
+    Re-snapshotting a byte-identical file records nothing and says so — a history
+    padded with identical rows hides the rows that are not.
+
+    Args:
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB).
+        name: Program identity across exports. Defaults to the file's stem, and
+            the result says which was used — the export path changes every time
+            somebody opens the engineering station, the program does not.
+        label: Short label, e.g. "approved v3.2 / MOC-118".
+        note: Free note recorded with the snapshot.
+
+    Returns dict: {status ('recorded'|'unchanged'), program, name_source,
+        snapshot:{snapshot_id, taken_at, source_file, content_sha256, label, note},
+        block_count, snapshot_count, previous_snapshot}.
+
+    Example: plc_program_snapshot(path="~/exports/Line3.scl", label="approved v3.2").
+    """
+    from iaiops.core.brain import program_baseline as pb
+
+    return pb.take_snapshot(path, name=name, label=label, note=note)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def plc_program_drift(
+    path: str,
+    name: Optional[str] = None,
+    against: Optional[str] = None,
+) -> dict:
+    """[READ][risk=low] Has this program changed since its approved snapshot, and what moved?
+
+    Three verdicts, and the wording of each is load-bearing. **identical** means
+    the same SHA-256 and nothing else earns the word. **logic_changed** means the
+    extracted structure differs — reported per block, naming which categories
+    (variables / calls / branches / timers_counters) moved. **changed_outside_
+    extracted_structure** means the bytes differ while every block fingerprint
+    matched: usually comments or formatting, but these parsers extract structure
+    rather than parse a grammar, so a real change inside a construct they do not
+    model looks identical from here. Calling that "documentation only" would be
+    the comfortable reading of evidence that does not support it, so it is not
+    called that, and it is not a clearance — line and comment counts are reported
+    beside it so a reviewer can see which way it leans.
+
+    Nothing here decides whether a change was authorised; that is change control's
+    job. No device is touched — this reads a file a person exported.
+
+    Args:
+        path: The current exported program file to check.
+        name: Tracked program name (defaults to the file's stem).
+        against: Snapshot id to compare with; default is the latest.
+
+    Returns dict: {program, name_source, baseline:{snapshot_id, taken_at, label,
+        source_file}, current:{source_file}, verdict, content_changed,
+        structure_changed, content_sha256:{before, after}, blocks:{added[],
+        removed[], changed:[{block, kind, line, previous_line, changed[]}],
+        unchanged}, totals:{block_count, line_count, comment_count}, parse_errors,
+        note, advisory}.
+
+    Example: plc_program_drift(path="~/exports/Line3_today.scl", name="Line3").
+    """
+    from iaiops.core.brain import program_baseline as pb
+
+    return pb.check_drift(path, name=name, against=against)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def plc_program_history(name: Optional[str] = None) -> dict:
+    """[READ][risk=low] Tracked programs, or one program's snapshot history.
+
+    Local read of the program-baseline store — no file is parsed and no device is
+    touched. Nothing is ever pruned automatically: a change-control history that
+    quietly drops last quarter's baseline is worse than one that grows, and a
+    stored row is block names, hashes and counts rather than source. Removing history is a
+    deliberate act and is CLI-only (`iaiops program forget`) — deleting
+    change-control evidence should not be one tool call away.
+
+    Args:
+        name: Tracked program name. Omit for the list of every tracked program.
+
+    Returns dict (listing): {store, program_count, programs:[{program,
+        snapshot_count, latest, latest_taken_at}]}; (one program): {store,
+        program, snapshot_count, snapshots:[{snapshot_id, taken_at, source_file,
+        content_sha256, label, note}]}.
+
+    Example: plc_program_history(name="Line3").
+    """
+    from iaiops.core.brain import program_baseline as pb
+
+    return pb.history(name)

@@ -435,6 +435,40 @@ MCP 客户端按产线给每个 server 配一个 `IAIOPS_MCP` 菜单 = 现场只
 
 ---
 
+## 程序变更基线 —— 认可的那版逻辑动过没有
+
+控制程序是一份受控文件，而现场发现「有人改过且没记录」的常规方式是**有人记得**。
+把你认可的那一版记下来，之后问某一次导出动没动：
+
+```bash
+iaiops program snapshot ~/exports/Line3.scl --name Line3 --label "approved v3.2 / MOC-118"
+iaiops program drift    ~/exports/Line3_today.scl --name Line3
+```
+
+快照存的是文件 SHA-256 加上每个 block 的结构指纹（名字/类型/语言、声明的变量、调用、分支条件、
+定时器），**刻意不含行号、注释和 block 顺序** —— 否则在文件顶上加一行注释就会把整份程序报成变更，
+这种工具一周内就会被关掉。落到磁盘上的是 block 名 + 哈希 + 计数，**不落任何声明、源码行或注释**，
+所以这个库不是你程序的第二份拷贝。
+
+三个判词，每个词都咬得很紧：
+
+| 判词 | 含义 |
+|---|---|
+| `identical` | SHA-256 相同。**只有**这一种情况配得上这个词。 |
+| `logic_changed` | 抽取到的结构变了 —— 逐 block 报，并指出 `variables` / `calls` / `branches` / `timers_counters` 里哪一类动了。 |
+| `changed_outside_extracted_structure` | 字节变了，而每个 block 指纹都相同。 |
+
+第三个才是诚实的那个。它**多半**是注释或排版 —— 但这些 parser 是**结构抽取**，不是文法解析，
+所以一个发生在它建模不到的构造里的真实改动，从这里看起来一模一样。把它叫「仅文档变更」
+是在按最舒服的方式读一份**支持不了这个结论**的证据，所以它不叫那个：
+行数与注释数并排报出来供人判断，判词仍然是「去看」。**一份 drift 报告是去读 diff 的理由，绝不是放行。**
+
+`iaiops program history` 列出在跟踪的程序；`iaiops program compare <name> <before> <after>`
+比两个已存快照。删历史是 `iaiops program forget`，**只在 CLI** —— 删变更控制证据不该离 agent
+只有一次调用。**不做任何自动清理。** 身份用**名字**不用路径：工程师站每开一次导出目录就换一个，
+程序没换；不给 `--name` 时用文件名主干，并在输出里说明用的是哪一种。全程不碰设备 ——
+读的是人导出来的文件。
+
 ## 典型场景
 
 ### 1. AI 停机根因 copilot(旗舰)
@@ -512,7 +546,7 @@ iaiops opcua discover -e line1
 
 ## 安全与治理
 
-- **读优先**:**183 个受治理工具 = 170 只读 + 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
+- **读优先**:**186 个受治理工具 = 173 只读 + 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。

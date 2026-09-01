@@ -291,7 +291,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten — each o
 
 *(The energy protocols — IEC-104 / DNP3 / IEC-61850 — moved to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) in 0.8.0; their tool matrix lives in that repo.)*
 
-**183 governed tools** = 170 read + 10 MOC-gated **device** writes + `historian_push` (a write, to a historian rather than to a device: `[WRITE][risk=low]`) + the 2 deprecated aliases below. The device writes are (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 2 deprecated aliases are the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**186 governed tools** = 173 read + 10 MOC-gated **device** writes + `historian_push` (a write, to a historian rather than to a device: `[WRITE][risk=low]`) + the 2 deprecated aliases below. The device writes are (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 2 deprecated aliases are the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -841,6 +841,45 @@ And a cause the library has never heard of reports **nothing known** — never "
 objection". A knowledge base that knows nothing about something has not cleared
 it.
 
+### Program change baseline — has the approved logic moved?
+
+A control program is a controlled document, and the usual way an undocumented change to one gets
+noticed is that somebody remembers. Record the version you consider approved, then ask a later
+export whether anything moved:
+
+```bash
+iaiops program snapshot ~/exports/Line3.scl --name Line3 --label "approved v3.2 / MOC-118"
+iaiops program drift    ~/exports/Line3_today.scl --name Line3
+```
+
+The snapshot stores the file's SHA-256 plus a per-block structural fingerprint — name/kind/language,
+declared variables, calls, branch conditions, timers — and deliberately **excludes line numbers,
+comments and block order**, so adding one comment at the top of a file does not report the whole
+program as changed. What is stored on disk is block names, hashes and counts; never a declaration,
+a source line or a comment, so the baseline store is not a second copy of your program.
+
+Three verdicts, and each word is load-bearing:
+
+| Verdict | Means |
+|---|---|
+| `identical` | The same SHA-256. Nothing else earns the word. |
+| `logic_changed` | The extracted structure differs — reported per block, naming which of `variables` / `calls` / `branches` / `timers_counters` moved. |
+| `changed_outside_extracted_structure` | The bytes differ and every block fingerprint matched. |
+
+That third one is the honest one. It is *usually* comments or formatting — but these parsers extract
+structure, they do not parse a grammar, so a real change inside a construct they do not model looks
+identical from here. Calling it "documentation only" would be the comfortable reading of evidence
+that does not support it, so it is not called that: line and comment counts are reported beside it
+and the verdict still says look. **A drift report is a reason to read the diff, never a clearance.**
+
+`iaiops program history` lists what is tracked; `iaiops program compare <name> <before> <after>`
+diffs two stored snapshots. Deleting history is `iaiops program forget` and is **CLI-only** — an
+agent should not be one call away from removing change-control evidence. Nothing is pruned
+automatically. The name (not the path) is the identity, because the export directory changes every
+time somebody opens the engineering station and the program does not; absent `--name` the file stem
+is used and the output says so. No device is touched at any point — this reads a file a person
+exported.
+
 ### CLI (read)
 ```bash
 iaiops opcua read "ns=2;i=5" -e line1
@@ -1168,7 +1207,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 ## Safety & governance
 
-- **Read-first.** 172 of the 183 tools are read-only, and `historian_push` writes to a historian rather than to a device. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-first.** 175 of the 186 tools are read-only, and `historian_push` writes to a historian rather than to a device. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Read/write authorisation is the caller's, not the tap's.** iaiops does not encode "this server may not write" by hiding tools — that decision belongs to the agent's judgement or account/permission management. The tap's guarantee is **un-bypassable audit on both front-ends**: every call, read or write, via an MCP tool **or** the `iaiops` CLI, runs through `@governed_tool` and leaves a row in `~/.iaiops/audit.db`. Writes are additionally high `risk_tier`, MOC-gated, and undo-captured (see above). High/critical calls **fail closed** when the audit DB cannot be written.
 - **No-egress mode is enforced at registration.** `IAIOPS_NO_EGRESS=1` withholds the 6 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`), fail-closed, for airgap/sealed-box deployments. This is a **data-exfiltration axis, not authorisation** — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so this switch withholds it. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.

@@ -7,6 +7,19 @@ agent can't hallucinate locations. Advisory, regex/line/xml based — honest
 about what is extracted vs skipped (see each parser's docstring).
 """
 
+from iaiops.core.brain.plc_program.drift import (
+    VERDICT_IDENTICAL,
+    VERDICT_LOGIC_CHANGED,
+    VERDICT_OUTSIDE_STRUCTURE,
+    RecipeMismatchError,
+    compare,
+)
+from iaiops.core.brain.plc_program.fingerprint import (
+    RECIPE_VERSION,
+    block_fingerprint,
+    content_sha256,
+    fingerprint_outline,
+)
 from iaiops.core.brain.plc_program.model import (
     Block,
     Branch,
@@ -31,16 +44,25 @@ from iaiops.core.brain.plc_program.xref import find_symbol
 
 __all__ = [
     "ALLOWED_EXTENSIONS",
-    "MAX_FILE_BYTES",
     "Block",
     "Branch",
     "CallEdge",
+    "MAX_FILE_BYTES",
     "ProgramOutline",
+    "RECIPE_VERSION",
+    "RecipeMismatchError",
     "TimerCounter",
+    "VERDICT_IDENTICAL",
+    "VERDICT_LOGIC_CHANGED",
+    "VERDICT_OUTSIDE_STRUCTURE",
     "Variable",
     "XrefHit",
+    "block_fingerprint",
     "block_section",
+    "compare",
+    "content_sha256",
     "find_symbol",
+    "fingerprint_outline",
     "load_program",
     "outline_program",
     "outline_stats",

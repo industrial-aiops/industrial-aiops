@@ -28,10 +28,36 @@
   measures what the *run* imported, records what was already there, and keeps the
   absolute form of the claim where it is true: the fresh-interpreter arms.
 
+- **`iaiops program snapshot` / `drift` / `history` / `compare` / `forget`** — a
+  change baseline for exported PLC programs (`plc_program_snapshot`,
+  `plc_program_drift`, `plc_program_history` on the MCP side). A control program
+  is a controlled document, and the usual way an undocumented change to one gets
+  noticed is that somebody remembers. A snapshot stores the file's SHA-256 plus a
+  per-block structural fingerprint — declarations, calls, branch conditions,
+  timers — with line numbers, comments and block order deliberately excluded, so
+  one comment added at the top of a file does not report the whole program as
+  changed. On disk: block names, hashes and counts; never a declaration, a source
+  line or a comment.
+
+  The verdict vocabulary is the feature. `identical` requires the same SHA-256 and
+  nothing else earns it. `logic_changed` names the blocks and which categories
+  moved. Matching structure over differing bytes is
+  `changed_outside_extracted_structure` — **not** "documentation only", because
+  these parsers extract structure rather than parse a grammar and a real change
+  inside a construct they do not model looks the same from here. The comfortable
+  answer was available and is not offered; the line and comment counts are
+  reported beside the verdict so a reviewer can see which way it leans.
+
+  `forget` is CLI-only: an agent should not be one call away from deleting
+  change-control evidence. Nothing is pruned automatically. The identity is a name
+  rather than a path, because the export directory changes every time somebody
+  opens the engineering station and the program does not.
+
 ### Changed
 
-- Both READMEs' governed-tool total moved 182 → 183 (`verify_determinism`); the
-  count gate added in 0.25.0 caught it, which is what it is for.
+- Both READMEs' governed-tool total moved 182 → 186 (`verify_determinism` plus the
+  three program-baseline tools); the count gate added in 0.25.0 caught both moves,
+  which is what it is for.
 
 ## 0.25.1 — 2026-08-30
 
