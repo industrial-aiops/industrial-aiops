@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`iaiops verify determinism` — the claim, executed** (`verify_determinism` on the
+  MCP side). "Remove the model, block the network, run the same data, the output is
+  byte-identical" was written in the docstring of
+  `tests/test_brain_is_llm_free.py` and executed nowhere. That test is an AST scan:
+  it proves nothing *can* import a model, which is the right guard and not the
+  sentence people repeat. Now a pinned in-repo dataset goes through availability,
+  production counts, the Six Big Losses, ISA-18.2 alarm load, control charts, the
+  conservative baseline and the RCA copilot; each result is canonically encoded and
+  digested; the suite runs twice in-process and once in each of two fresh
+  interpreters at different `PYTHONHASHSEED` values — the arm that catches a set or
+  dict iteration order reaching a result — with the socket API raising throughout.
+  `--out record.json` writes a signable record whose `result` half is identical
+  between runs and whose `context` half is not, named separately because someone
+  will diff two whole records. The point is not a feature: it is the difference
+  between "our analysis is deterministic", which is not evidence in a GxP context,
+  and a test case a validation team can write into an IQ/OQ protocol, run, and sign.
+- The model check asks the question that means something. A first version asked
+  whether any model library was loaded in the process, which is wrong twice over: an
+  MCP server legitimately holds `iaiops.core.llm` for the opt-in narration tool, so
+  the check would have failed on exactly the deployment the claim is about — and it
+  would have reported "the analysis touched a model" when it had not. It now
+  measures what the *run* imported, records what was already there, and keeps the
+  absolute form of the claim where it is true: the fresh-interpreter arms.
+
+### Changed
+
+- Both READMEs' governed-tool total moved 182 → 183 (`verify_determinism`); the
+  count gate added in 0.25.0 caught it, which is what it is for.
+
 ## 0.25.1 — 2026-08-30
 
 ### Docs

@@ -76,6 +76,37 @@ iaiops readiness                 # ← 先跑这条。零联网。
 OT 正是最该给智能体上紧箍咒的地方。**读**路径才是产品本体；少数写路径属 OT 高危，默认关闭，
 并受 MOC 纪律门控 —— dry-run、一次性审批令牌、undo 捕获、hash 链审计。
 
+## 证明这套分析不需要模型
+
+分析层够不着语言模型 —— 这是一条守卫，不是一句形容词：`tests/test_brain_is_llm_free.py`
+扫描 **8 个包**（`brain` `discovery` `runtime` `readiness` `collect` `knowledge` `retain`
+`connectors`）里任何能通向模型的 import，**扫出来是空的**才算通过。模型只出现在两个地方，
+且都不承重：`rca_narrate` 把一个**已经算完、已经带引用**的结论换个说法，以及 agent 前端决定
+调用**哪个**工具。两个都拿掉，数字还是那些数字。
+
+但那条守卫是**静态**的 —— 它证明的是「不可能调用」。对做 CSV/验证的人来说，他要签的是**跑过**
+的那一句，所以它现在真的会跑：
+
+```bash
+iaiops verify determinism --out determinism-record.json
+```
+
+一份**钉死在仓里**的数据集依次过可用率、产量计数、六大损失、ISA-18.2 告警负荷、控制图、
+保守基线、RCA 副驾；每个结果规范化编码后取 SHA-256。整套**在本进程跑两遍，再在两个
+`PYTHONHASHSEED` 不同的全新解释器里各跑一遍** —— 最后这一臂才抓得到集合/字典迭代顺序渗进结果，
+单跑一次永远抓不到。全程 socket 抛异常，所以一个伸手去找设备或主机名的计算会**在这里失败**，
+而不是在恰好联网的机器上安静地成功。跑完再问一句：这一趟**拉进来**了什么模型库？
+**本来就加载着**的（MCP server 进程为了那个可选的叙述工具持有 `iaiops.core.llm`）只记录、不定罪 ——
+只有这一趟自己 import 的才判它不合格。
+
+记录分两半：`result`（每次都相同，签的是这一半）与 `context`（这次在什么时间、什么机器上跑的）。
+**两次好的运行不会得到逐字节相同的记录文件**，而一定有人会去 diff 它们 —— 所以两半是分开命名的，
+不是混在一起。
+
+这才是这句话能用的形态：不是「我们的模型很准」（在 GMP 语境下不构成任何证据），
+而是一条能写进 IQ/OQ 的测试用例 —— **移除模型、断网、重跑标准数据集、比对哈希** —— 执行、签字。
+MCP 侧同一个检查叫 `verify_determinism`；`iaiops verify suite` 只列出它覆盖了什么，不执行。
+
 ## 到底验证到什么程度
 
 一句话：**对真实协议库、容器、in-process 服务器验过；尚未对真实产线设备验过。**
@@ -481,7 +512,7 @@ iaiops opcua discover -e line1
 
 ## 安全与治理
 
-- **读优先**:**182 个受治理工具 = 169 只读 + 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
+- **读优先**:**183 个受治理工具 = 170 只读 + 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。

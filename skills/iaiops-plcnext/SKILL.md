@@ -49,6 +49,10 @@ OPC-UA server**(opc.tcp 4840)与 **Modbus-TCP 过程数据 server** 读取 —�
   `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility`
   （解读导出的 ST/AWL/L5X;PLCnext 工程可导出 IEC 61131 ST 文本后离线解读）
+- 自证：`verify_determinism` — 把「拿掉模型、断网、同一份数据重跑、输出逐字节相同」**跑出来**：
+  固定数据集过一遍分析层，规范化后取 SHA-256，在本进程跑两遍、再在两个不同 PYTHONHASHSEED 的
+  全新解释器里各跑一遍（这一臂才抓得到集合/字典迭代顺序渗进结果），全程 socket 抛异常。
+  给 CSV/验证团队的是一条能写进 IQ/OQ 的测试用例，不是一句形容词。
 - 元：`protocols_supported`(产品能做什么)· `site_readiness`(这个站点今天能跑什么、还差什么;零联网)
 - 调查层（§13，八步证据闭环）：`investigation_readiness` `investigation_open` `investigation_show`
   `investigation_list` — 「真出事时这个站能走到第几步、每个缺口还差什么」，以及对一个**已过去的窗口**

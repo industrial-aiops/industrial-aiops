@@ -83,6 +83,42 @@ OT is exactly where you want an agent on a tight leash. The read paths are the p
 write paths are OT-dangerous, off by default, and gated by MOC discipline — dry-run, one-shot
 approval, undo capture, hash-chained audit.
 
+## Proving the analysis needs no model
+
+The analysis layers cannot reach a language model. That is a guard, not a slogan:
+`tests/test_brain_is_llm_free.py` scans eight packages — `brain`, `discovery`, `runtime`,
+`readiness`, `collect`, `knowledge`, `retain`, `connectors` — for any import that could reach one,
+and an empty result is the guarantee. A model is used in exactly two places, and neither is
+load-bearing: `rca_narrate` rephrases a verdict that was already computed and already cited, and an
+agent front-end decides *which* tool to call. Remove both and the numbers are the same numbers.
+
+That guard is static — it proves nothing *can* call a model. For a validation team the sentence
+they are asked to accept is the executed one, so it is executed:
+
+```bash
+iaiops verify determinism --out determinism-record.json
+```
+
+A pinned in-repo dataset goes through availability, production counts, the Six Big Losses,
+ISA-18.2 alarm load, control charts, the conservative baseline and the RCA copilot. Each result is
+canonically encoded and digested; the suite runs **twice in this process and once in each of two
+fresh interpreters started at different `PYTHONHASHSEED` values** — the arm that catches a set or
+dict iteration order reaching a result, which a single run never can. The socket API raises
+throughout, so a computation that reached for a device or a hostname fails here instead of quietly
+working on a machine that happened to be online. Afterwards the run is asked what it pulled in:
+a model library that was *already* loaded (an MCP server holds `iaiops.core.llm` for the opt-in
+narration tool) is recorded, not judged — only what the suite itself imported can condemn it.
+
+The record separates `result` (identical every run — the part to sign) from `context` (when and
+where this run happened). **Two good runs are not byte-identical records**, and someone will diff
+them, so the halves are named rather than mixed.
+
+This is the form the claim has to take to be usable: not "our model is accurate", which is not
+evidence in a GxP context, but a test case someone can write into an IQ/OQ protocol — *remove the
+model, block the network, re-run the standard dataset, compare the hash* — execute, and sign.
+`verify_determinism` is the same check from the MCP side; `iaiops verify suite` lists what it
+covers without running it.
+
 ## How far it's actually been verified
 
 Short version: **verified against real protocol libraries, containers and in-process servers —
@@ -255,7 +291,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten — each o
 
 *(The energy protocols — IEC-104 / DNP3 / IEC-61850 — moved to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) in 0.8.0; their tool matrix lives in that repo.)*
 
-**182 governed tools** = 169 read + 10 MOC-gated **device** writes + `historian_push` (a write, to a historian rather than to a device: `[WRITE][risk=low]`) + the 2 deprecated aliases below. The device writes are (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 2 deprecated aliases are the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**183 governed tools** = 170 read + 10 MOC-gated **device** writes + `historian_push` (a write, to a historian rather than to a device: `[WRITE][risk=low]`) + the 2 deprecated aliases below. The device writes are (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 2 deprecated aliases are the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -1132,7 +1168,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 ## Safety & governance
 
-- **Read-first.** 171 of the 182 tools are read-only, and `historian_push` writes to a historian rather than to a device. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-first.** 172 of the 183 tools are read-only, and `historian_push` writes to a historian rather than to a device. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Read/write authorisation is the caller's, not the tap's.** iaiops does not encode "this server may not write" by hiding tools — that decision belongs to the agent's judgement or account/permission management. The tap's guarantee is **un-bypassable audit on both front-ends**: every call, read or write, via an MCP tool **or** the `iaiops` CLI, runs through `@governed_tool` and leaves a row in `~/.iaiops/audit.db`. Writes are additionally high `risk_tier`, MOC-gated, and undo-captured (see above). High/critical calls **fail closed** when the audit DB cannot be written.
 - **No-egress mode is enforced at registration.** `IAIOPS_NO_EGRESS=1` withholds the 6 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`), fail-closed, for airgap/sealed-box deployments. This is a **data-exfiltration axis, not authorisation** — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so this switch withholds it. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.

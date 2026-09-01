@@ -90,6 +90,11 @@ BRAIN_MODULES = (
     # fault-mechanism library. Added 2026-08-27 — the layer had shipped CLI-only
     # while §3.1 claimed both front-ends.
     "investigation_tools",
+    # The determinism claim, executed (verify_determinism): a pinned dataset run
+    # through the analysis layers under several arms, digested. It belongs to the
+    # cross-protocol brain because it is a property of the engine, not of an
+    # edition or a protocol.
+    "verify_tools",
 )
 
 # Named profiles expand to protocol keys. These are MCP *exposure* menus and are

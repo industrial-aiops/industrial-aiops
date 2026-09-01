@@ -44,6 +44,7 @@ from iaiops.cli.scan import scan_app
 from iaiops.cli.secret import secret_app
 from iaiops.cli.store import store_app
 from iaiops.cli.tags import tags_app
+from iaiops.cli.verify import verify_app
 
 app = typer.Typer(
     name="iaiops",
@@ -126,6 +127,7 @@ app.add_typer(store_app, name="store")
 app.add_typer(case_app, name="case")
 app.add_typer(compliance_app, name="compliance")
 app.add_typer(scan_app, name="scan")
+app.add_typer(verify_app, name="verify")
 
 
 @app.command("protocols")
