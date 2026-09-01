@@ -294,6 +294,59 @@ def test_forget_keeps_the_requested_tail(tmp_path, home):
     assert pb.history("D")["snapshot_count"] == 1
 
 
+def test_snapshot_ids_are_never_reused_after_a_forget(tmp_path, home):
+    """Numbering off ``len(snapshots)`` mints a duplicate the moment one is dropped.
+
+    Found by running the flow rather than reading it: three snapshots, then
+    ``forget --keep 2``, then one more — and the new row came back as ``P-0003``,
+    the id an older row already had. ``--against P-0003`` then resolved to that
+    older row, so a change-control report would describe drift against a baseline
+    nobody asked for, and say nothing about it.
+    """
+    for i in range(3):
+        pb.take_snapshot(
+            _write(tmp_path, "p.scl", SCL + f"\n// rev {i}\n"), name="P", label=f"rev{i}"
+        )
+    pb.forget("P", keep=2)
+    pb.take_snapshot(_write(tmp_path, "p.scl", SCL + "\n// rev 99\n"), name="P", label="rev99")
+
+    rows = pb.history("P")["snapshots"]
+    ids = [r["snapshot_id"] for r in rows]
+    assert len(ids) == len(set(ids)), f"duplicate snapshot id: {ids}"
+    assert ids == ["P-0002", "P-0003", "P-0004"]
+    # ...and the newest id resolves to the newest snapshot, not to an older twin.
+    assert (
+        pb.check_drift(_write(tmp_path, "p.scl", SCL + "\n// rev 99\n"), name="P", against=ids[-1])[
+            "baseline"
+        ]["label"]
+        == "rev99"
+    )
+
+
+def test_a_store_written_before_the_counter_existed_cannot_collide(tmp_path, home):
+    """The floor: the next id is also bounded by the highest one already stored."""
+    for i in range(2):
+        pb.take_snapshot(_write(tmp_path, "q.scl", SCL + f"\n// r{i}\n"), name="Q")
+    store = pb.load_store()
+    store["programs"]["Q"].pop("next_seq")  # as an older store would look
+    pb.save_store(store)
+
+    taken = pb.take_snapshot(_write(tmp_path, "q.scl", SCL + "\n// r9\n"), name="Q")
+    assert taken["snapshot"]["snapshot_id"] == "Q-0003"
+
+
+def test_two_snapshots_sharing_an_id_are_refused_not_guessed(tmp_path, home):
+    """A hand-edited store must not silently resolve to whichever came first."""
+    pb.take_snapshot(_write(tmp_path, "r.scl", SCL), name="R")
+    pb.take_snapshot(_write(tmp_path, "r.scl", SCL + "\n// two\n"), name="R")
+    store = pb.load_store()
+    store["programs"]["R"]["snapshots"][1]["snapshot_id"] = "R-0001"
+    pb.save_store(store)
+
+    with pytest.raises(pb.SnapshotNotFoundError, match="share the id"):
+        pb.check_drift(_write(tmp_path, "r.scl", SCL), name="R", against="R-0001")
+
+
 def test_forget_without_keep_drops_the_program(tmp_path, home):
     pb.take_snapshot(_write(tmp_path, "e.scl", SCL), name="E")
     assert pb.forget("E")["still_tracked"] is False

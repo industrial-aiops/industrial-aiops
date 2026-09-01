@@ -93,6 +93,28 @@
   scope — they run REST and databases, not field protocols, and touching them
   would pull the product into electronic-records territory for no differentiation.
 
+### Fixed
+
+- **Snapshot ids could be reused after `program forget`, and `--against` would
+  then silently pick the wrong baseline.** Numbering off `len(snapshots)` looks
+  obvious and breaks the moment anything is removed: three snapshots, then
+  `forget --keep 2`, then one more, and the new row came back as `P-0003` — an id
+  an older row already had. `--against P-0003` resolved to that older row and said
+  nothing, so a change-control report would describe drift against a baseline
+  nobody asked for. The counter is now stored per program and floored by the
+  highest id present, so stores written before this field existed cannot collide
+  either; two rows sharing an id are refused rather than resolved. Found by
+  running the flow, not by reading it — the unit tests were green throughout.
+- **A non-finite reading was graded as passing in all three pharma checks.** Every
+  NaN comparison is False, so a NaN sailed past `diff < 0`, past
+  `diff < min_cascade_pa`, past `count > limit`, and came out the far side as
+  `correct` / `within_limit`. That is "we could not read this" rendered as a pass,
+  on a batch-environment check, in the flattering direction — the same gap
+  `core/report/fmt.finite` was written for in 0.23.0, arriving through the brain's
+  more permissive `num`. The three checks now coerce with `finite`: non-finite in,
+  `no_reading` / `not_graded` out, and a non-finite *limit* grades nothing rather
+  than becoming a limit everything meets.
+
 ### Changed
 
 - Both READMEs' governed-tool total moved 182 → 189 (`verify_determinism`, three

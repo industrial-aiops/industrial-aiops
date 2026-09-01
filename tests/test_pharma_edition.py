@@ -278,6 +278,68 @@ def test_findings_are_worst_first():
     ]
 
 
+# ─── "I could not read this" must never render as a pass ─────────────────────
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_a_non_finite_reading_is_never_graded_as_passing(bad):
+    """Every NaN comparison is False, so a NaN sails past every ``<`` guard.
+
+    Reproduced on all three checks before this was fixed: a NaN differential came
+    out ``correct``, a NaN particle count ``within_limit``, a NaN conductivity
+    ``within_limit``. Each is "we could not read this" rendered as a pass, on a
+    batch-environment check — the flattering direction, through the one gap a
+    comparison-based guard cannot close.
+    """
+    cascade = cr.cleanroom_pressure_cascade(
+        [
+            {"room": "A", "grade": "A", "pressure_pa": bad},
+            {"room": "B", "grade": "B", "pressure_pa": 10.0},
+        ],
+        [{"from": "A", "to": "B"}],
+    )
+    assert cascade["cascade"]["doors"][0]["status"] == "unknown"
+    assert cascade["rooms"][0]["status"] == "no_reading"
+
+    particles = cr.cleanroom_particle_check(
+        [{"room": "r", "grade": "B", "state": "at_rest", "particles_per_m3": {"0.5": bad}}],
+        {"B": {"at_rest": {"0.5": 3520}}},
+    )
+    assert particles["readings"][0]["status"] == "no_reading"
+    assert particles["summary"]["within_limit"] == 0
+
+    water = pw.pharma_water_check(
+        [
+            {
+                "point": "p",
+                "conductivity_us_cm": bad,
+                "sample_temperature_c": 50.0,
+                "temperature_compensated": False,
+            }
+        ],
+        stage1_conductivity_us_cm={"50": 1.9},
+    )
+    assert water["readings"][0]["status"] == pw.NOT_GRADED
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf")])
+def test_a_non_finite_limit_grades_nothing(bad):
+    """The complement: a broken limit must not become a limit everything meets."""
+    particles = cr.cleanroom_particle_check(
+        [{"room": "r", "grade": "B", "state": "at_rest", "particles_per_m3": {"0.5": 1e9}}],
+        {"B": {"at_rest": {"0.5": bad}}},
+    )
+    assert particles["readings"][0]["status"] == "no_limit"
+
+    water = pw.pharma_water_check([{"point": "p", "toc_ppb": 1e9}], toc_limit_ppb=bad)
+    assert water["readings"][0]["status"] == pw.NOT_GRADED
+
+
+def test_a_non_finite_stage1_table_entry_is_refused():
+    with pytest.raises(pw.Stage1TableError, match="not numeric"):
+        pw.pharma_water_check([_sample()], stage1_conductivity_us_cm={"50": float("nan")})
+
+
 # ─── the edition wiring ──────────────────────────────────────────────────────
 
 

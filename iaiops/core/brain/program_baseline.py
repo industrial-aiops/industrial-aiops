@@ -30,6 +30,7 @@ No device is ever touched. This reads a file that a person exported.
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -138,6 +139,29 @@ def _now() -> str:
     return datetime.now(tz=UTC).isoformat(timespec="seconds")
 
 
+#: Trailing sequence number in a snapshot id (``Line3-0007`` → 7).
+_SEQ_RE = re.compile(r"-(\d+)$")
+
+
+def _next_seq(record: dict) -> int:
+    """The next snapshot number for a program — monotonic, never reused.
+
+    Numbering off ``len(snapshots)`` looks obvious and is wrong the moment
+    anything is removed: ``forget --keep 2`` leaves ``P-0002, P-0003`` and the
+    next snapshot is numbered 3 again. Two rows then share an id, ``--against
+    P-0003`` silently resolves to the older one, and a change-control tool
+    reports drift against a baseline nobody asked for. So the counter is stored,
+    and it is also floored by the highest id present, so a store written before
+    this field existed cannot collide either.
+    """
+    highest = 0
+    for snap in record.get("snapshots") or ():
+        match = _SEQ_RE.search(str(snap.get("snapshot_id", "")))
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return max(int(record.get("next_seq") or 0), highest + 1, 1)
+
+
 def fingerprint_file(path: str) -> dict[str, Any]:
     """Parse an exported program and fingerprint it — no store involved."""
     resolved, text, _fmt = load_program(path)
@@ -189,8 +213,9 @@ def take_snapshot(
             f"`iaiops program forget --name {key} --keep N` to trim deliberately."
         )
 
+    seq = _next_seq(record)
     snapshot = {
-        "snapshot_id": f"{key}-{len(snapshots) + 1:04d}",
+        "snapshot_id": f"{key}-{seq:04d}",
         "taken_at": _now(),
         "source_file": taken["source_file"],
         "content_sha256": taken["content_sha256"],
@@ -198,7 +223,7 @@ def take_snapshot(
         "note": s(str(note or ""), MAX_NOTE),
         "fingerprint": taken["fingerprint"],
     }
-    new_record = {**record, "snapshots": [*snapshots, snapshot]}
+    new_record = {**record, "snapshots": [*snapshots, snapshot], "next_seq": seq + 1}
     save_store(_with_program(store, key, new_record), base_dir)
     return {
         "status": "recorded",
@@ -227,11 +252,21 @@ def _snapshots_or_raise(store: dict, name: str) -> list[dict]:
 def _pick(snapshots: list[dict], snapshot_id: str | None) -> dict:
     if snapshot_id is None:
         return snapshots[-1]
-    for snap in snapshots:
-        if snap.get("snapshot_id") == snapshot_id:
-            return snap
-    known = ", ".join(snap.get("snapshot_id", "") for snap in snapshots)
-    raise SnapshotNotFoundError(f"No snapshot {snapshot_id!r}. Known: {known}.")
+    matches = [s for s in snapshots if s.get("snapshot_id") == snapshot_id]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        known = ", ".join(snap.get("snapshot_id", "") for snap in snapshots)
+        raise SnapshotNotFoundError(f"No snapshot {snapshot_id!r}. Known: {known}.")
+    # Unreachable through this module (:func:`_next_seq` keeps ids unique), so it
+    # means a hand-edited store. Refusing beats picking one: silently comparing
+    # against whichever row happened to be first is how a change-control report
+    # ends up describing a baseline nobody asked for.
+    raise SnapshotNotFoundError(
+        f"{len(matches)} snapshots share the id {snapshot_id!r} in "
+        f"{store_path()}. Ids are meant to be unique, so this store was edited by "
+        "hand — fix it before comparing against anything."
+    )
 
 
 def check_drift(

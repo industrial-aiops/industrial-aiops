@@ -34,7 +34,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from iaiops.core.brain._shared import num, s
+from iaiops.core.brain._shared import s
+from iaiops.core.report.fmt import finite as num
+
+#: Readings are coerced with :func:`~iaiops.core.report.fmt.finite`, not with the
+#: brain's ``num``. Both parse a value; only ``finite`` rejects NaN and ±inf. That
+#: distinction decides verdicts here, because every NaN comparison is False: a NaN
+#: differential sailed past ``diff < 0`` and ``diff < min_cascade_pa`` and came out
+#: the far side graded ``correct``, and a NaN particle count came out
+#: ``within_limit``. "We could not read this" rendered as a pass — the flattering
+#: direction, on a batch-environment check. Non-finite now means no reading.
 
 MAX_ROWS = 200
 
