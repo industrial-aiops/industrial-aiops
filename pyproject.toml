@@ -164,6 +164,10 @@ warehouse = [
 # Clinical-facility edition (医疗设施) — matches IAIOPS_MCP=clinical: BACnet BMS +
 # Modbus gas-alarm panels / energy meters + OPC-UA plant SCADA.
 clinical = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]"]
+# Pharmaceutical-manufacturing edition (制药) — matches IAIOPS_MCP=pharma: BACnet
+# BMS/EMS (cleanroom cascade) + Modbus PW/WFI skids + HART transmitters (conductivity
+# / TOC) + OPC-UA DCS and bioreactors. No new protocol: pharma needed semantics.
+pharma = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[hart]", "iaiops[opcua]"]
 # 信创 / China entry: domestic TSDB historian sinks (compliance mapping is built-in).
 xinchuang = ["iaiops[tdengine]", "iaiops[iotdb]"]
 
@@ -207,6 +211,7 @@ iaiops-mcp-water = "mcp_server.entrypoints:main_water"
 iaiops-mcp-renewables = "mcp_server.entrypoints:main_renewables"
 iaiops-mcp-warehouse = "mcp_server.entrypoints:main_warehouse"
 iaiops-mcp-clinical = "mcp_server.entrypoints:main_clinical"
+iaiops-mcp-pharma = "mcp_server.entrypoints:main_pharma"
 
 [tool.hatch.build.targets.wheel]
 packages = ["iaiops", "mcp_server"]

@@ -39,8 +39,8 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 | **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎 |
 | **归你自己** | 无遥测、不回连。有六个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`uns_publish`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这六个一并摘除，形成离线姿态 |
 
-本包内含**九个行业版**：fab · factory · process · building · water · warehouse · clinical ·
-renewables · plcnext，各自带只读的行业建议检查。变电/电力（IEC-104 · DNP3 · IEC-61850）为独立包
+本包内含**十个行业版**：fab · factory · process · building · water · warehouse · clinical ·
+pharma · renewables · plcnext，各自带只读的行业建议检查。变电/电力（IEC-104 · DNP3 · IEC-61850）为独立包
 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)。
 
 ## 头五分钟
@@ -155,7 +155,7 @@ iaiops protocols            # 能力地图
 **协议 extras:** `opcua` · `modbus` · `s7` · `mc` · `fins`(纯标准库,不 pin 任何依赖)· `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · `bas`(BAS 监控器层 REST,复用 mtconnect HTTP pin)· `ignition`(Ignition Gateway 只读层,复用 mtconnect HTTP pin)· 另有 `tdengine` · `iotdb` · `influxdb`(时序库下沉)· `nats`(流出口)· `ollama`(本机 LLM 叙述)· `export`(Parquet 导出)· `all`(全部可 pip 装的 connector)。
 
 **Edition 捆绑**(与同名 `IAIOPS_MCP` profile 对应——按行业只装该垂直跑的协议):
-`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
+`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `pharma`(制药:bacnet+modbus+hart+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
 
 > **信创/离线:** 纯 Python 核心 + 可选 extras 支持**离线/气隙安装**(本地 wheelhouse + `pip install --no-index`)。国产时序库下沉(TDengine/IoTDB)、合规对照见 `docs/CHINA.md`。
 
@@ -508,6 +508,15 @@ iaiops opcua discover -e line1
 **0.11/0.12 新增行业版**(每版都带自己的只读、引用优先、仅建议的检查工具,只在选中该 edition 时加载):
 - **仓储/物料搬运**(`IAIOPS_MCP=warehouse`,eip+profinet+modbus+opcua+sparkplug):输送/分拣驱动 + VFD/电表 + WMS/WCS 网关 + AMR 遥测;版工具 `line_bottleneck`(约束理论产能瓶颈)+ `sortation_health`;复用 PdM / `downtime_triage` / OEE。
 - **医疗设施**(`IAIOPS_MCP=clinical`,bacnet+modbus+opcua):把医院设施作为区别于普通楼宇的患者安全垂直;版工具 `isolation_room_check`(负压/正压隔离病房压差)、`medical_gas_check`(医用气体报警屏)、`or_environment_check`(手术室温湿度/压力包络)。
+- **制药**(`IAIOPS_MCP=pharma`,bacnet+modbus+hart+opcua):**不新增任何协议** —— 这正是重点:
+  制药没有专用现场协议(洁净室跑 BACnet、制水跑 Modbus/HART、灌装冻干跑 S7、DCS 跑 OPC-UA,全在基座里),
+  缺的是**语义**。版工具 `cleanroom_pressure_cascade`(Annex 1 压差级联,**逐门**判;相邻关系由人声明,
+  不从房间清单里猜)、`cleanroom_particle_check`、`pharma_water_check`(USP <645> stage-1 **程序**:
+  未温度补偿读数、测得温度**向下**取档、超限报「转 Stage 2」而不是 FAIL)。
+  **不内嵌任何药典限值** —— 限值属于贵厂在其药典版本下已确认的质量标准,本仓无人能核的转录数字
+  不该去决定一批环境算不算合格,而且抄松了读起来正好像「符合标准」。没声明的项报 `no_limit` /
+  `not_graded` 并点名,**绝不当作通过**。已知缺口(写在该 edition 的 skill 里):没有 PI 连接器、
+  S7 无真机验证、尚无 GxP(Annex 11 / Part 11)对照、LIMS/QMS **有意不做**(走 REST/DB 不走现场协议)。
 - **光伏/风电**(`IAIOPS_MCP=renewables`,modbus+opcua+sparkplug):PV 逆变器(SUN2000/Growatt 模板)+ 风机控制器 + 场站 SCADA + Sparkplug 遥测;版工具 `pv_performance`(组串性能对比)。
 - **PLCnext 打包版**(`IAIOPS_MCP=plcnext`,opcua+modbus):菲尼克斯 PLCnext 虚拟化 PLC,经其内置 OPC-UA server(`opc.tcp` 4840)+ Modbus-TCP 过程数据 server,不新增 connector;route-verified,真机 `待核实`。
 
@@ -528,7 +537,7 @@ iaiops opcua discover -e line1
 - **停机分诊 copilot**(`downtime_triage`):把**报警级联 + RCA 结论 + PdM 前兆**编排成一次分诊,并核对首出报警是否与诊断出的根因一致;仅建议、引用优先(基于早期的 `alarm_cascade` 首出重建与 `pdm_forecast` 到阈时间预警)。
 - **老 PLC 可维护性**(`plc_program_visibility`):对**导出的** ST/AWL/L5X 程序做风险/可维护性读评(体量、块数、交叉引用密度、无注释段),绝不上传在线 PLC;与 `plc_program_outline/xref/section` 讲解器配套。
 - **每版工具机制**(`mcp_server/profiles.py` 的 `EDITION_MODULES`):某个 edition 可携带自己的 `@mcp.tool` 组,**仅在选中该 edition 时加载**——裸协议键与常驻脑都不加载,故各版专用工具不污染其他面、不膨胀基座。各版签名工具:仓储 `line_bottleneck`/`sortation_health`;医疗 `isolation_room_check`/`medical_gas_check`/`or_environment_check`;楼宇 `economizer_check`/`zone_comfort`;过程 `control_loop_health`/`heat_exchanger_fouling`;半导体 `spc_check`/`defect_pareto`;工厂 `changeover_analysis`;水处理 `disinfection_ct`/`water_quality_compliance`;光伏风电 `pv_performance`。
-- **Agent 技能**:仓库随附一个路由技能(`skills/iaiops`)+ **九个**按行业技能(`iaiops-fab` / `iaiops-factory` / `iaiops-process` / `iaiops-building` / `iaiops-water` / `iaiops-warehouse` / `iaiops-clinical` / `iaiops-renewables` / `iaiops-plcnext`),把 agent 路由到正确的 MCP server 并说明工具面。
+- **Agent 技能**:仓库随附一个路由技能(`skills/iaiops`)+ **十个**按行业技能(`iaiops-fab` / `iaiops-factory` / `iaiops-process` / `iaiops-building` / `iaiops-water` / `iaiops-warehouse` / `iaiops-clinical` / `iaiops-pharma` / `iaiops-renewables` / `iaiops-plcnext`),把 agent 路由到正确的 MCP server 并说明工具面。
 
 ### 10. ISA-18.2 报警洪泛分析 + 合规报告(0.9 新增)
 
@@ -546,7 +555,7 @@ iaiops opcua discover -e line1
 
 ## 安全与治理
 
-- **读优先**:**186 个受治理工具 = 173 只读 + 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
+- **读优先**:**189 个受治理工具 = 176 只读 + 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。

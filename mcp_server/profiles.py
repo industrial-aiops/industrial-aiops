@@ -140,6 +140,13 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # medical-gas safety checks), Modbus (gas alarm panels / energy meters), OPC-UA
     # (plant SCADA). Patient-safety framing over the same building brain.
     "clinical": ("bacnet", "modbus", "opcua"),
+    # Pharmaceutical manufacturing edition (制药): the cleanroom suite and the
+    # purified-water system are the GMP-critical OT. BACnet for the BMS/EMS
+    # (pressure cascade, temperature/RH), Modbus for the water skid and analysers,
+    # HART for the conductivity / TOC / level transmitters, OPC-UA for DCS and
+    # bioreactors. No new protocol — what pharma needed was semantics, not a
+    # connector: no field protocol is specific to the industry.
+    "pharma": ("bacnet", "modbus", "hart", "opcua"),
 }
 
 # Per-edition tool modules — extra ``@mcp.tool`` groups a named EDITION carries
@@ -169,6 +176,10 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     "factory": ("factory_tools", "ignition_tools"),
     # Disinfection CT + finished-water quality are water-treatment concerns — water edition.
     "water": ("water_tools",),
+    # Cleanroom pressure cascade / particle counts and PW-WFI water are GMP
+    # manufacturing concerns — they ride the pharma edition. Deliberately not on
+    # `water`: the protocols are shared, the limits and the procedure are not.
+    "pharma": ("pharma_tools",),
     # PV string performance is a solar/renewables concern — renewables edition.
     "renewables": ("renewables_tools",),
 }

@@ -53,11 +53,51 @@
   rather than a path, because the export directory changes every time somebody
   opens the engineering station and the program does not.
 
+- **`pharma` edition (制药)** — `IAIOPS_MCP=pharma` / `iaiops-mcp-pharma` /
+  `pip install iaiops[pharma]`: bacnet + modbus + hart + opcua + the brain, plus
+  three edition tools. **No new protocol, and that is the finding**: no field
+  protocol is specific to pharmaceutical manufacturing. Cleanrooms run BACnet,
+  purified-water systems run Modbus and HART, filling and lyophilization run S7,
+  DCS and bioreactors run OPC-UA — all of it already shipped. What was missing was
+  semantics. The water edition's indicators are municipal (DO, ORP, chlorine,
+  turbidity) and the clinical edition grades one room's pressure, where Annex 1
+  inspects the cascade.
+
+  `cleanroom_pressure_cascade` grades an EU GMP Annex 1 cascade **door by door**,
+  with adjacency declared rather than inferred: four rooms listed in grade order
+  look like an obvious chain, and guessing it would invent the relationship the
+  check exists to test (D25). Without declared doors the cascade is reported as
+  not evaluated, with the reason, and the room readings are still graded.
+
+  `pharma_water_check` implements the USP <645> stage-1 *procedure*, which is the
+  part that gets run backwards: the comparison uses the NON-temperature-compensated
+  reading and rounds the measured temperature DOWN to the tabulated step, so a
+  compensated reading — or one that does not say which it is — is refused rather
+  than graded, because at loop temperature that comparison reads better than the
+  real one. And exceeding stage 1 is reported as *proceed to Stage 2*, not as a
+  failure, which is what the compendium says.
+
+  **No compendial limit tables are shipped** — not the particle limits, not the
+  stage-1 conductivity table, not the TOC limit. They belong to the site's
+  qualified specification at its compendial revision, and a transcription nobody
+  in this repository can verify would end up deciding whether a batch environment
+  passed. The flattering error there — a limit set too loose — reads as "in
+  specification". Limits are passed in and cited back; anything undeclared is
+  reported `no_limit` / `not_graded` and named, never counted as passing. A test
+  greps the module for numbers that look like transcribed limits.
+
+  The edition's skill lists what it cannot do, because saying so is worth more
+  than implying otherwise: no OSIsoft/AVEVA PI connector (the historian most
+  pharmaceutical plants actually run), S7 without hardware verification, no
+  GxP (Annex 11 / Part 11) crosswalk yet, and LIMS / QMS deliberately out of
+  scope — they run REST and databases, not field protocols, and touching them
+  would pull the product into electronic-records territory for no differentiation.
+
 ### Changed
 
-- Both READMEs' governed-tool total moved 182 → 186 (`verify_determinism` plus the
-  three program-baseline tools); the count gate added in 0.25.0 caught both moves,
-  which is what it is for.
+- Both READMEs' governed-tool total moved 182 → 189 (`verify_determinism`, three
+  program-baseline tools, three pharma tools); the count gate added in 0.25.0
+  caught every move, which is what it is for. Edition count 9 → 10.
 
 ## 0.25.1 — 2026-08-30
 
