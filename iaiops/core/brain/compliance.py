@@ -104,26 +104,37 @@ _CROSSWALK: dict[str, dict[str, str]] = {
     "分区隔离 (zoning / isolation)": {
         "dengbao": "安全通信网络·网络架构 / 安全区域边界·边界防护·访问控制",
         "iec62443": "FR5 受限数据流 (RDF) — zones & conduits (IEC 62443-3-2 / -3-3 SR 5.x)",
+        "gxp": "EU GMP Annex 11 §4.3 (系统应置于受控环境) — 与 GAMP 5 的基础设施分层一致",
     },
     "可审计 (auditability)": {
         "dengbao": "安全计算环境·安全审计 + 安全管理中心·集中管控",
         "iec62443": "FR6 事件及时响应 (TRE) — auditable events (SR 2.8–2.12)",
+        "gxp": "Annex 11 §9 审计追踪 / 21 CFR Part 11 §11.10(e) 计算机生成、带时间戳的审计追踪；"
+        "ALCOA+ 的 Attributable · Contemporaneous · Enduring",
     },
     "双向认证 (mutual authentication)": {
         "dengbao": "安全计算环境·身份鉴别 / 安全通信网络·通信传输(加密)",
         "iec62443": "FR1 标识与鉴别控制 (IAC) — SR 1.1–1.9",
+        "gxp": "Annex 11 §12.1 身份与访问控制 / Part 11 §11.10(d)(g) 仅授权人员可访问；"
+        "ALCOA+ 的 Attributable",
     },
     "最小权限 (least privilege)": {
         "dengbao": "安全计算环境·访问控制 (最小权限·权限分离)",
         "iec62443": "FR2 使用控制 (UC) — 授权强制 / 最小权限 (SR 2.1)",
+        "gxp": "Annex 11 §12.3 职责分离 / Part 11 §11.10(g) 权限检查；"
+        "MOC 分级审批对应变更控制的授权环节",
     },
     "数据保护 (data protection)": {
         "dengbao": "安全计算环境·数据保密性 / 数据完整性",
         "iec62443": "FR4 数据保密性 (DC) — SR 4.1–4.3",
+        "gxp": "Annex 11 §7 数据存储与完整性 / Part 11 §11.10(c) 记录的准确检索；"
+        "ALCOA+ 的 Original · Accurate · Complete",
     },
     "供应链 / 自主可控 (supply-chain / domestic substitutability)": {
         "dengbao": "安全建设管理·产品采购和使用 (信创 自主可控)",
         "iec62443": "FR3 系统完整性 (SI) + IEC 62443-4-1 安全开发生命周期 / 组件来源",
+        "gxp": "Annex 11 §3 供应商与服务提供方评估 / GAMP 5 供应商评估；"
+        "Annex 22 训练数据与模型来源可审计",
     },
 }
 
@@ -241,6 +252,12 @@ FRAMEWORKS: tuple[dict, ...] = (
         "region": "international",
         "kind": "标准 / standard",
     },
+    {
+        "id": "gxp",
+        "name": "GxP — EU GMP Annex 11 / Annex 22 · 21 CFR Part 11 · ALCOA+",
+        "region": "EU / US · 制药与生物制品",
+        "kind": "法规 / regulation",
+    },
 )
 
 
@@ -270,8 +287,22 @@ def compliance_mapping() -> dict:
     }
 
 
+#: What a GxP reader must not take this table for. Regulated-pharma buyers are the
+#: most sensitive audience there is to a compliance claim — "we comply with Part
+#: 11" from a vendor gets the vendor removed from the evaluation, because
+#: compliance is a property of the customer's validated system, never of a
+#: component inside it. So the mapping states which clause a piece of evidence is
+#: relevant to and stops; whether it satisfies that clause is the site QA's call.
+GXP_DISCLAIMER = (
+    "GxP 一列是**对照**,不是符合性声明。Annex 11 / Part 11 的符合性是**贵厂已验证系统**的属性,"
+    "不是其中某个组件的属性 —— iaiops 提供的是可以被映射到这些条款的证据(审计哈希链、具名审批、"
+    "改前值 undo、可复现的确定性记录),条款是否被满足由贵厂 QA 判定。本表用于 onboarding 与差距分析,"
+    "不构成认证,也不能替代 CSV。"
+)
+
+
 def compliance_frameworks() -> dict:
-    """[READ] 跨框架对照: 防护指南 ↔ 等保 2.0 ↔ IEC 62443, one row per pillar."""
+    """[READ] 跨框架对照: 防护指南 ↔ 等保 2.0 ↔ IEC 62443 ↔ GxP, one row per pillar."""
     crosswalk = []
     for c in CONTROLS:
         xw = _CROSSWALK.get(c["pillar"], {})
@@ -281,6 +312,7 @@ def compliance_frameworks() -> dict:
                 "gjzn": c["requirement"],
                 "dengbao": xw.get("dengbao", "待核实"),
                 "iec62443": xw.get("iec62443", "待核实"),
+                "gxp": xw.get("gxp", "待核实"),
                 "iaiops_status": c["status"],
             }
         )
@@ -289,8 +321,9 @@ def compliance_frameworks() -> dict:
         "framework_count": len(FRAMEWORKS),
         "pillar_count": len(crosswalk),
         "crosswalk": crosswalk,
+        "gxp_disclaimer": GXP_DISCLAIMER,
         "note": "跨框架对照 (onboarding / 审计参考，非认证)。防护指南为主映射，"
-        "等保 2.0 与 IEC 62443 为对照条款；逐项 gap / 状态见 compliance_mapping。",
+        "等保 2.0 / IEC 62443 / GxP 为对照条款；逐项 gap / 状态见 compliance_mapping。",
     }
 
 
@@ -333,6 +366,7 @@ def compliance_dengbao_levels(level: str | None = None) -> dict:
 
 
 __all__ = [
+    "GXP_DISCLAIMER",
     "compliance_mapping",
     "compliance_frameworks",
     "compliance_dengbao_levels",

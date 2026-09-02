@@ -45,7 +45,7 @@ def test_compliance_sorted_addressed_first():
 def test_compliance_mapping_carries_crosswalk():
     # Expansion: every control also maps to 等保 2.0 + IEC 62443.
     out = compliance_mapping()
-    assert set(out["frameworks"]) == {"gjzn", "dengbao", "iec62443"}
+    assert set(out["frameworks"]) == {"gjzn", "dengbao", "iec62443", "gxp"}
     for c in out["controls"]:
         xw = c["crosswalk"]
         assert xw["dengbao"] and xw["iec62443"]
@@ -54,15 +54,16 @@ def test_compliance_mapping_carries_crosswalk():
 @pytest.mark.unit
 def test_compliance_frameworks_crosswalk_complete():
     out = compliance_frameworks()
-    assert out["framework_count"] == 3
+    assert out["framework_count"] == 4
     assert out["pillar_count"] == len(out["crosswalk"])
-    assert {f["id"] for f in out["frameworks"]} == {"gjzn", "dengbao", "iec62443"}
-    # Every pillar has a concrete (non-待核实) 等保 + 62443 clause mapped.
+    assert {f["id"] for f in out["frameworks"]} == {"gjzn", "dengbao", "iec62443", "gxp"}
+    # Every pillar has a concrete (non-待核实) 等保 + 62443 + GxP clause mapped.
     for row in out["crosswalk"]:
-        for key in ("gjzn", "dengbao", "iec62443", "iaiops_status"):
+        for key in ("gjzn", "dengbao", "iec62443", "gxp", "iaiops_status"):
             assert row[key]
         assert row["dengbao"] != "待核实"
         assert "FR" in row["iec62443"]
+        assert row["gxp"] != "待核实"
 
 
 @pytest.mark.unit
