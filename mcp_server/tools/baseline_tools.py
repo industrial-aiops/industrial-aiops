@@ -12,7 +12,7 @@ only sustained excursions beyond the band by a conservative MAD margin, and
 every flag cites the baseline samples it was judged against. Silent by default.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from iaiops.core.brain import baseline_store as bls
 from iaiops.core.governance import governed_tool
@@ -122,3 +122,97 @@ def baseline_status(tag: Optional[str] = None) -> dict:
     Example: baseline_status(tag="line1.temp").
     """
     return bls.status_flow(tag)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def baseline_learn_contextual(
+    samples: list[dict[str, Any]],
+    tag: str,
+    context_key: str = "context",
+    min_samples: int = 100,
+    min_span_s: float = 86_400.0,
+) -> dict:
+    """[READ][risk=low] Learn one conservative band per declared context, not one per tag.
+
+    One band per tag is wrong the moment a tag has more than one normal. A dryer
+    running recipe A at 180 °C and recipe B at 240 °C gets a band spanning both,
+    after which neither regime can go wrong — the band is too wide to catch a
+    real excursion and too mixed to mean anything. OT normal ranges move with
+    shift, product/recipe, and start-up versus steady state.
+
+    **The context is declared, never inferred** (D16). Each sample carries a
+    label under `context_key`; nothing here guesses which shift a timestamp falls
+    in or clusters values into regimes it then treats as real. Each context is
+    handed to the same learner as a global baseline, so it refuses on the same
+    terms — a thin context is left without a band rather than borrowing another
+    context's samples. Samples with no label are counted and named, not pooled
+    into a default bucket, because a default bucket is that same fallback.
+
+    Pass samples in (as with `spc_check` / `tag_health`). The local store's
+    `samples` table has no context column, so there is deliberately no
+    `iaiops baseline learn --context` yet; wiring one is a schema change and is
+    not done.
+
+    Args:
+        samples: [{ts, value, quality?, tag?, <context_key>}] rows.
+        tag: The tag being learned.
+        context_key: Field that declares the context (default "context").
+        min_samples: Per-context minimum before a band is learned (default 100).
+        min_span_s: Per-context minimum history span in seconds (default 86400).
+
+    Returns dict: {tag, context_key, contexts:{label: learn_baseline result},
+        learned_contexts, refused_contexts, uncontexted_samples, note}.
+
+    Example: baseline_learn_contextual(samples=[{"ts":"...","value":181.0,
+        "context":"recipe-A"}], tag="dryer.temp").
+    """
+    from iaiops.core.brain.baseline_context import learn_contextual_baselines
+
+    return learn_contextual_baselines(
+        samples, tag, context_key=context_key, min_samples=min_samples, min_span_s=min_span_s
+    )
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def baseline_check_in_context(
+    samples: list[dict[str, Any]],
+    contextual: dict[str, Any],
+    context: str,
+    margin_mad: float = 3.0,
+    sustain_n: int = 3,
+) -> dict:
+    """[READ][risk=low] Check readings against the band for ONE declared context.
+
+    A reading whose context was never learned comes back `unknown_context` and
+    stops there. It is **not** compared against the global band or the nearest
+    one, and that refusal is the entire point of the tool: borrowing a band turns
+    "we have never seen this regime" into "this regime is normal" — a silent
+    pass, in the direction nobody reports. The response lists the contexts that
+    do have bands so the gap is actionable.
+
+    Otherwise the usual conservative rules apply: a violation needs values beyond
+    the band by more than `margin_mad` × MAD AND sustained over `sustain_n`
+    consecutive samples, and every flag cites the baseline it was judged against.
+
+    Args:
+        samples: [{ts, value, ...}] readings to check.
+        contextual: A `baseline_learn_contextual` result.
+        context: Which declared context these readings belong to.
+        margin_mad: MAD margin beyond the band before flagging (default 3.0).
+        sustain_n: Consecutive samples required (default 3 — no single-spike flags).
+
+    Returns dict (known context): the `baseline_check` shape plus {context,
+        context_key}. (unknown): {status:"unknown_context", tag, context,
+        known_contexts, checked_samples, reason, note}.
+
+    Example: baseline_check_in_context(samples=[...], contextual={...}, context="recipe-B").
+    """
+    from iaiops.core.brain.baseline_context import check_in_context
+
+    return check_in_context(
+        samples, contextual, context, margin_mad=margin_mad, sustain_n=sustain_n
+    )

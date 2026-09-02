@@ -479,3 +479,55 @@ def heartbeat_health(series: list[Any], max_interval_s: Optional[float] = None) 
     Example: heartbeat_health(series=[1,2,3,4,5], max_interval_s=10).
     """
     return dq.heartbeat_health(series, max_interval_s)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def downtime_attribution(
+    stoppages: list[dict[str, Any]],
+    site: str = "default",
+    max_lead_s: float = 900.0,
+) -> dict:
+    """[READ][risk=low] Which stoppage started it, and which ones were downstream of it.
+
+    RCA weights evidence by TIME alone — a signal before onset counts, one after
+    counts less. That is the honest half of the axis. Run `downtime_root_cause`
+    per asset after one upstream stop and every downstream machine comes back
+    with its own confident local root cause: each internally consistent, each
+    citing real signals, and all but one about a machine that stopped because it
+    was starved. The distinguishing fact is not in the evidence — it is the
+    line's topology.
+
+    Two rules decide an attribution and both must hold: the candidate must be
+    **declared upstream** of the asset, and it must have **stopped first**. An
+    upstream asset that stopped later cannot have caused an earlier stop, however
+    upstream it is.
+
+    Topology is declared, never inferred (D25). Co-occurrence on a production
+    line is guaranteed — everything stops together — so mining it for edges would
+    manufacture the causality this exists to remove. With no relations declared
+    every row comes back `not_evaluable` and the reason names the command that
+    fixes it. Assets the topology does not connect are left `unattributed` rather
+    than folded into the origin's column.
+
+    This ranks the stoppages; it does not diagnose the origin. Run
+    `downtime_root_cause` on the origin asset for that.
+
+    Args:
+        stoppages: [{asset, start, end?}] for one incident window (ISO-8601).
+        site: Which declared line topology to use (default "default").
+        max_lead_s: A downstream stop is attributed only if it began within this
+            many seconds of the upstream one (default 900).
+
+    Returns dict: {site, stoppages_evaluated, relations_declared, max_lead_s,
+        verdict ('origin'|'multiple_origins'|'unattributed'|'not_evaluable'),
+        origins, consequence_count, attributions:[{asset, start, status,
+        origin_asset?, hops_upstream?, lead_s?, explains?, detail}], advisory}.
+
+    Example: downtime_attribution(stoppages=[{"asset":"filler","start":"2026-01-05T06:00:00Z"},
+        {"asset":"capper","start":"2026-01-05T06:01:00Z"}]).
+    """
+    from iaiops.core.brain.rca_relations import attribute_downtime
+
+    return attribute_downtime(stoppages, site=site, max_lead_s=max_lead_s)

@@ -60,6 +60,14 @@ description: >-
   staleness / flatline / bad-quality —— 仪表坏数据绝不静默插值喂 AI）
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
   `health_summary` (deprecated) `anomaly_scan` (deprecated)
+- 上下文基线：`baseline_learn_contextual` `baseline_check_in_context` —— 一个位号只学一条带,
+  在它有不止一个「正常」时就是错的(同一台干燥机 recipe A 走 180 °C、B 走 240 °C,一条带横跨两者,
+  于是两个工况都不可能出错)。**上下文由人声明,绝不推断**(D16);某个上下文历史太薄就**拒学**,
+  不借用别的上下文的样本;读数落在没学过的上下文里报 `unknown_context`,**绝不回落到全局带** ——
+  回落等于把「这个工况从没见过」说成「这个工况正常」。
+- 上下游归因：`downtime_attribution` —— RCA 只按**时间**加权,所以一次上游停机会让每台下游设备
+  各自给出一个自信的本地根因。方向来自**声明的**产线顺序(D25:产线上共现是必然,拿它挖边等于
+  制造因果),顺序来自时间戳,**两者都要成立**;没声明关系就报 `not_evaluable` 并给出补法。
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
 - 基线：`baseline_learn` `baseline_check` `baseline_record_change` `baseline_status`
   （change-log 基线：拒学薄历史、只报持续越带、每次告警必引基线样本 —— 非黑盒异常检测）
