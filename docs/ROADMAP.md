@@ -405,7 +405,12 @@ RCA, and OEE**. Their shared bottleneck is readiness, not algorithms — so this
 deliberately sequenced *after* the one above. Two are real gaps rather than polish
 (HLD §10.3):
 
-- [ ] **Contextual baselines.** `learn_baseline` produces ONE robust band per tag,
+- [x] **Contextual baselines.** — shipped 0.27 (`baseline_learn_contextual` /
+      `baseline_check_in_context`). Context is DECLARED, a thin context refuses to
+      learn rather than borrowing another's samples, and a reading in an unlearned
+      context is `unknown_context` — never compared against the global band, because
+      that renders "never seen this regime" as "this regime is normal".
+      Original note: `learn_baseline` produces ONE robust band per tag,
       segmented only at the latest operator change. OT normal ranges move with context
       — shift, product/recipe, start-up vs steady state — so one band is either too
       wide to catch a real excursion or too mixed to learn at all. Learn per bucket and
@@ -420,7 +425,11 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
       `confirmed` is reachable only from outside the ranking, wired to the case
       loop via `diag rca --from-case`. Borrowed from an IT-side log-analysis
       platform's method — specifically **the parts of it that need no model**.
-- [ ] **Relationship-aware correlation** (D18). `_proximity_scale` weights evidence by
+- [x] **Relationship-aware correlation** (D18) — shipped 0.27 as `downtime_attribution`.
+      Direction from declared line order, order from timestamps, BOTH required; assets
+      the topology does not connect stay unattributed; no relations ⇒ `not_evaluable`,
+      never inferred from co-occurrence.
+      Original note: `_proximity_scale` weights evidence by
       TIME only (cause precedes effect). Without an upstream/downstream axis, one
       upstream stoppage yields a run of equally-confident downstream false root causes.
       Sources ranked by trust: a human-declared line order (enough to start) → SNMP/LLDP
@@ -429,17 +438,23 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
       **Now also the second exclusion axis**: with a declared line order, a
       downstream false root cause is not merely down-weighted but `excluded` with
       a reason, reusing the grading that shipped above (HLD §10.3④).
-- [ ] Event-type clustering for alarms — `alarm_bad_actors` groups by source, so ten
+- [x] Event-type clustering for alarms — shipped 0.27 as `alarm_event_clusters`.
+      Exact equality of a normalized message (case / punctuation / digits removed), not
+      similarity; every cluster lists the wordings and sources it merged.
+      Original note: `alarm_bad_actors` groups by source, so ten
       phrasings of one fault count as ten bad actors. Incremental; lowest of the three.
 - [ ] **Prerequisites belong in the sales deck.** `ppt/industrial-aiops-介绍-v1.pptx`
       slides 9–20 use a 如何做 → 得到什么 → 价值 → 意义 frame with no 前置条件 row.
       Three of the four evidence classes behind the flagship RCA story need a human or
       a configured historian (HLD §9.2); a demo that omits that will fail on first
       contact with a real site.
-      **Half-addressed:** the OEE report now carries that row — what had to be
-      declared to produce each figure, and what is still missing — so the DEMO no
-      longer omits it. The deck still does; this item stays open until the slides
-      do, because a report nobody opens does not fix a slide everybody sees.
+      **Closed 2026-09-02.** The OEE report carried the row first; the decks now
+      carry it too. Every scenario band in the Chinese (国内版 / 国际版) and English
+      decks has a 前置条件 / "Needs first" block beside its 痛点, naming what has to
+      exist before that scenario runs — a configured endpoint, a declared
+      production-count tag, an exported program file, an integrated historian.
+      The RCA one says outright that three of its four evidence classes need a
+      person or a configured historian.
 
 ### Also now guarded rather than merely claimed
 
