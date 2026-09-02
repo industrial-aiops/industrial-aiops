@@ -3,11 +3,13 @@
 ``s()`` sanitizes any device-returned text before it reaches the caller (an OT
 server's browse names / descriptions are untrusted input that could carry a
 prompt-injection payload). ``num()`` coerces an OPC-UA / Modbus value to a float
-for threshold classification, returning None for non-numeric values.
+for threshold classification, returning None for anything that is not a real
+number — which includes NaN and ±inf, because they mean "no valid value".
 """
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -24,15 +26,31 @@ def num(value: Any) -> float | None:
 
     Booleans are treated as numeric (True=1.0/False=0.0) so digital points can
     be threshold-classified too.
+
+    **NaN and ±inf are not numbers here — they are None.** They arrive from real
+    devices (an OPC-UA server returning NaN for a bad float is ordinary), they
+    are instances of ``float``, and every comparison against them is False. That
+    combination walked them past every guard in this layer, exactly as it had in
+    the rendering layer before ``core/report/fmt.finite`` was written for it:
+
+      * ``statistics.pstdev`` refuses non-finite data, so one NaN sample crashed
+        ``tag_health`` — and ``downtime_rca`` calls it;
+      * ``learn_baseline`` returned ``status: "ok"`` with a band of NaN, which
+        every later reading compares "inside", silently ending alerting on that
+        tag;
+      * the isolation-room, medical-gas, OR-envelope and finished-water checks
+        each graded a NaN reading **compliant**.
+
+    "I could not read this" must not render as "this is fine", so it renders as
+    nothing at all and the caller's existing missing-value branch handles it.
     """
     if isinstance(value, bool):
         return 1.0 if value else 0.0
-    if isinstance(value, (int, float)):
-        return float(value)
     try:
-        return float(value)
+        out = float(value)
     except (TypeError, ValueError):
         return None
+    return out if math.isfinite(out) else None
 
 
 def parse_ts(value: Any) -> datetime | None:

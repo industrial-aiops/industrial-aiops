@@ -13,6 +13,8 @@ flag cited by its number.
 
 from __future__ import annotations
 
+from iaiops.core.brain._shared import num
+
 MAX_ROWS = 100
 
 # Default finished-water limits. high=None ⇒ no upper bound; low=None ⇒ no lower.
@@ -62,8 +64,8 @@ def _grade(point: dict, limits: dict) -> dict:
     name = str(point.get("location") or point.get("name") or "?")
     flags: list[dict] = []
     for key, band in limits.items():
-        value = point.get(key)
-        if not isinstance(value, (int, float)):
+        value = num(point.get(key))
+        if value is None:
             continue
         if band["low"] is not None and value < band["low"]:
             flags.append(_wq_flag(band, value, "low", band["low"]))
@@ -84,7 +86,8 @@ def _wq_flag(band: dict, value: float, side: str, bound: float) -> dict:
 
 
 def _has_reading(point: dict, limits: dict) -> bool:
-    return any(isinstance(point.get(k), (int, float)) for k in limits)
+    """A NaN turbidity is not a turbidity — otherwise the point grades compliant."""
+    return any(num(point.get(k)) is not None for k in limits)
 
 
 __all__ = ["water_quality_compliance", "MAX_ROWS"]

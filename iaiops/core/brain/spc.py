@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from statistics import mean, pstdev
 
+from iaiops.core.brain._shared import num
+
 MIN_SAMPLES = 8
 MAX_VIOLATIONS = 50
 
@@ -69,11 +71,15 @@ _NOTE = (
 
 
 def _values(series: list) -> list[float]:
+    """Numeric points only — a second, laxer copy of this let NaN into pstdev."""
     out: list[float] = []
     for item in series or []:
-        value = item.get("value") if isinstance(item, dict) else item
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            out.append(float(value))
+        raw = item.get("value") if isinstance(item, dict) else item
+        if isinstance(raw, bool):
+            continue
+        value = num(raw)
+        if value is not None:
+            out.append(value)
     return out
 
 

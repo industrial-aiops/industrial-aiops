@@ -23,6 +23,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from iaiops.core.brain._shared import num
+
 MAX_ROWS = 100
 
 # ASHRAE 170 / CDC minimum room-to-corridor differential (Pa) for AII / PE rooms.
@@ -83,8 +85,9 @@ def _grade(room: dict, min_magnitude_pa: float, low_margin_pa: float) -> dict:
     diff = room.get("differential_pa", room.get("differential"))
     req = _REQUIRED_SIGN.get(mode, 0)
 
-    if not isinstance(diff, (int, float)):
-        return _row(name, mode, None, "unknown", "no numeric differential_pa reading")
+    diff = num(diff)
+    if diff is None:
+        return _row(name, mode, None, "unknown", "no usable differential_pa reading")
 
     magnitude = abs(diff)
     sign = -1 if diff < 0 else (1 if diff > 0 else 0)
@@ -180,11 +183,12 @@ def _grade_gas(source: dict) -> dict:
     band = _GAS_BANDS.get(gas)
     if band is None:
         return _gas_row(system, gas, kpa, "unknown_gas", f"no NFPA band for gas '{gas}'")
-    if not isinstance(kpa, (int, float)):
-        return _gas_row(system, gas, kpa, "unknown", "no numeric pressure_kpa reading")
+    reading = num(kpa)
+    if reading is None:
+        return _gas_row(system, gas, kpa, "unknown", "no usable pressure_kpa reading")
     if band["kind"] == "vacuum":
-        return _grade_vacuum(system, gas, float(kpa), band)
-    return _grade_positive(system, gas, float(kpa), band)
+        return _grade_vacuum(system, gas, reading, band)
+    return _grade_positive(system, gas, reading, band)
 
 
 def _grade_positive(system: str, gas: str, kpa: float, band: dict) -> dict:
@@ -275,8 +279,8 @@ def _grade_or_room(room: dict) -> dict:
     name = str(room.get("room") or room.get("name") or "?")
     flags: list[dict] = []
     for key, band in _OR_PARAMS.items():
-        value = room.get(key)
-        if not isinstance(value, (int, float)):
+        value = num(room.get(key))
+        if value is None:
             continue
         if value < band["low"]:
             flags.append(_or_flag(band, value, "low"))
@@ -298,7 +302,8 @@ def _or_flag(band: dict, value: float, side: str) -> dict:
 
 
 def _has_reading(room: dict) -> bool:
-    return any(isinstance(room.get(k), (int, float)) for k in _OR_PARAMS)
+    """A reading that is NaN is not a reading — otherwise the room grades compliant."""
+    return any(num(room.get(k)) is not None for k in _OR_PARAMS)
 
 
 __all__ = [
