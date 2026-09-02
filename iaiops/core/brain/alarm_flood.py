@@ -24,6 +24,7 @@ same acquisition path) as ``alarm_bad_actors``. No I/O happens here.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from statistics import median
@@ -193,6 +194,37 @@ def _activations(norm: list[tuple[datetime, str, str]]) -> list[tuple[datetime, 
 
 
 # ─── 1. flood episodes ───────────────────────────────────────────────────────
+
+
+def annunciation_gap(norm: list[tuple[datetime, str, str]]) -> dict | None:
+    """Why a full event list produced zero annunciations, or None if it did not.
+
+    ``_activations`` keeps only states in :data:`_ACTIVE_STATES`. A site whose
+    events say HIGH / LOW / TRIP therefore yields an empty rate from a complete
+    list, and the report used to print ``event_count: 33`` at the top beside
+    ``event_count: 0`` in the summary — two counts of the same input, neither
+    wrong, together unreadable. Say which states arrived and which ones mean
+    "a new alarm", instead of reporting a zero and leaving the reader to guess.
+    """
+    if not norm:
+        return None
+    seen = Counter(state for _, _, state in norm)
+    if any(state in _ACTIVE_STATES for state in seen):
+        return None
+    show = lambda st: st or "(empty)"  # noqa: E731 — one-line label helper
+    return {
+        "events_supplied": len(norm),
+        "annunciations_recognised": 0,
+        "states_seen": [{"state": show(st), "count": n} for st, n in seen.most_common(8)],
+        "accepted_annunciation_states": sorted(show(x) for x in _ACTIVE_STATES),
+        "accepted_clear_states": sorted(_CLEARED_STATES),
+        "fix": (
+            "ISA-18.2 rates count NEW annunciations, so the stream has to say which "
+            "rows are one. Map your states onto ACTIVE / ALARM / ALM for a new alarm "
+            "and RTN / NORMAL / CLEARED for a return. A severity word like HIGH or "
+            "TRIP does not say whether the alarm just appeared or is still standing."
+        ),
+    }
 
 
 def detect_floods(
@@ -404,12 +436,19 @@ def flood_summary(
     of timestamped events; anything thinner returns an honest
     ``insufficient_data`` result instead of a fabricated rate.
     """
-    acts = _activations(_norm_events(events))
+    norm = _norm_events(events)
+    acts = _activations(norm)
     if len(acts) < 2:
+        gap = annunciation_gap(norm)
         return {
             "insufficient_data": True,
-            "reason": "Need >=2 timestamped annunciations to compute a rate.",
+            "reason": (
+                "No event state was recognised as a new annunciation."
+                if gap
+                else "Need >=2 timestamped annunciations to compute a rate."
+            ),
             "event_count": len(acts),
+            **({"annunciation_gap": gap} if gap else {}),
         }
     span_s = (acts[-1][0] - acts[0][0]).total_seconds()
     if span_s < window_s:
@@ -772,6 +811,7 @@ def alarm_flood_report(
     norm = _norm_events(events)
     if not norm:
         return {"error": "No timestamped events. Pass [{source, timestamp, state?}, ...]."}
+    gap = annunciation_gap(norm)
     ref: datetime | str = now if now is not None else norm[-1][0] + timedelta(seconds=1)
     episodes = detect_floods(events, window_s, threshold)
     chatter = chattering_alarms(events)
@@ -792,6 +832,10 @@ def alarm_flood_report(
     exact_total = sum(len(items) for items, _cap in sections)
     return {
         "event_count": len(norm),
+        # When nothing was recognised as a new annunciation, say so at the TOP —
+        # the summary below will honestly report a rate over zero events, and a
+        # reader seeing 33 here and 0 there has no way to tell which is the bug.
+        **({"annunciation_gap": gap} if gap else {}),
         "summary": flood_summary(events, window_s, threshold),
         "load_profile": alarm_load_profile(events, load_bucket_s),
         "flood_episodes": [asdict(e) for e in episodes[:cap_ep]],

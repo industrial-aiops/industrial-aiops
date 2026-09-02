@@ -250,3 +250,51 @@ def alarm_rationalization_worksheet(
         }
     )
     return result
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def alarm_event_clusters(
+    events: list[dict[str, Any]],
+    top_n: int = 20,
+    min_count: int = 1,
+) -> dict:
+    """[READ][risk=low] Collapse ten phrasings of one fault into one row.
+
+    `alarm_bad_actors` ranks by SOURCE, which answers "which instrument is
+    noisiest" and not "which fault is noisiest". A plant that words one condition
+    ten ways — `PT-101 HIGH`, `PT-102 HIGH`, `PT-103 high alarm` — gets ten bad
+    actors and no sign that they are one problem, so a rationalization meeting
+    works the list top-down and fixes the same thing three times. This groups the
+    same events by what they SAY instead of by who said it.
+
+    Clustering is **exact equality of a normalized string, not similarity**: case,
+    punctuation and embedded numbers are removed, and what remains must match
+    exactly. That is deliberately dumber than it could be, and it is why the
+    result needs no model and can be checked — two messages land together only
+    when they are literally the same sentence with the identifiers taken out.
+    Every cluster carries the distinct wordings and sources it merged, so you can
+    see what was combined. It does **not** claim two differently-worded alarms
+    mean the same thing; a person decides that.
+
+    Events carrying no message text are counted separately and excluded from the
+    shares, rather than being lumped together as one type.
+
+    Args:
+        events: [{source?, message|description|text|condition|type, ...}].
+        top_n: Clusters returned, largest first (default 20, capped at 100).
+        min_count: Only report clusters with at least this many events (default 1 —
+            a one-off is still reported, not tidied away).
+
+    Returns dict: {events_supplied, events_clustered, events_without_text,
+        cluster_count, collapsed_count, clusters:[{signature, count, share_pct,
+        distinct_wordings, distinct_sources, variants:[{text, count}],
+        sources:[{source, count}]}], note}.
+
+    Example: alarm_event_clusters(events=[{"source":"PT-101","message":"pressure HIGH"},
+        {"source":"PT-102","message":"Pressure high!"}]).
+    """
+    from iaiops.core.brain.alarm_clusters import cluster_alarm_events
+
+    return cluster_alarm_events(events, top_n=top_n, min_count=min_count)

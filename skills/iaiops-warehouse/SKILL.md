@@ -76,6 +76,10 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
   `alarm_rationalization_worksheet`
 - 预测维护：`pdm_forecast` —— 输送带电机轴承/温升、分拣驱动、AGV 电池的趋势 + 到限时间
   （早于 `baseline_check` 的越带告警;喂 `conveyor_vfd`/`agv_battery` 模板读出的温度/电流）
+- 告警事件聚类：`alarm_event_clusters` — `alarm_bad_actors` 按**来源**排名,回答的是「哪台仪表最吵」,
+  不是「哪个故障最吵」;一个把同一条件写成十种说法的厂会得到十个 bad actor。这个按事件**说了什么**分组。
+  合并规则是**去掉大小写/标点/数字后的精确相等,不是相似度** —— 故意做笨,所以不需要模型、且可核对;
+  每个簇都列出被合并的原文与来源。**它不主张两条措辞不同的告警是同一个故障**,那由人判断。
 - 数据质量：`data_quality_scorecard` `data_quality_fleet_rollup`
 - 分析：`oee_compute` `downtime_events` `oee_multidim` `monitor_changes`
 - 资产：`asset_inventory` `cross_protocol_asset_model` `adopt_alias_map` `diff_alias_map`
