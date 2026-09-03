@@ -18,9 +18,9 @@ iaiops doctor                    # 先自检，再谈信任
 也可以直接跑容器 —— **cosign 签名**、**非 root**。它以 stdio 讲 MCP，所以要保持 stdin 打开，并挂一个卷存审计库：
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.26.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.27.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.26.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.27.0-factory
 ```
 
 要加固部署或离线部署（只读根文件系统、`cap_drop: ALL`、no-new-privileges、可选端侧 LLM），

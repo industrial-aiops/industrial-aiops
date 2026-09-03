@@ -1,5 +1,76 @@
 # Changelog
 
+## 0.27.0 — 2026-09-03
+
+### Fixed
+
+- **A non-finite reading is not a reading.** NaN and ±inf arrive from real
+  devices, are instances of `float`, and every comparison against them is False —
+  so they walked past the coercion every analysis shares, the same gap
+  `core/report/fmt.finite` was written for one layer up. Reproduced before the
+  fix: `tag_health` and `spc_check` **crashed** (`statistics` refuses non-finite
+  data, and `downtime_rca` calls `tag_health`); `learn_baseline` returned
+  `status: "ok"` with a band of NaN, which every later reading compares *inside*,
+  silently ending alerting on that tag; and the isolation-room, medical-gas,
+  OR-envelope and finished-water checks each graded a NaN reading **compliant** —
+  two of them patient-safety checks. `num()` now returns None for non-finite,
+  `spc` stops keeping a laxer private copy, and the four grading modules stop
+  treating NaN as a reading.
+- **The alarm report printed two counts of one input.** A stream whose states say
+  `HIGH` gave `event_count: 33` at the top and `event_count: 0` in the summary.
+  Neither was wrong — one counts events, the other annunciations — and together
+  they were unreadable. The report now carries an `annunciation_gap` naming the
+  states it saw and the vocabulary it needs.
+- **The router had no route to the pharma edition.** `iaiops-pharma` shipped in
+  0.26.0, and the router's table had no row for it while the process row still
+  listed 制药 among its keywords — so a pharma task was routed to `iaiops-process`
+  and the cleanroom / PW-WFI tools were unreachable. An edition nobody can be
+  routed to does not exist as far as an agent is concerned. Two gates added:
+  every named edition must have a row, and that row must name its MCP profile.
+
+### Added
+
+- **Contextual baselines** — `baseline_learn_contextual` /
+  `baseline_check_in_context`. One band per tag is wrong the moment a tag has more
+  than one normal: a dryer at 180 °C on recipe A and 240 °C on recipe B gets a band
+  spanning both, after which neither regime can go wrong. Context is **declared,
+  never inferred** (D16); a thin context refuses to learn rather than borrowing
+  another's samples; and a reading in an unlearned context is `unknown_context`,
+  never compared against the global band — that fallback renders "never seen this
+  regime" as "this regime is normal".
+- **Downtime attribution** (D18) — `downtime_attribution`. RCA weights evidence by
+  time alone, so one upstream stop yields a confident local root cause on every
+  downstream machine. Direction now comes from the **declared** line order (D25 —
+  co-occurrence on a line is guaranteed, so mining it would manufacture causality),
+  order from timestamps, and both must hold. Assets the topology does not connect
+  stay unattributed; with no relations declared the answer is `not_evaluable`.
+- **Alarm event-type clustering** — `alarm_event_clusters`. `alarm_bad_actors`
+  ranks by source, so one condition worded ten ways is ten bad actors. Clustering
+  is exact equality of a normalized message (case, punctuation and digits removed),
+  **not similarity** — which is why it needs no model and can be checked: every
+  cluster lists the wordings and sources it merged.
+- **Device advisory matching** — `device_advisory_check`. `scan` already read
+  vendor / model / firmware and did nothing with them. This reports that a device
+  falls inside a published advisory's stated range and **nothing more** — not
+  "vulnerable", not "exploitable", no severity, because reachability and
+  compensating controls decide that and a read-only scan cannot see them. **No CVE
+  database ships**: a stale feed that looks current is worse than none, so the
+  library is a file the site mounts, every entry needs a source, and one bad entry
+  refuses the file.
+- **A GxP column on the compliance crosswalk** — Annex 11 / Annex 22 / Part 11 /
+  ALCOA+ across all six pillars, carrying the disclaimer that is the point of it:
+  compliance is a property of the customer's validated system, never of a component
+  inside it, so this maps evidence to clauses and stops.
+
+### Changed
+
+- Tool surface 189 → 194; the flood-warning threshold 150 → 160, this time with
+  deliberate headroom rather than to clear a build (largest named edition 153).
+- The sales decks carry a 前置条件 / "Needs first" row on every scenario — the
+  ROADMAP item open since 0.19. Three of the four evidence classes behind the
+  flagship RCA story need a person or a configured historian, and a demo that
+  omits that fails on first contact with a site.
+
 ## 0.26.0 — 2026-09-01
 
 ### Added
