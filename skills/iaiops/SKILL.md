@@ -33,11 +33,12 @@ description: >-
 |---|---|---|
 | SECS/GEM · SECS-II · HSMS · 半导体/显示 fab · wafer · panel · MES equipment · SVID/ECID · recipe | **iaiops-fab** | `IAIOPS_MCP=fab` / `iaiops-mcp-fab` |
 | 离散制造产线 · PLC（S7/S7-1200/1500 · 三菱/MELSEC · Allen-Bradley/ControlLogix/CompactLogix · Omron/FINS/SYSMAC CS/CJ/CP/NX）· Modbus · EtherCAT/CoE/SOEM · PROFINET/DCP · MTConnect/CNC 机床 · Sparkplug B/UNS | **iaiops-factory** | `IAIOPS_MCP=factory` / `iaiops-mcp-factory` |
-| 流程工业（化工/制药/食品饮料）· HART/HART-IP · 变送器/阀门定位器 · 过程仪表 · DCS 旁路读取 | **iaiops-process** | `IAIOPS_MCP=process` / `iaiops-mcp-process`（有 UNS 时 `IAIOPS_MCP=process,sparkplug`） |
+| 流程工业（化工/食品饮料/原料药合成）· HART/HART-IP · 变送器/阀门定位器 · 过程仪表 · DCS 旁路读取 | **iaiops-process** | `IAIOPS_MCP=process` / `iaiops-mcp-process`（有 UNS 时 `IAIOPS_MCP=process,sparkplug`） |
 | BACnet/BACnet-IP · HVAC/暖通 · BMS/楼宇自控 · 厂务/facility · Who-Is · TrendLog | **iaiops-building** | `IAIOPS_MCP=building` / `iaiops-mcp-building` |
 | 水处理/水厂 · pH · 浊度/turbidity · 电导率/conductivity · 加药/dosing · 泵站/pump station · 曝气 | **iaiops-water** | `IAIOPS_MCP=water` / `iaiops-mcp-water` |
 | 仓储/物流中心 · 输送线/conveyor · 分拣/sorter · AGV/AMR · WMS/WCS · 托盘/穿梭车 · 物料搬运 | **iaiops-warehouse** | `IAIOPS_MCP=warehouse` / `iaiops-mcp-warehouse` |
 | 医院设施/clinical facility · 负压/正压隔离病房 · 医用气体 · 手术室环境 · 医疗 BMS | **iaiops-clinical** | `IAIOPS_MCP=clinical` / `iaiops-mcp-clinical` |
+| 制药/药厂 · GMP · 洁净室/洁净区 · Annex 1 · 压差梯度/pressure cascade · grade A/B/C/D · 尘埃粒子 · EMS/环境监测 · PW/WFI/纯化水/注射用水 · TOC · 生物反应器 · 冻干机 · 灌装线 · CSV/IQ/OQ · Annex 11 · Part 11 · 数据完整性/ALCOA | **iaiops-pharma** | `IAIOPS_MCP=pharma` / `iaiops-mcp-pharma` |
 | 光伏/PV · 逆变器/inverter · 组串/string · 风电/风机 · 场站 SCADA · 新能源电站 | **iaiops-renewables** | `IAIOPS_MCP=renewables` / `iaiops-mcp-renewables` |
 | Phoenix Contact PLCnext / vPLC（虚拟化 PLC，走内建 OPC-UA + Modbus-TCP） | **iaiops-plcnext** | `IAIOPS_MCP=plcnext` / `iaiops-mcp-plcnext` |
 | IO-Link · IO-Link master · IODD · 智能传感器/executor 参数 · pdin · ISDU（主站 JSON/REST 接口，只读） | **iaiops-factory**（楼宇传感器场景 **iaiops-building**） | `IAIOPS_MCP=factory` / 单协议 `IAIOPS_MCP=iolink` / `iaiops-mcp-iolink` |

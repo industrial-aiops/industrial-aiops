@@ -152,3 +152,33 @@ def test_skill_write_tool_count_matches_registry():
     # Every MOC write must also be named in the router's safety invariants.
     missing = [n for n in high_risk if f"`{n}`" not in router]
     assert not missing, f"Router safety section is missing MOC write tool(s): {missing}"
+
+
+def test_every_edition_has_a_row_in_the_router():
+    """The router must be able to reach every edition that ships.
+
+    Nothing checked this, and it drifted the moment it could: `iaiops-pharma`
+    shipped in 0.26.0 with no routing row, while the process row still listed
+    制药 among its keywords — so a pharma task was actively routed to the wrong
+    edition and the pharma tools were unreachable through the router. The other
+    sync tests all passed, because a router carries no tool table and the
+    "every tool is documented" check is satisfied by the edition skills.
+
+    `energy` is exempt: it lives in its own repo and its own package, and the
+    router points at it in prose rather than in the profile table.
+    """
+    router = ROUTER_SKILL.read_text("utf-8")
+    editions = {name for name in profiles.NAMED_PROFILES if name not in ("all", "brain")}
+    missing = sorted(e for e in editions if f"iaiops-{e}" not in router)
+    assert not missing, (
+        f"the router has no route to: {missing}. An edition nobody can be routed to "
+        "is an edition that does not exist as far as an agent is concerned."
+    )
+
+
+def test_the_router_names_a_profile_for_every_edition_it_routes_to():
+    """A row that names the skill but not its profile leaves the agent stuck."""
+    router = ROUTER_SKILL.read_text("utf-8")
+    editions = {name for name in profiles.NAMED_PROFILES if name not in ("all", "brain")}
+    missing = sorted(e for e in editions if f"IAIOPS_MCP={e}" not in router)
+    assert not missing, f"the router names no MCP profile for: {missing}"
