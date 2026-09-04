@@ -443,7 +443,7 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
       similarity; every cluster lists the wordings and sources it merged.
       Original note: `alarm_bad_actors` groups by source, so ten
       phrasings of one fault count as ten bad actors. Incremental; lowest of the three.
-- [ ] **Prerequisites belong in the sales deck.** `ppt/industrial-aiops-介绍-v1.pptx`
+- [x] **Prerequisites belong in the sales deck.** `ppt/industrial-aiops-介绍-v1.pptx`
       slides 9–20 use a 如何做 → 得到什么 → 价值 → 意义 frame with no 前置条件 row.
       Three of the four evidence classes behind the flagship RCA story need a human or
       a configured historian (HLD §9.2); a demo that omits that will fail on first
