@@ -399,6 +399,15 @@ the part that is still missing.
       comment saying what it is waiting for. For this the scan candidate now records
       **which port** it was confirmed on, which it previously knew and discarded.
 
+      Be precise about the point-list step: `onboard` **routes to** the browse command
+      for that endpoint's protocol (`opcua browse`, `eip tags`, `modbus templates`,
+      `bacnet objects`, `mqtt browse`, `ethercat slaves`, `hart dynamic`,
+      `mtconnect probe`, `iolink ports`) — it does not ingest their output into
+      `config.yaml`. Adding points stays a person's edit, for the same reason
+      `tags apply` emits a patch instead of writing one. Where a protocol genuinely
+      has nothing to ask (S7/MELSEC/Omron expose no symbol table on the wire) it says
+      so in that protocol's terms and names where the addresses do come from.
+
       **The heuristic semantic guess was deliberately NOT built**, and the strikethrough
       is the decision, not an omission. `tags export` already refuses to pre-fill `role`
       next to a tag called `GoodPartsCounter` (D16): a wrong production counter yields a

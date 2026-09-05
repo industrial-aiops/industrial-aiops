@@ -99,9 +99,27 @@ def _resolve(command: str) -> None:
         node = child
         index += 1
     known = {opt for param in node.params for opt in getattr(param, "opts", ())}
-    used = [p for p in parts[index:] if p.startswith("--")]
+    rest = parts[index:]
+    used = [p for p in rest if p.startswith("--")]
     missing = [opt for opt in used if opt not in known]
     assert not missing, f"`{command}` passes {missing}, which {node.name!r} does not accept"
+
+    # Required parameters, which the option check alone cannot see: a command can
+    # name a real subcommand, pass only valid options, and still refuse to run
+    # because a required one was never supplied.
+    positionals = [tok for tok in rest if not tok.startswith("-")]
+    supplied_opts = set(used)
+    for param in node.params:
+        if not getattr(param, "required", False):
+            continue
+        opts = set(getattr(param, "opts", ()))
+        if any(o.startswith("-") for o in opts):
+            assert opts & supplied_opts, (
+                f"`{command}` omits required option {sorted(opts)} of {node.name!r}"
+            )
+        else:
+            assert positionals, f"`{command}` omits the required argument {sorted(opts)}"
+            positionals.pop(0)
 
 
 def test_every_browse_command_the_path_can_print_resolves_in_the_cli():
@@ -438,17 +456,52 @@ def test_a_protocol_with_no_point_list_says_why_instead_of_naming_a_command(tmp_
     class Config:
         targets: tuple = ()
 
-    path = assess_path(Config(targets=(Target("e1", "modbus"),)), db_path=tmp_path / "none.db")
+    # S7, not Modbus: an S7 CPU really does expose no symbol table on the wire,
+    # whereas Modbus has register templates — which is what this test used to use
+    # as its example of "nothing to ask", and got wrong.
+    path = assess_path(Config(targets=(Target("e1", "s7"),)), db_path=tmp_path / "none.db")
     points = next(s for s in path.steps if s.key == "points")
     assert points.command == ""
-    assert "comes from the vendor's document" in points.detail
+    assert "TIA/STEP7 project" in points.detail
 
 
-def test_only_protocols_that_really_have_a_browse_command_are_listed():
-    """`_BROWSE` naming a command that does not exist is the defect this repo keeps
-    producing; the resolve test above covers existence, this covers the converse —
-    nothing is quietly added for a protocol whose point list is not askable."""
-    assert set(_BROWSE) == {"opcua", "ethernetip", "eip", "mtconnect", "iolink"}
+def test_every_supported_protocol_is_deliberately_in_one_table_or_the_other():
+    """No protocol may fall through to a blanket sentence.
+
+    The first version of this test pinned `_BROWSE` to the five entries it
+    happened to have, which locked in a WRONG answer: BACnet has an object list,
+    MQTT a topic tree, EtherCAT a slave enumeration, HART its dynamic variables
+    and Modbus its register templates, and all five were being told "this
+    protocol has no point list to ask for". A test that asserts the set someone
+    typed cannot notice that the set is wrong — so this one requires every
+    supported protocol to be an explicit, reasoned entry in one table or the
+    other, and a protocol added later fails until somebody decides.
+    """
+    from iaiops.core.onboard.path import _NO_BROWSE_REASONS
+    from iaiops.core.runtime.config import SUPPORTED_PROTOCOLS
+
+    for protocol in SUPPORTED_PROTOCOLS:
+        askable = protocol in _BROWSE
+        explained = protocol in _NO_BROWSE_REASONS
+        assert askable != explained, (
+            f"{protocol!r} is in {'both' if askable else 'neither'} table — it must "
+            "either name a command that asks for its point list, or say why there "
+            "is none, and the reason must be about THAT protocol."
+        )
+    for protocol, reason in _NO_BROWSE_REASONS.items():
+        assert len(reason) > 40, f"{protocol!r} has no real reason, just a placeholder"
+
+
+def test_a_protocol_the_product_can_enumerate_is_never_told_to_type_it_by_hand():
+    """The regression that motivated the table split, protocol by protocol.
+
+    Each of these has a real enumeration command in its own CLI group; a site on
+    that protocol must be sent to it, not told a register map comes from a
+    vendor PDF.
+    """
+    for protocol in ("bacnet", "mqtt", "ethercat", "hart", "modbus"):
+        assert protocol in _BROWSE, protocol
+        _resolve(_BROWSE[protocol].format(endpoint="an-endpoint"))
 
 
 def test_status_reports_a_site_with_nothing_configured_without_raising(tmp_path):

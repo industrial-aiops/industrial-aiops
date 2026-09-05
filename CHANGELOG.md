@@ -34,6 +34,23 @@
 
 ### Fixed
 
+- **`onboard status` told five protocols they had no point list to ask for, and
+  they did.** The point-list step named a command for OPC-UA, EtherNet/IP,
+  MTConnect and IO-Link, and covered everything else with one sentence — "this
+  protocol has no point list to ask for; a register/address map comes from the
+  vendor's document". False for BACnet (`bacnet objects` reads a device's object
+  list), MQTT (`mqtt browse` walks the topic tree), EtherCAT (`ethercat slaves`
+  enumerates the bus), HART (`hart dynamic` reads the device's variables) and
+  Modbus (the product ships register-map templates). Telling a site to type
+  addresses in by hand while the product can enumerate them is the same defect
+  this command was built to fix, pointed at the customer's afternoon. Each
+  protocol now either names its own command or gives its own reason, and a test
+  requires every supported protocol to be a deliberate entry in one table or the
+  other — the previous test asserted the set someone had typed, so it pinned the
+  wrong answer in place.
+- **`modbus templates` / `modbus template` were MCP-only.** The register maps
+  existed and no CLI command reached them, so a CLI user was told to hand-enter
+  addresses that were already in the box for their meter.
 - **The scan knew which port a protocol answered on and threw it away.**
   `ProtocolCandidate` now records it, so a device on a non-default port survives
   into a config draft instead of being re-derived from the open-port list. Scans

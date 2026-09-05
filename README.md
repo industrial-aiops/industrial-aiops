@@ -62,7 +62,6 @@ were always there and nothing stated the order. It is derived from your store an
 `config.yaml` every time, so there is no onboarding state to go stale — edit
 `config.yaml` by hand and the answer stays true.
 
-
 `readiness` reads your config and local store and answers one question: **which
 scenarios can this site run today, and what does each gap need?** Every gap comes
 with the command that closes it, ranked by how much it unlocks. No agent, no
@@ -810,6 +809,14 @@ iaiops onboard draft --out draft.yaml # ...to a file you can review and merge
 onboarding state file, so a hand-edited config or a restored backup still gets a
 true answer rather than a remembered one — and a step that is genuinely done
 stays done even if you did the steps out of order.
+
+For the point-list step it names the command **for your protocol**: `opcua
+browse`, `eip tags`, `mtconnect probe`, `iolink ports`, `mqtt browse`, `bacnet
+objects`, `ethercat slaves`, `hart dynamic`, or `modbus templates`. Where there
+genuinely is nothing to ask — an S7 CPU exposes no symbol table on the wire, and
+MELSEC and Omron memory carry none either — it says so **in that protocol's own
+terms** and tells you where the addresses do come from, rather than one sentence
+covering everything that is not OPC-UA.
 
 ### Confirming what the point list means
 

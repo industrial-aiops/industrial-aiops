@@ -73,3 +73,39 @@ def health_cmd(
             register_type=register_type,
         )
     )
+
+
+@modbus_app.command("templates")
+@cli_errors
+def templates_cmd() -> None:
+    """List the built-in register-map templates. Contacts nothing.
+
+    Modbus has no symbol table on the wire, so "what points does this device
+    have" cannot be asked of the device. What the product does have is a set of
+    vendor register maps — and until now they were reachable only from the MCP
+    side, so a CLI user was told to type addresses in by hand while the answer
+    for their meter was already in the box.
+
+    A template is a starting point, not a fact about your device: check the
+    `caveat` column and the vendor document before you trust the mapping.
+    """
+    _emit(ops.modbus_list_templates())
+
+
+@modbus_app.command("template")
+@cli_errors
+def template_cmd(
+    name: str,
+    endpoint: EndpointOption = None,
+    address: int = typer.Option(None, "--address", help="Override the template's base offset."),
+    count: int = typer.Option(None, "--count", help="Override the template's register span."),
+) -> None:
+    """Read a register block through a template and show the decoded, named tags.
+
+    This READS the device — one block of the register file the template names.
+    Compare the decoded values against what the equipment actually reads out
+    before you copy the addresses into `tags:`; a template that decodes into
+    plausible-looking numbers on the wrong device is exactly the failure the
+    empty `role` column exists to prevent.
+    """
+    _emit(ops.modbus_apply_template(resolve_target(endpoint), name, address, count))

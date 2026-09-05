@@ -26,23 +26,65 @@ from typing import Any
 
 from iaiops.core.onboard.model import STATE_DONE, STATE_NEXT, STATE_WAITING, OnboardPath, Step
 
-#: Protocols whose point list can be asked FOR, and the command that asks. The
-#: rest are not an omission: a Modbus register map is not discoverable over
-#: Modbus, and naming a command that cannot exist would send someone looking for
-#: it on a plant floor.
+#: Protocols whose point list can be asked FOR, and the command that asks.
+#:
+#: This started as five entries under a blanket sentence saying every other
+#: protocol "has no point list to ask for". That sentence was false for five of
+#: them — BACnet has an object list, MQTT has a topic tree, EtherCAT enumerates
+#: its slaves, HART's dynamic variables are the device's variable set, and Modbus
+#: ships register-map templates. Telling a site to type addresses in by hand
+#: while the product can enumerate them is the same defect this module was built
+#: to fix, pointed at the customer's afternoon.
 _BROWSE: dict[str, str] = {
     "opcua": "iaiops opcua browse --endpoint {endpoint}",
     "ethernetip": "iaiops eip tags --endpoint {endpoint}",
     "eip": "iaiops eip tags --endpoint {endpoint}",
     "mtconnect": "iaiops mtconnect probe --endpoint {endpoint}",
     "iolink": "iaiops iolink ports --endpoint {endpoint}",
+    "mqtt": "iaiops mqtt browse --endpoint {endpoint}",
+    "ethercat": "iaiops ethercat slaves --endpoint {endpoint}",
+    "hart": "iaiops hart dynamic --endpoint {endpoint}",
+    "modbus": "iaiops modbus templates",
+    # The only entry needing arguments a config cannot supply: BACnet addresses
+    # a device by its network address and instance number, and both come from
+    # `iaiops bacnet discover`. Rendered with the placeholders visible rather
+    # than invented.
+    "bacnet": "iaiops bacnet objects <address> <device_id> --endpoint {endpoint}",
 }
 
-_NO_BROWSE = (
-    "this protocol has no point list to ask for — a register/address map comes "
-    "from the vendor's document, not from the wire. Add the addresses you care "
-    "about under `tags:`."
-)
+#: Protocols with genuinely nothing to ask, each saying WHY in its own terms.
+#: A per-protocol reason rather than one sentence, because the one sentence was
+#: how five wrong claims travelled together — and because a protocol added later
+#: must land in one of these two tables deliberately (there is a test).
+_NO_BROWSE_REASONS: dict[str, str] = {
+    "s7": (
+        "an S7 CPU exposes no symbol table on the wire — the names live in the "
+        "TIA/STEP7 project, not the PLC. Take the DB and offsets from the "
+        "project and add them under `tags:`."
+    ),
+    "mc": (
+        "MELSEC device memory (D/M/W...) has no symbol table on the wire. Take "
+        "the device addresses from the GX Works project and add them under "
+        "`tags:`."
+    ),
+    "fins": (
+        "Omron memory areas (DM/CIO/W...) carry no symbol table on the wire. "
+        "Take the addresses from the CX-Programmer project."
+    ),
+    "profinet": (
+        "PROFINET DCP identifies STATIONS, not points, and this product does not "
+        "speak the RT cyclic channel that carries process data at all. The points "
+        "come from the engineering project, or from the device over a second "
+        "protocol it also speaks."
+    ),
+    "secsgem": (
+        "the SVID list IS discoverable (S1F11), but SECS/GEM has no CLI group "
+        "yet — today it is reachable only through the "
+        "`secsgem_list_status_variables` MCP tool."
+    ),
+    "bas": "a supervisory controller's point tree is behind its own API and credentials.",
+    "ignition": "the gateway's tag tree is behind an API token.",
+}
 
 
 def _scan_count(db_path: Any) -> int:
@@ -94,7 +136,13 @@ def _points_step(config: Any, facts: dict[str, Any]) -> tuple[str, str, str]:
         f"{len(empty)} of {len(targets)} endpoint(s) have no points — first: {name} ({protocol})"
     )
     if not command:
-        return STATE_NEXT, f"{detail}; {_NO_BROWSE}", ""
+        reason = _NO_BROWSE_REASONS.get(
+            protocol,
+            # Unreachable while the coverage test holds; if it ever is reached,
+            # say that nobody has decided, rather than asserting there is nothing.
+            f"nobody has recorded whether {protocol} can be asked for a point list",
+        )
+        return STATE_NEXT, f"{detail}; {reason}", ""
     return STATE_NEXT, detail, command
 
 
