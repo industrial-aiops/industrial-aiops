@@ -541,6 +541,7 @@ def _run_probe(
             ProtocolCandidate(
                 protocol=probe.protocol,
                 confidence=CONF_PORT_ONLY,
+                port=port,
                 evidence="probe_unavailable",
                 detail=f"{exc} — this host was not asked; install the extra and re-scan",
             ),
@@ -553,6 +554,7 @@ def _run_probe(
             ProtocolCandidate(
                 protocol=probe.protocol,
                 confidence=CONF_CONFIRMED,
+                port=port,
                 evidence=f"{probe.wire_kind}:rejected",
                 detail=f"device answered in-protocol and declined: {_short(exc)}",
             ),
@@ -563,6 +565,7 @@ def _run_probe(
             ProtocolCandidate(
                 protocol=probe.protocol,
                 confidence=CONF_PORT_ONLY,
+                port=port,
                 evidence="tcp_open",
                 detail=_short(exc),
             ),
@@ -573,6 +576,7 @@ def _run_probe(
             ProtocolCandidate(
                 protocol=probe.protocol,
                 confidence=CONF_PORT_ONLY,
+                port=port,
                 evidence="tcp_open",
                 detail=f"unexpected {type(exc).__name__}: {_short(exc)}",
             ),
@@ -582,6 +586,7 @@ def _run_probe(
         ProtocolCandidate(
             protocol=probe.protocol,
             confidence=CONF_CONFIRMED,
+            port=port,
             evidence=probe.wire_kind,
             detail=_summarize(identity),
         ),

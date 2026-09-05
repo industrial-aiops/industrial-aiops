@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`iaiops onboard` — the path from a network to an answer, joined up.** Every
+  piece existed and nothing connected them: a site could scan forty devices and
+  then retype all forty by hand, and nothing anywhere said which of the six
+  commands came next.
+  - `onboard status` reports which of the six steps a site is on (survey →
+    endpoints → point list → what the points MEAN → collect → ask) and names the
+    **one** command that advances it. Derived from the store and `config.yaml`
+    every time — no state file to go stale, so a hand-edited config or a restored
+    backup still gets a true answer, and a step that is genuinely done stays done
+    even when the steps were taken out of order.
+  - `onboard draft` turns a stored scan into `config.yaml` endpoints. It writes
+    nothing (a person merges it, as with `tags apply`). Only **confirmed**
+    protocols become endpoints — an open 502 means something is listening, not
+    that it speaks Modbus. Every value names the observation justifying it, which
+    is also where the value is: the S7 slot the CPU actually answered on, the
+    MELSEC CPU's own `plctype`, whether an OPC-UA server advertises an unsecured
+    endpoint or will need credentials. A field the scan could not settle is
+    emitted **commented, with what it is waiting for** — never omitted, because
+    omission lets the protocol default apply in silence, which is how a Modbus
+    gateway is read at unit 1 and shows a confident number for the wrong machine.
+    `tags:` comes out empty; a scan finds devices, never what their data means.
+  - Both are also MCP tools (`onboarding_status`, `onboarding_config_draft`) —
+    two front ends, one engine (D17). 196 governed tools.
+  - The **heuristic semantic guess** the roadmap asked for was deliberately not
+    built, and `docs/ROADMAP.md` records why: a guess "presented for
+    confirmation" is the same guess, and it would live in the artefact that gets
+    pasted once and trusted for years (D16).
+
+### Fixed
+
+- **The scan knew which port a protocol answered on and threw it away.**
+  `ProtocolCandidate` now records it, so a device on a non-default port survives
+  into a config draft instead of being re-derived from the open-port list. Scans
+  stored by earlier versions read back as port 0 and are handled explicitly: the
+  port is deduced only when exactly one open port on the host can serve that
+  protocol at all, and it is labelled as deduced; with two candidates the field
+  goes out unestablished rather than picking the lower number.
+- **`readiness` sent a site with no endpoints to `iaiops init`**, the interactive
+  one-endpoint wizard, which is the long way round now that `onboard` exists. It
+  and `tags apply` now point at `onboard status`.
+
 ## 0.27.0 — 2026-09-03
 
 ### Fixed

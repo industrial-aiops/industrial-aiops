@@ -51,10 +51,17 @@ before it sends anything.
 
 ```bash
 pip install "iaiops[modbus]"     # pick the protocol you actually have, or [all]
-iaiops init                      # interactive: one endpoint
+iaiops onboard status            # ← run this first. Contacts NOTHING.
 iaiops doctor                    # config, secrets, reachability — and the version
-iaiops readiness                 # ← run this first. Contacts NOTHING.
+iaiops readiness                 # every scenario and what each gap needs
 ```
+
+`onboard status` answers the smaller question you have first: **which of the six
+steps is this site on, and what is the one command that advances it?** The six
+were always there and nothing stated the order. It is derived from your store and
+`config.yaml` every time, so there is no onboarding state to go stale — edit
+`config.yaml` by hand and the answer stays true.
+
 
 `readiness` reads your config and local store and answers one question: **which
 scenarios can this site run today, and what does each gap need?** Every gap comes
@@ -67,6 +74,7 @@ sample, and only then explain it:
 | | | contacts a device? |
 |---|---|---|
 | **Survey** | `iaiops scan plan` → `iaiops scan run` | preview sends nothing; the run itemises every packet class it sent |
+| **Configure** | `iaiops onboard draft` → you merge it into `config.yaml` | **no** — it reads the stored scan, and writes nothing |
 | **Tap** | `iaiops collect run line1 --duration 7d` | yes — and it reports what it saw **and what it missed** |
 | **Declare** | `iaiops tags export` → a person fills in `role` → `iaiops tags apply --by <you>` | **no** — the `role` column comes out empty on purpose |
 | **Explain** | `iaiops oee measure --since … --until …` · `iaiops investigate open` · `iaiops diag rca` | **no** — all over collected history |
@@ -291,7 +299,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten — each o
 
 *(The energy protocols — IEC-104 / DNP3 / IEC-61850 — moved to [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) in 0.8.0; their tool matrix lives in that repo.)*
 
-**194 governed tools** = 181 read + 10 MOC-gated **device** writes + `historian_push` (a write, to a historian rather than to a device: `[WRITE][risk=low]`) + the 2 deprecated aliases below. The device writes are (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 2 deprecated aliases are the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
+**196 governed tools** = 183 read + 10 MOC-gated **device** writes + `historian_push` (a write, to a historian rather than to a device: `[WRITE][risk=low]`) + the 2 deprecated aliases below. The device writes are (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`). The read side now includes two vendor-REST **read-only** layers above the field protocols — a **BAS controller layer** (Metasys/Niagara, building edition) and an **Ignition Gateway MES/SCADA** layer (factory edition). ¹ The 2 deprecated aliases are the two deprecated brain aliases `health_summary` / `anomaly_scan`, renamed to `opcua_health_summary` / `opcua_anomaly_scan` in 0.10.0 — the deprecated aliases are **still registered** and will be removed in a future release (target: 1.0.0). Read-only per-edition tools load ONLY under their edition (see *per-edition tool modules* below), so a bare protocol / single-edition surface is smaller than this line-wide total. The table above is representative, not exhaustive; run `protocols_supported()` (or `iaiops protocols`) for the live map.
 
 ---
 
@@ -766,6 +774,43 @@ instrumented yet it is the whole deliverable. What it will not do is let a
 blocked investigation look finished: the headline is always the walk (`2 / 8`),
 never a conclusion, and no step's own words appear above it.
 
+### From a scan to a config
+
+Everything on the path existed; nothing joined it. A site could scan forty
+devices and then retype all forty by hand, and nothing anywhere said which of the
+six commands came next.
+
+```bash
+iaiops onboard status                 # where am I, and what is the ONE next command
+iaiops onboard draft                  # the newest scan → config.yaml endpoints
+iaiops onboard draft --out draft.yaml # ...to a file you can review and merge
+```
+
+`draft` writes **nothing** into `config.yaml` — you merge it, exactly as with
+`tags apply`. What it emits is constrained on purpose:
+
+- **Only CONFIRMED protocols become endpoints.** An open 502 means something is
+  listening, not that it is a Modbus device, and a config that said so would be
+  believed. Those hosts are listed as skipped, with the reason.
+- **Every value names the observation that justifies it** — and the interesting
+  half is what the scan learned that you would otherwise have hunted for: the S7
+  slot the CPU actually answered on, the MELSEC CPU's own `plctype`, whether an
+  OPC-UA server advertises an unsecured endpoint or will need credentials.
+- **A field the scan could not settle goes out commented**, saying what it is
+  waiting for — never omitted. Omission lets the protocol default apply in
+  silence, which is how a Modbus gateway gets read at unit 1 and shows a
+  confident number for the wrong machine.
+- **`tags:` comes out empty.** A scan finds devices; it establishes nothing about
+  what their data means. That step is the next one, below.
+- **Absence is not evidence.** The draft states what it structurally cannot
+  contain — BACnet/FINS/HART are UDP and never swept; MQTT and the supervisory
+  layers are never identified, by design.
+
+`status` is derived from the store and `config.yaml` every time. There is no
+onboarding state file, so a hand-edited config or a restored backup still gets a
+true answer rather than a remembered one — and a step that is genuinely done
+stays done even if you did the steps out of order.
+
 ### Confirming what the point list means
 
 The one thing this product refuses to infer, and until now the only way to supply
@@ -1214,7 +1259,7 @@ script — one entry per site/line, each a lean single- or dual-protocol server.
 
 ## Safety & governance
 
-- **Read-first.** 183 of the 194 tools are read-only, and `historian_push` writes to a historian rather than to a device. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
+- **Read-first.** 185 of the 196 tools are read-only, and `historian_push` writes to a historian rather than to a device. The 10 write/command tools (`s7_write_db`, `mc_write_words`, `fins_write_words`, `mqtt_publish`, `eip_write_tag`, `ethercat_write_sdo`, `ethercat_set_state`, `profinet_dcp_set`, `bacnet_write_property`, `bas_command`) are **OT-dangerous**: governed at **high risk_tier**, **off by default (dry-run)**, require a **double-confirm in the CLI**, and a recorded approver (one-shot `iaiops approve` tokens; with no `risk_tiers` configured, high/critical operations default to the `dual` tier) — **MOC discipline**. **All ten declare an undo** (no exemptions since 0.20.3); a successful write captures the BEFORE value/state and registers an inverse descriptor. The inverse honestly reports **"none"** where none exists — a *transient* (`retain=False`) `mqtt_publish` cannot be unsent, and `ethercat_set_state`'s `+ERR`/`NONE`/`BOOT` are not cleanly re-requestable AL-states. **An undo that over-promises is worse than none**, because someone will replay it onto live equipment. **`ethercat_set_state` can START or STOP machine motion.** 未经授权勿对生产控制系统写入.
 - **Read/write authorisation is the caller's, not the tap's.** iaiops does not encode "this server may not write" by hiding tools — that decision belongs to the agent's judgement or account/permission management. The tap's guarantee is **un-bypassable audit on both front-ends**: every call, read or write, via an MCP tool **or** the `iaiops` CLI, runs through `@governed_tool` and leaves a row in `~/.iaiops/audit.db`. Writes are additionally high `risk_tier`, MOC-gated, and undo-captured (see above). High/critical calls **fail closed** when the audit DB cannot be written.
 - **No-egress mode is enforced at registration.** `IAIOPS_NO_EGRESS=1` withholds the 6 tools that ship data off-box (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`), fail-closed, for airgap/sealed-box deployments. This is a **data-exfiltration axis, not authorisation** — `historian_push` is low-risk (it changes nothing) yet pushes telemetry to an external TSDB, so this switch withholds it. Which tools count is derived from `@governed_tool(egress=True)` metadata and guarded by an AST scan in CI, so the *next* egress tool cannot silently escape the gate.
 - **Do not point this at a production control system without authorization.** OT networks are safety-critical; even reads add load. Test against a simulator first.

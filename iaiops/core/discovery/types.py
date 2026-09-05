@@ -172,6 +172,13 @@ class ProtocolCandidate:
     #: What actually justified this — e.g. "fc43_identity", "tcp_open".
     evidence: str
     detail: str = ""
+    #: The TCP port this verdict is ABOUT. The probe knew it and used to throw it
+    #: away, which left anything downstream (``iaiops onboard draft``) to re-derive
+    #: it from the open-port list — a guess, on a site where a Modbus device on
+    #: 5020 and an OPC-UA server on 48010 are ordinary. 0 means "not recorded",
+    #: which is what a scan stored by an older version reads back as, and is a
+    #: different statement from any particular port.
+    port: int = 0
 
 
 @dataclass(frozen=True)

@@ -34,6 +34,7 @@ from iaiops.cli.modbus import modbus_app
 from iaiops.cli.mqtt import mqtt_app
 from iaiops.cli.mtconnect import mtconnect_app
 from iaiops.cli.oee import oee_app
+from iaiops.cli.onboard import onboard_app
 from iaiops.cli.opcua import opcua_app
 from iaiops.cli.profinet import profinet_app
 from iaiops.cli.program import program_app
@@ -120,6 +121,7 @@ app.command("readiness")(readiness_cmd)
 app.add_typer(investigate_app, name="investigate")
 app.add_typer(relations_app, name="relations")
 app.add_typer(knowledge_app, name="knowledge")
+app.add_typer(onboard_app, name="onboard")
 app.add_typer(tags_app, name="tags")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")

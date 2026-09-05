@@ -117,8 +117,9 @@ def apply_cmd(
         console.print(f"\n[green]✓[/] {len(edits)} confirmed. Merge this into config.yaml:\n")
         console.print(patch)
     console.print(
-        "[dim]Nothing was written to config.yaml. After merging, re-run "
-        "`iaiops readiness` to see what it unlocked.[/]\n"
+        "[dim]Nothing was written to config.yaml. After merging, run "
+        "`iaiops onboard status` for the next step (`iaiops readiness` for the "
+        "full list of what it unlocked).[/]\n"
     )
 
 

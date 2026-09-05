@@ -96,3 +96,93 @@ def site_readiness(db: str = "") -> dict:
     from iaiops.core.readiness import assess
 
     return assess(db_path=Path(db).expanduser() if db else None).as_dict()
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def onboarding_status(db: str = "") -> dict:
+    """[READ][risk=low] Where this site is on the path from a network to an answer.
+
+    One altitude below `site_readiness`. That one lists every scenario and what
+    each is waiting for; this one answers the smaller, earlier question a caller
+    actually has first — **which single command comes next**, out of a fixed
+    sequence of six that nothing else in this product states:
+
+        scan → endpoints in config → a point list per endpoint → what each point
+        MEANS → collect → ask the question
+
+    Derived from the local store and `config.yaml` every time; there is no
+    onboarding state file, so a site that edits config.yaml by hand or restores a
+    backup still gets a true answer rather than a remembered one.
+
+    Every step carries its own `command`, including the ones still waiting. Show
+    the caller the one under `next_command`; the rest are context, not a to-do
+    list, and handing someone five commands is the same as handing them none.
+
+    A step that is genuinely done stays `done` even when it sits behind the
+    cursor — a site that hand-wrote config.yaml before ever scanning has real
+    endpoints, and reporting otherwise to keep the sequence tidy would be a lie
+    in the direction that makes this tool look more necessary.
+
+    Contacts nothing. `db` overrides the local store path; empty means the
+    iaiops store.
+    """
+    from pathlib import Path
+
+    from iaiops.core.onboard import assess_path
+
+    return assess_path(db_path=Path(db).expanduser() if db else None).as_dict()
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def onboarding_config_draft(scan_id: str = "", db: str = "") -> dict:
+    """[READ][risk=low] The config.yaml endpoints a stored scan can justify.
+
+    Closes the gap where a site scanned forty devices and then retyped all forty
+    by hand. Reads a stored scan; writes nothing. `config.yaml` is edited by a
+    person, exactly as with `iaiops tags apply`.
+
+    **Every drafted field says whether the scan established it.** A field with
+    `value: null` was NOT established, and its `caution` says what it is waiting
+    for — do not fill one in and do not drop it. Dropping it lets the protocol
+    default apply in silence, which is how a Modbus gateway gets read at unit 1
+    and shows a confident number for the wrong machine. Carry the cautions to
+    whoever merges this; they are the content, not decoration.
+
+    **Only CONFIRMED protocols become endpoints.** An open port means something
+    is listening, not that it speaks the protocol; those hosts appear under
+    `skipped` with the reason. `limits` states what this draft structurally
+    cannot contain — a protocol's absence here is not evidence of its absence at
+    the site.
+
+    `tags` is always empty and this tool will not fill it. A scan finds devices;
+    which point means run state or good count is process knowledge, and a wrong
+    production counter yields a plausible OEE, which is worse than an error
+    (D16). That confirmation is a person's, via `iaiops tags export` / `apply`.
+
+    `scan_id` empty means the newest stored scan.
+    """
+    from pathlib import Path
+
+    from iaiops.core.onboard import draft_from_scan
+    from iaiops.core.sink.scan_store import list_scans, load_scan
+
+    store = Path(db).expanduser() if db else None
+    stored = list_scans(store, 1)
+    if not stored:
+        raise ValueError(
+            "No scan has been stored, so there is nothing to draft from. "
+            "Run `iaiops scan plan --targets <cidr>` first — it emits nothing."
+        )
+    existing: tuple[str, ...] = ()
+    try:
+        from iaiops.core.runtime.config import load_config
+
+        existing = tuple(str(getattr(t, "name", "")) for t in (load_config().targets or ()))
+    except Exception:  # noqa: BLE001 — no config yet is the ordinary first-run state
+        existing = ()
+    record = load_scan(scan_id or stored[0].scan_id, store)
+    return draft_from_scan(record, existing).as_dict()

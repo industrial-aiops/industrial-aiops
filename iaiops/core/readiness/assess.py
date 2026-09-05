@@ -130,7 +130,10 @@ def _endpoints_req(facts: dict[str, Any]) -> Requirement:
         label="at least one configured endpoint",
         met=n > 0,
         detail=f"{n} configured" if n else "no endpoints in config.yaml",
-        fix="Run `iaiops scan run --targets <cidr>` to find devices, then `iaiops init`.",
+        fix=(
+            "Run `iaiops onboard status` — it reports where this site is on the "
+            "path and names the one command that advances it."
+        ),
     )
 
 

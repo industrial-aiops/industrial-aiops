@@ -163,6 +163,7 @@ def _host_row(scan_id: str, host: HostResult) -> tuple:
                 {
                     "protocol": c.protocol,
                     "confidence": c.confidence,
+                    "port": c.port,
                     "evidence": c.evidence,
                     "detail": c.detail,
                 }
@@ -198,6 +199,7 @@ def host_to_dict(host: HostResult) -> dict[str, Any]:
             {
                 "protocol": c.protocol,
                 "confidence": c.confidence,
+                "port": c.port,
                 "evidence": c.evidence,
                 "detail": c.detail,
             }

@@ -388,10 +388,27 @@ the part that is still missing.
       configured", because the latter sends someone hunting for a setting that
       does not exist. **Adding a semantic role to `MonitorTag` is the unlock for
       OEE-from-configured-tags** and is now the concrete next step.
-- [ ] **`iaiops onboard`** — chain the pieces that already exist: `scan` → config draft
+- [x] **`iaiops onboard`** — chain the pieces that already exist: `scan` → config draft
       → per-device point-list browse (`opcua/discovery.py`, `eip_list_tags`, Modbus
-      templates) → heuristic semantic guess **presented for human confirmation** →
-      readiness report.
+      templates) → ~~heuristic semantic guess **presented for human confirmation**~~ →
+      readiness report. **Closed 2026-09-05.** `onboard status` reports which of the six
+      steps a site is on and names the ONE command that advances it, derived from the
+      store and `config.yaml` every time (no state file to go stale). `onboard draft`
+      turns a stored scan into `config.yaml` endpoints — connection facts only, each
+      naming the observation that justifies it, each unestablished field emitted as a
+      comment saying what it is waiting for. For this the scan candidate now records
+      **which port** it was confirmed on, which it previously knew and discarded.
+
+      **The heuristic semantic guess was deliberately NOT built**, and the strikethrough
+      is the decision, not an omission. `tags export` already refuses to pre-fill `role`
+      next to a tag called `GoodPartsCounter` (D16): a wrong production counter yields a
+      plausible OEE, which is worse than an error. A guess "presented for confirmation"
+      is the same guess — confirmation dialogs get accepted — and it would sit in the
+      one artefact that gets pasted once and trusted for years. So `onboard draft` emits
+      `tags: []` and hands the semantic step to `tags export|apply`, where a named person
+      confirms it. Reconsider only with evidence that a suggestion column changes what
+      people actually declare; the observation ("the name matched a pattern") and the
+      conclusion ("this counts production") would have to stay visibly separate.
 - [ ] **Both front-ends, one engine** (D17). CLI for engineers on an edge box with no
       GUI and for CI; an App page for the field, because confirming a hundred-row point
       list is a table interaction, not a command-line questionnaire. The engine returns
