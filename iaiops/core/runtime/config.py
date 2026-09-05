@@ -41,6 +41,7 @@ from iaiops.core.runtime.config_keys import (
     RETENTION_KEYS,
     TAG_KEYS,
     reject_unknown_keys,
+    running_version,
 )
 from iaiops.core.runtime.secretstore import (
     SecretStoreError,
@@ -803,15 +804,74 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     # Accept either 'endpoints' or 'targets' as the top-level list key.
     entries = raw.get("endpoints", raw.get("targets", []))
 
-    targets = tuple(_parse_target(d) for d in entries)
+    # Every block is checked before ANY of them is reported. A config that has
+    # been typed by hand has typos in the plural, and stopping at the first one
+    # makes a 50-endpoint file take as many round trips as it has mistakes —
+    # each of which costs a walk back to whoever knows what that point is.
+    targets: list[TargetConfig] = []
+    problems: list[ValueError] = []
+    for entry in entries:
+        try:
+            targets.append(_parse_target(entry))
+        except ValueError as exc:
+            problems.append(exc)
+
+    historian = None
+    try:
+        historian = _parse_historian(raw.get("historian"))
+    except ValueError as exc:
+        problems.append(exc)
+
+    raw_days = None
     retention = raw.get("retention") or {}
-    reject_unknown_keys(RETENTION_KEYS, retention)
-    raw_days = retention.get("raw_days")
+    try:
+        reject_unknown_keys(RETENTION_KEYS, retention)
+        raw_days = retention.get("raw_days")
+    except ValueError as exc:
+        problems.append(exc)
+
+    if problems:
+        raise ValueError(_problem_report(path, problems))
+
     return AppConfig(
-        targets=targets,
-        historian=_parse_historian(raw.get("historian")),
+        targets=tuple(targets),
+        historian=historian,
         retention_raw_days=int(raw_days) if raw_days is not None else None,
     )
+
+
+def _problem_report(path: Path, problems: list[ValueError]) -> str:
+    """One problem reads as itself; several read as a list, said once each.
+
+    A single mistake must not be dressed up as a report — it is the common case
+    and the shortest true sentence is the best one. Several become a numbered
+    list whose entries are the headlines only: four endpoints wrong the same way
+    would otherwise repeat the 33-key endpoint vocabulary four times, which
+    buries the four lines that actually differ.
+    """
+    if len(problems) == 1:
+        return str(problems[0])
+
+    lines = []
+    # Keyed by block, so the dict IS the de-duplication and insertion order is
+    # first appearance. An `inside not in vocabularies` guard stood here first
+    # and a mutation check showed it changed nothing — dead code dressed as a
+    # guarantee, the same shape `_as_number` grew and lost.
+    vocabularies: dict[str, str] = {}
+    for position, exc in enumerate(problems, start=1):
+        spec = getattr(exc, "spec", None)
+        lines.append(f"  {position}. {getattr(exc, 'headline', None) or exc}")
+        if spec is not None:
+            vocabularies[spec.inside] = f"{', '.join(spec.primary)}. {spec.consequence}"
+
+    report = (
+        f"{path} has {len(problems)} problems. None of it is loaded until every "
+        f"one is fixed, so fix them together:\n" + "\n".join(lines)
+    )
+    if vocabularies:
+        listed = "\n".join(f"  {inside}: {text}" for inside, text in vocabularies.items())
+        report += f"\n\nAccepted by iaiops {running_version()} —\n{listed}"
+    return report
 
 
 def load_config_env() -> AppConfig:

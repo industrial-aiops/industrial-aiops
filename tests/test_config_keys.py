@@ -371,3 +371,109 @@ class TestABlockThatIsNotAMapping:
         with pytest.raises(ValueError) as excinfo:
             parse_tags(["40001"])
         assert "ref" in str(excinfo.value)
+
+
+class TestEveryProblemAtOnce:
+    """A file typed by hand has typos in the plural.
+
+    Stopping at the first one makes a 50-endpoint config take as many round
+    trips as it has mistakes, and each round trip is a walk back to whoever
+    knows what that point actually is.
+    """
+
+    MESSY = (
+        "endpoints:\n"
+        "  - name: line1\n"
+        "    protocol: modbus\n"
+        "    hsot: 10.0.0.5\n"
+        "  - name: line2\n"
+        "    protocol: modbus\n"
+        "    host: 10.0.0.6\n"
+        "    tags:\n"
+        '      - {ref: "10", rolle: total_count}\n'
+        "historian:\n"
+        "  host: 10.0.0.20\n"
+        "retention:\n"
+        "  days: 30\n"
+    )
+
+    def test_all_four_blocks_are_reported_together(self, tmp_path):
+        with pytest.raises(ValueError) as excinfo:
+            load_config(_write(tmp_path, self.MESSY))
+        message = str(excinfo.value)
+        for fragment in ("hsot", "rolle", "reader", "days"):
+            assert fragment in message, f"{fragment!r} was not reported"
+        assert "4 problems" in message
+
+    def test_the_file_is_named(self, tmp_path):
+        path = _write(tmp_path, self.MESSY)
+        with pytest.raises(ValueError, match=r"config\.yaml"):
+            load_config(path)
+
+    def test_a_vocabulary_is_stated_once_however_many_entries_use_it(self, tmp_path):
+        """Four endpoints wrong the same way must not print the 33-key endpoint
+        vocabulary four times — that buries the four lines that differ."""
+        many = "endpoints:\n" + "".join(
+            f"  - name: line{n}\n    protocol: modbus\n    host: 10.0.0.{n}\n    junk{n}: 1\n"
+            for n in range(1, 5)
+        )
+        with pytest.raises(ValueError) as excinfo:
+            load_config(_write(tmp_path, many))
+        message = str(excinfo.value)
+        assert message.count("ideal_cycle_time_s") == 1, "the endpoint vocabulary repeats"
+        for n in range(1, 5):
+            assert f"junk{n}" in message
+
+    def test_one_problem_stays_one_sentence(self, tmp_path):
+        """The common case must not be dressed up as a report."""
+        one = "endpoints:\n  - name: line1\n    protocol: modbus\n    host: 10.0.0.5\n    junk: 1\n"
+        with pytest.raises(ValueError) as excinfo:
+            load_config(_write(tmp_path, one))
+        message = str(excinfo.value)
+        assert "problems" not in message
+        assert message.startswith("Endpoint 'line1'")
+
+    def test_a_good_endpoint_beside_a_bad_one_does_not_rescue_the_file(self, tmp_path):
+        """Half a config is not a config: loading the endpoints that parsed
+        would hand back a fleet quietly missing the ones that did not."""
+        with pytest.raises(ValueError):
+            load_config(_write(tmp_path, self.MESSY))
+
+
+class TestASuggestionIsNeverAGuess:
+    def test_a_tie_is_reported_as_a_tie(self):
+        """'hsot' scores 0.75 against both 'host' and 'slot'.
+        ``difflib.get_close_matches`` breaks that by string order and returned
+        'slot' — a confident pointer at a line that was already correct."""
+        with pytest.raises(ValueError) as excinfo:
+            _parse_target(_endpoint(hsot="10.0.0.6"))
+        message = str(excinfo.value)
+        assert "'host'" in message and "'slot'" in message
+
+    def test_an_unambiguous_near_miss_is_still_a_single_answer(self):
+        with pytest.raises(ValueError) as excinfo:
+            _parse_target(_endpoint(hostt="10.0.0.6"))
+        message = str(excinfo.value)
+        assert "Did you mean 'host'?" in message
+        assert "slot" not in message.split("Accepted")[0]
+
+
+class TestTheRefusalSaysWhichVersionRefused:
+    """ "I do not recognise this key" has two causes in the field: it is
+    misspelled, or THIS box is older than the docs it was written against. An
+    edge fleet is never on one version, and without this only the first cause
+    occurs to anybody."""
+
+    def test_the_running_version_is_named(self):
+        from iaiops import __version__
+
+        with pytest.raises(ValueError) as excinfo:
+            parse_tags([{"ref": "1", "junk": 1}])
+        assert f"iaiops {__version__}" in str(excinfo.value)
+
+    def test_it_is_named_in_the_grouped_report_too(self, tmp_path):
+        from iaiops import __version__
+
+        with pytest.raises(ValueError) as excinfo:
+            load_config(_write(tmp_path, TestEveryProblemAtOnce.MESSY))
+        assert f"iaiops {__version__}" in str(excinfo.value)

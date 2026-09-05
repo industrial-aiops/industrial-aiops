@@ -24,11 +24,42 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from difflib import get_close_matches
+from difflib import SequenceMatcher
 from typing import Any
 
 #: Below this ratio a "did you mean" is noise rather than help.
 _SUGGEST_CUTOFF = 0.6
+
+
+def running_version() -> str:
+    """The version doing the refusing, for the error to carry.
+
+    "I do not recognise this key" has two causes in the field and they need
+    different fixes: the key is misspelled, or THIS box is older than the docs
+    the config was written against. Without a version in the message only the
+    first one occurs to anybody, and an edge fleet is never on one version.
+    """
+    try:
+        from iaiops import __version__
+
+        return str(__version__)
+    except Exception:  # pragma: no cover — a source tree with no metadata
+        return "unknown"
+
+
+class ConfigKeyError(ValueError):
+    """A refusal that can be reported alone or folded into a list of them.
+
+    On its own it reads as one complete sentence. In a whole-file report where
+    four endpoints are wrong the same way, printing the 33-key endpoint
+    vocabulary four times is noise, so the report takes ``headline`` from each
+    and prints each block's vocabulary once at the end.
+    """
+
+    def __init__(self, headline: str, spec: BlockKeys) -> None:
+        super().__init__(f"{headline} {spec.vocabulary()} {spec.consequence}")
+        self.headline = headline
+        self.spec = spec
 
 
 @dataclass(frozen=True)
@@ -51,13 +82,20 @@ class BlockKeys:
     #: What went wrong when this block silently dropped the key instead.
     consequence: str = ""
 
+    #: How the vocabulary is introduced in a grouped report ("in a tag").
+    inside: str = ""
+
     @property
     def accepted(self) -> frozenset[str]:
         return frozenset(self.primary) | frozenset(self.aliases)
 
+    def vocabulary(self) -> str:
+        return f"Accepted by iaiops {running_version()}: {', '.join(self.primary)}."
+
 
 TAG_KEYS = BlockKeys(
     what="Tag",
+    inside="in a tag",
     primary=(
         "ref",
         "label",
@@ -79,6 +117,7 @@ TAG_KEYS = BlockKeys(
 
 ENDPOINT_KEYS = BlockKeys(
     what="Endpoint",
+    inside="in an endpoint",
     primary=(
         "name",
         "protocol",
@@ -144,6 +183,7 @@ ENDPOINT_KEYS = BlockKeys(
 
 HISTORIAN_KEYS = BlockKeys(
     what="The 'historian:' block",
+    inside="in 'historian:'",
     primary=("reader", "host", "port", "user", "database", "db_path", "transport"),
     hints={
         "password": (
@@ -160,6 +200,7 @@ HISTORIAN_KEYS = BlockKeys(
 
 RETENTION_KEYS = BlockKeys(
     what="The 'retention:' block",
+    inside="in 'retention:'",
     primary=("raw_days",),
     hints={"days": "Did you mean 'raw_days'?"},
     consequence=(
@@ -169,19 +210,46 @@ RETENTION_KEYS = BlockKeys(
 )
 
 
+def _closest(key: str, spec: BlockKeys) -> tuple[str, ...]:
+    """Every accepted key tied for closest to ``key`` — not an arbitrary one.
+
+    ``difflib.get_close_matches`` breaks a tie by string order, which is how
+    ``hsot`` came back as "did you mean 'slot'?" — ``host`` and ``slot`` both
+    score 0.75 against it and ``slot`` sorts higher. A confident wrong pointer
+    is worse than no pointer: it sends someone to a line that was already
+    correct. Ties are reported as ties.
+    """
+    scored = [
+        (SequenceMatcher(None, key, candidate).ratio(), candidate)
+        for candidate in sorted(spec.accepted)
+    ]
+    viable = [(ratio, name) for ratio, name in scored if ratio >= _SUGGEST_CUTOFF]
+    if not viable:
+        return ()
+    best = max(ratio for ratio, _ in viable)
+    return tuple(name for ratio, name in viable if ratio == best)
+
+
+def _describe(name: str, spec: BlockKeys) -> str:
+    stands_for = spec.aliases.get(name)
+    return f"{name!r} (an accepted alias for {stands_for!r})" if stands_for else repr(name)
+
+
 def _suggestion(key: str, spec: BlockKeys) -> str:
     """The most useful thing to say about one wrong key, or "" for nothing."""
     hint = spec.hints.get(key)
     if hint:
         return hint
-    close = get_close_matches(key, sorted(spec.accepted), n=1, cutoff=_SUGGEST_CUTOFF)
-    if not close:
+    tied = _closest(key, spec)
+    if not tied:
         return ""
-    match = close[0]
-    stands_for = spec.aliases.get(match)
-    if stands_for:
-        return f"Did you mean {match!r} (an accepted alias for {stands_for!r})?"
-    return f"Did you mean {match!r}?"
+    if len(tied) == 1:
+        return f"Did you mean {_describe(tied[0], spec)}?"
+    listed = " or ".join(_describe(name, spec) for name in tied)
+    return (
+        f"Did you mean {listed}? They are equally close to what you wrote, "
+        f"so picking one for you would be a guess."
+    )
 
 
 def reject_unknown_keys(spec: BlockKeys, block: Any, where: str = "") -> Mapping[str, Any]:
@@ -199,9 +267,8 @@ def reject_unknown_keys(spec: BlockKeys, block: Any, where: str = "") -> Mapping
     list of the string's individual characters.
     """
     if not isinstance(block, Mapping):
-        raise ValueError(
-            f"{spec.what}{where} must be a mapping of settings, not {block!r}. "
-            f"Accepted: {', '.join(spec.primary)}."
+        raise ConfigKeyError(
+            f"{spec.what}{where} must be a mapping of settings, not {block!r}.", spec
         )
     unknown = [str(k) for k in block if str(k) not in spec.accepted]
     if not unknown:
@@ -218,8 +285,5 @@ def reject_unknown_keys(spec: BlockKeys, block: Any, where: str = "") -> Mapping
             f"{key!r}: {found}" for key in unknown if (found := _suggestion(key, spec))
         )
 
-    raise ValueError(
-        f"{spec.what}{where} has {noun}: {listed}. "
-        f"{advice + ' ' if advice else ''}"
-        f"Accepted: {', '.join(spec.primary)}. {spec.consequence}"
-    )
+    headline = f"{spec.what}{where} has {noun}: {listed}.{' ' + advice if advice else ''}"
+    raise ConfigKeyError(headline, spec)

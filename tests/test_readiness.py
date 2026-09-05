@@ -498,3 +498,65 @@ def test_the_expressible_docstring_and_the_code_agree():
             "sends the reader somewhere to find 'the live producers'. Fix the pointer — "
             "an empty destination reads as 'I looked and found nothing', not 'there is nothing'."
         )
+
+
+class TestAnUnreadableConfigLeadsTheReport:
+    """A config that would not load renders a configured site as an empty one.
+
+    The ranked gap list then opens with "at least one configured endpoint" — a
+    gap the site does not have. That reason used to print AFTER the list, where
+    it arrived too late to stop anybody acting on the rows above it. Reached far
+    more often since unknown config keys became a refusal rather than a silent
+    drop, which is what made the ordering worth fixing.
+    """
+
+    @staticmethod
+    def _broken(monkeypatch):
+        def boom():
+            raise ValueError("Tag #2 on endpoint 'line1' has an unknown key: 'rolle'.")
+
+        monkeypatch.setattr("iaiops.core.runtime.config.load_config", boom)
+
+    def test_the_reason_is_a_field_not_only_a_footnote(self, monkeypatch, tmp_path):
+        self._broken(monkeypatch)
+        report = assess(db_path=tmp_path / "none.db")
+        assert "rolle" in report.config_note
+
+    def test_it_says_the_gaps_below_are_not_the_operators(self, monkeypatch, tmp_path):
+        """Without this the report is a list of demands the site already met."""
+        self._broken(monkeypatch)
+        report = assess(db_path=tmp_path / "none.db")
+        assert "not yours" in report.config_note
+
+    def test_a_readable_config_carries_no_such_note(self, tmp_path):
+        assert assess(db_path=tmp_path / "none.db").config_note == ""
+
+    def test_it_survives_into_json_for_the_mcp_side(self, monkeypatch, tmp_path):
+        self._broken(monkeypatch)
+        assert "rolle" in assess(db_path=tmp_path / "none.db").as_dict()["config_note"]
+
+    def test_the_cli_prints_it_above_the_summary(self, monkeypatch, tmp_path, capsys):
+        """The whole point is the ORDER, so the test is about the order."""
+        from typer.testing import CliRunner
+
+        from iaiops.cli._root import app
+
+        self._broken(monkeypatch)
+        result = CliRunner().invoke(app, ["readiness", "--db", str(tmp_path / "none.db")])
+        assert result.exit_code == 0
+        text = result.stdout
+        assert "rolle" in text, "the reason never printed"
+        assert text.index("rolle") < text.index("Site readiness"), (
+            "the reason still prints after the report it invalidates"
+        )
+
+    def test_the_cli_does_not_say_it_twice(self, monkeypatch, tmp_path):
+        """It is also in `notes`, where the JSON consumers read it. Printed at
+        both ends of one report it reads as two separate faults."""
+        from typer.testing import CliRunner
+
+        from iaiops.cli._root import app
+
+        self._broken(monkeypatch)
+        result = CliRunner().invoke(app, ["readiness", "--db", str(tmp_path / "none.db")])
+        assert result.stdout.count("rolle") == 1

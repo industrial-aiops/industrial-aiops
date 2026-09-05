@@ -43,6 +43,14 @@ def readiness_cmd(
         _emit(report.as_dict())
         return
 
+    # BEFORE the summary, not after the ranked gap list. A config that would not
+    # load renders a configured site as an empty one, so the top line of that list
+    # reads "at least one configured endpoint" — a gap the site does not have. The
+    # reason for it used to print underneath, where it arrived too late to stop
+    # anybody acting on the rows above.
+    if report.config_note:
+        console.print(f"\n[bold red]⚠ {report.config_note}[/]")
+
     counts = report.summary
     console.print(
         f"\n[bold]Site readiness[/] — "
@@ -79,6 +87,8 @@ def readiness_cmd(
         console.print()
 
     for note in report.notes:
+        if note == report.config_note:
+            continue  # already the banner at the top; said twice it reads as two faults
         console.print(f"[dim]{note}[/]")
 
 
