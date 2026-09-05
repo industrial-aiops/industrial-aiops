@@ -565,6 +565,12 @@ endpoints:
     expected_slaves: 8             # optional sanity check vs the bus scan
 ```
 
+A key this file does not recognise is **refused, not ignored** — in an endpoint, in a
+tag, in `historian:` and in `retention:`. A dropped key was indistinguishable from one
+never written: `rolle: good_count` declared a production counter as far as the site was
+concerned, and `iaiops readiness` then reported the OEE mapping unmet while pointing
+nowhere near the typo. The error names the key, the accepted set, and the nearest match.
+
 ### `iaiops init` walkthrough (per protocol)
 ```
 $ iaiops init

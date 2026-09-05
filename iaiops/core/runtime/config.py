@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 import stat
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -35,6 +35,13 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
+from iaiops.core.runtime.config_keys import (
+    ENDPOINT_KEYS,
+    HISTORIAN_KEYS,
+    RETENTION_KEYS,
+    TAG_KEYS,
+    reject_unknown_keys,
+)
 from iaiops.core.runtime.secretstore import (
     SecretStoreError,
     get_secret,
@@ -570,6 +577,7 @@ def parse_tags(raw_tags: list, endpoint: str = "") -> tuple[MonitorTag, ...]:
     out: list[MonitorTag] = []
     where = f" on endpoint {endpoint!r}" if endpoint else ""
     for position, t in enumerate(raw_tags or [], start=1):
+        reject_unknown_keys(TAG_KEYS, t, where=f" #{position}{where}")
         ref = _tag_ref(t)
         if not ref:
             raise ValueError(
@@ -797,7 +805,8 @@ def load_config(config_path: Path | None = None) -> AppConfig:
 
     targets = tuple(_parse_target(d) for d in entries)
     retention = raw.get("retention") or {}
-    raw_days = retention.get("raw_days") if isinstance(retention, dict) else None
+    reject_unknown_keys(RETENTION_KEYS, retention)
+    raw_days = retention.get("raw_days")
     return AppConfig(
         targets=targets,
         historian=_parse_historian(raw.get("historian")),
@@ -817,21 +826,36 @@ def load_config_env() -> AppConfig:
 
 def _parse_historian(raw: object) -> HistorianConfig | None:
     """Build the optional per-site historian READ block; absent/blank ⇒ None."""
-    if not isinstance(raw, dict) or not str(raw.get("reader", "")).strip():
+    if raw is None or raw == {}:
         return None
+    block = reject_unknown_keys(HISTORIAN_KEYS, raw)
+    if not str(block.get("reader", "")).strip():
+        raise ValueError(
+            "The 'historian:' block has no 'reader'. It is the one setting that "
+            "cannot be defaulted — it names which store to read. Set one of "
+            f"{', '.join(SUPPORTED_HISTORIAN_READERS)}, or delete the block. "
+            "A block without it used to be discarded whole, so a site that had "
+            "configured a historian was told, incident after incident, that it "
+            "had none."
+        )
     return HistorianConfig(
-        reader=str(raw["reader"]).strip().lower(),
-        host=str(raw.get("host", "") or ""),
-        port=int(raw.get("port", 0) or 0),
-        user=str(raw.get("user", "") or ""),
-        database=str(raw.get("database", "") or ""),
-        db_path=str(raw.get("db_path", "") or ""),
-        transport=str(raw.get("transport", "") or "").strip().lower(),
+        reader=str(block["reader"]).strip().lower(),
+        host=str(block.get("host", "") or ""),
+        port=int(block.get("port", 0) or 0),
+        user=str(block.get("user", "") or ""),
+        database=str(block.get("database", "") or ""),
+        db_path=str(block.get("db_path", "") or ""),
+        transport=str(block.get("transport", "") or "").strip().lower(),
     )
 
 
 def _parse_target(d: dict) -> TargetConfig:
     """Build one immutable TargetConfig from a raw config dict."""
+    # The label is built defensively: an entry that is not a mapping at all
+    # (``endpoints: [line1]``) has no name to read, and asking for one here
+    # would raise before the teaching error could be built.
+    named = d.get("name", "?") if isinstance(d, Mapping) else "?"
+    reject_unknown_keys(ENDPOINT_KEYS, d, where=f" {str(named)!r}")
     protocol = d.get("protocol", "opcua")
     if protocol == "eip":  # normalize the accepted alias
         protocol = "ethernetip"

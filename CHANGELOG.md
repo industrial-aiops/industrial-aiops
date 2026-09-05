@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **A config key nobody reads was a config key that was not there.** Every parser
+  in `core/runtime/config.py` pulls its fields out with `d.get(...)`, so an
+  unrecognised key in a tag entry, an endpoint entry, `historian:` or `retention:`
+  vanished with no message. Written out: a site that typed `rolle: good_count`
+  had declared its production counter as far as it was concerned; `iaiops
+  readiness` then reported the OEE mapping unmet, naming a gap the operator had
+  already filled and pointing nowhere near the typo. All four blocks now **refuse**
+  an unknown key with an error that names it, names the accepted vocabulary, and
+  suggests the nearest match (`name` → `label`, `rolle` → `role`, a `password:`
+  line → the encrypted store). Two blocks that were dropped whole are refused the
+  same way: a `historian:` block carrying settings but no `reader` (discarded
+  silently, so a site with a historian was told incident after incident that it
+  had none) and a `retention:`/`historian:` block that is not a mapping.
+
+  **Breaking** for a config carrying an extra key. Nothing in this repo did —
+  README, `README.zh-CN`, `docs/`, `demo/oee-line`, `deploy/`, the `iaiops init`
+  wizard, the `iaiops tags apply` patch and every test fixture were checked, and
+  the full suite passed unchanged. Refusing rather than warning matches what this
+  file already does for an unsupported protocol, an unknown tag role and a tag
+  with no address; a warning would be one stderr line inside a long `readiness`
+  run, guarding a wrong answer that wears the right shape.
+
 ## 0.27.0 — 2026-09-03
 
 ### Fixed
