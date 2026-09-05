@@ -51,6 +51,74 @@
 - **`modbus templates` / `modbus template` were MCP-only.** The register maps
   existed and no CLI command reached them, so a CLI user was told to hand-enter
   addresses that were already in the box for their meter.
+- **The first command a new site was given could never satisfy the step it was
+  printed for.** `onboard status` opened on `iaiops scan plan --targets <cidr>`,
+  which is a preview: it emits nothing and stores nothing. Run it, re-run
+  `status`, get identical output — forever, at step 1 of 6. It now names
+  `scan run`, with `scan plan` named in the detail as the preview an operator
+  signs first. The MCP refusal had the same hole and now names `scan run` too.
+- **"All 6 steps done" on a site where `oee measure` refuses to run.** The
+  semantic step was graded on "did somebody type a `role:` anywhere", so a
+  config declaring only `good_count` finished onboarding while `readiness` on
+  the same site still listed the OEE mapping as blocked. It is now graded on the
+  two roles the product actually requires, and names the ones still missing.
+- **A tool-side failure reported as a fact about the site.** Three of these, all
+  pointing the same way. An unreadable scan store (corrupt file, permission
+  error, `--db` typo) became "no scan has been stored" and sent an operator back
+  onto a live plant network. A `config.yaml` that would not parse became "no
+  endpoints in config.yaml" — and the remedy offered was to draft more endpoints
+  to paste into the file that is broken. A role claimed twice made
+  `roles_present` raise, `gather_facts` discard that endpoint's whole role map,
+  and the step assert the site had declared nothing when it had declared too
+  much. Each now says what actually happened.
+- **A product limit rendered as a site deficiency.** "No endpoint that can be
+  sampled on a schedule **yet**" — for MTConnect, BACnet, MQTT and IO-Link
+  nothing the site does will ever change that; this build has no scheduled
+  sampler for them. It says so, names the protocols that do work, and no longer
+  parks the path permanently on a step with no command and no explanation.
+- **Advice that changed when you reordered config.yaml.** The point-list step
+  looked only at the first untagged endpoint, so a config beginning with an S7
+  entry withheld `opcua browse` for the endpoint two lines below it.
+- **`onboard draft` offered endpoints a site had already tuned.** A bare
+  `except` around `load_config` treated a config that will not parse the same as
+  a config that does not exist, which disarmed the guard that withholds
+  already-configured endpoints. Reproduced: same file, one bad indent, and the
+  endpoint went from withheld to offered as new. Both front ends now say so.
+  The same guard also only worked once: it matched on the name the draft
+  generated, and the draft's own header says "rename this", so renaming
+  `opcua-10-0-0-9` to `filler-line-3` made the next scan re-offer the same device
+  and the site configured it twice. It now matches on the address as well.
+- **Two endpoints could be drafted with the same name.** OPC-UA is allowlisted
+  on 4840 and 4843, MTConnect on 80/5000/8080, and one host can confirm the same
+  protocol on two of them. `AppConfig.get_target` returns the first match, so the
+  second endpoint would have been unreachable by name for as long as the config
+  lived while both were collected under one name.
+- **The draft asserted a Modbus `unit_id` nothing had observed.** It emitted
+  `unit_id: 1` with the evidence "unit 1 answered the FC43 identity request" — a
+  sentence generated from the default, which is exactly what `DraftField`
+  refuses and this smuggled past by manufacturing the string. On a host
+  confirmed by *rejection* the block said the device declined the request and
+  answered it, four lines apart. Nothing observes a unit: the probe hardcodes 1
+  and the reply echoes it back. Also: a deduced port said "the port this device
+  answered on" in `observed:` and put the deduction in the caution below, when
+  `observed:` is the line the header tells the reader to trust.
+- **The EtherNet/IP `slot` caution named a default that does not apply.** It said
+  "0 is right for a CompactLogix", which reads as: leave the line commented and
+  you get 0. `TargetConfig.slot` defaults to **1**, so a reader who agreed and
+  left it alone read the wrong module — the exact failure the caution existed to
+  prevent, caused by the caution. The block also omitted `port` entirely, against
+  this module's own rule that an omitted field takes the default in silence.
+- **A malformed stored scan crashed the command.** The record comes back through
+  a bare `json.loads` of a sqlite column, so its shape is whatever was written: a
+  non-mapping row, an `identity` holding a list, a string port, `1.5` becoming
+  port 1, `devices: "abc"` iterating into three devices — `AttributeError` and
+  `TypeError` are not in the CLI's handled set and escaped as raw tracebacks. A
+  host with no address was drafted as `host: ""` with the evidence "the address
+  that answered".
+- **The rendered draft could be unparseable.** `_scalar` escaped only `\` and
+  `"`, so 30 control characters from a device string made the block fail
+  `yaml.safe_load`, and CR/LF/NEL folded to a space and silently changed the
+  value. The draft's whole job is to be pasted.
 - **The scan knew which port a protocol answered on and threw it away.**
   `ProtocolCandidate` now records it, so a device on a non-default port survives
   into a config draft instead of being re-derived from the open-port list. Scans

@@ -168,21 +168,29 @@ def onboarding_config_draft(scan_id: str = "", db: str = "") -> dict:
     from pathlib import Path
 
     from iaiops.core.onboard import draft_from_scan
+    from iaiops.core.onboard.config_state import existing_endpoints
     from iaiops.core.sink.scan_store import list_scans, load_scan
 
     store = Path(db).expanduser() if db else None
     stored = list_scans(store, 1)
     if not stored:
         raise ValueError(
-            "No scan has been stored, so there is nothing to draft from. "
-            "Run `iaiops scan plan --targets <cidr>` first — it emits nothing."
+            "No scan has been stored, so there is nothing to draft from. Preview "
+            "with `iaiops scan plan --targets <cidr>`, which emits nothing, then "
+            "`iaiops scan run --targets <cidr> --approved-by <you>` — `run` is "
+            "the one that stores a scan, so naming only `plan` sends a caller "
+            "round a loop that never clears this refusal."
         )
-    existing: tuple[str, ...] = ()
-    try:
-        from iaiops.core.runtime.config import load_config
-
-        existing = tuple(str(getattr(t, "name", "")) for t in (load_config().targets or ()))
-    except Exception:  # noqa: BLE001 — no config yet is the ordinary first-run state
-        existing = ()
+    existing, addresses, config_error = existing_endpoints()
     record = load_scan(scan_id or stored[0].scan_id, store)
-    return draft_from_scan(record, existing).as_dict()
+    out = draft_from_scan(record, existing, addresses).as_dict()
+    if config_error:
+        # Say it in the payload rather than swallowing it: without this the tool
+        # reports MORE endpoints drafted than it should and offers the very block
+        # `already_configured` exists to withhold.
+        out["config_error"] = (
+            f"config.yaml did not parse ({config_error}), so this draft was built "
+            "as if your config were empty — an endpoint already configured may be "
+            "listed as new. Fix the file and re-run before merging any of it."
+        )
+    return out

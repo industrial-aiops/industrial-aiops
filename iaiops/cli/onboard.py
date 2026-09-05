@@ -71,7 +71,7 @@ def status_cmd(
         console.print(f"[yellow]![/] {note}\n")
 
     for index, step in enumerate(path.steps, start=1):
-        mark, colour = _MARK[step.state]
+        mark, colour = _MARK.get(step.state, ("[dim]?[/]", "dim"))
         console.print(f"{mark} [{colour}]{index}. {step.label}[/]")
         console.print(f"   [dim]{step.detail}[/]")
         if verbose and step.why:
@@ -110,6 +110,7 @@ def draft_cmd(
     """
     from iaiops.core.governance.evidence import validate_output_path
     from iaiops.core.onboard import draft_from_scan, render_yaml
+    from iaiops.core.onboard.config_state import existing_endpoints
     from iaiops.core.sink.scan_store import list_scans, load_scan
 
     stored = list_scans(db, 1)
@@ -121,15 +122,16 @@ def draft_cmd(
         )
     record = load_scan(scan_id or stored[0].scan_id, db)
 
-    existing: tuple[str, ...] = ()
-    try:
-        from iaiops.core.runtime.config import load_config
+    existing, addresses, config_error = existing_endpoints()
+    if config_error:
+        console.print(
+            f"\n[yellow]![/] config.yaml did not parse ({config_error}).\n"
+            "  [dim]Everything below is drafted as if your config were empty, so an\n"
+            "  endpoint you have already tuned may be offered again. Fix the file\n"
+            "  and re-run before you merge any of this.[/]\n"
+        )
 
-        existing = tuple(str(getattr(t, "name", "")) for t in (load_config().targets or ()))
-    except Exception:  # noqa: BLE001 — no config yet is the ordinary first-run state
-        existing = ()
-
-    draft = draft_from_scan(record, existing)
+    draft = draft_from_scan(record, existing, addresses)
     if as_json:
         _emit(draft.as_dict())
         return

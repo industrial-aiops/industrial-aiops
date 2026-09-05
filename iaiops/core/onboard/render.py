@@ -28,12 +28,29 @@ from iaiops.core.onboard.model import Draft, DraftEndpoint
 _WIDTH = 74
 
 
+#: Characters a double-quoted YAML scalar cannot carry literally. Escaping only
+#: ``\\`` and ``"`` left 30 of them able to make the block UNPARSEABLE
+#: (``yaml.ReaderError``) and three more — CR, LF, NEL — able to fold into a
+#: space and silently change the value. A vendor string is whatever the device
+#: sent; upstream sanitising happens to cover today's producers, but the function
+#: whose whole job is YAML safety must not depend on that.
+_YAML_ESCAPES = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\r": "\\r", "\t": "\\t"}
+
+
 def _scalar(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, int | float):
         return str(value)
-    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+    out = []
+    for ch in str(value):
+        if ch in _YAML_ESCAPES:
+            out.append(_YAML_ESCAPES[ch])
+        elif ord(ch) < 0x20 or ord(ch) in (0x7F, 0x85) or ord(ch) in (0x2028, 0x2029):
+            out.append(f"\\u{ord(ch):04x}")
+        else:
+            out.append(ch)
+    return '"' + "".join(out) + '"'
 
 
 def _comment(text: str, indent: str) -> list[str]:

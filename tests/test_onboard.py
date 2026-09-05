@@ -21,6 +21,10 @@ once while it was being built:
 
 from __future__ import annotations
 
+import re
+import shlex
+from dataclasses import dataclass
+
 import pytest
 import yaml
 from typer.testing import CliRunner
@@ -72,22 +76,37 @@ def _record(*hosts, scan_id="scan1"):
 # --- the commands the path prints ------------------------------------------
 
 
-def _resolve(command: str) -> None:
-    """Walk a printed command through the real CLI, or fail saying why.
+_PLACEHOLDER = re.compile(r"<[^>]+>")
 
-    Checks the sub-app, the command name, and every ``--option`` it uses.
-    Placeholders (``<cidr>``, a file name) are values and are not checked —
-    a value cannot be wrong in a way this test could see.
+
+def _resolve(command: str) -> None:
+    """Build a real click context for the command, or fail saying why.
+
+    The first version compared the `--options` a command passes against the ones
+    the sub-command declares. That is blind to absence: `iaiops scan plan`,
+    `iaiops tags export` and `iaiops collect run e1` all pass only valid options
+    and all exit 2 for a missing required parameter, and the whole suite stayed
+    green with every required parameter stripped out. Handing the string to the
+    parser that will actually run it is the only check that cannot be hollow —
+    it also catches a bare group, an unknown short option, and a bad type.
+
+    Placeholders (`<cidr>`, a file name) are values; a value cannot be wrong in a
+    way this test could see.
     """
+    import click
     import typer.main
 
     from iaiops.cli._root import app
 
-    parts = command.split()
+    # `<cidr>`, `<device_id>` and friends are fill-me-in markers, and one of them
+    # is typed `int`, so the literal string cannot be type-checked. Substituting
+    # `1` keeps the SHAPE under test — how many arguments, which options, which
+    # sub-command — which is the part a printed command can get wrong.
+    parts = [("1" if _PLACEHOLDER.fullmatch(tok) else tok) for tok in shlex.split(command)]
     assert parts and parts[0] == "iaiops", f"not an iaiops command: {command!r}"
     # Typer vendors its own click, so `isinstance(node, click.Group)` against the
-    # installed click is False for every group here and the walk stops at the
-    # root — silently checking nothing. Duck typing is what actually holds.
+    # installed click is False for every group here and a walk keyed on it stops
+    # at the root, silently checking nothing. Duck typing is what actually holds.
     node = typer.main.get_command(app)
     index = 1
     while index < len(parts) and hasattr(node, "get_command"):
@@ -98,28 +117,17 @@ def _resolve(command: str) -> None:
         assert child is not None, f"`{command}` names {name!r}, which no CLI group provides"
         node = child
         index += 1
-    known = {opt for param in node.params for opt in getattr(param, "opts", ())}
-    rest = parts[index:]
-    used = [p for p in rest if p.startswith("--")]
-    missing = [opt for opt in used if opt not in known]
-    assert not missing, f"`{command}` passes {missing}, which {node.name!r} does not accept"
-
-    # Required parameters, which the option check alone cannot see: a command can
-    # name a real subcommand, pass only valid options, and still refuse to run
-    # because a required one was never supplied.
-    positionals = [tok for tok in rest if not tok.startswith("-")]
-    supplied_opts = set(used)
-    for param in node.params:
-        if not getattr(param, "required", False):
-            continue
-        opts = set(getattr(param, "opts", ()))
-        if any(o.startswith("-") for o in opts):
-            assert opts & supplied_opts, (
-                f"`{command}` omits required option {sorted(opts)} of {node.name!r}"
-            )
-        else:
-            assert positionals, f"`{command}` omits the required argument {sorted(opts)}"
-            positionals.pop(0)
+    assert not hasattr(node, "get_command"), (
+        f"`{command}` stops at the group {node.name!r} and names no sub-command; "
+        "running it prints help and exits 2"
+    )
+    try:
+        ctx = node.make_context(node.name, parts[index:], resilient_parsing=False)
+    except click.exceptions.UsageError as exc:
+        raise AssertionError(f"`{command}` does not parse: {exc.format_message()}") from exc
+    except SystemExit as exc:
+        raise AssertionError(f"`{command}` exits {exc.code} instead of running") from exc
+    ctx.close()
 
 
 def test_every_browse_command_the_path_can_print_resolves_in_the_cli():
@@ -414,7 +422,10 @@ def test_exactly_one_step_is_next(tmp_path):
     path = assess_path(None, db_path=tmp_path / "none.db")
     assert [s.state for s in path.steps].count(STATE_NEXT) == 1
     assert path.next_step is not None and path.next_step.key == "survey"
-    assert path.next_step.command.startswith("iaiops scan plan")
+    # `scan run`, not `scan plan`: the command printed for a step has to be one
+    # that can satisfy it, and `plan` stores nothing, so it looped forever.
+    assert path.next_step.command.startswith("iaiops scan run")
+    assert "scan plan" in path.next_step.detail, "the safe preview must still be named"
 
 
 def test_a_step_that_is_genuinely_done_stays_done_even_behind_the_cursor(tmp_path):
@@ -504,12 +515,46 @@ def test_a_protocol_the_product_can_enumerate_is_never_told_to_type_it_by_hand()
         _resolve(_BROWSE[protocol].format(endpoint="an-endpoint"))
 
 
-def test_status_reports_a_site_with_nothing_configured_without_raising(tmp_path):
+def test_status_reports_a_site_with_nothing_configured_without_raising(tmp_path, monkeypatch):
+    """The name used to describe a condition the test never established: it set
+    no config at all, so it asserted `next_step == survey`, which is true on any
+    site whose temp --db has no scans."""
     from iaiops.cli._root import app
 
+    monkeypatch.setenv("IAIOPS_CONFIG", str(tmp_path / "config.yaml"))
     result = runner.invoke(app, ["onboard", "status", "--db", str(tmp_path / "none.db"), "--json"])
     assert result.exit_code == 0, result.output
     assert '"next_step": "survey"' in result.output
+    assert '"endpoints"' in result.output
+
+
+def test_a_broken_config_makes_draft_say_so_instead_of_offering_tuned_endpoints(
+    tmp_path, monkeypatch
+):
+    """The bare `except Exception` around `load_config` caught a config that
+    exists and does not parse, answered "no endpoints", and so handed over the
+    very block `already_configured` exists to withhold."""
+    from iaiops.core.onboard.config_state import existing_endpoint_names
+
+    good = tmp_path / "good.yaml"
+    good.write_text(
+        'endpoints:\n  - name: "e1"\n    protocol: "opcua"\n'
+        '    endpoint_url: "opc.tcp://10.0.0.9:4840/"\n    tags: []\n'
+    )
+    monkeypatch.setenv("IAIOPS_CONFIG", str(good))
+    names, error = existing_endpoint_names()
+    assert names == ("e1",) and error == ""
+
+    broken = tmp_path / "broken.yaml"
+    broken.write_text('endpoints:\n  - name: "e1"\n   protocol: "opcua"\n')
+    monkeypatch.setenv("IAIOPS_CONFIG", str(broken))
+    names, error = existing_endpoint_names()
+    assert names == ()
+    assert error, "a file that will not parse is not a file with no endpoints"
+
+    monkeypatch.setenv("IAIOPS_CONFIG", str(tmp_path / "absent.yaml"))
+    names, error = existing_endpoint_names()
+    assert names == () and error == "", "an absent config really does have none"
 
 
 def test_draft_without_a_stored_scan_says_what_to_run(tmp_path):
@@ -542,11 +587,18 @@ class TestTheMcpFrontEnd:
 
     def test_status_is_the_engine_answer_verbatim(self, tmp_path, monkeypatch, tools):
         """Not "equivalent" — identical. Any divergence is the tool having
-        formed an opinion of its own, which is how two front ends drift."""
-        monkeypatch.setenv("HOME", str(tmp_path))
-        from iaiops.core.runtime import config as config_mod
+        formed an opinion of its own, which is how two front ends drift.
 
-        monkeypatch.setattr(config_mod, "CONFIG_DIR", tmp_path / ".iaiops", raising=False)
+        The isolation here used to be inert: `load_config` resolves through
+        `default_config_path()`, which reads $IAIOPS_CONFIG or a module constant
+        bound at import time from `Path.home()`. Setting HOME and patching
+        CONFIG_DIR afterwards changes neither, so this read the developer's own
+        ~/.iaiops/config.yaml and passed because both sides read the same file.
+        """
+        from iaiops.core.runtime.config import default_config_path
+
+        monkeypatch.setenv("IAIOPS_CONFIG", str(tmp_path / "config.yaml"))
+        assert default_config_path() == tmp_path / "config.yaml", "isolation is real"
         db = tmp_path / "none.db"
         assert tools.onboarding_status(db=str(db)) == assess_path(db_path=db).as_dict()
 
@@ -563,3 +615,408 @@ class TestTheMcpFrontEnd:
         doc = tools.onboarding_config_draft.__doc__ or ""
         assert "do not fill one in and do not drop it" in doc
         assert "`tags` is always empty" in doc
+
+
+# --- the review pass ---------------------------------------------------------
+# Every test below guards a defect an adversarial review reproduced in this
+# branch before it merged. They share one shape: a tool-side limit, or a gap in
+# what the scan established, was being reported as a fact about the site's work.
+
+
+@dataclass
+class _Tag:
+    ref: str
+    role: str = ""
+
+
+@dataclass
+class _Target:
+    name: str
+    protocol: str
+    tags: tuple = ()
+
+
+@dataclass
+class _Config:
+    targets: tuple = ()
+
+
+def _step(config, key, db, facts_extra=None):
+    from iaiops.core.onboard.path import assess_path
+
+    path = assess_path(config, db_path=db)
+    return path, next(s for s in path.steps if s.key == key)
+
+
+class TestTheCommandCanSatisfyItsOwnStep:
+    def test_survey_names_the_command_that_stores_a_scan(self, tmp_path):
+        """`scan plan` is a preview and stores nothing, so printing it as the one
+        next command left a first-time site at step 1 of 6 forever: run it,
+        re-run status, get the identical output."""
+        _, step = _step(_Config(), "survey", tmp_path / "none.db")
+        assert step.command.startswith("iaiops scan run")
+        assert "scan plan" in step.detail
+
+    def test_the_mcp_refusal_names_it_too(self, tmp_path, tools):
+        """Same defect in the front end whose caller is a loop."""
+        out = str(tools.onboarding_config_draft(db=str(tmp_path / "none.db")))
+        assert "scan run" in out, out
+
+
+class TestAToolSideFailureIsNotASiteFact:
+    def test_an_unreadable_scan_store_is_not_reported_as_no_scans(self, tmp_path):
+        """A corrupt store, a permission error or a `--db` typo all became "no
+        scan has been stored", and the remedy offered was a live plant scan."""
+        broken = tmp_path / "not-a-database.db"
+        broken.write_bytes(b"this is not sqlite" * 64)
+        _, step = _step(_Config(), "survey", broken)
+        assert "no scan has been stored" not in step.detail
+        assert "could not be read" in step.detail
+        assert step.command == "", "do not send someone onto a plant network over our own error"
+
+    def test_a_config_that_will_not_parse_is_not_reported_as_having_no_endpoints(self, tmp_path):
+        broken = tmp_path / "config.yaml"
+        broken.write_text("endpoints:\n  - name: e1\n   protocol: opcua\n")  # bad indent
+        import os
+
+        old = os.environ.get("IAIOPS_CONFIG")
+        os.environ["IAIOPS_CONFIG"] = str(broken)
+        try:
+            # config=None forces gather_facts to load the file, and fail on it
+            _, step = _step(None, "endpoints", tmp_path / "none.db")
+        finally:
+            if old is None:
+                os.environ.pop("IAIOPS_CONFIG", None)
+            else:
+                os.environ["IAIOPS_CONFIG"] = old
+        assert "no endpoints in config.yaml" not in step.detail
+        assert "did not parse" in step.detail
+        assert step.command == "", "drafting more into a file that will not load cannot help"
+
+    def test_a_protocol_with_no_sampler_is_a_build_limit_not_a_missing_endpoint(self, tmp_path):
+        """ "no endpoint that can be sampled on a schedule YET" was false twice:
+        nothing the site does makes an MTConnect agent collectable, and the
+        limit is this build's."""
+        config = _Config(targets=(_Target("m1", "mtconnect", (_Tag("avail", "run_state"),)),))
+        _, step = _step(config, "collect", tmp_path / "none.db")
+        assert "yet" not in step.detail.lower()
+        assert "a limit here, not something missing at your site" in step.detail
+        assert "opcua" in step.detail, "name the protocols that DO work"
+
+
+class TestTheSemanticStepIsGradedOnWhatOeeRequires:
+    def test_one_optional_role_is_not_a_finished_semantic_step(self, tmp_path):
+        """Graded on "did somebody type a role: anywhere", this said DONE — and
+        the header then said all six steps were done on a site where
+        `oee measure` refuses for want of run_state and total_count."""
+        config = _Config(targets=(_Target("p1", "modbus", (_Tag("40010", "good_count"),)),))
+        path, step = _step(config, "meaning", tmp_path / "none.db")
+        # Not-done is the assertion; which of next/waiting it is depends on
+        # whether an earlier step still holds the cursor, and that is not the bug.
+        assert step.state != STATE_DONE
+        assert "run_state" in step.detail and "total_count" in step.detail
+        assert path.next_step is not None, "the path must not report itself finished"
+
+    def test_both_required_roles_finish_it(self, tmp_path):
+        config = _Config(
+            targets=(_Target("p1", "modbus", (_Tag("1", "run_state"), _Tag("2", "total_count"))),)
+        )
+        _, step = _step(config, "meaning", tmp_path / "none.db")
+        assert step.state == STATE_DONE
+
+    def test_a_duplicate_role_claim_is_not_reported_as_nothing_declared(self, tmp_path):
+        """`roles_present` raises on the second claim and `gather_facts` discards
+        the whole endpoint's roles — so a site that HAD declared a good
+        run_state was told it had declared nothing."""
+        config = _Config(
+            targets=(
+                _Target(
+                    "p1",
+                    "modbus",
+                    (_Tag("1", "run_state"), _Tag("2", "total_count"), _Tag("3", "total_count")),
+                ),
+            )
+        )
+        _, step = _step(config, "meaning", tmp_path / "none.db")
+        assert "none declared" not in step.detail
+        assert "twice" in step.detail
+
+
+class TestAdviceIsDerivedFromTheSiteNotFromYamlOrder:
+    def test_reordering_config_does_not_change_whether_a_command_is_offered(self, tmp_path):
+        s7_first = _Config(targets=(_Target("plc", "s7"), _Target("srv", "opcua")))
+        opcua_first = _Config(targets=(_Target("srv", "opcua"), _Target("plc", "s7")))
+        a = _step(s7_first, "points", tmp_path / "none.db")[1]
+        b = _step(opcua_first, "points", tmp_path / "none.db")[1]
+        assert a.command == b.command != "", (a.command, b.command)
+
+    @pytest.mark.parametrize("key", ["points", "collect"])
+    def test_an_endpoint_name_with_a_space_still_produces_a_runnable_command(self, tmp_path, key):
+        """`- name: Line 3 PLC` is legal in config.yaml — nothing validates the
+        charset — and produced `iaiops collect run Line 3 PLC --duration 30m`,
+        which exits 2 with "unexpected extra argument". Both commands that
+        interpolate a name have to quote it, so both are checked."""
+        # The points step only offers a command while the endpoint has no tags;
+        # the collect step only once the required roles are declared. Different
+        # site states, same name, both interpolating it into a command.
+        tags = (
+            ()
+            if key == "points"
+            else (_Tag("ns=2;i=2", "run_state"), _Tag("ns=2;i=3", "total_count"))
+        )
+        config = _Config(targets=(_Target("Line 3 PLC", "opcua", tags),))
+        _, step = _step(config, key, tmp_path / "none.db")
+        assert step.command, f"the {key} step offered no command to check"
+        _resolve(step.command)
+
+
+class TestTheDraftClaimsOnlyWhatTheScanEstablished:
+    def test_modbus_unit_id_is_never_drafted_as_a_value(self):
+        """It used to be `1` with the evidence "unit 1 answered the FC43 identity
+        request" — a sentence built out of the default, which is exactly what
+        DraftField refuses and this smuggled past by manufacturing the string.
+        Nothing observes a unit: the probe hardcodes 1 and the reply echoes it."""
+        record = _record(
+            _host(
+                "10.0.0.5",
+                [_confirmed("modbus", 502)],
+                [502],
+                {"modbus": {"extra": {"unit_id": 1}}},
+            )
+        )
+        unit = next(f for f in draft_from_scan(record).endpoints[0].fields if f.name == "unit_id")
+        assert unit.value is None
+        assert "echoes back" in unit.caution
+
+    def test_a_host_confirmed_by_rejection_does_not_claim_the_request_was_answered(self):
+        """The rejection path returns an EMPTY identity. The block used to say the
+        device declined the FC43 request and answered it, four lines apart."""
+        record = _record(
+            _host(
+                "10.0.0.5",
+                [
+                    _confirmed(
+                        "modbus",
+                        502,
+                        "modbus_fc43:rejected",
+                        "device answered in-protocol and declined",
+                    )
+                ],
+                [502],
+            )
+        )
+        text = render_yaml(draft_from_scan(record))
+        assert "answered the FC43 identity request" not in text
+
+    def test_a_deduced_port_says_deduced_in_the_evidence_not_only_the_caution(self):
+        """`observed:` is the line the rendered header tells the reader to trust,
+        so the weaker claim has to live there, not below it."""
+        record = _record(_host("10.0.0.5", [_confirmed("modbus", 0)], [502]))
+        port = next(f for f in draft_from_scan(record).endpoints[0].fields if f.name == "port")
+        assert port.value == 502
+        assert "deduced" in port.observed
+
+    def test_the_ethernetip_slot_caution_names_the_default_that_actually_applies(self):
+        """It said "0 is right for a CompactLogix", which reads as: leave the line
+        commented and you get 0. TargetConfig.slot defaults to 1, so a reader who
+        agreed and left it alone read the wrong module — caused by the caution."""
+        from iaiops.core.runtime.config import TargetConfig
+
+        record = _record(_host("10.0.0.8", [_confirmed("ethernetip", 44818)], [44818]))
+        fields = {f.name: f for f in draft_from_scan(record).endpoints[0].fields}
+        assert TargetConfig(name="x", protocol="ethernetip").slot == 1, "premise of this test"
+        assert "the default is 1" in fields["slot"].caution
+        assert "port" in fields, "an omitted field takes the protocol default in silence"
+
+    def test_a_host_with_no_address_is_skipped_not_drafted_with_an_empty_host(self):
+        record = _record(_host("", [_confirmed("modbus", 502)], [502]))
+        draft = draft_from_scan(record)
+        assert draft.endpoints == ()
+        assert any("no usable address" in h.reason for h in draft.skipped)
+
+
+class TestDraftedNamesAreUsable:
+    def test_one_protocol_on_two_ports_of_one_host_gets_two_distinct_names(self):
+        """OPC-UA is allowlisted on 4840 and 4843. Protocol+ip alone minted the
+        same name twice; `get_target` returns the first match, so the second
+        endpoint was unreachable by name while both were collected under one."""
+        record = _record(
+            _host(
+                "10.0.0.9",
+                [_confirmed("opcua", 4840), _confirmed("opcua", 4843)],
+                [4840, 4843],
+                {"opcua": {"extra": {"endpoint_count": 1}}},
+            )
+        )
+        names = [e.name for e in draft_from_scan(record).endpoints]
+        assert len(names) == len(set(names)), names
+
+    def test_no_two_drafted_endpoints_ever_share_a_name(self):
+        record = _record(
+            _host(
+                "10.0.0.9",
+                [_confirmed("opcua", 4840), _confirmed("opcua", 4843)],
+                [4840, 4843],
+                {"opcua": {"extra": {"endpoint_count": 1}}},
+            ),
+            _host(
+                "10.0.0.10",
+                [_confirmed("mtconnect", 5000), _confirmed("mtconnect", 8080)],
+                [5000, 8080],
+                {"mtconnect": {"extra": {"device_count": 1, "devices": ["VMC-1"]}}},
+            ),
+            _host("10.0.0.11", [_confirmed("modbus", 502)], [502]),
+        )
+        names = [e.name for e in draft_from_scan(record).endpoints]
+        assert len(names) == len(set(names)), names
+
+
+class TestTheRecordShapeIsUntrusted:
+    """`load_scan` does a bare `json.loads` on a sqlite column, so the shape is
+    whatever was written. These all used to escape as raw tracebacks —
+    AttributeError and TypeError are not in the CLI's handled set."""
+
+    @pytest.mark.parametrize(
+        "hosts",
+        [
+            [None],
+            ["10.0.0.1"],
+            [
+                {
+                    "ip": "10.0.0.1",
+                    "identity": ["not", "a", "dict"],
+                    "protocols": [_confirmed("modbus", 502)],
+                    "open_ports": [502],
+                }
+            ],
+            [
+                {
+                    "ip": "10.0.0.1",
+                    "identity": "nope",
+                    "protocols": [_confirmed("modbus", 502)],
+                    "open_ports": [502],
+                }
+            ],
+            [
+                {
+                    "ip": "10.0.0.1",
+                    "protocols": [
+                        {
+                            "protocol": "modbus",
+                            "confidence": "confirmed",
+                            "port": "abc",
+                            "evidence": "e",
+                            "detail": "",
+                        }
+                    ],
+                    "open_ports": [502],
+                }
+            ],
+            [
+                {
+                    "ip": "10.0.0.1",
+                    "protocols": [_confirmed("modbus", 0)],
+                    "open_ports": ["x", None, 1.5],
+                }
+            ],
+            [
+                {
+                    "ip": "10.0.0.1",
+                    "protocols": [_confirmed("mtconnect", 5000)],
+                    "open_ports": [5000],
+                    "identity": {"mtconnect": {"extra": {"devices": 7, "device_count": "many"}}},
+                }
+            ],
+            [
+                {
+                    "ip": "10.0.0.1",
+                    "protocols": [_confirmed("mtconnect", 5000)],
+                    "open_ports": [5000],
+                    "identity": {"mtconnect": {"extra": {"devices": "abc"}}},
+                }
+            ],
+        ],
+    )
+    def test_a_malformed_row_never_raises_and_never_invents(self, hosts):
+        draft = draft_from_scan({"scan_id": "s", "hosts": hosts})
+        text = render_yaml(draft)
+        parsed = yaml.safe_load(text)
+        for entry in (parsed or {}).get("endpoints", []):
+            assert entry.get("host") != "", entry
+            assert "port" not in entry or isinstance(entry["port"], int)
+
+    def test_a_string_of_device_names_is_not_three_devices(self):
+        record = _record(
+            _host(
+                "10.0.0.1",
+                [_confirmed("mtconnect", 5000)],
+                [5000],
+                {"mtconnect": {"extra": {"devices": "abc"}}},
+            )
+        )
+        device = next(f for f in draft_from_scan(record).endpoints[0].fields if f.name == "device")
+        assert device.value is None
+
+
+class TestTheRenderedBlockAlwaysParses:
+    @pytest.mark.parametrize("code", [0x00, 0x07, 0x0A, 0x0D, 0x1B, 0x7F, 0x85, 0x2028])
+    def test_a_control_character_from_a_device_cannot_break_the_yaml(self, code):
+        """`_scalar` escaped only \\ and " — 30 control characters made the block
+        UNPARSEABLE and three more folded to a space and changed the value. The
+        function whose whole job is YAML safety must not lean on its callers."""
+        name = f"VMC{chr(code)}1"
+        record = _record(
+            _host(
+                "10.0.0.1",
+                [_confirmed("mtconnect", 5000)],
+                [5000],
+                {"mtconnect": {"extra": {"device_count": 1, "devices": [name]}}},
+            )
+        )
+        parsed = yaml.safe_load(render_yaml(draft_from_scan(record)))
+        assert parsed["endpoints"][0]["device"] == name
+
+    def test_a_device_name_cannot_inject_a_second_mapping_key(self):
+        hostile = 'VMC"\n  - name: "pwned'
+        record = _record(
+            _host(
+                "10.0.0.1",
+                [_confirmed("mtconnect", 5000)],
+                [5000],
+                {"mtconnect": {"extra": {"device_count": 1, "devices": [hostile]}}},
+            )
+        )
+        parsed = yaml.safe_load(render_yaml(draft_from_scan(record)))
+        assert len(parsed["endpoints"]) == 1
+        assert parsed["endpoints"][0]["device"] == hostile
+
+
+def test_a_renamed_endpoint_is_still_recognised_as_already_configured():
+    """The draft's own header says "rename this". Matching on the generated name
+    alone meant the already-configured guard worked exactly once: rename it, and
+    the next scan re-offered the same device, so the site configured it twice."""
+    from iaiops.core.onboard.config_state import endpoint_address
+
+    record = _record(
+        _host(
+            "10.0.0.9",
+            [_confirmed("opcua", 4840)],
+            [4840],
+            {"opcua": {"extra": {"endpoint_count": 1}}},
+        )
+    )
+    by_name_only = draft_from_scan(record, existing_names=("filler-line-3",))
+    assert by_name_only.pastable, "premise: the renamed name does not match"
+
+    class _Tgt:
+        name = "filler-line-3"
+        protocol = "opcua"
+        endpoint_url = "opc.tcp://10.0.0.9:4840/"
+        host = ""
+        agent_url = ""
+
+    draft = draft_from_scan(
+        record, existing_names=("filler-line-3",), existing_addresses=(endpoint_address(_Tgt()),)
+    )
+    assert draft.endpoints[0].already_configured
+    assert draft.pastable == ()

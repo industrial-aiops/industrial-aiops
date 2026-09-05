@@ -22,6 +22,7 @@ The path reports; it never advances itself. Contacts nothing.
 
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
 from iaiops.core.onboard.model import STATE_DONE, STATE_NEXT, STATE_WAITING, OnboardPath, Step
@@ -87,26 +88,56 @@ _NO_BROWSE_REASONS: dict[str, str] = {
 }
 
 
-def _scan_count(db_path: Any) -> int:
+#: Above this, the count is reported as "at least N" — `list_scans` takes a
+#: limit, and a site with 400 scans was told it had 50.
+_SCAN_LIST_LIMIT = 200
+
+
+def _scan_count(db_path: Any) -> tuple[int, str]:
+    """How many scans are stored, and why we could not tell if we could not.
+
+    Returning 0 for an unreadable store was wrong in the direction this repo
+    keeps producing: a corrupt file, a permission error or a `--db` typo all
+    became the assertion "no scan has been stored", and the remedy offered was
+    to go scan a live plant network again. A tool-side failure must not be
+    reported as a fact about the site's work.
+    """
     from iaiops.core.sink.scan_store import list_scans
 
     try:
-        return len(list_scans(db_path, 50))
-    except Exception:  # noqa: BLE001 — a store that will not open is "no scans yet"
-        return 0
+        return len(list_scans(db_path, _SCAN_LIST_LIMIT)), ""
+    except Exception as exc:  # noqa: BLE001 — the store is not ours to trust
+        return 0, f"{type(exc).__name__}: {exc}"
 
 
-def _survey_step(scans: int) -> tuple[str, str, str]:
-    if scans:
+def _survey_step(scans: int, store_error: str) -> tuple[str, str, str]:
+    """The command has to be the one that ADVANCES the step.
+
+    This printed `iaiops scan plan --targets <cidr>`, which is a preview: it
+    emits nothing and, by design, stores nothing. So the first command the
+    product gave a first-time site could never satisfy the step it was printed
+    for — run it, re-run `onboard status`, get the identical output forever.
+
+    `scan run` is named here because it is what stores a scan; `scan plan` is
+    named in the detail, because previewing first is the posture and an operator
+    signs that output before anything touches the network.
+    """
+    if store_error:
         return (
-            STATE_DONE,
-            f"{scans} scan(s) stored",
+            STATE_NEXT,
+            f"the scan store could not be read ({store_error}) — this is about the "
+            "store, not about your site; check the path you passed to --db",
             "",
         )
+    if scans:
+        at_least = "at least " if scans >= _SCAN_LIST_LIMIT else ""
+        return STATE_DONE, f"{at_least}{scans} scan(s) stored", ""
     return (
         STATE_NEXT,
-        "no scan has been stored",
-        "iaiops scan plan --targets <cidr>",
+        "no scan has been stored — preview it first with `iaiops scan plan "
+        "--targets <cidr>`, which sends nothing and is the output an operator "
+        "signs; `scan run` is what stores the result",
+        "iaiops scan run --targets <cidr> --approved-by <you>",
     )
 
 
@@ -114,6 +145,18 @@ def _endpoint_step(facts: dict[str, Any], scans: int) -> tuple[str, str, str]:
     count = int(facts.get("endpoints") or 0)
     if count:
         return STATE_DONE, f"{count} endpoint(s) in config.yaml", ""
+    # A file that will not parse is not an empty file. Reporting "no endpoints in
+    # config.yaml" as a fact told a site its existing work did not exist, and
+    # then offered to draft more endpoints to paste into the file that is broken.
+    error = str(facts.get("config_error") or "")
+    if error:
+        return (
+            STATE_NEXT,
+            f"config.yaml did not parse ({error}) — this says nothing about how "
+            "many endpoints it defines. Fix the file first; drafting more into a "
+            "file that will not load cannot help",
+            "",
+        )
     if scans:
         return STATE_NEXT, "no endpoints in config.yaml", "iaiops onboard draft"
     return STATE_WAITING, "no endpoints in config.yaml", "iaiops onboard draft"
@@ -128,10 +171,14 @@ def _points_step(config: Any, facts: dict[str, Any]) -> tuple[str, str, str]:
         return STATE_DONE, f"{monitored} point(s) across {len(targets)} endpoint(s)", ""
     if not targets:
         return STATE_WAITING, "no endpoints yet, so no point list", ""
-    first = empty[0]
+    # Prefer an endpoint whose point list we can actually ASK for. Taking
+    # `empty[0]` meant a config whose first entry was S7 withheld `opcua browse`
+    # for the endpoint two lines below it — advice that changes when you reorder
+    # a YAML file is not advice derived from the site.
+    first = next((e for e in empty if str(getattr(e, "protocol", "")) in _BROWSE), empty[0])
     name = str(getattr(first, "name", ""))
     protocol = str(getattr(first, "protocol", ""))
-    command = _BROWSE.get(protocol, "").format(endpoint=name)
+    command = _BROWSE.get(protocol, "").format(endpoint=shlex.quote(name))
     detail = (
         f"{len(empty)} of {len(targets)} endpoint(s) have no points — first: {name} ({protocol})"
     )
@@ -155,18 +202,43 @@ def _meaning_step(config: Any, facts: dict[str, Any]) -> tuple[str, str, str]:
     """
     monitored = int(facts.get("monitored_tags") or 0)
     declared = dict(facts.get("oee_roles") or {})
+    required = [str(r) for r in (facts.get("oee_required_roles") or ())]
     if not monitored:
         return STATE_WAITING, "no points to give meaning to yet", ""
-    if declared:
+
+    # Two tags claiming one role makes `roles_present` raise, and `gather_facts`
+    # then discards that WHOLE endpoint's roles — so a site that had declared a
+    # perfectly good run_state was told it had declared nothing, and sent to the
+    # sheet, which does not surface the conflict either.
+    conflict = str(facts.get("role_conflict") or "")
+    if conflict:
         return (
-            STATE_DONE,
-            "declared: " + ", ".join(f"{role}={tag}" for role, tag in sorted(declared.items())),
+            STATE_NEXT,
+            "config.yaml claims one role twice, so none of that endpoint's roles "
+            f"could be read: {conflict}",
             "",
+        )
+
+    shown = ", ".join(f"{role}={tag}" for role, tag in sorted(declared.items()))
+    missing = [role for role in required if role not in declared]
+    if declared and not missing:
+        return STATE_DONE, f"declared: {shown}", ""
+    if declared:
+        # Graded on "did somebody type a role: anywhere", this reported DONE on a
+        # site declaring only good_count — and the header then said all six steps
+        # were done while `oee measure` refused for want of the two roles it
+        # requires. The completion story flattered the tool.
+        return (
+            STATE_NEXT,
+            f"declared: {shown} — still missing {', '.join(missing)}, which "
+            "`oee measure` requires before it reports anything",
+            "iaiops tags export sheet.csv",
         )
     return (
         STATE_NEXT,
-        f"{monitored} point(s) configured, none declared as run_state / total_count / "
-        "good_count / reject_count",
+        f"{monitored} point(s) configured, none declared. "
+        f"{' and '.join(required)} are the two `oee measure` requires; good_count "
+        "and reject_count are optional and add the Quality factor",
         "iaiops tags export sheet.csv",
     )
 
@@ -183,11 +255,23 @@ def _collect_step(facts: dict[str, Any]) -> tuple[str, str, str]:
             "",
         )
     if not collectable:
-        return STATE_WAITING, "no endpoint that can be sampled on a schedule yet", ""
+        # "no endpoint that can be sampled on a schedule YET" was false twice
+        # over: nothing the site does will make an MTConnect agent collectable,
+        # and the limit is this build's, not theirs. It also parked the path on
+        # this step permanently, with no command and no explanation.
+        from iaiops.core.collect.reader import collectable_protocols
+
+        return (
+            STATE_WAITING,
+            "none of the configured protocols has a scheduled sampler in this "
+            "build — a limit here, not something missing at your site. Continuous "
+            f"collection works for: {', '.join(collectable_protocols())}",
+            "",
+        )
     return (
         STATE_NEXT,
         "the local store holds no samples",
-        f"iaiops collect run {collectable[0]} --duration 30m",
+        f"iaiops collect run {shlex.quote(str(collectable[0]))} --duration 30m",
     )
 
 
@@ -215,14 +299,14 @@ def assess_path(config: Any = None, db_path: Any = None) -> OnboardPath:
         except Exception:  # noqa: BLE001 — an unconfigured site is the state to report
             config = None
 
-    scans = _scan_count(db_path)
+    scans, store_error = _scan_count(db_path)
     raw = [
         (
             "survey",
             "Find what is on the network",
             "You cannot configure what you have not found, and a plant network is "
             "never what the drawing says.",
-            _survey_step(scans),
+            _survey_step(scans, store_error),
         ),
         (
             "endpoints",
