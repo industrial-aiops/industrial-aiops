@@ -88,11 +88,23 @@ def _doctor_summary() -> dict:
         "generated_at": datetime.now(tz=UTC).isoformat(),
     }
     try:
-        from iaiops.core.runtime.config import CONFIG_FILE, ENV_FILE, load_config
+        from iaiops.core.runtime.config import (
+            ENV_FILE,
+            config_path_source,
+            default_config_path,
+            load_config,
+        )
         from iaiops.core.runtime.secretstore import has_store
 
-        summary["config_file"] = str(CONFIG_FILE)
-        summary["config_present"] = CONFIG_FILE.exists()
+        # The file load_config() below actually reads. This recorded the default
+        # path while reading $IAIOPS_CONFIG, so a bundle could state
+        # config_present: false directly above the endpoints it had just listed
+        # out of the file it did read — a compliance artefact disagreeing with
+        # itself about its own source.
+        config_path = default_config_path()
+        summary["config_file"] = str(config_path)
+        summary["config_present"] = config_path.exists()
+        summary["config_path_source"] = config_path_source()
         summary["secret_store_present"] = bool(has_store())
         summary["plaintext_env_present"] = ENV_FILE.exists()
         config = load_config()

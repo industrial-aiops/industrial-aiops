@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from iaiops import doctor
+from iaiops.core.runtime.config import CONFIG_ENV_VAR
 
 
 def _target(**overrides):
@@ -30,7 +31,12 @@ def _setup(monkeypatch, tmp_path, targets, *, env_exists: bool):
     if env_exists:
         env_file.write_text("OT_LINE1_PASSWORD=plain\n")
     monkeypatch.setattr(doctor, "ENV_FILE", env_file)
-    monkeypatch.setattr(doctor, "CONFIG_FILE", tmp_path / "config.yaml")
+    # Point the config path through the env var the resolver actually reads,
+    # rather than stubbing a module attribute. `doctor.CONFIG_FILE` was stubbed
+    # here while doctor had already stopped being the thing that decides which
+    # file gets read — a stub of the wrong name is a test of nothing, and only
+    # monkeypatch's refusal to set an absent attribute caught it.
+    monkeypatch.setenv(CONFIG_ENV_VAR, str(tmp_path / "config.yaml"))
     monkeypatch.setattr(doctor, "has_store", lambda: False)
     cfg = SimpleNamespace(targets=targets)
     monkeypatch.setattr(doctor, "load_config", lambda *a, **k: cfg)
