@@ -36,6 +36,25 @@
 
 ### Fixed
 
+- **Alias-only NDATA was dropped, and the BIRTH values were served as current.**
+  A real Sparkplug edge node names each metric ONCE, in the BIRTH, and every
+  NDATA afterwards carries the alias alone. The tap decoded without the alias map
+  the connector already builds, so every update arrived with an empty name and
+  was skipped — and because a node re-BIRTHs periodically, the stale BIRTH value
+  kept having its freshness refreshed and read as a live one. A counter actually
+  sitting at 200 read as **0, and looked perfectly fresh**: the staleness guard,
+  the death guard and the never-published guard were all bypassed at once by the
+  one thing a real node does that a synthetic payload does not. Found on the lab
+  network against a spec-correct edge node; the alias map now comes from the
+  connector's own `_learn_aliases` rather than a second implementation.
+
+- **A BIRTH merged into the cache instead of replacing it.** A Sparkplug BIRTH
+  carries the node's FULL metric state, so a metric the node has REMOVED was
+  still served from cache as a current reading — the same reason
+  `sparkplug_live_schema` rebuilds its schema from scratch on every BIRTH rather
+  than unioning, so that a removal cannot mask a real schema drift. An NBIRTH now
+  also forgets the node's devices, since each is re-announced by its own DBIRTH.
+
 - **A refused read no longer tears down a healthy session.** `run_collection`
   treated every read failure as "the held connection may be the casualty" and
   closed it, then `break`-ed out of the tick. For a push protocol that is wrong

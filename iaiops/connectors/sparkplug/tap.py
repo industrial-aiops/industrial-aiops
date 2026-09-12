@@ -93,6 +93,10 @@ class UnsTap:
         self._points: dict[str, _Reading] = {}
         #: Sparkplug node id → why it is not alive (empty string = alive).
         self._dead: dict[str, str] = {}
+        #: Sparkplug node id → {alias: name}, learned from that node's BIRTH.
+        #: Without it every NDATA is dropped and the BIRTH values are served as
+        #: current forever — see :meth:`_record_sparkplug`.
+        self._aliases: dict[str, dict[int, str]] = {}
         self.endpoint = str(getattr(target, "name", ""))
         self.stale_after_s = float(getattr(target, "stale_after_s", 0.0) or 0.0)
         if self.stale_after_s <= 0:
@@ -146,7 +150,36 @@ class UnsTap:
             with self._lock:
                 self._dead.pop(node, None)
 
-        decoded = ops.decode_sparkplug_payload(payload)
+        # Resolve aliases. A real EoN node names its metrics ONCE, in the BIRTH,
+        # and every NDATA afterwards carries the alias alone — so decoding
+        # without the map leaves `name` empty on every update, the loop below
+        # skips them all, and the cache keeps serving the BIRTH values.
+        #
+        # That failure is invisible to a synthetic test that always sends names,
+        # and it defeats this module's whole point rather than merely losing
+        # data: the periodic re-BIRTH keeps refreshing `received_at`, so the
+        # stale BIRTH value passes the freshness check and reads as a live one.
+        # Caught against a spec-correct edge node on the lab network, where a
+        # counter sitting at 200 read as 0 and looked perfectly fresh.
+        if kind in ("NBIRTH", "DBIRTH"):
+            with self._lock:
+                if kind == "NBIRTH":
+                    # The spec restarts a node's aliases at NBIRTH; keeping the
+                    # old map would resolve a reused alias to the wrong metric.
+                    self._aliases[node] = {}
+                self._aliases.setdefault(node, {}).update(_alias_map(payload))
+                # A BIRTH carries the node's FULL metric state, so it REPLACES
+                # what we hold rather than adding to it. Without this a metric
+                # the node has REMOVED keeps being served from cache as a
+                # current reading — the same reason `sparkplug_live_schema`
+                # rebuilds its schema from scratch on every BIRTH instead of
+                # unioning, so that a removal cannot hide a real schema drift.
+                # The BIRTH being processed repopulates everything still there.
+                self._forget_locked(node, whole_node=kind == "NBIRTH")
+        with self._lock:
+            alias_map = dict(self._aliases.get(node) or {})
+
+        decoded = ops.decode_sparkplug_payload(payload, alias_map)
         if decoded.get("encoding") != "sparkplug_b":
             return
         for metric in decoded.get("metrics") or ():
@@ -158,6 +191,16 @@ class UnsTap:
                 metric.get("value"),
                 str(metric.get("timestamp") or ""),
             )
+
+    def _forget_locked(self, node: str, *, whole_node: bool) -> None:
+        """Drop cached points for ``node``. Caller holds the lock.
+
+        ``whole_node`` also drops its DEVICES' points: an NBIRTH restarts the
+        edge node, and every device beneath it is re-announced by its own DBIRTH.
+        """
+        prefixes = [f"{node}{REF_SEP}"] + ([f"{node}/"] if whole_node else [])
+        for ref in [r for r in self._points if any(r.startswith(p) for p in prefixes)]:
+            del self._points[ref]
 
     def _put(self, ref: str, value: Any, source_ts: str) -> None:
         with self._lock:
@@ -205,6 +248,20 @@ class UnsTap:
                 protocol="mqtt",
             )
         return point.value, point.source_ts
+
+
+def _alias_map(payload: bytes) -> dict[int, str]:
+    """alias→name from a BIRTH payload, via the connector's own learner.
+
+    Delegated rather than re-derived: ``_SparkplugModel`` has resolved aliases
+    correctly all along, and a second implementation here is how the two would
+    drift on the next spec detail.
+    """
+    from iaiops.connectors.sparkplug import ops
+
+    node: dict[str, Any] = {"alias_map": {}}
+    ops._SparkplugModel._learn_aliases(ops._SparkplugModel(), node, payload)
+    return dict(node["alias_map"])
 
 
 def _plain_value(payload: bytes) -> tuple[Any, str]:

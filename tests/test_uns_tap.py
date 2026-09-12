@@ -205,3 +205,99 @@ class TestTheRegistryKeepsBothReadPaths:
             if isinstance(cell.cell_contents, str)
         }
         assert "mqtt_tap_session" in bound, bound
+
+
+class TestAliasOnlyNdataIsResolved:
+    """A real EoN node names each metric ONCE, in the BIRTH, and every NDATA
+    afterwards carries the alias alone.
+
+    Decoding NDATA without the alias map leaves `name` empty, every update is
+    skipped, and the cache keeps serving the BIRTH values — and because a node
+    re-BIRTHs periodically, that stale value keeps passing the freshness check
+    and reads as live. A counter actually sitting at 200 read as 0 and looked
+    perfectly fresh.
+
+    Every other test in this file sends names on every message, which is what
+    hid it. Found against a spec-correct edge node on the lab network.
+    """
+
+    def _birth(self, aliases):
+        from iaiops.connectors.sparkplug import sparkplug_b_pb2 as pb
+
+        p = pb.Payload()
+        p.timestamp = 1
+        for name, alias in aliases.items():
+            m = p.metrics.add()
+            m.name = name
+            m.alias = alias
+            m.timestamp = 1
+            m.datatype = 3
+            m.int_value = 0
+        return p.SerializeToString()
+
+    def _data(self, values, aliases):
+        from iaiops.connectors.sparkplug import sparkplug_b_pb2 as pb
+
+        p = pb.Payload()
+        p.timestamp = 2
+        for name, value in values:
+            m = p.metrics.add()
+            m.alias = aliases[name]  # alias ONLY — no name, exactly as the spec has it
+            m.timestamp = 2
+            m.datatype = 3
+            m.int_value = int(value)
+        return p.SerializeToString()
+
+    def test_a_counter_sent_by_alias_reaches_the_reader(self):
+        aliases = {"Run": 1, "Good": 2}
+        tap = _tap(stale_after_s=300)
+        tap.on_message("spBv1.0/g/NBIRTH/e", self._birth(aliases))
+        tap.on_message("spBv1.0/g/NDATA/e", self._data([("Good", 200)], aliases))
+        value, _ = tap.read(f"g/e{REF_SEP}Good")
+        assert value == 200, "alias-only NDATA was dropped and the BIRTH value served"
+
+    def test_the_birth_value_is_not_served_as_current_after_an_update(self):
+        """The shape that made this dangerous rather than merely lossy."""
+        aliases = {"Good": 2}
+        tap = _tap(stale_after_s=300)
+        tap.on_message("spBv1.0/g/NBIRTH/e", self._birth(aliases))
+        assert tap.read(f"g/e{REF_SEP}Good")[0] == 0
+        tap.on_message("spBv1.0/g/NDATA/e", self._data([("Good", 200)], aliases))
+        assert tap.read(f"g/e{REF_SEP}Good")[0] != 0
+
+    def test_a_rebirth_resets_the_alias_map_rather_than_merging_it(self):
+        """The spec restarts a node's aliases at NBIRTH. Keeping the old map
+        would resolve a reused alias to the metric it used to mean."""
+        tap = _tap(stale_after_s=300)
+        tap.on_message("spBv1.0/g/NBIRTH/e", self._birth({"Old": 1}))
+        tap.on_message("spBv1.0/g/NBIRTH/e", self._birth({"New": 1}))
+        tap.on_message("spBv1.0/g/NDATA/e", self._data([("New", 7)], {"New": 1}))
+        assert tap.read(f"g/e{REF_SEP}New")[0] == 7
+        with pytest.raises(OTNoReadingError):
+            tap.read(f"g/e{REF_SEP}Old")
+
+    def test_an_alias_dropped_by_a_rebirth_stops_resolving(self):
+        """The alias RESET, isolated from the cache drop.
+
+        BIRTH1 declares two metrics; BIRTH2 declares only one. Merging the maps
+        would leave alias 2 pointing at a metric the node no longer has, so a
+        later NDATA on that alias would be filed under a name that is gone.
+        """
+        aliases1 = {"Kept": 1, "Dropped": 2}
+        tap = _tap(stale_after_s=300)
+        tap.on_message("spBv1.0/g/NBIRTH/e", self._birth(aliases1))
+        tap.on_message("spBv1.0/g/NBIRTH/e", self._birth({"Kept": 1}))
+        tap.on_message("spBv1.0/g/NDATA/e", self._data([("Dropped", 5)], aliases1))
+        with pytest.raises(OTNoReadingError):
+            tap.read(f"g/e{REF_SEP}Dropped")
+
+    def test_an_nbirth_also_forgets_the_nodes_devices(self):
+        """An NBIRTH restarts the edge node, and every device beneath it is
+        re-announced by its own DBIRTH. Keeping a device's points across it
+        serves readings for a device that may not come back."""
+        tap = _tap(stale_after_s=300)
+        tap.on_message("spBv1.0/g/DBIRTH/e/d1", self._birth({"Temp": 1}))
+        assert tap.read(f"g/e/d1{REF_SEP}Temp")[0] == 0
+        tap.on_message("spBv1.0/g/NBIRTH/e", self._birth({"Run": 1}))
+        with pytest.raises(OTNoReadingError):
+            tap.read(f"g/e/d1{REF_SEP}Temp")
