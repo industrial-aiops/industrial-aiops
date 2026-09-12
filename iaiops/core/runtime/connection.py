@@ -50,6 +50,7 @@ __all__ = [
     "mc_session",
     "modbus_session",
     "mqtt_session",
+    "mqtt_tap_session",
     "opcua_session",
     "profinet_dcp",
     "s7_session",
@@ -60,6 +61,7 @@ __all__ = [
     "mc_session",
     "modbus_session",
     "mqtt_session",
+    "mqtt_tap_session",
     "opcua_session",
     "profinet_dcp",
     "s7_session",
@@ -163,6 +165,37 @@ mqtt_session = make_session(
     connect=_mqtt_tx._connect_mqtt,
     close=_mqtt_tx._close_mqtt,
     translate=_translate_mqtt,
+)
+
+
+def _subscribe_tap(client, target, **_kwargs):
+    """Attach a :class:`UnsTap` to an open client and subscribe.
+
+    Stored on the client rather than returned because ``make_session`` yields the
+    built object; ``_session_read_mqtt`` reads it back off. Subscribing to the
+    endpoint's own ``topic`` (default ``#``) is what turns a broker connection
+    into a data source.
+    """
+    from iaiops.connectors.sparkplug.tap import UnsTap
+
+    tap = UnsTap(client, target)
+    client.on_message = lambda _c, _u, msg: tap.on_message(msg.topic, bytes(msg.payload))
+    client.subscribe(str(getattr(target, "topic", "") or "#"))
+    client.iaiops_uns_tap = tap
+
+
+#: The collection session for MQTT/UNS. Distinct from ``mqtt_session`` on
+#: purpose: that one hands back a bare connected client for one-shot reads, this
+#: one additionally subscribes and keeps the last-value cache a scheduled read
+#: needs. Both share the same build/connect/close.
+mqtt_tap_session = make_session(
+    protocol="mqtt",
+    build=lambda target: _build_mqtt_client(target),
+    connect=_mqtt_tx._connect_mqtt,
+    prepare=_subscribe_tap,
+    close=_mqtt_tx._close_mqtt,
+    translate=_translate_mqtt,
+    name="mqtt_tap_session",
 )
 
 eip_session = make_session(
