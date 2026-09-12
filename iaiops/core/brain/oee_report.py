@@ -94,6 +94,10 @@ def _header(t: dict, *, endpoint: str, site: str, measured: dict, generated_at: 
             kv(t["endpoint"], endpoint),
             kv(t["tag"], tag),
             kv(t["window_asked"], window),
+            # WHERE the period came from, beside it. This report is the artifact
+            # that gets forwarded, so a range nobody typed needs its provenance
+            # attached — "100% coverage" means a different thing under each basis.
+            kv(t["window_basis"], t.get(f"basis_{measured.get('window_basis', '')}", "")),
             kv(t["generated"], generated_at),
         ]
     )

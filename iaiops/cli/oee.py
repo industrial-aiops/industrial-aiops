@@ -81,9 +81,37 @@ def oee_measure_cmd(
             "measured period undefined, so the coverage figure would describe a window "
             "nobody asked for."
         )
+    # With no window named, measure the period the last collection run SET OUT
+    # to observe — not the period samples happened to arrive in. They differ
+    # exactly when collection failed, and that is the case worth reporting: a run
+    # that went blind for its last ten minutes has no samples there, so a period
+    # derived from the samples ends before the blindness and reports "100%
+    # coverage" of a run that was watching for half of it.
+    basis = "requested"
+    observed = None
+    if not since:
+        from iaiops.core.collect.session import observation_window
+
+        # Sessions describe runs against the DEFAULT store. A caller who pointed
+        # `--db` somewhere else is asking about a different body of samples, and
+        # a window taken from a run we recorded would describe the wrong one.
+        observed = observation_window(endpoint) if db is None else None
+        if observed is not None:
+            since, until = observed.start, observed.end
+            basis = "collection_run"
+        else:
+            # Imported samples and historian reads have no session. Inventing a
+            # period for them would be a guess about what somebody meant to
+            # observe, so the sample span stands — and the report says so.
+            basis = "sample_span"
+
     window = (since, until) if since else None
     tag, rows = run_state_samples(endpoint, db, since=since, until=until)
     result = measure_availability(rows, tag, minor_stop_s=minor_stop_s, window=window)
+    result["window_basis"] = basis
+    if observed is not None:
+        result["window_run_id"] = observed.run_id
+        result["window_clamped_to_now"] = observed.clamped_to_now
     comparison = compare_to_reported(result, reported) if reported is not None else None
 
     # The other two factors, each reported only when its inputs were DECLARED.
@@ -175,11 +203,30 @@ def oee_measure_cmd(
     # period is not stated beside it is the figure that gets pasted somewhere
     # else and read as "the line".
     asked = result.get("window")
+    # WHERE the period came from belongs next to it. A reader who sees a range
+    # they did not type, with no basis beside it, has no way to tell a measured
+    # assessment run from a span the tool inferred off the samples.
+    basis_note = {
+        "collection_run": "the collection run that produced these samples"
+        + (
+            " — still in progress, measured up to now"
+            if result.get("window_clamped_to_now")
+            else ""
+        ),
+        "sample_span": "the samples themselves — no collection run covers this "
+        "endpoint, so anything before the first or after the last is outside the "
+        "period and NOT counted as blind. Scope it with --since / --until",
+        "requested": "",
+    }.get(str(result.get("window_basis", "")), "")
     console.print(
-        f"[dim]{asked['start']} → {asked['end']}[/]\n"
-        if asked
-        else "[dim]over everything this store holds for the endpoint — "
-        "scope it with --since / --until[/]\n"
+        (f"[dim]{asked['start']} → {asked['end']}[/]\n" if asked else "")
+        + (f"[dim]period from {basis_note}[/]\n" if basis_note else "")
+        + (
+            ""
+            if asked
+            else "[dim]over everything this store holds for the endpoint — "
+            "scope it with --since / --until[/]\n"
+        )
     )
     if result["status"] != "ok":
         console.print(f"[yellow]No figure reported ({result['status']}).[/]")

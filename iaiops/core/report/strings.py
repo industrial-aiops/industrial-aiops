@@ -17,6 +17,12 @@ EN: dict[str, str] = {
     "generated": "Generated",
     "window_asked": "Measured window",
     "window_all": "everything this store holds",
+    "window_basis": "Period taken from",
+    "basis_collection_run": "the collection run that produced these samples",
+    "basis_sample_span": "the samples themselves — no collection run covers this "
+    "endpoint, so anything before the first sample or after the last is outside "
+    "the period and is NOT counted as blind",
+    "basis_requested": "the window asked for on the command line",
     "site": "Site",
     "endpoint": "Endpoint",
     "tag": "Run-state tag",
@@ -118,6 +124,11 @@ ZH: dict[str, str] = {
     "generated": "生成时间",
     "window_asked": "测量窗口",
     "window_all": "该端点在本地库中的全部历史",
+    "window_basis": "时段来自",
+    "basis_collection_run": "产出这些样本的那次采集运行",
+    "basis_sample_span": "样本本身 —— 没有采集会话覆盖该端点，因此首个样本之前、"
+    "最后一个样本之后的时间都在时段之外，不计入盲区",
+    "basis_requested": "命令行上指定的窗口",
     "site": "站点",
     "endpoint": "端点",
     "tag": "运行状态位号",

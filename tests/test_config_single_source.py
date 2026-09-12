@@ -18,7 +18,6 @@ from __future__ import annotations
 import pytest
 
 from iaiops.core.runtime.config import (
-    CONFIG_FILE,
     default_config_path,
     load_config,
     load_config_env,
@@ -73,8 +72,19 @@ class TestTheOverrideAppliesToEveryLoader:
         assert "~" not in str(default_config_path())
 
     def test_without_the_override_the_home_config_is_used(self, monkeypatch):
+        """Read CONFIG_FILE off the MODULE, not the import-time copy.
+
+        `default_config_path()` looks the constant up at call time, so a
+        `from ... import CONFIG_FILE` here freezes the value this test compares
+        against and the two disagree the moment anything moves the config root —
+        which the test-isolation fixture now does, so that a test can no longer
+        read or write the developer's real ~/.iaiops. The guarantee under test is
+        unchanged: with no override, the default path IS the module's CONFIG_FILE.
+        """
+        from iaiops.core.runtime import config as config_mod
+
         monkeypatch.delenv("IAIOPS_CONFIG", raising=False)
-        assert default_config_path() == CONFIG_FILE
+        assert default_config_path() == config_mod.CONFIG_FILE
 
 
 class TestTheFrontEndsResolveTheSameTarget:
