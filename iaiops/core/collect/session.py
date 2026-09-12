@@ -192,6 +192,75 @@ def load_session(run_id: str, base_dir: Path | None = None) -> Session:
     return Session.from_dict(json.loads(path.read_text("utf-8")))
 
 
+@dataclass(frozen=True)
+class ObservationWindow:
+    """The period a collection run SET OUT to observe, for a later measurement.
+
+    The distinction this exists to hold: a report's period should come from what
+    was intended, not from what happened to arrive. They differ exactly when
+    collection failed, which is the case worth reporting — and the difference is
+    invisible in the data itself, because a run that went blind at the end simply
+    has no samples there.
+    """
+
+    start: str
+    end: str
+    run_id: str
+    #: True when ``end`` is NOW rather than the run's deadline, i.e. the run is
+    #: still going. The remainder has not happened yet, so counting it as blind
+    #: would report a run in progress as mostly unobserved.
+    clamped_to_now: bool = False
+
+
+def observation_window(
+    endpoint: str, now: datetime | None = None, base_dir: Path | None = None
+) -> ObservationWindow | None:
+    """The window of the NEWEST collection run for ``endpoint``, or None.
+
+    Newest, not the union of all of them. Two assessments a month apart are two
+    questions: spanning them makes the idle month one enormous blind window and
+    answers neither — which is the reason ``measure_availability`` takes an
+    explicit window at all. ``--since`` / ``--until`` is how you ask about an
+    older run, or about several.
+
+    Returns None when no session covers this endpoint. Imported samples and
+    historian reads have no session, and inventing a period for them would be a
+    guess about what somebody meant to observe; the caller falls back to the
+    sample span and says which basis it used.
+    """
+    from iaiops.core.runtime.config import CONFIG_DIR
+
+    root = (Path(base_dir) if base_dir else CONFIG_DIR) / SUBDIR
+    if not root.exists():
+        return None
+    now = now or datetime.now(UTC)
+
+    best: Session | None = None
+    for path in root.glob("*.json"):
+        try:
+            candidate = Session.from_dict(json.loads(path.read_text("utf-8")))
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+        if candidate.plan.endpoint != endpoint:
+            continue
+        if best is None or candidate.started_at > best.started_at:
+            best = candidate
+    if best is None:
+        return None
+
+    start = _parse(best.started_at)
+    end = _parse(best.deadline)
+    if start is None or end is None:
+        return None
+    clamped = now < end
+    return ObservationWindow(
+        start=best.started_at,
+        end=(now if clamped else end).isoformat(),
+        run_id=best.run_id,
+        clamped_to_now=clamped,
+    )
+
+
 def find_resumable(
     endpoint: str, now: datetime | None = None, base_dir: Path | None = None
 ) -> Session | None:
@@ -222,7 +291,9 @@ def find_resumable(
 
 
 __all__ = [
+    "ObservationWindow",
     "Session",
+    "observation_window",
     "save_session",
     "load_session",
     "find_resumable",

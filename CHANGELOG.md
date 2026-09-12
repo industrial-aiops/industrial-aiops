@@ -2,6 +2,55 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`oee measure` chose a period that could not contain its own blind spots.**
+  With no `--since/--until` the measured period was first-sample-to-last-sample,
+  so blindness at the END of a run fell outside it: a 40s run whose device went
+  quiet after 15s reported **"92.27% over 100% coverage, blind 0ms"** while
+  `collect run` had already said `Blind for 2 window(s) ... (50 missed)`. Nothing
+  lied — the period was derived from the data, and a run that went blind has no
+  data there. Naming the window explicitly always worked (`blind 37s`, `26.03%`
+  coverage, correctly `No figure reported`); the default was the hole.
+
+  The default period is now **the window the newest collection run set out to
+  observe** for that endpoint — `started_at` to a deadline fixed at run start and
+  never extended by a pause, which is already how the session record defines a
+  run. That is the honest basis because it differs from "when samples arrived"
+  exactly when collection failed. A run still in progress is measured up to now,
+  not to its deadline: counting the not-yet-happened remainder as blind would
+  report a live run as mostly unobserved, which is the same error pointing the
+  other way.
+
+  Not the union of all sessions: two assessments a month apart are two questions,
+  and spanning them makes the idle month one enormous blind window and answers
+  neither — the case `measure_availability`'s own docstring says `--since/--until`
+  exists for. Not "extended to now" either: a store somebody deliberately stopped
+  collecting into would then read as mostly blind forever.
+
+  Imported samples and historian reads have **no session**, so no period is
+  invented for them — the sample span stands, and the report now states which
+  basis produced it (`window_basis`: `collection_run` / `sample_span` /
+  `requested`), because "100% coverage" means a different thing under each. The
+  production count uses the same resolved window as availability; the two figures
+  are a ratio and have to agree about which seconds existed.
+
+  Found while making MQTT collectable: a dead publisher is SILENT — no connection
+  error, the subscription stays healthy — so the only evidence is samples that
+  stop. `connectors/sparkplug/tap.py` refuses to serve a stale point precisely so
+  that silence becomes a gap, and losing that gap one layer up put the flattering
+  number straight back.
+
+- **Tests could read and write the developer's real `~/.iaiops`.** The autouse
+  fixture moved `IAIOPS_HOME`, but `CONFIG_DIR` is a second root bound at import
+  from `Path.home()` — and collection sessions and the knowledge store live under
+  *that* one. A local run and CI therefore disagreed whenever the developer had
+  real data, and a verification run did write a session into a real store. Both
+  roots now move together, with a test that fails if the isolation is removed.
+
+
+## Unreleased
+
 ### Added
 
 - **MQTT / Sparkplug B is now a data SOURCE, not just a bus.** `can_collect("mqtt")`

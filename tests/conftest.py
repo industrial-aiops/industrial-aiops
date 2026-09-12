@@ -45,6 +45,18 @@ def isolated_iaiops_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Ite
     """
     monkeypatch.setenv("IAIOPS_HOME", str(tmp_path))
     monkeypatch.delenv("OT_AIOPS_HOME", raising=False)
+    # CONFIG_DIR is a SECOND root and it is not the same one. It is bound at
+    # import from Path.home(), so setting IAIOPS_HOME does not move it, and
+    # anything stored under it — collection sessions, the knowledge store —
+    # stayed pointed at the developer's real ~/.iaiops during tests. That made a
+    # local run and CI disagree whenever the developer had real data, and it has
+    # already let a test write into a real store once. Both roots move together.
+    from iaiops.core.runtime import config as _config_mod
+
+    monkeypatch.setattr(_config_mod, "CONFIG_DIR", tmp_path / "config", raising=False)
+    monkeypatch.setattr(
+        _config_mod, "CONFIG_FILE", tmp_path / "config" / "config.yaml", raising=False
+    )
     _reset_governance_singletons()
     yield tmp_path
     _reset_governance_singletons()
