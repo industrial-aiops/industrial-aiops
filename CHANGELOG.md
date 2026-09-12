@@ -2,6 +2,67 @@
 
 ## Unreleased
 
+### Added
+
+- **MQTT / Sparkplug B is now a data SOURCE, not just a bus.** `can_collect("mqtt")`
+  was **False**: `read_ref`, `monitor_read` and `session_read` were all
+  `UNSUPPORTED`, so for a plant whose data has already been unified into a UNS —
+  the direction the whole industry is moving — iaiops could browse the topic tree,
+  decode Sparkplug, audit the namespace and diff its schema, and still not read a
+  single point or collect one hour of history. `iaiops collect run` now holds one
+  subscription open for the run and samples from its last-value cache.
+
+  **The refusals are the feature.** MQTT is *pushed*, and the obvious cache keeps
+  answering with the last value forever after a publisher dies — availability then
+  reads 100% on a stopped line, in every subscriber at once. So a point is a
+  reading only when it has been seen at all (never-published is not zero), is
+  fresher than `stale_after_s`, and — for Sparkplug — its node has not sent
+  NDEATH/DDEATH. Anything else raises the new `OTNoReadingError`, which the
+  collector records as a **gap**: a window where collection was blind, never as
+  downtime.
+
+  `stale_after_s` is required on the endpoint and deliberately has **no default** —
+  a value that stopped updating and one that is simply constant are identical on
+  the wire, so only the site knows how often a point is published, and guessing
+  would put that guess underneath every availability figure. Same discipline as
+  `running_when` on a `run_state` tag.
+
+  The two guarantees are not equal and the endpoint is told which it has:
+  Sparkplug gives staleness **and** death; **plain MQTT has no death signal at
+  all**, so a quiet topic there is indistinguishable from a dead publisher.
+  Verified end-to-end against a real eclipse-mosquitto broker through the full
+  paho loop (`tests/test_uns_tap_live.py`, opt-in): publish → read → publisher
+  stops → the run records a gap instead of repeating the cache.
+
+
+- **`iaiops onboard` — the path from a network to an answer, joined up.** Every
+  piece existed and nothing connected them: a site could scan forty devices and
+  then retype all forty by hand, and nothing anywhere said which of the six
+  commands came next.
+  - `onboard status` reports which of the six steps a site is on (survey →
+    endpoints → point list → what the points MEAN → collect → ask) and names the
+    **one** command that advances it. Derived from the store and `config.yaml`
+    every time — no state file to go stale, so a hand-edited config or a restored
+    backup still gets a true answer, and a step that is genuinely done stays done
+    even when the steps were taken out of order.
+  - `onboard draft` turns a stored scan into `config.yaml` endpoints. It writes
+    nothing (a person merges it, as with `tags apply`). Only **confirmed**
+    protocols become endpoints — an open 502 means something is listening, not
+    that it speaks Modbus. Every value names the observation justifying it, which
+    is also where the value is: the S7 slot the CPU actually answered on, the
+    MELSEC CPU's own `plctype`, whether an OPC-UA server advertises an unsecured
+    endpoint or will need credentials. A field the scan could not settle is
+    emitted **commented, with what it is waiting for** — never omitted, because
+    omission lets the protocol default apply in silence, which is how a Modbus
+    gateway is read at unit 1 and shows a confident number for the wrong machine.
+    `tags:` comes out empty; a scan finds devices, never what their data means.
+  - Both are also MCP tools (`onboarding_status`, `onboarding_config_draft`) —
+    two front ends, one engine (D17). 196 governed tools.
+  - The **heuristic semantic guess** the roadmap asked for was deliberately not
+    built, and `docs/ROADMAP.md` records why: a guess "presented for
+    confirmation" is the same guess, and it would live in the artefact that gets
+    pasted once and trusted for years (D16).
+
 ### Fixed
 
 - **`oee measure` chose a period that could not contain its own blind spots.**
@@ -49,41 +110,6 @@
   roots now move together, with a test that fails if the isolation is removed.
 
 
-## Unreleased
-
-### Added
-
-- **MQTT / Sparkplug B is now a data SOURCE, not just a bus.** `can_collect("mqtt")`
-  was **False**: `read_ref`, `monitor_read` and `session_read` were all
-  `UNSUPPORTED`, so for a plant whose data has already been unified into a UNS —
-  the direction the whole industry is moving — iaiops could browse the topic tree,
-  decode Sparkplug, audit the namespace and diff its schema, and still not read a
-  single point or collect one hour of history. `iaiops collect run` now holds one
-  subscription open for the run and samples from its last-value cache.
-
-  **The refusals are the feature.** MQTT is *pushed*, and the obvious cache keeps
-  answering with the last value forever after a publisher dies — availability then
-  reads 100% on a stopped line, in every subscriber at once. So a point is a
-  reading only when it has been seen at all (never-published is not zero), is
-  fresher than `stale_after_s`, and — for Sparkplug — its node has not sent
-  NDEATH/DDEATH. Anything else raises the new `OTNoReadingError`, which the
-  collector records as a **gap**: a window where collection was blind, never as
-  downtime.
-
-  `stale_after_s` is required on the endpoint and deliberately has **no default** —
-  a value that stopped updating and one that is simply constant are identical on
-  the wire, so only the site knows how often a point is published, and guessing
-  would put that guess underneath every availability figure. Same discipline as
-  `running_when` on a `run_state` tag.
-
-  The two guarantees are not equal and the endpoint is told which it has:
-  Sparkplug gives staleness **and** death; **plain MQTT has no death signal at
-  all**, so a quiet topic there is indistinguishable from a dead publisher.
-  Verified end-to-end against a real eclipse-mosquitto broker through the full
-  paho loop (`tests/test_uns_tap_live.py`, opt-in): publish → read → publisher
-  stops → the run records a gap instead of repeating the cache.
-
-### Fixed
 
 - **Alias-only NDATA was dropped, and the BIRTH values were served as current.**
   A real Sparkplug edge node names each metric ONCE, in the BIRTH, and every
@@ -113,39 +139,6 @@
   records the gap and continues.
 
 
-## Unreleased
-
-### Added
-
-- **`iaiops onboard` — the path from a network to an answer, joined up.** Every
-  piece existed and nothing connected them: a site could scan forty devices and
-  then retype all forty by hand, and nothing anywhere said which of the six
-  commands came next.
-  - `onboard status` reports which of the six steps a site is on (survey →
-    endpoints → point list → what the points MEAN → collect → ask) and names the
-    **one** command that advances it. Derived from the store and `config.yaml`
-    every time — no state file to go stale, so a hand-edited config or a restored
-    backup still gets a true answer, and a step that is genuinely done stays done
-    even when the steps were taken out of order.
-  - `onboard draft` turns a stored scan into `config.yaml` endpoints. It writes
-    nothing (a person merges it, as with `tags apply`). Only **confirmed**
-    protocols become endpoints — an open 502 means something is listening, not
-    that it speaks Modbus. Every value names the observation justifying it, which
-    is also where the value is: the S7 slot the CPU actually answered on, the
-    MELSEC CPU's own `plctype`, whether an OPC-UA server advertises an unsecured
-    endpoint or will need credentials. A field the scan could not settle is
-    emitted **commented, with what it is waiting for** — never omitted, because
-    omission lets the protocol default apply in silence, which is how a Modbus
-    gateway is read at unit 1 and shows a confident number for the wrong machine.
-    `tags:` comes out empty; a scan finds devices, never what their data means.
-  - Both are also MCP tools (`onboarding_status`, `onboarding_config_draft`) —
-    two front ends, one engine (D17). 196 governed tools.
-  - The **heuristic semantic guess** the roadmap asked for was deliberately not
-    built, and `docs/ROADMAP.md` records why: a guess "presented for
-    confirmation" is the same guess, and it would live in the artefact that gets
-    pasted once and trusted for years (D16).
-
-### Fixed
 
 - **`onboard status` told five protocols they had no point list to ask for, and
   they did.** The point-list step named a command for OPC-UA, EtherNet/IP,
@@ -310,7 +303,6 @@
   says plainly that the gaps below are the report's rather than the operator's.
   Carried as a `config_note` field (in `as_dict()`, so the MCP side sees it too)
   rather than as one footnote among several.
-
 
 ## 0.27.0 — 2026-09-03
 

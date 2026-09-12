@@ -150,6 +150,7 @@ ENDPOINT_KEYS = BlockKeys(
         "nic",
         "expected_slaves",
         "timeout_s",
+        "stale_after_s",
         "tags",
         "ideal_cycle_time_s",
     ),

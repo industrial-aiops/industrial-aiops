@@ -301,3 +301,30 @@ class TestAliasOnlyNdataIsResolved:
         tap.on_message("spBv1.0/g/NBIRTH/e", self._birth({"Run": 1}))
         with pytest.raises(OTNoReadingError):
             tap.read(f"g/e/d1{REF_SEP}Temp")
+
+
+def test_the_config_parser_accepts_the_key_this_tap_requires(tmp_path, monkeypatch):
+    """`stale_after_s` has to survive the config-key refusal, or the tap is dead.
+
+    Two branches, each green alone: one added this field, the other made
+    config.yaml REFUSE keys no parser reads. Merged, the parser read it and the
+    key table did not list it, so a config carrying the one field MQTT
+    collection cannot run without would be rejected outright. Caught by
+    `test_config_keys.py`'s parser-vs-table drift guard at merge time; pinned
+    here too, from the tap's side, because that guard proves the table matches
+    the parser and not that this feature still works.
+    """
+    from iaiops.core.runtime.config import load_config
+
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "endpoints:\n"
+        "  - name: uns-1\n"
+        "    protocol: mqtt\n"
+        "    host: 10.0.0.5\n"
+        "    stale_after_s: 6\n"
+        "    tags: []\n"
+    )
+    monkeypatch.setenv("IAIOPS_CONFIG", str(cfg))
+    config = load_config()
+    assert config.targets[0].stale_after_s == 6.0
