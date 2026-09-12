@@ -4,6 +4,70 @@
 
 ### Added
 
+- **MQTT / Sparkplug B is now a data SOURCE, not just a bus.** `can_collect("mqtt")`
+  was **False**: `read_ref`, `monitor_read` and `session_read` were all
+  `UNSUPPORTED`, so for a plant whose data has already been unified into a UNS —
+  the direction the whole industry is moving — iaiops could browse the topic tree,
+  decode Sparkplug, audit the namespace and diff its schema, and still not read a
+  single point or collect one hour of history. `iaiops collect run` now holds one
+  subscription open for the run and samples from its last-value cache.
+
+  **The refusals are the feature.** MQTT is *pushed*, and the obvious cache keeps
+  answering with the last value forever after a publisher dies — availability then
+  reads 100% on a stopped line, in every subscriber at once. So a point is a
+  reading only when it has been seen at all (never-published is not zero), is
+  fresher than `stale_after_s`, and — for Sparkplug — its node has not sent
+  NDEATH/DDEATH. Anything else raises the new `OTNoReadingError`, which the
+  collector records as a **gap**: a window where collection was blind, never as
+  downtime.
+
+  `stale_after_s` is required on the endpoint and deliberately has **no default** —
+  a value that stopped updating and one that is simply constant are identical on
+  the wire, so only the site knows how often a point is published, and guessing
+  would put that guess underneath every availability figure. Same discipline as
+  `running_when` on a `run_state` tag.
+
+  The two guarantees are not equal and the endpoint is told which it has:
+  Sparkplug gives staleness **and** death; **plain MQTT has no death signal at
+  all**, so a quiet topic there is indistinguishable from a dead publisher.
+  Verified end-to-end against a real eclipse-mosquitto broker through the full
+  paho loop (`tests/test_uns_tap_live.py`, opt-in): publish → read → publisher
+  stops → the run records a gap instead of repeating the cache.
+
+### Fixed
+
+- **Alias-only NDATA was dropped, and the BIRTH values were served as current.**
+  A real Sparkplug edge node names each metric ONCE, in the BIRTH, and every
+  NDATA afterwards carries the alias alone. The tap decoded without the alias map
+  the connector already builds, so every update arrived with an empty name and
+  was skipped — and because a node re-BIRTHs periodically, the stale BIRTH value
+  kept having its freshness refreshed and read as a live one. A counter actually
+  sitting at 200 read as **0, and looked perfectly fresh**: the staleness guard,
+  the death guard and the never-published guard were all bypassed at once by the
+  one thing a real node does that a synthetic payload does not. Found on the lab
+  network against a spec-correct edge node; the alias map now comes from the
+  connector's own `_learn_aliases` rather than a second implementation.
+
+- **A BIRTH merged into the cache instead of replacing it.** A Sparkplug BIRTH
+  carries the node's FULL metric state, so a metric the node has REMOVED was
+  still served from cache as a current reading — the same reason
+  `sparkplug_live_schema` rebuilds its schema from scratch on every BIRTH rather
+  than unioning, so that a removal cannot mask a real schema drift. An NBIRTH now
+  also forgets the node's devices, since each is re-announced by its own DBIRTH.
+
+- **A refused read no longer tears down a healthy session.** `run_collection`
+  treated every read failure as "the held connection may be the casualty" and
+  closed it, then `break`-ed out of the tick. For a push protocol that is wrong
+  twice: a quiet metric is not a connection fault, and dropping the session would
+  discard the subscription and its cache every time one slow point went silent —
+  while skipping every remaining ref in the same tick. `OTNoReadingError` now
+  records the gap and continues.
+
+
+## Unreleased
+
+### Added
+
 - **`iaiops onboard` — the path from a network to an answer, joined up.** Every
   piece existed and nothing connected them: a site could scan forty devices and
   then retype all forty by hand, and nothing anywhere said which of the six

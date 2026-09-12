@@ -671,6 +671,51 @@ Everything below is the detailed backlog with per-item status.
   SW00B0– + SW00A0– baton pass; mock-tested, live pass `待核实`). Still not doing:
   PROFIBUS-DP (needs a master card, not software-tappable), FL-net (niche, no library).
 
+## UNS / MQTT as a data SOURCE (2026-09-12)
+
+- [ ] **Make MQTT/Sparkplug collectable.** Today `can_collect("mqtt")` is **False** —
+      `read_ref`, `monitor_read` and `session_read` are all `UNSUPPORTED` in the
+      capability registry. So for a plant whose data has already been unified into
+      MQTT/UNS — the direction the whole industry is moving, and the one a 2026-09
+      field deck from automotive Japan describes — **iaiops has no tap at all**. We can
+      browse the topic tree, decode Sparkplug, audit the namespace and diff its schema,
+      and still not read a single point or collect one hour of history.
+
+      The design constraint is the whole feature, and it is the one this repo keeps
+      re-learning: **MQTT is push.** A last-value cache returns the last value forever
+      after the publisher dies, so availability reads 100% on a line that stopped —
+      the flattering error in its purest form, and the same shape as the MTConnect
+      `Agent` device reporting AVAILABLE whenever the agent answers (#220 era). So:
+
+      * a stale point must become a **gap**, never a repeated reading — the collector
+        already has the blind-time concept from `oee measure`;
+      * Sparkplug NDEATH/DDEATH and STATE are a **liveness signal we already decode**
+        (`sparkplug_node_list` tracks online/born/death) — a dead node's metrics are
+        not readings, cache or no cache;
+      * **plain MQTT has no death signal at all.** Only staleness is available there,
+        and the product must say which of the two guarantees a given endpoint gets
+        rather than letting the stronger one be assumed.
+
+      Hook: `session_read` (read from an already-open client) is exactly the seam —
+      `mqtt_session` already builds/connects/closes a client, it just never subscribes.
+      `can_collect` keys off `monitor_read`, so that one needs an honest answer too
+      (a bounded subscribe-and-wait; retained messages return immediately, and a
+      non-retained topic must report that it waited and saw nothing rather than
+      returning stale).
+
+- [ ] **Sparkplug BIRTH → point-list draft.** `mqtt live-schema` already returns
+      `{node: {metric: datatype}}`. Nothing turns it into a `tags:` draft, so a UNS
+      site cannot reach the confirmation sheet. Blocked on the item above *on purpose*:
+      emitting tags for an endpoint that `can_collect` rejects would have `readiness`
+      report the mapping as met while nothing collects it — which is precisely what
+      `tags apply` refuses a sheet for (`_edit`: "Putting a role on a tag that is not
+      collected…"). Build the tap first, then the draft. **`role` stays empty (D16).**
+
+**Boundary note.** All of the above is MIT and stays MIT: §8.3 rule 1 (it lets the tap
+read a data point it could not read before), and §8.3 names "任何协议 connector" among the
+things that may never move to enterprise. The *attested* form — "this site's namespace,
+over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8.
+
 ## Capabilities / intelligence
 - ✅ **AI downtime root-cause copilot (flagship)** — shipped in v0.5.0 as
   `downtime_root_cause` (`iaiops/core/brain/rca.py` + MCP tool + `iaiops diag rca`):

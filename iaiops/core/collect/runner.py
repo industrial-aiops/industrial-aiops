@@ -40,6 +40,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from iaiops.core.collect.plan import CollectionPlan
+from iaiops.core.runtime.session_factory import OTNoReadingError
 
 #: How a run ended. Not cosmetic: an operator reading a short assessment needs to
 #: know whether it finished or was cut off.
@@ -230,6 +231,15 @@ def run_collection(
                 attempted += 1
                 try:
                     value, source_ts = reader(subject, ref)
+                except OTNoReadingError as exc:
+                    # The point has no current value and the CONNECTION IS FINE.
+                    # Still a gap — collection was blind for this tick — but
+                    # tearing the session down here would drop a live MQTT
+                    # subscription (and its last-value cache) every time one slow
+                    # metric went quiet, and `break` would skip every remaining
+                    # ref in the same tick.
+                    tracker.failure(f"{type(exc).__name__}: {exc}", _now_iso())
+                    continue
                 except Exception as exc:  # noqa: BLE001 — a blip must not end a week-long run
                     tracker.failure(f"{type(exc).__name__}: {exc}", _now_iso())
                     if session_builder is not None:

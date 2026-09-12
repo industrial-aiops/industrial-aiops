@@ -35,6 +35,24 @@ class OTConnectionError(Exception):
         super().__init__(message)
 
 
+class OTNoReadingError(OTConnectionError):
+    """This point has no CURRENT value — and the connection is healthy.
+
+    Push protocols need this and poll protocols do not. A Modbus read either
+    answers or the socket failed; an MQTT subscription is perfectly alive while a
+    metric simply has not been published for an hour. Collapsing the two would
+    make the collector tear down a working subscription (and its last-value
+    cache) every time a slow point went quiet.
+
+    It is a refusal, not a value: the collector records it as a GAP — a window
+    where collection was blind — which is the one honest rendering. Returning the
+    cached value instead is how a line that stopped reads as 100% available.
+
+    Subclasses :class:`OTConnectionError` so every existing ``except
+    OTConnectionError`` keeps working.
+    """
+
+
 class OTProtocolError(OTConnectionError):
     """The device RESPONDED with a protocol-level exception (e.g. a Modbus
     exception response for an unmapped register).

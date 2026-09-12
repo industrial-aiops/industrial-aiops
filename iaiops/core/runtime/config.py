@@ -396,6 +396,14 @@ class TargetConfig:
     # Connect/request timeout (seconds) threaded into every client builder so a
     # dead endpoint fails fast instead of hanging on the OS TCP timeout.
     timeout_s: float = DEFAULT_TIMEOUT_S
+    #: MQTT/UNS only, and REQUIRED to collect from one. How long a published
+    #: point stays a reading. There is deliberately no default: a value that
+    #: stopped updating and a value that is simply constant are identical on the
+    #: wire, so only the site knows how often a point is meant to be published —
+    #: and guessing would put that guess underneath every availability figure the
+    #: product later reports. Same discipline as `running_when` on a run_state
+    #: tag. 0 means unset, and the MQTT tap refuses rather than picking a number.
+    stale_after_s: float = 0.0
     tags: tuple[MonitorTag, ...] = ()
     #: Design cycle time for the product this line runs — a product SPEC rather
     #: than something the machine reports, which is why it is a line value and
@@ -974,6 +982,7 @@ def _parse_target(d: dict) -> TargetConfig:
         nic=str(d.get("nic", "") or d.get("interface", "")),
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
         timeout_s=_parse_timeout_s(d),
+        stale_after_s=float(d.get("stale_after_s", 0) or 0),
         tags=parse_tags(d.get("tags", []), endpoint=str(d.get("name", ""))),
         ideal_cycle_time_s=_opt_float(d.get("ideal_cycle_time_s")),
     )

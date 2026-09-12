@@ -22,6 +22,7 @@ against :mod:`iaiops.core.runtime.connection` for the same reason.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Final
@@ -308,6 +309,46 @@ def _monitor_modbus(t: Any, ref: str) -> tuple[Any, str]:
     return (r.get("decoded") or [None])[0], ""
 
 
+def _session_read_mqtt(client: Any, ref: str) -> tuple[Any, str]:
+    """Read one point off the live subscription held open for this run."""
+    tap = getattr(client, "iaiops_uns_tap", None)
+    if tap is None:  # pragma: no cover — only reachable if the session skipped prepare
+        from iaiops.core.runtime.session_factory import OTConnectionError
+
+        raise OTConnectionError(
+            "This MQTT client has no subscription attached, so it has no values to "
+            "read. Open it with `mqtt_tap_session`, not `mqtt_session`.",
+            protocol="mqtt",
+        )
+    return tap.read(ref)
+
+
+def _monitor_read_mqtt(target: Any, ref: str) -> tuple[Any, str]:
+    """One-shot read: subscribe, wait a bounded moment, take what arrived.
+
+    Strictly weaker than the session path and the difference is worth stating,
+    because it is the difference between two honest answers and one misleading
+    one. This window can only ever see what the broker sends INSIDE it — a
+    retained message arrives at once, but a metric published every 30s simply
+    will not appear in a 5s look, and that is reported as "nothing published",
+    never as a missing point. Continuous collection holds the subscription open
+    instead (``session_read``), which is why it can tell a slow point from a dead
+    one at all.
+    """
+    from iaiops.connectors.sparkplug.tap import UnsTap
+    from iaiops.core.runtime.connection import mqtt_tap_session
+
+    with mqtt_tap_session(target) as client:
+        tap: UnsTap = client.iaiops_uns_tap
+        deadline = time.monotonic() + max(1.0, float(getattr(target, "timeout_s", 10) or 10))
+        while time.monotonic() < deadline:
+            try:
+                return tap.read(ref)
+            except Exception:  # noqa: BLE001 — keep waiting until the deadline
+                time.sleep(0.1)
+        return tap.read(ref)  # raise the real, teaching refusal
+
+
 def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
     """Read one holding register from an open pymodbus client.
 
@@ -506,7 +547,13 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         _where_mqtt,
         doctor_probe=_probe_mqtt,
         diagnose_connect=_connect_mqtt,
-        session_builder=_session("mqtt_session"),
+        # MQTT is the only PUSH source here. The read paths refuse a stale or
+        # orphaned point rather than serving the cache, which is what makes it
+        # collectable without making a stopped line read as running — see
+        # iaiops.connectors.sparkplug.tap.
+        monitor_read=_monitor_read_mqtt,
+        session_read=_session_read_mqtt,
+        session_builder=_session("mqtt_tap_session"),
     ),
     "ethernetip": _caps(
         _where_eip,
