@@ -154,6 +154,50 @@
   endpoint that no command will then read. That is the same shape on the write
   side and needs a choice — follow the override, or refuse and say why.
 
+- **A config key nobody reads was a config key that was not there.** Every parser
+  in `core/runtime/config.py` pulls its fields out with `d.get(...)`, so an
+  unrecognised key in a tag entry, an endpoint entry, `historian:` or `retention:`
+  vanished with no message. Written out: a site that typed `rolle: good_count`
+  had declared its production counter as far as it was concerned; `iaiops
+  readiness` then reported the OEE mapping unmet, naming a gap the operator had
+  already filled and pointing nowhere near the typo. All four blocks now **refuse**
+  an unknown key with an error that names it, names the accepted vocabulary, and
+  suggests the nearest match (`name` → `label`, `rolle` → `role`, a `password:`
+  line → the encrypted store). Two blocks that were dropped whole are refused the
+  same way: a `historian:` block carrying settings but no `reader` (discarded
+  silently, so a site with a historian was told incident after incident that it
+  had none) and a `retention:`/`historian:` block that is not a mapping.
+
+  The refusal is built to be acted on in one pass. Every block is checked before
+  any of them is reported, so a file with four mistakes lists four — a config
+  typed by hand has typos in the plural, and each round trip is a walk back to
+  whoever knows what that point is. Each block's vocabulary is printed once at
+  the end rather than after every entry that used it. And the message names the
+  version doing the refusing: "I do not recognise this key" has two causes in
+  the field — it is misspelled, or THIS box is older than the docs the config
+  was written against — and an edge fleet is never on one version.
+
+  A tie between two candidate keys is reported as a tie. `difflib` breaks one by
+  string order, which made `hsot` come back as *did you mean 'slot'?* — `host`
+  and `slot` both score 0.75 and `slot` sorts higher. A confident wrong pointer
+  sends someone to a line that was already correct.
+
+  **Breaking** for a config carrying an extra key. Nothing in this repo did —
+  README, `README.zh-CN`, `docs/`, `demo/oee-line`, `deploy/`, the `iaiops init`
+  wizard, the `iaiops tags apply` patch and every test fixture were checked, and
+  the full suite passed unchanged. Refusing rather than warning matches what this
+  file already does for an unsupported protocol, an unknown tag role and a tag
+  with no address; a warning would be one stderr line inside a long `readiness`
+  run, guarding a wrong answer that wears the right shape.
+- **`iaiops readiness` buried an unreadable config under a report the config had
+  invalidated.** A config that will not load renders a configured site as an
+  empty one, so the ranked gap list opened with "at least one configured
+  endpoint" — a gap the site does not have — and the reason printed after it,
+  too late to stop anyone acting on the rows above. It now leads the report, and
+  says plainly that the gaps below are the report's rather than the operator's.
+  Carried as a `config_note` field (in `as_dict()`, so the MCP side sees it too)
+  rather than as one footnote among several.
+
 
 ## 0.27.0 — 2026-09-03
 

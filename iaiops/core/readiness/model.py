@@ -118,6 +118,12 @@ class ReadinessReport:
     capabilities: tuple[Capability, ...] = ()
     facts: dict[str, Any] = field(default_factory=dict)
     notes: tuple[str, ...] = ()
+    #: Set when config.yaml would not load. It is also the first entry in
+    #: ``notes``, but a renderer needs it as a FIELD: everything above it then
+    #: describes a site with nothing configured, and a reader who meets that
+    #: fact after the ranked gap list has already been handed a list of gaps
+    #: that are not theirs.
+    config_note: str = ""
 
     def by_status(self, status: str) -> tuple[Capability, ...]:
         return tuple(c for c in self.capabilities if c.status == status)
@@ -149,6 +155,7 @@ class ReadinessReport:
             "capabilities": [c.as_dict() for c in self.capabilities],
             "facts": self.facts,
             "notes": list(self.notes),
+            "config_note": self.config_note,
         }
 
 

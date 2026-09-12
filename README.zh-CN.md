@@ -204,6 +204,11 @@ endpoints:
     topic: spBv1.0/#
 ```
 
+本文件**不认识的键会被拒绝,而不是忽略** —— endpoint、tag、`historian:`、`retention:`
+四处都是。被丢掉的键和从没写过的键无法区分:写成 `rolle: good_count`,在现场看来产量
+计数器已经声明过了,而 `iaiops readiness` 会报 OEE 映射未满足,指的地方离这个拼写错误
+十万八千里。报错会点出这个键、可接受的键集,以及最接近的那一个。
+
 ### 对着仿真器测(每协议)
 
 - **OPC-UA** —— `asyncua` demo server(测试套件就跑了一个真实 in-process 的)。

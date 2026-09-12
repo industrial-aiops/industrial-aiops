@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 import stat
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -35,6 +35,14 @@ from typing import Any
 import yaml
 from dotenv import load_dotenv
 
+from iaiops.core.runtime.config_keys import (
+    ENDPOINT_KEYS,
+    HISTORIAN_KEYS,
+    RETENTION_KEYS,
+    TAG_KEYS,
+    reject_unknown_keys,
+    running_version,
+)
 from iaiops.core.runtime.secretstore import (
     SecretStoreError,
     get_secret,
@@ -575,6 +583,7 @@ def parse_tags(raw_tags: list, endpoint: str = "") -> tuple[MonitorTag, ...]:
     out: list[MonitorTag] = []
     where = f" on endpoint {endpoint!r}" if endpoint else ""
     for position, t in enumerate(raw_tags or [], start=1):
+        reject_unknown_keys(TAG_KEYS, t, where=f" #{position}{where}")
         ref = _tag_ref(t)
         if not ref:
             raise ValueError(
@@ -810,14 +819,74 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     # Accept either 'endpoints' or 'targets' as the top-level list key.
     entries = raw.get("endpoints", raw.get("targets", []))
 
-    targets = tuple(_parse_target(d) for d in entries)
+    # Every block is checked before ANY of them is reported. A config that has
+    # been typed by hand has typos in the plural, and stopping at the first one
+    # makes a 50-endpoint file take as many round trips as it has mistakes —
+    # each of which costs a walk back to whoever knows what that point is.
+    targets: list[TargetConfig] = []
+    problems: list[ValueError] = []
+    for entry in entries:
+        try:
+            targets.append(_parse_target(entry))
+        except ValueError as exc:
+            problems.append(exc)
+
+    historian = None
+    try:
+        historian = _parse_historian(raw.get("historian"))
+    except ValueError as exc:
+        problems.append(exc)
+
+    raw_days = None
     retention = raw.get("retention") or {}
-    raw_days = retention.get("raw_days") if isinstance(retention, dict) else None
+    try:
+        reject_unknown_keys(RETENTION_KEYS, retention)
+        raw_days = retention.get("raw_days")
+    except ValueError as exc:
+        problems.append(exc)
+
+    if problems:
+        raise ValueError(_problem_report(path, problems))
+
     return AppConfig(
-        targets=targets,
-        historian=_parse_historian(raw.get("historian")),
+        targets=tuple(targets),
+        historian=historian,
         retention_raw_days=int(raw_days) if raw_days is not None else None,
     )
+
+
+def _problem_report(path: Path, problems: list[ValueError]) -> str:
+    """One problem reads as itself; several read as a list, said once each.
+
+    A single mistake must not be dressed up as a report — it is the common case
+    and the shortest true sentence is the best one. Several become a numbered
+    list whose entries are the headlines only: four endpoints wrong the same way
+    would otherwise repeat the 33-key endpoint vocabulary four times, which
+    buries the four lines that actually differ.
+    """
+    if len(problems) == 1:
+        return str(problems[0])
+
+    lines = []
+    # Keyed by block, so the dict IS the de-duplication and insertion order is
+    # first appearance. An `inside not in vocabularies` guard stood here first
+    # and a mutation check showed it changed nothing — dead code dressed as a
+    # guarantee, the same shape `_as_number` grew and lost.
+    vocabularies: dict[str, str] = {}
+    for position, exc in enumerate(problems, start=1):
+        spec = getattr(exc, "spec", None)
+        lines.append(f"  {position}. {getattr(exc, 'headline', None) or exc}")
+        if spec is not None:
+            vocabularies[spec.inside] = f"{', '.join(spec.primary)}. {spec.consequence}"
+
+    report = (
+        f"{path} has {len(problems)} problems. None of it is loaded until every "
+        f"one is fixed, so fix them together:\n" + "\n".join(lines)
+    )
+    if vocabularies:
+        listed = "\n".join(f"  {inside}: {text}" for inside, text in vocabularies.items())
+        report += f"\n\nAccepted by iaiops {running_version()} —\n{listed}"
+    return report
 
 
 def load_config_env() -> AppConfig:
@@ -832,21 +901,36 @@ def load_config_env() -> AppConfig:
 
 def _parse_historian(raw: object) -> HistorianConfig | None:
     """Build the optional per-site historian READ block; absent/blank ⇒ None."""
-    if not isinstance(raw, dict) or not str(raw.get("reader", "")).strip():
+    if raw is None or raw == {}:
         return None
+    block = reject_unknown_keys(HISTORIAN_KEYS, raw)
+    if not str(block.get("reader", "")).strip():
+        raise ValueError(
+            "The 'historian:' block has no 'reader'. It is the one setting that "
+            "cannot be defaulted — it names which store to read. Set one of "
+            f"{', '.join(SUPPORTED_HISTORIAN_READERS)}, or delete the block. "
+            "A block without it used to be discarded whole, so a site that had "
+            "configured a historian was told, incident after incident, that it "
+            "had none."
+        )
     return HistorianConfig(
-        reader=str(raw["reader"]).strip().lower(),
-        host=str(raw.get("host", "") or ""),
-        port=int(raw.get("port", 0) or 0),
-        user=str(raw.get("user", "") or ""),
-        database=str(raw.get("database", "") or ""),
-        db_path=str(raw.get("db_path", "") or ""),
-        transport=str(raw.get("transport", "") or "").strip().lower(),
+        reader=str(block["reader"]).strip().lower(),
+        host=str(block.get("host", "") or ""),
+        port=int(block.get("port", 0) or 0),
+        user=str(block.get("user", "") or ""),
+        database=str(block.get("database", "") or ""),
+        db_path=str(block.get("db_path", "") or ""),
+        transport=str(block.get("transport", "") or "").strip().lower(),
     )
 
 
 def _parse_target(d: dict) -> TargetConfig:
     """Build one immutable TargetConfig from a raw config dict."""
+    # The label is built defensively: an entry that is not a mapping at all
+    # (``endpoints: [line1]``) has no name to read, and asking for one here
+    # would raise before the teaching error could be built.
+    named = d.get("name", "?") if isinstance(d, Mapping) else "?"
+    reject_unknown_keys(ENDPOINT_KEYS, d, where=f" {str(named)!r}")
     protocol = d.get("protocol", "opcua")
     if protocol == "eip":  # normalize the accepted alias
         protocol = "ethernetip"

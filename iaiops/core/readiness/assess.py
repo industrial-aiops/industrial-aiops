@@ -464,11 +464,14 @@ def assess(config: Any = None, db_path: Any = None) -> ReadinessReport:
     )
 
     notes: list[str] = []
+    config_note = ""
     if facts["config_error"]:
-        notes.append(
+        config_note = (
             f"config.yaml could not be read ({facts['config_error']}) — treating this as "
-            "a site that has not been configured yet."
+            "a site that has not been configured yet. Every gap below is therefore this "
+            "report's, not yours: fix the file and re-run before acting on any of them."
         )
+        notes.append(config_note)
     if not facts["store"]["exists"]:
         notes.append(
             "No local store yet. It is created by the first read that collects samples; "
@@ -478,7 +481,12 @@ def assess(config: Any = None, db_path: Any = None) -> ReadinessReport:
         "Nothing was contacted to produce this report — it is derived from config.yaml "
         "and the local store only."
     )
-    return ReadinessReport(capabilities=capabilities, facts=facts, notes=tuple(notes))
+    return ReadinessReport(
+        capabilities=capabilities,
+        facts=facts,
+        notes=tuple(notes),
+        config_note=config_note,
+    )
 
 
 __all__ = [
