@@ -17,8 +17,10 @@ from iaiops.core.runtime.capabilities import (
     get_capabilities,
 )
 from iaiops.core.runtime.config import (
-    CONFIG_FILE,
+    CONFIG_ENV_VAR,
     ENV_FILE,
+    config_path_source,
+    default_config_path,
     load_config,
     password_env_var,
 )
@@ -44,10 +46,17 @@ def run_doctor(skip_probe: bool = False) -> int:
 
     _console.print(f"[bold]iaiops {__version__}[/]  ·  python {_python_version()}")
 
-    if CONFIG_FILE.exists():
-        _console.print(f"[green]✓ Config file present: {CONFIG_FILE}[/]")
+    # The file load_config() will actually read, not the default it may be
+    # overriding. Reporting CONFIG_FILE here said "No config file
+    # (~/.iaiops/config.yaml)" while every line under it described endpoints
+    # loaded from $IAIOPS_CONFIG — a doctor contradicting itself in the one
+    # output a site pastes into a support thread.
+    config_path = default_config_path()
+    via = f" (via ${CONFIG_ENV_VAR})" if config_path_source() == CONFIG_ENV_VAR else ""
+    if config_path.exists():
+        _console.print(f"[green]✓ Config file present: {config_path}{via}[/]")
     else:
-        _console.print(f"[yellow]! No config file ({CONFIG_FILE}); run 'iaiops init'.[/]")
+        _console.print(f"[yellow]! No config file ({config_path}{via}); run 'iaiops init'.[/]")
 
     try:
         config = load_config()

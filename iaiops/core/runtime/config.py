@@ -45,6 +45,11 @@ CONFIG_DIR = Path.home() / ".iaiops"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 ENV_FILE = CONFIG_DIR / ".env"
 
+#: Points every loader at a different file. Named here rather than spelled as a
+#: literal at each use, because a caller that reports ``CONFIG_FILE`` while
+#: ``load_config()`` reads the override is describing a file it did not read.
+CONFIG_ENV_VAR = "IAIOPS_CONFIG"
+
 # Legacy env-var prefix/suffix; also used by the migration helper.
 SECRET_ENV_PREFIX = "OT_"  # nosec B105 — env var prefix, not a secret
 SECRET_ENV_SUFFIX = "_PASSWORD"  # nosec B105 — env var suffix, not a secret
@@ -772,8 +777,18 @@ def default_config_path() -> Path:
     copilot pairs live evidence from one machine with history from another, with
     no error anywhere: a wrong answer wearing the right shape.
     """
-    override = os.environ.get("IAIOPS_CONFIG")
+    override = os.environ.get(CONFIG_ENV_VAR)
     return Path(override).expanduser() if override else CONFIG_FILE
+
+
+def config_path_source() -> str:
+    """Where :func:`default_config_path` came from: the env var, or the default.
+
+    Anything that REPORTS the config path needs this — a bare path leaves the
+    reader unable to tell an override from the default, and an evidence bundle
+    that cannot say which file it read is not evidence.
+    """
+    return CONFIG_ENV_VAR if os.environ.get(CONFIG_ENV_VAR) else "default"
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:

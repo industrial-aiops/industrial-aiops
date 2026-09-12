@@ -130,6 +130,31 @@
   one-endpoint wizard, which is the long way round now that `onboard` exists. It
   and `tags apply` now point at `onboard status`.
 
+- **Two reporters named a config file they had not read.** `default_config_path()`
+  resolves `$IAIOPS_CONFIG` for every loader — its own docstring records why:
+  two loaders meant two answers to "which file is this site configured in".
+  Two callers had drifted back out of it and reported `CONFIG_FILE` instead:
+  - `iaiops doctor` printed `! No config file (~/.iaiops/config.yaml)` and then
+    listed the endpoints it had just loaded from the override — a self-
+    contradiction in the one output a site pastes into a support thread.
+  - The **compliance evidence bundle** recorded that same default path, with
+    `config_present: false`, directly above the `targets` it read out of the
+    file it did read. A bundle that cannot say which file it read is not
+    evidence, and this one disagreed with itself about its own source.
+
+  Both now report the file `load_config()` actually reads. The doctor says
+  `(via $IAIOPS_CONFIG)` when the path is an override, and the bundle carries a
+  new `config_path_source` field — a bare non-default path leaves the reader
+  unable to tell an override from a default, which is the question being asked.
+  `IAIOPS_CONFIG` is now the named constant `CONFIG_ENV_VAR` so no caller has
+  to spell it as a literal again.
+
+  Not fixed here, and worth a decision: `iaiops init` **writes** to `CONFIG_FILE`
+  regardless of the override, so an operator with `$IAIOPS_CONFIG` set adds an
+  endpoint that no command will then read. That is the same shape on the write
+  side and needs a choice — follow the override, or refuse and say why.
+
+
 ## 0.27.0 — 2026-09-03
 
 ### Fixed
