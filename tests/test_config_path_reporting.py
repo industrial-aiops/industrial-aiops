@@ -19,7 +19,6 @@ import pytest
 
 from iaiops.core.runtime.config import (
     CONFIG_ENV_VAR,
-    CONFIG_FILE,
     config_path_source,
     default_config_path,
 )
@@ -47,8 +46,18 @@ class TestTheResolverItself:
         assert config_path_source() == CONFIG_ENV_VAR
 
     def test_without_the_override_it_is_the_default(self, monkeypatch):
+        """CONFIG_FILE is read off the MODULE, not the import-time copy.
+
+        `default_config_path()` looks it up at call time, so a
+        `from ... import CONFIG_FILE` freezes the value this compares against and
+        the two disagree the moment anything moves the config root — which the
+        test-isolation fixture now does, so a test can no longer read or write
+        the developer's real ~/.iaiops. The guarantee is unchanged.
+        """
+        from iaiops.core.runtime import config as _config_mod
+
         monkeypatch.delenv(CONFIG_ENV_VAR, raising=False)
-        assert default_config_path() == CONFIG_FILE
+        assert default_config_path() == _config_mod.CONFIG_FILE
         assert config_path_source() == "default"
 
 
@@ -102,8 +111,9 @@ class TestTheEvidenceBundleNamesTheFileItRead:
 
     def test_the_default_case_records_the_default(self, monkeypatch):
         from iaiops.core.governance.evidence import _doctor_summary
+        from iaiops.core.runtime import config as _config_mod
 
         monkeypatch.delenv(CONFIG_ENV_VAR, raising=False)
         summary = _doctor_summary()
-        assert summary["config_file"] == str(CONFIG_FILE)
+        assert summary["config_file"] == str(_config_mod.CONFIG_FILE)
         assert summary["config_path_source"] == "default"

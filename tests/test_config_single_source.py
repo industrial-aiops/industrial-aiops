@@ -107,3 +107,37 @@ class TestTheFrontEndsResolveTheSameTarget:
             assert name == "iotdb"
         finally:
             adapter.close()
+
+
+@pytest.mark.unit
+def test_no_test_module_freezes_the_config_root_at_import():
+    """`from ...config import CONFIG_DIR / CONFIG_FILE` at module level is a trap.
+
+    Both are read at CALL time by the code under test, so a module-level import
+    captures whatever they were when pytest collected the file. Three test
+    modules did it, and all three broke the moment the isolation fixture started
+    moving the config root so that a test could no longer read or write the
+    developer's real ~/.iaiops — each with a confusing "expected /Users/zw/…"
+    diff that looks like an isolation bug rather than a frozen constant.
+
+    The constants themselves are fine to use; they just have to be read off the
+    module (`config_mod.CONFIG_FILE`), the same way the product reads them.
+    """
+    import ast
+    import pathlib
+
+    frozen = []
+    for path in sorted(pathlib.Path(__file__).parent.glob("test_*.py")):
+        tree = ast.parse(path.read_text("utf-8"), str(path))
+        for node in tree.body:  # module level only — a function-local import is fine
+            if not isinstance(node, ast.ImportFrom) or not (node.module or "").endswith(
+                "runtime.config"
+            ):
+                continue
+            for alias in node.names:
+                if alias.name in ("CONFIG_DIR", "CONFIG_FILE"):
+                    frozen.append(f"{path.name}: {alias.name}")
+    assert not frozen, (
+        "these capture the config root at import and will disagree with the code "
+        f"under test: {frozen}. Import the module and read the attribute instead."
+    )
