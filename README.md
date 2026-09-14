@@ -56,10 +56,12 @@ iaiops doctor                    # config, secrets, reachability — and the ver
 iaiops readiness                 # every scenario and what each gap needs
 ```
 
-`onboard status` answers the smaller question you have first: **which of the six
-steps is this site on, and what is the one command that advances it?** The six
-were always there and nothing stated the order. It is derived from your store and
-`config.yaml` every time, so there is no onboarding state to go stale — edit
+`onboard status` answers the smaller questions you have first: **which journey is
+this site on — reading its devices directly, or subscribing to a UNS broker its
+data already flows through — which step of it are you on, and what is the one
+command that advances it?** It is derived from your store and `config.yaml` every
+time. The one thing it keeps is a namespace audit verdict, and that counts only for
+the broker and topic filter it was taken on and always shows its age — so edit
 `config.yaml` by hand and the answer stays true.
 
 `readiness` reads your config and local store and answers one question: **which
@@ -783,6 +785,45 @@ makes the blocked case the one most worth handing over, and for a site nobody ha
 instrumented yet it is the whole deliverable. What it will not do is let a
 blocked investigation look finished: the headline is always the walk (`2 / 8`),
 never a conclusion, and no step's own words appear above it.
+
+### Two journeys: reading devices, or subscribing to a UNS broker
+
+Where you start depends on one question the files cannot always answer for you:
+**is this site's data already flowing through an MQTT/UNS broker?**
+
+```bash
+iaiops onboard status                  # derives the journey from config.yaml — or asks
+iaiops onboard status --track devices  # no UNS yet: survey, then read PLCs directly
+iaiops onboard status --track uns      # already on a broker: connect, audit, subscribe
+```
+
+- **devices** — survey → endpoints → a point list per endpoint → what each point
+  MEANS → collect → ask. This is also the journey for a site *building* a UNS:
+  confirm what a point means before it is published, because publish-once /
+  subscribe-many turns one wrong mapping into the same wrong number in every
+  consumer at once.
+- **uns** — connect to the broker (`stale_after_s` is required) → audit the
+  namespace → choose the points → what they MEAN → collect → ask. **No scan**: a
+  scan never identifies MQTT, so sending a UNS site to one was a dead end. The
+  namespace audit forks this journey into **B1**, audited clean, and **B2**, where
+  governance — fixing the naming, and on a Sparkplug namespace watching a schema
+  baseline with `iaiops mqtt uns-live-drift` — is the work rather than a later step.
+  Plain MQTT has no drift watch: both schema commands read Sparkplug BIRTH messages.
+
+The journey comes from `config.yaml`: broker endpoints only → `uns`, device
+endpoints only → `devices`. With nothing configured, or both kinds of endpoint,
+the single step is the question with both answers, and neither is picked for you.
+B1/B2 comes only from a **stored** `iaiops mqtt uns-live-audit` verdict — `onboard`
+contacts nothing — so until one exists it says the fork is unknown. Only an audit
+taken against a naming standard (`--root`, `--min-segments`), not cut short by its
+message cap, listening for at least one publish interval (`stale_after_s`), and on
+the broker and topic filter the endpoint uses **now** can make a site B1; anything
+less leaves the fork open and says why. Only a `sprawling` verdict makes it B2: a
+`minor` one is a handful of heuristic findings — a Sparkplug `STATE` topic trips
+them — so it is reported as findings to review, not as a governance verdict. An audit whose
+capture saw no topics is **not** stored: it audited nothing, and "zero findings"
+must not read as a clean namespace. On the UNS journey the points still go into
+`tags:` by hand; nothing turns a broker listing into a draft yet.
 
 ### From a scan to a config
 

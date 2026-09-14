@@ -101,16 +101,26 @@ def site_readiness(db: str = "") -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def onboarding_status(db: str = "") -> dict:
+def onboarding_status(db: str = "", track: str = "auto") -> dict:
     """[READ][risk=low] Where this site is on the path from a network to an answer.
 
     One altitude below `site_readiness`. That one lists every scenario and what
     each is waiting for; this one answers the smaller, earlier question a caller
-    actually has first — **which single command comes next**, out of a fixed
-    sequence of six that nothing else in this product states:
+    actually has first — **which journey this site is on, and which single command
+    comes next** on it. There are two, with different first steps:
 
-        scan → endpoints in config → a point list per endpoint → what each point
-        MEANS → collect → ask the question
+        devices — no UNS yet: scan → endpoints → point list → what each point
+                  MEANS → collect → ask the question
+        uns     — data already in an MQTT/UNS broker: connect → audit the
+                  namespace → choose points → MEANS → collect → ask
+
+    `track` is `auto` (derived from config.yaml), `devices` or `uns`. On `uns` a
+    stored namespace audit forks it into B1 (audited clean) and B2 (governance is
+    the work); until an audit is stored the result says B1/B2 is unknown rather
+    than assuming either. When nothing is configured, or both kinds of endpoint
+    are, the single step is a question with two `choices` — relay both to the
+    caller and pick neither; the files on disk cannot say which kind of site this
+    is, and neither can you.
 
     Derived from the local store and `config.yaml` every time; there is no
     onboarding state file, so a site that edits config.yaml by hand or restores a
@@ -130,9 +140,15 @@ def onboarding_status(db: str = "") -> dict:
     """
     from pathlib import Path
 
-    from iaiops.core.onboard import assess_path
+    from iaiops.core.onboard.path import assess_path, validate_track
 
-    return assess_path(db_path=Path(db).expanduser() if db else None).as_dict()
+    try:
+        wanted = validate_track(track)
+    except ValueError as exc:
+        # Answered here: the generic error wrapper would append "run iaiops doctor",
+        # which has nothing to do with a mistyped argument.
+        return {"error": str(exc), "hint": "track is one of: auto, devices, uns."}
+    return assess_path(db_path=Path(db).expanduser() if db else None, track=wanted).as_dict()
 
 
 @mcp.tool()

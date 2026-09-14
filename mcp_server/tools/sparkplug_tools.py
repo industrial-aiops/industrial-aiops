@@ -330,19 +330,22 @@ def uns_live_audit(
         max_leaf_parents: A leaf under more than this many parents is scattered.
 
     Returns dict: the uns_topic_audit result (topic_count, depth, verdict, findings)
-        plus capture:{endpoint, topic, observed_messages, unique_topics, topics[]}.
+        plus capture:{endpoint, topic, observed_messages, unique_topics, topics[]}
+        and stored_for_onboard (False when the capture saw no topics).
 
     Example: uns_live_audit(topic="factory/#", duration_s=8, allowed_roots=["factory"]).
     """
-    return live.uns_live_audit(
-        _target(endpoint),
-        topic,
-        duration_s,
-        max_msgs,
-        allowed_roots,
-        min_segments,
-        max_leaf_parents,
+    target = _target(endpoint)
+    result = live.uns_live_audit(
+        target, topic, duration_s, max_msgs, allowed_roots, min_segments, max_leaf_parents
     )
+    # Stored so `onboarding_status` can fork B1/B2 without contacting the broker.
+    # A capture that saw no topics audited nothing and is not stored — keeping it
+    # would read "zero findings" as a clean namespace.
+    stored = live.store_audit_for_onboard(
+        result, target, allowed_roots, min_segments, max_msgs, duration_s
+    )
+    return {**result, "stored_for_onboard": stored}
 
 
 @mcp.tool()

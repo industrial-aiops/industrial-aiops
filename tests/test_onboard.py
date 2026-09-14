@@ -419,7 +419,9 @@ def test_the_draft_states_what_it_structurally_cannot_contain():
 
 
 def test_exactly_one_step_is_next(tmp_path):
-    path = assess_path(None, db_path=tmp_path / "none.db")
+    # On the devices journey. With nothing configured and no journey chosen, the
+    # single step is a question instead — covered in test_onboard_tracks.py.
+    path = assess_path(None, db_path=tmp_path / "none.db", track="devices")
     assert [s.state for s in path.steps].count(STATE_NEXT) == 1
     assert path.next_step is not None and path.next_step.key == "survey"
     # `scan run`, not `scan plan`: the command printed for a step has to be one
@@ -524,8 +526,11 @@ def test_status_reports_a_site_with_nothing_configured_without_raising(tmp_path,
     monkeypatch.setenv("IAIOPS_CONFIG", str(tmp_path / "config.yaml"))
     result = runner.invoke(app, ["onboard", "status", "--db", str(tmp_path / "none.db"), "--json"])
     assert result.exit_code == 0, result.output
-    assert '"next_step": "survey"' in result.output
-    assert '"endpoints"' in result.output
+    # Nothing configured: the files cannot say which journey this is, so the one
+    # step is the question with both answers — not a scan the site may not need.
+    assert '"next_step": "start"' in result.output
+    assert '"track": "undecided"' in result.output
+    assert '"next_choices"' in result.output
 
 
 def test_a_broken_config_makes_draft_say_so_instead_of_offering_tuned_endpoints(
@@ -653,7 +658,8 @@ class TestTheCommandCanSatisfyItsOwnStep:
         """`scan plan` is a preview and stores nothing, so printing it as the one
         next command left a first-time site at step 1 of 6 forever: run it,
         re-run status, get the identical output."""
-        _, step = _step(_Config(), "survey", tmp_path / "none.db")
+        path = assess_path(_Config(), db_path=tmp_path / "none.db", track="devices")
+        step = next(s for s in path.steps if s.key == "survey")
         assert step.command.startswith("iaiops scan run")
         assert "scan plan" in step.detail
 
@@ -669,7 +675,8 @@ class TestAToolSideFailureIsNotASiteFact:
         scan has been stored", and the remedy offered was a live plant scan."""
         broken = tmp_path / "not-a-database.db"
         broken.write_bytes(b"this is not sqlite" * 64)
-        _, step = _step(_Config(), "survey", broken)
+        path = assess_path(_Config(), db_path=broken, track="devices")
+        step = next(s for s in path.steps if s.key == "survey")
         assert "no scan has been stored" not in step.detail
         assert "could not be read" in step.detail
         assert step.command == "", "do not send someone onto a plant network over our own error"
@@ -683,7 +690,10 @@ class TestAToolSideFailureIsNotASiteFact:
         os.environ["IAIOPS_CONFIG"] = str(broken)
         try:
             # config=None forces gather_facts to load the file, and fail on it
-            _, step = _step(None, "endpoints", tmp_path / "none.db")
+            # The devices journey reports the broken file on its endpoints step;
+            # on auto, the single start step does (test_onboard_tracks.py).
+            path = assess_path(None, db_path=tmp_path / "none.db", track="devices")
+            step = next(s for s in path.steps if s.key == "endpoints")
         finally:
             if old is None:
                 os.environ.pop("IAIOPS_CONFIG", None)

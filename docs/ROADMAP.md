@@ -673,7 +673,12 @@ Everything below is the detailed backlog with per-item status.
 
 ## UNS / MQTT as a data SOURCE (2026-09-12)
 
-- [ ] **Make MQTT/Sparkplug collectable.** Today `can_collect("mqtt")` is **False** —
+- [x] **Make MQTT/Sparkplug collectable.** **Closed 2026-09-12** — shipped on main;
+      the tap refuses stale and orphaned points, verified across three hosts against
+      a real broker and a spec-correct edge node. **待核实:** that edge node is our own,
+      written to the Sparkplug spec — not a commercial edge node or broker product, so
+      this is not a third-party pass. As the problem stood before that,
+      `can_collect("mqtt")` was **False** —
       `read_ref`, `monitor_read` and `session_read` are all `UNSUPPORTED` in the
       capability registry. So for a plant whose data has already been unified into
       MQTT/UNS — the direction the whole industry is moving, and the one a 2026-09
@@ -703,13 +708,21 @@ Everything below is the detailed backlog with per-item status.
       non-retained topic must report that it waited and saw nothing rather than
       returning stale).
 
+- [x] **`onboard` knows the two journeys.** **Closed 2026-09-12.** A UNS site was
+      sent to `scan run` first, and a scan never identifies MQTT. `onboard status` now
+      derives `devices` vs `uns` from config.yaml, asks when it cannot, and forks
+      `uns` into B1/B2 from a stored `uns-live-audit` verdict. The point-list draft
+      below no longer waits on anything (MQTT is collectable) but is still not built;
+      the UNS points step says so rather than implying a draft exists.
+
 - [ ] **Sparkplug BIRTH → point-list draft.** `mqtt live-schema` already returns
       `{node: {metric: datatype}}`. Nothing turns it into a `tags:` draft, so a UNS
-      site cannot reach the confirmation sheet. Blocked on the item above *on purpose*:
+      site cannot reach the confirmation sheet. It waited for the tap *on purpose*, and
+      the tap has now shipped:
       emitting tags for an endpoint that `can_collect` rejects would have `readiness`
       report the mapping as met while nothing collects it — which is precisely what
       `tags apply` refuses a sheet for (`_edit`: "Putting a role on a tag that is not
-      collected…"). Build the tap first, then the draft. **`role` stays empty (D16).**
+      collected…"). The tap came first; the draft is next. **`role` stays empty (D16).**
 
 **Boundary note.** All of the above is MIT and stays MIT: §8.3 rule 1 (it lets the tap
 read a data point it could not read before), and §8.3 names "任何协议 connector" among the

@@ -42,15 +42,25 @@ def status_cmd(
     db: Path = typer.Option(None, "--db", help="Local store (default: the iaiops store)."),
     as_json: bool = typer.Option(False, "--json", help="Machine-readable path."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show why each step exists."),
+    track: str = typer.Option(
+        "auto",
+        "--track",
+        help="Which journey: auto (derive from config.yaml), devices, or uns.",
+    ),
 ) -> None:
-    """Show where this site is on the path, and the one command that advances it.
+    """Show which journey this site is on, where it stands, and the next move.
+
+    Two journeys: `devices` (no UNS yet — survey, then read PLCs directly) and
+    `uns` (the data already flows through an MQTT/UNS broker — connect, audit
+    the namespace, then subscribe). The journey is derived from config.yaml;
+    when nothing is configured, or both kinds of endpoint are, it asks.
 
     Reads nothing but the local store and config.yaml, so it answers on a site
     you have not been authorised to probe — which is the site that most needs it.
     """
-    from iaiops.core.onboard import assess_path
+    from iaiops.core.onboard.path import assess_path
 
-    path = assess_path(db_path=db)
+    path = assess_path(db_path=db, track=track)
     if as_json:
         _emit(path.as_dict())
         return
@@ -67,6 +77,8 @@ def status_cmd(
             f"\n[bold]Onboarding[/] — step {path.steps.index(nxt) + 1} of {total} "
             f"([green]{path.done_count} done[/])\n"
         )
+    if path.track:
+        console.print(f"[dim]journey: {path.track} — {path.track_detail}[/]\n")
     for note in path.notes:
         console.print(f"[yellow]![/] {note}\n")
 
@@ -82,6 +94,15 @@ def status_cmd(
             "\n[green]Every step is done.[/] "
             "[dim]`iaiops readiness` lists what this site can now run.[/]\n"
         )
+    elif nxt.choices:
+        # A question the files on disk cannot answer. Both answers, labelled, and
+        # neither pre-selected — picking one here would be the tool guessing
+        # what kind of site this is.
+        # The detail is already printed under the step; repeating it here put the
+        # same paragraph on screen twice.
+        console.print(f"\n[bold]Next:[/] {nxt.label}\n")
+        for label, command in nxt.choices:
+            console.print(f"  [bold]·[/] {label}\n\n      {command}\n")
     elif nxt.command:
         console.print(f"\n[bold]Next:[/]\n\n    {nxt.command}\n")
     else:

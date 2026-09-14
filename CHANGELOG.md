@@ -4,6 +4,32 @@
 
 ### Added
 
+- **`onboard` tells the two journeys apart — a UNS site is no longer sent to scan.**
+  `onboard status` gave every site the same first step, `scan run`, and a scan never
+  identifies MQTT: a site whose data already flows through a broker was sent the
+  long way round to a dead end. The journey is now derived from `config.yaml` before
+  any step is graded — broker endpoints only → `uns` (connect → audit the namespace
+  → choose points → meaning → collect → ask), device endpoints only → `devices` (the
+  existing path). With nothing configured, or both kinds of endpoint, the single
+  step is the question with both answers and neither is picked; a config that will
+  not parse is told to fix the file rather than offered a journey over it. `--track`
+  (CLI) and `track` (MCP) override.
+
+  On `uns` a **stored** namespace audit forks the journey into **B1** (audited clean)
+  and **B2** (governance is the work; on a Sparkplug namespace the path names
+  `live-schema` for a baseline and `uns-live-drift` to watch it, and on plain MQTT it
+  says no drift watch exists, because both read BIRTH messages only). B1 needs an
+  audit taken against a naming standard, not cut short by its message cap,
+  listening for at least one `stale_after_s`, and on the broker and topic filter the
+  endpoint uses now; the journey line states the oldest audit's age. Only
+  `sprawling` is B2 — `minor` is heuristic findings to review, which a
+  spec-correct Sparkplug tree can trip. `uns-live-audit` now leaves its verdict per endpoint
+  from both front ends, because `onboard` contacts nothing and could not tell B1 from
+  B2 otherwise — and until an audit exists it says the fork is unknown. An audit
+  whose capture saw **no topics is not stored**: `uns_topic_audit` answers an empty
+  list with no verdict, and storing it would have read "zero findings" as a clean
+  namespace.
+
 - **MQTT / Sparkplug B is now a data SOURCE, not just a bus.** `can_collect("mqtt")`
   was **False**: `read_ref`, `monitor_read` and `session_read` were all
   `UNSUPPORTED`, so for a plant whose data has already been unified into a UNS —

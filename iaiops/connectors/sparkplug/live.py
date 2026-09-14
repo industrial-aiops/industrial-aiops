@@ -72,6 +72,36 @@ def uns_live_audit(
     return {**audit, "capture": capture}
 
 
+def store_audit_for_onboard(
+    result: dict,
+    target: Any,
+    allowed_roots: list[str] | None,
+    min_segments: int,
+    max_msgs: int,
+    duration_s: int,
+) -> bool:
+    """Keep this audit for `onboard`, recording what it can and cannot vouch for.
+
+    One call for both front ends. The record carries the broker and topic filter it
+    was taken on, the naming standard it was judged against, and the message cap the
+    capture ACTUALLY ran with (clamped the same way ``ops._collect`` clamps it) — so
+    a partial capture, a narrower filter, a different broker or a standard-less audit
+    cannot later be read as "this namespace is clean".
+    """
+    from iaiops.core.sink.uns_audit_store import broker_id, save_uns_audit
+
+    stored = save_uns_audit(
+        result,
+        endpoint=str(getattr(target, "name", "") or ""),
+        broker=broker_id(target),
+        allowed_roots=list(allowed_roots or ()),
+        min_segments=min_segments,
+        max_msgs=ops._clamp_count(max_msgs),
+        duration_s=ops._clamp_timeout(duration_s),
+    )
+    return stored is not None
+
+
 def sparkplug_live_schema(
     target: Any,
     topic: str = "spBv1.0/#",
@@ -147,4 +177,4 @@ def uns_live_drift(
     }
 
 
-__all__ = ["uns_live_audit", "sparkplug_live_schema", "uns_live_drift"]
+__all__ = ["store_audit_for_onboard", "uns_live_audit", "sparkplug_live_schema", "uns_live_drift"]

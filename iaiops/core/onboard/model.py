@@ -23,6 +23,17 @@ STATE_DONE: str = "done"
 STATE_NEXT: str = "next"
 STATE_WAITING: str = "waiting"
 
+#: Which journey a site is on. Derived from config.yaml, never remembered.
+#: ``devices`` — the data is read straight off PLCs and instruments (no UNS yet,
+#: or the site is building one); ``uns`` — the data already flows through an
+#: MQTT/UNS broker and iaiops subscribes. ``undecided`` and ``mixed`` are the two
+#: states where the files on disk cannot say which question is being asked, and
+#: the path asks instead of picking.
+TRACK_DEVICES: str = "devices"
+TRACK_UNS: str = "uns"
+TRACK_UNDECIDED: str = "undecided"
+TRACK_MIXED: str = "mixed"
+
 
 @dataclass(frozen=True)
 class Step:
@@ -41,6 +52,11 @@ class Step:
     command: str = ""
     #: Why this step exists at all, for the reader who has not been told.
     why: str = ""
+    #: ``(label, command)`` pairs, set only when the next move is a QUESTION the
+    #: files on disk cannot answer — "is this site's data already in a broker?".
+    #: Two labelled, mutually exclusive answers to one question are not the "five
+    #: commands" the one-next-command rule forbids; guessing one of them would be.
+    choices: tuple[tuple[str, str], ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -50,6 +66,7 @@ class Step:
             "state": self.state,
             "command": self.command,
             "why": self.why,
+            "choices": [{"label": label, "command": cmd} for label, cmd in self.choices],
         }
 
 
@@ -60,6 +77,10 @@ class OnboardPath:
     #: that will not parse, a role conflict. Never merged into a step's detail,
     #: because a problem that is not on the critical path still has to be seen.
     notes: tuple[str, ...] = ()
+    #: One of the ``TRACK_*`` values, and what it was derived from — stated, so a
+    #: reader can tell a journey the tool inferred from one they chose.
+    track: str = ""
+    track_detail: str = ""
 
     @property
     def next_step(self) -> Step | None:
@@ -78,6 +99,11 @@ class OnboardPath:
             "next_command": nxt.command if nxt else "",
             "next_step": nxt.key if nxt else "",
             "notes": list(self.notes),
+            "track": self.track,
+            "track_detail": self.track_detail,
+            "next_choices": [
+                {"label": label, "command": cmd} for label, cmd in (nxt.choices if nxt else ())
+            ],
         }
 
 
@@ -202,6 +228,10 @@ __all__ = [
     "STATE_DONE",
     "STATE_NEXT",
     "STATE_WAITING",
+    "TRACK_DEVICES",
+    "TRACK_MIXED",
+    "TRACK_UNDECIDED",
+    "TRACK_UNS",
     "Draft",
     "DraftEndpoint",
     "DraftField",

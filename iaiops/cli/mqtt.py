@@ -119,18 +119,20 @@ def uns_live_audit_cmd(
     min_segments: int = typer.Option(0, "--min-segments"),
     max_leaf_parents: int = typer.Option(5, "--max-leaf-parents"),
 ) -> None:
-    """Capture the LIVE UNS topic tree (bounded) then audit naming + sprawl."""
-    _emit(
-        live.uns_live_audit(
-            resolve_target(endpoint),
-            topic,
-            duration_s,
-            max_msgs,
-            list(root) if root else None,
-            min_segments,
-            max_leaf_parents,
-        )
+    """Capture the LIVE UNS topic tree (bounded) then audit naming + sprawl.
+
+    The verdict is stored per endpoint, so `iaiops onboard status` can say whether
+    this site is B1 (the namespace audited clean) or B2 (governance is the work)
+    without contacting the broker itself. A capture that saw no topics is NOT
+    stored: it audited nothing, and storing it would read as a clean namespace.
+    """
+    target = resolve_target(endpoint)
+    roots = list(root) if root else None
+    result = live.uns_live_audit(
+        target, topic, duration_s, max_msgs, roots, min_segments, max_leaf_parents
     )
+    stored = live.store_audit_for_onboard(result, target, roots, min_segments, max_msgs, duration_s)
+    _emit({**result, "stored_for_onboard": stored})
 
 
 @mqtt_app.command("live-schema")

@@ -157,7 +157,7 @@ server，但那已由 `opcua` connector 处理，本读层**不碰 OPC-UA**。�
   全新解释器里各跑一遍（这一臂才抓得到集合/字典迭代顺序渗进结果），全程 socket 抛异常。
   给 CSV/验证团队的是一条能写进 IQ/OQ 的测试用例，不是一句形容词。
 - 元：`protocols_supported`(产品能做什么)· `site_readiness`(这个站点今天能跑什么、还差什么;零联网)
-  · `onboarding_status`(这个站点走到哪一步了、下一条命令是什么;零联网)
+  · `onboarding_status`(先判定路线：设备直读 / 已在 UNS broker，UNS 再按已存体检分 B1/B2；再给这条路上的下一步;零联网)
   · `onboarding_config_draft`(把已存的 scan 变成 config.yaml 端点草稿 —— **只写连接事实**：
     `value: null` 的字段是扫描没确认的，照抄它的 `caution`，别替人填也别删；`tags` 永远是空的，
     点位语义只能人来确认 `iaiops tags export|apply`)
