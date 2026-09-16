@@ -47,6 +47,7 @@ import json
 import threading
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from iaiops.core.brain._shared import s
@@ -64,6 +65,11 @@ REF_SEP = ":"
 #: 12.5 rather than as a dict nothing downstream can chart.
 JSON_VALUE_KEYS = ("value", "v", "val")
 
+#: Epoch bounds a plant timestamp must fall inside (2001-09-09 .. 2065). Outside
+#: them the number is not a time — a counter, an id — and inventing a date from it
+#: would be worse than having none.
+_EPOCH_FLOOR_S, _EPOCH_CEIL_S = 1_000_000_000, 3_000_000_000
+
 MAX_CACHED_POINTS = 20000
 
 
@@ -75,6 +81,11 @@ class _Reading:
     value: Any
     source_ts: str
     received_at: float
+    #: Wall-clock arrival of THIS publish. Used as the observation time when the
+    #: payload states none, so re-reading the cache cannot look like a new
+    #: observation: 96 rows once held 20 publishes, and every analysis downstream
+    #: read the poller's rate as the data's rate.
+    arrived_iso: str = ""
 
 
 class UnsTap:
@@ -189,7 +200,7 @@ class UnsTap:
             self._put(
                 f"{node}{REF_SEP}{s(name, 96)}",
                 metric.get("value"),
-                str(metric.get("timestamp") or ""),
+                _iso_ts(metric.get("timestamp")),
             )
 
     def _forget_locked(self, node: str, *, whole_node: bool) -> None:
@@ -206,7 +217,9 @@ class UnsTap:
         with self._lock:
             if ref not in self._points and len(self._points) >= MAX_CACHED_POINTS:
                 return
-            self._points[ref] = _Reading(value, source_ts, time.monotonic())
+            self._points[ref] = _Reading(
+                value, source_ts, time.monotonic(), datetime.now(UTC).isoformat()
+            )
 
     # --- read side --------------------------------------------------------
 
@@ -247,7 +260,36 @@ class UnsTap:
                 endpoint=self.endpoint,
                 protocol="mqtt",
             )
-        return point.value, point.source_ts
+        return point.value, point.source_ts or point.arrived_iso
+
+
+def _iso_ts(raw: Any) -> str:
+    """A device timestamp as ISO-8601 text, or "" when it is not a time.
+
+    Sparkplug states timestamps as epoch MILLISECONDS (spec §6.4.1), and the
+    commonest JSON envelope states `ts` in epoch seconds or milliseconds. Passed
+    through as text, those reach the store as `1789521121683` — which sorts and
+    filters only among themselves: `oee measure` found 0 usable samples in a store
+    holding 74, `export --since` returned nothing, and `store prune` offered to
+    delete minutes-old rows because "1789…" is lexically less than "2026-…".
+    Reproduced against a real mosquitto broker on the lab network.
+    """
+    if isinstance(raw, bool) or raw is None:
+        return ""
+    text = str(raw).strip()
+    if not text:
+        return ""
+    try:
+        number = float(text)
+    except ValueError:
+        try:  # already a stated date?
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).isoformat()
+        except ValueError:
+            return ""
+    seconds = number / 1000.0 if number >= _EPOCH_FLOOR_S * 1000 else number
+    if not _EPOCH_FLOOR_S <= seconds <= _EPOCH_CEIL_S:
+        return ""
+    return datetime.fromtimestamp(seconds, UTC).isoformat()
 
 
 def _alias_map(payload: bytes) -> dict[int, str]:
@@ -284,7 +326,7 @@ def _plain_value(payload: bytes) -> tuple[Any, str]:
         if isinstance(doc, dict):
             for key in JSON_VALUE_KEYS:
                 if key in doc:
-                    return doc[key], str(doc.get("timestamp") or doc.get("ts") or "")
+                    return doc[key], _iso_ts(doc.get("timestamp") or doc.get("ts"))
             return text[:200], ""
         return text[:200], ""
     for cast in (int, float):

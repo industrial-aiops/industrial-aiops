@@ -626,6 +626,9 @@ def _score_dataflow(dataflow: dict | None, contributions: dict[str, list[dict]])
     verdict = str(dataflow.get("verdict", "")).strip()
     if not verdict or verdict == "healthy":
         return
+    # `no_per_ref_read_in_this_build` is deliberately absent: it is a limit of
+    # this build, and weighing it would diagnose comms_loss on a healthy site that
+    # was publishing every second. Reproduced on the lab broker.
     mapping = {
         "cannot_connect": ("comms_loss", W_DATAFLOW_CANNOT_CONNECT),
         "comms_ok_value_unreadable": ("comms_loss", W_DATAFLOW_BAD_QUALITY),

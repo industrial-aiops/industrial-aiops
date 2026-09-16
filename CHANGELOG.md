@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+### Fixed
+
+- **A pushed data source told the rest of the product six things that were not
+  true.** Found by pointing the collector at a real mosquitto broker on the lab
+  network, with a spec-shaped Sparkplug node publishing into it (alias-only NDATA,
+  periodic re-BIRTH, epoch-millisecond timestamps). The unit suite was green
+  throughout: a synthetic payload is written the way the decoder expects, and a
+  synthetic timestamp is already ISO-8601.
+
+  * **Sparkplug and JSON timestamps reached the store unparsed.** Sparkplug states
+    epoch MILLISECONDS; the tap passed the number through as text, so rows landed
+    as `1789521121683`. `collect run` then reported 92.5% coverage of data nothing
+    downstream could read: `oee measure` found **0 usable samples in a store
+    holding 74**, `export --since` returned nothing, and — worst — `store prune`
+    offered to delete rows collected ninety seconds earlier, because `ts` is TEXT
+    and `"1789…"` sorts before `"2026-…"`. Timestamps are now converted where they
+    are decoded, a number that is not a plausible instant yields none rather than
+    a date invented from a counter, and **prune can only delete rows that state a
+    date** (the rest are kept and counted as `rows_undated_kept`).
+  * **Re-reading the last-value cache counted as a new observation.** Polling a
+    1 Hz publisher every 200 ms wrote 97 rows for 18 distinct values, which
+    inflated coverage, the cadence every blind-gap limit is derived from, and the
+    resolution the run claims — measured against a real 61-second publisher
+    outage, ~29 unobserved seconds were counted as run time. A poll that finds the
+    same publish is now counted as a `repeat`, not written; a payload that states
+    no time is stamped with its ARRIVAL, so repeats are recognisable at all.
+  * **A capability this build lacks was diagnosed as a fault at the site.** MQTT
+    has no per-ref read, and `diag dataflow` turned that into
+    `comms_ok_value_unreadable` — "the point does not exist on this device" — on a
+    topic publishing every second, which `rca` then weighed as `comms_loss` with
+    "restart the comms driver". New verdict `no_per_ref_read_in_this_build`, which
+    says it describes the build and contributes no cause.
+  * **`readiness` graded the protocol, not the endpoint.** It reported "Continuous
+    collection — ready" for a broker endpoint with no `stale_after_s`, which the
+    tap refuses outright; `onboard` had this right and the two contradicted each
+    other. It now names the endpoint and the reason.
+  * **`onboard` handed a Sparkplug site the plain-MQTT ref rule** whenever the
+    topic filter was `#` (the default): following it produced refs collection
+    refused as never-published — the tool's own wrong answer, reported as the
+    site's mistake. With `#` it now teaches both rules and browses first.
+  * **Rich markup ate printed text.** `tags apply` printed `running_when:` with
+    the value deleted, because `[true]` reads as a style tag — pasting the patch
+    yielded `null`; `--out` was always correct. The same bug crashed
+    `onboard status` on a ref containing `[/device]`. Both paths now print
+    without markup.
+
+
 ### Added
 
 - **`onboard` tells the two journeys apart — a UNS site is no longer sent to scan.**

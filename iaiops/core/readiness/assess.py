@@ -77,11 +77,11 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
         {str(getattr(t, "protocol", "")) for t in targets if getattr(t, "protocol", "")}
     )
     monitored = sum(len(getattr(t, "tags", ()) or ()) for t in targets)
-    from iaiops.core.collect.reader import can_collect
+    from iaiops.core.collect.reader import collectable_reason
 
-    collectable = [
-        str(getattr(t, "name", "")) for t in targets if can_collect(str(getattr(t, "protocol", "")))
-    ]
+    blocked = {str(getattr(t, "name", "")): collectable_reason(t) for t in targets}
+    collectable = [name for name, why in blocked.items() if not why]
+    not_collectable = [f"{name} ({why})" for name, why in blocked.items() if why]
     from iaiops.core.runtime.config import TagRole, roles_present
 
     oee_roles: dict[str, str] = {}
@@ -104,6 +104,7 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
             if str(getattr(t, "protocol", "")) in ALARM_CAPABLE_PROTOCOLS
         ],
         "collectable_endpoints": collectable,
+        "not_collectable_endpoints": not_collectable,
         "oee_roles": dict(sorted(oee_roles.items())),
         "role_conflict": role_conflict,
         "oee_required_roles": [TagRole.RUN_STATE, TagRole.TOTAL_COUNT],
@@ -146,6 +147,7 @@ def _collectable_req(facts: dict[str, Any]) -> Requirement:
     protocol, so the fix names the protocols that do work.
     """
     names = facts["collectable_endpoints"]
+    blocked = list(facts.get("not_collectable_endpoints") or ())
     from iaiops.core.collect.reader import collectable_protocols
 
     return Requirement(
@@ -155,11 +157,13 @@ def _collectable_req(facts: dict[str, Any]) -> Requirement:
         detail=(
             f"collectable endpoints: {', '.join(names)}"
             if names
-            else "no configured endpoint has a point-read path"
-        ),
+            else "no configured endpoint can be sampled on a schedule"
+        )
+        + (f" — not collectable: {'; '.join(blocked[:5])}" if blocked else ""),
         fix=(
-            "Continuous collection needs a protocol with a point-read path. "
-            f"Available today: {', '.join(collectable_protocols())}."
+            "Continuous collection needs a protocol with a point-read path, and on a "
+            "push protocol an endpoint that states `stale_after_s`. Protocols "
+            f"available today: {', '.join(collectable_protocols())}."
         ),
     )
 

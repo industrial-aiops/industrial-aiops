@@ -29,6 +29,32 @@ def can_collect(protocol: str) -> bool:
     return bool(cap) and cap.monitor_read is not UNSUPPORTED
 
 
+#: Protocols whose data is PUSHED to us. Their reader serves a last-value cache,
+#: which is only honest when the endpoint states how often a point publishes.
+PUSH_PROTOCOLS = frozenset({"mqtt"})
+
+
+def collectable_reason(target: Any) -> str:
+    """Why this ENDPOINT cannot be sampled on a schedule — "" when it can.
+
+    `can_collect` answers for the PROTOCOL. An endpoint needs more: the MQTT tap
+    refuses to start without `stale_after_s`, so grading the site "continuous
+    collection — ready" on the protocol alone promised something the very next
+    command refused.
+    """
+    protocol = str(getattr(target, "protocol", "") or "")
+    if not can_collect(protocol):
+        return f"protocol {protocol!r} has no point-read path in this build"
+    if protocol in PUSH_PROTOCOLS:
+        try:
+            interval = float(getattr(target, "stale_after_s", 0) or 0)
+        except (TypeError, ValueError):
+            interval = 0.0
+        if interval <= 0:
+            return "no `stale_after_s`, which collection requires on a push protocol"
+    return ""
+
+
 def collectable_protocols() -> tuple[str, ...]:
     """Every protocol that continuous collection can currently drive."""
     from iaiops.core.runtime.capabilities import REGISTRY

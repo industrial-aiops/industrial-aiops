@@ -137,6 +137,16 @@ def _score_read_hops(
             "detail": s(str(read_desc.get("error", read_desc.get("value", ""))), 160),
         }
     )
+    if read_desc.get("unsupported"):
+        return _verdict(
+            hops,
+            "no_per_ref_read_in_this_build",
+            "Connected. This build has no per-ref read for this protocol, so this "
+            "says NOTHING about the point or the network — a push protocol carries "
+            "values to a subscription rather than answering per-ref reads.",
+            "Collect it instead (`iaiops collect run <endpoint>`), or list what the "
+            "endpoint carries (`iaiops mqtt browse` / `iaiops mqtt live-schema`).",
+        )
     if not readable:
         return _verdict(
             hops,
@@ -246,7 +256,12 @@ def _read_ref(target: Any, ref: str) -> dict:
     cap = get_capabilities(protocol)
     reader = cap.read_ref if cap else UNSUPPORTED
     if reader is UNSUPPORTED:
-        return {"error": f"No per-ref read for protocol '{protocol}'."}
+        # Marked, because the CALLER must not turn "this build cannot read a point
+        # on this protocol" into a verdict about the customer's network.
+        return {
+            "error": f"No per-ref read for protocol '{protocol}'.",
+            "unsupported": True,
+        }
     try:
         return reader(target, ref)
     except Exception as exc:  # noqa: BLE001 — a read failure is a per-ref status

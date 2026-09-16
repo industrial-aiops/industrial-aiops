@@ -66,6 +66,12 @@ class RunResult:
     plan: CollectionPlan
     samples_written: int = 0
     attempted: int = 0
+    #: Ticks where the point was live but had not been REPUBLISHED since the last
+    #: write. Counted, never written: a push protocol serves a last-value cache,
+    #: and writing each poll again made 20 publishes look like 96 samples, which
+    #: inflated coverage, the cadence every blind-gap limit is derived from, and
+    #: the resolution the run claims.
+    repeats: int = 0
     gaps: tuple[dict[str, Any], ...] = ()
     elapsed_s: float = 0.0
     stopped_because: str = DURATION_REACHED
@@ -80,7 +86,9 @@ class RunResult:
         """
         if not self.attempted:
             return 0.0
-        return round(100.0 * self.samples_written / self.attempted, 2)
+        # A repeat means the point WAS live at that tick, so it counts as covered
+        # even though it is not a new sample.
+        return round(100.0 * (self.samples_written + self.repeats) / self.attempted, 2)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -98,6 +106,7 @@ class RunResult:
             "samples_written": self.samples_written,
             "attempted": self.attempted,
             "coverage_pct": self.coverage_pct,
+            "repeats": self.repeats,
             "gaps": [dict(g) for g in self.gaps],
             "note": (
                 "Gaps are windows where collection was blind — they are NOT downtime. "
@@ -206,6 +215,10 @@ def run_collection(
         session_ctx = None
         subject = None
 
+    #: ref → the source timestamp last written for it (empty when the protocol
+    #: states none, which means every tick is a fresh observation).
+    last_written: dict[str, str] = {}
+    repeats = 0
     connected = _open()
     try:
         while clock.monotonic() < deadline:
@@ -227,6 +240,7 @@ def run_collection(
                     continue
 
             batch: list[dict] = []
+            repeated = 0
             for ref in plan.tags:
                 attempted += 1
                 try:
@@ -250,15 +264,22 @@ def run_collection(
                         break
                     continue
                 tracker.success()
+                stamp = source_ts or _now_iso()
+                if source_ts and last_written.get(ref) == source_ts:
+                    # Same publish, polled again. Not a new observation.
+                    repeated += 1
+                    continue
+                last_written[ref] = stamp if source_ts else ""
                 batch.append(
                     {
                         "metric": ref,
                         "value": value,
                         "numeric": isinstance(value, (int, float)) and not isinstance(value, bool),
-                        "timestamp": source_ts or _now_iso(),
+                        "timestamp": stamp,
                     }
                 )
 
+            repeats += repeated
             if batch:
                 written += sink.write(batch)
             clock.sleep(interval_s)
@@ -270,6 +291,7 @@ def run_collection(
         plan=plan,
         samples_written=written,
         attempted=attempted,
+        repeats=repeats,
         gaps=tuple(tracker.gaps),
         elapsed_s=clock.monotonic() - started,
         stopped_because=stopped,

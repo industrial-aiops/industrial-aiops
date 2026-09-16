@@ -115,7 +115,11 @@ def apply_cmd(
         console.print(f"\n[green]✓[/] {len(edits)} confirmed — patch written to [bold]{path}[/]\n")
     else:
         console.print(f"\n[green]✓[/] {len(edits)} confirmed. Merge this into config.yaml:\n")
-        console.print(patch)
+        # markup=False: the patch carries `running_when: [true]`, which rich reads
+        # as a style tag and DELETES — the printed block then says `running_when:`
+        # with no value, and pasting it yields null. `--out` was always correct;
+        # the path whose banner says "merge this into config.yaml" was not.
+        console.print(patch, markup=False, highlight=False)
     console.print(
         "[dim]Nothing was written to config.yaml. After merging, run "
         "`iaiops onboard status` for the next step (`iaiops readiness` for the "

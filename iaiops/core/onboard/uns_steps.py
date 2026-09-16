@@ -15,6 +15,10 @@ from typing import Any
 
 from iaiops.core.onboard.model import STATE_DONE, STATE_NEXT, STATE_WAITING
 
+#: Sparkplug topics start here; a ref under one is `group/edge[/device]:metric`,
+#: never the topic itself.
+_SPARKPLUG_PREFIX = "spBv1.0"
+
 
 def _name(target: Any) -> str:
     return str(getattr(target, "name", ""))
@@ -297,8 +301,23 @@ def _uns_points_step(brokers: tuple[Any, ...]) -> tuple[str, str, str]:
         return STATE_DONE, f"{count} point(s) across {len(brokers)} broker endpoint(s)", ""
     first = empty[0]
     topic = str(getattr(first, "topic", "") or "#")
-    sparkplug = topic.startswith("spBv1.0")
+    sparkplug = topic.startswith(_SPARKPLUG_PREFIX)
     name = shlex.quote(_name(first))
+    if topic in ("", "#"):
+        # The filter covers everything, so it says nothing about which kind of
+        # namespace this is. Picking the plain-MQTT rule here handed a Sparkplug
+        # site `spBv1.0/Line1/NDATA/Edge1` as a ref; collection then refused it as
+        # never-published — the tool's own wrong answer, blamed on the site.
+        return (
+            STATE_NEXT,
+            f"{len(empty)} of {len(brokers)} broker endpoint(s) have no points — first: "
+            f"{_name(first)}. The topic filter is '#', so it does not say which kind of "
+            "namespace this is. Browse it first: if you see `spBv1.0/…` topics it is "
+            "Sparkplug, and a ref is `group/edge[/device]:metric` exactly as "
+            "`iaiops mqtt live-schema` prints the node — NOT the topic. Otherwise a ref "
+            "is the topic itself. Nothing turns either listing into `tags:` yet.",
+            f"iaiops mqtt browse --endpoint {name} --topic '#'",
+        )
     if sparkplug:
         command = f"iaiops mqtt live-schema --endpoint {name} --duration-s 30"
         ref_rule = (

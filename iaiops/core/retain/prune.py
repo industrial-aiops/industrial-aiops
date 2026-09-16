@@ -36,6 +36,30 @@ def _resolve(db_path: Any) -> Path:
     return Path(db_path).expanduser() if db_path else local_db_path()
 
 
+#: `ts` is TEXT, so `ts < cutoff` is a LEXICAL comparison. A row whose timestamp
+#: is not ISO-8601 — an epoch number from a protocol that states one, a device
+#: format nothing could parse — sorts before every real date, so a prune offered
+#: to delete minutes-old rows as "older than the cutoff". Deletion is restricted
+#: to rows that actually state a date; the rest are kept and reported, because
+#: "we cannot tell how old this is" must never resolve to "delete it".
+#: Written out in full in each statement rather than interpolated: a query built
+#: by formatting is one both a reader and the security scanner have to prove safe.
+_COUNT_EXPIRED = (
+    "SELECT COUNT(*), MIN(ts) FROM samples "
+    "WHERE ts GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' AND ts < ?"
+)
+_COUNT_KEPT = (
+    "SELECT COUNT(*) FROM samples "
+    "WHERE NOT (ts GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*') OR ts >= ?"
+)
+_COUNT_UNDATED = (
+    "SELECT COUNT(*) FROM samples WHERE NOT (ts GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*')"
+)
+_DELETE_EXPIRED = (
+    "DELETE FROM samples WHERE ts GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*' AND ts < ?"
+)
+
+
 def _connect(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
@@ -66,6 +90,7 @@ def plan_prune(
         "rows_to_remove": 0,
         "rows_to_keep": 0,
         "oldest": "",
+        "rows_undated_kept": 0,
         "note": policy.summary,
     }
     if not path.exists():
@@ -73,12 +98,9 @@ def plan_prune(
 
     conn = _connect(path)
     try:
-        row = conn.execute(
-            "SELECT COUNT(*), MIN(ts) FROM samples WHERE ts < ?", (cutoff.isoformat(),)
-        ).fetchone()
-        keep = conn.execute(
-            "SELECT COUNT(*) FROM samples WHERE ts >= ?", (cutoff.isoformat(),)
-        ).fetchone()
+        row = conn.execute(_COUNT_EXPIRED, (cutoff.isoformat(),)).fetchone()
+        keep = conn.execute(_COUNT_KEPT, (cutoff.isoformat(),)).fetchone()
+        undated = conn.execute(_COUNT_UNDATED).fetchone()
     except sqlite3.DatabaseError:
         return empty
     finally:
@@ -89,6 +111,9 @@ def plan_prune(
         "rows_to_remove": int(row[0] or 0),
         "rows_to_keep": int(keep[0] or 0),
         "oldest": str(row[1] or ""),
+        # Named, not silently spared: undated rows are a defect upstream, and a
+        # store that quietly accumulates them would never expire anything.
+        "rows_undated_kept": int(undated[0] or 0),
     }
 
 
@@ -137,7 +162,7 @@ def prune(
 
     conn = _connect(path)
     try:
-        cur = conn.execute("DELETE FROM samples WHERE ts < ?", (planned["cutoff"],))
+        cur = conn.execute(_DELETE_EXPIRED, (planned["cutoff"],))
         removed = cur.rowcount
         conn.commit()
         kept = int(conn.execute("SELECT COUNT(*) FROM samples").fetchone()[0] or 0)

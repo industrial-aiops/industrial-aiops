@@ -22,6 +22,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
+from rich import markup
 
 from iaiops.cli._common import _emit, cli_errors, console
 
@@ -65,6 +66,11 @@ def status_cmd(
         _emit(path.as_dict())
         return
 
+    # Step text quotes REFS and commands — `group/edge[/device]:metric`, a topic
+    # with a `[` in it. Rich reads `[/device]` as a closing tag and either raises
+    # or silently eats the text, so every field that can carry site data or a
+    # printed command is escaped before it reaches the console.
+    esc = markup.escape
     total = len(path.steps)
     nxt = path.next_step
     if nxt is None:
@@ -78,16 +84,16 @@ def status_cmd(
             f"([green]{path.done_count} done[/])\n"
         )
     if path.track:
-        console.print(f"[dim]journey: {path.track} — {path.track_detail}[/]\n")
+        console.print(f"[dim]journey: {path.track} — {esc(path.track_detail)}[/]\n")
     for note in path.notes:
-        console.print(f"[yellow]![/] {note}\n")
+        console.print(f"[yellow]![/] {esc(note)}\n")
 
     for index, step in enumerate(path.steps, start=1):
         mark, colour = _MARK.get(step.state, ("[dim]?[/]", "dim"))
-        console.print(f"{mark} [{colour}]{index}. {step.label}[/]")
-        console.print(f"   [dim]{step.detail}[/]")
+        console.print(f"{mark} [{colour}]{index}. {esc(step.label)}[/]")
+        console.print(f"   [dim]{esc(step.detail)}[/]")
         if verbose and step.why:
-            console.print(f"   [dim italic]{step.why}[/]")
+            console.print(f"   [dim italic]{esc(step.why)}[/]")
 
     if nxt is None:
         console.print(
@@ -100,15 +106,15 @@ def status_cmd(
         # what kind of site this is.
         # The detail is already printed under the step; repeating it here put the
         # same paragraph on screen twice.
-        console.print(f"\n[bold]Next:[/] {nxt.label}\n")
+        console.print(f"\n[bold]Next:[/] {esc(nxt.label)}\n")
         for label, command in nxt.choices:
-            console.print(f"  [bold]·[/] {label}\n\n      {command}\n")
+            console.print(f"  [bold]·[/] {esc(label)}\n\n      {esc(command)}\n")
     elif nxt.command:
-        console.print(f"\n[bold]Next:[/]\n\n    {nxt.command}\n")
+        console.print(f"\n[bold]Next:[/]\n\n    {esc(nxt.command)}\n")
     else:
         console.print(
-            f"\n[bold]Next:[/] {nxt.label} — [dim]no single command does this one; "
-            f"{nxt.detail}[/]\n"
+            f"\n[bold]Next:[/] {esc(nxt.label)} — [dim]no single command does this "
+            f"one; {esc(nxt.detail)}[/]\n"
         )
 
 
