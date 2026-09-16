@@ -20,9 +20,9 @@ Prefer a container? The published image is **cosign-signed** and runs **non-root
 over stdio, so keep stdin open and mount a volume for the audit store:
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.27.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.27.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 ```
 
 For a hardened or air-gapped deployment (read-only rootfs, `cap_drop: ALL`, no-new-privileges,
@@ -51,9 +51,9 @@ before it sends anything.
 
 ```bash
 pip install "iaiops[modbus]"     # pick the protocol you actually have, or [all]
+iaiops onboard status            # ← run this first. Contacts NOTHING.
 iaiops doctor                    # config, secrets, reachability — and the version
-iaiops readiness                 # ← start here: every scenario, and what each gap needs
-iaiops onboard status            # the one next command — ships in the NEXT release, on main today
+iaiops readiness                 # every scenario, and what each gap needs
 ```
 
 `onboard status` answers the smaller questions you have first: **which journey is

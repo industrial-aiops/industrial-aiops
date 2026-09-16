@@ -491,7 +491,7 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
   current-state observation — and it is the reason a pure-app front-end and an agent
   front-end are the same engine, not two products.
 
-## Status — 2026-08-02 (historical; current release is `iaiops 0.27.0`)
+## Status — 2026-08-02 (historical; current release is `iaiops 0.28.0`)
 
 Latest published: base **`iaiops 0.21.1`**, energy **`iaiops-energy 0.1.11`** — PyPI +
 GitHub Release (with the signed Margo package) + MCP registry + SkillHub ×10 + 5 signed

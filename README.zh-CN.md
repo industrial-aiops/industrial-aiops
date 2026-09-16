@@ -18,9 +18,9 @@ iaiops doctor                    # 先自检，再谈信任
 也可以直接跑容器 —— **cosign 签名**、**非 root**。它以 stdio 讲 MCP，所以要保持 stdin 打开，并挂一个卷存审计库：
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.27.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.27.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 ```
 
 要加固部署或离线部署（只读根文件系统、`cap_drop: ALL`、no-new-privileges、可选端侧 LLM），
@@ -51,8 +51,8 @@ pharma · renewables · plcnext，各自带只读的行业建议检查。变电/
 pip install "iaiops[modbus]"     # 选你真有的那个协议，或者 [all]
 iaiops init                      # 交互式配一个端点
 iaiops doctor                    # 配置、凭据、连通性 —— 以及版本号
-iaiops readiness                 # ← 先跑这条。零联网。
-iaiops onboard status            # 下一条命令是什么 —— 随下一版发布，今天在 main 上
+iaiops onboard status            # ← 先跑这条：走哪条路、第几步、下一条命令。零联网。
+iaiops readiness                 # 这个站点今天能跑哪些场景，每个缺口还差什么
 ```
 
 `readiness` 只读你的配置和本地库，回答一个问题：**这个站点今天能跑哪些场景，每个缺口还差什么？**
@@ -62,7 +62,7 @@ iaiops onboard status            # 下一条命令是什么 —— 随下一版�
 ### 先分路：数据还在设备里，还是已经在 UNS 里？
 
 `iaiops onboard status` 从 `config.yaml` 推出这个站点走哪条路、在第几步、下一条命令是什么；
-推不出来就问 —— 两个选项都给，一个都不替你选。**（已合入 main，随下一版发布；当前发布版没有。）**
+推不出来就问 —— 两个选项都给，一个都不替你选。**（0.28.0 起随包发布。）**
 
 | | 从哪开始 | 之后 |
 |---|---|---|
