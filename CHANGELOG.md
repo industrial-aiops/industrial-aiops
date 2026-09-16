@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- **`collect run` reported the END of a run as its `started_at`** — off by the
+  whole duration, which on the week-long assessment run this feature exists for is
+  a week. The session store had the real start, so only the run record was wrong.
+- **`store prune --sealed-before 2026-08-16T00:00:00` crashed** with a bare
+  `TypeError: can't compare offset-naive and offset-aware datetimes`. A timestamp
+  with no offset is now read as UTC, the same reading `oee measure` gives a window
+  bound, and the help text says so.
 - **A pushed data source told the rest of the product six things that were not
   true.** Found by pointing the collector at a real mosquitto broker on the lab
   network, with a spec-shaped Sparkplug node publishing into it (alias-only NDATA,
@@ -376,6 +383,24 @@
   says plainly that the gaps below are the report's rather than the operator's.
   Carried as a `config_note` field (in `as_dict()`, so the MCP side sees it too)
   rather than as one footnote among several.
+
+### Changed
+
+- **Documentation gates, after an audit found the drift they would have caught.**
+  `test_version_parity` now covers the IGEL recipe (four files that sat at 0.15.0
+  while every other manifest moved) and `deploy/margo/Dockerfile`'s
+  `ARG IAIOPS_VERSION`. A new `test_verification_claims` holds the README's
+  credibility table against `docs/VERIFICATION-RECORD.md` — they had drifted, and
+  in the UNDERclaiming direction: MQTT / Sparkplug B was graded 2a against a real
+  broker in the record and still listed as "mock-verified, no real device" in the
+  README, as were S7comm, Mitsubishi MC and SECS/GEM. The table now mirrors the
+  record's rungs. The same file asserts the edition count against the skills that
+  ship — the English README said nine and ten ship (`pharma` was missing).
+- **README quickstart no longer opens on a command the released version lacks**
+  (`onboard status` is on main, unreleased), and the Chinese README now documents
+  the two journeys, B1/B2 and why `stale_after_s` has no default.
+- **HLD §15** records the two journeys, the push-source consequences and four
+  decisions (D37–D40) — the architecture of record had no UNS section at all.
 
 ## 0.27.0 — 2026-09-03
 

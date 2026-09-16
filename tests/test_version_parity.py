@@ -50,6 +50,12 @@ _TAGGED_FILES = (
     "deploy/siemens-ie/README.md",
     "deploy/siemens-ie/SUBMISSION.md",
     "deploy/siemens-ie/docker-compose.yaml",
+    # The IGEL recipe was the one deploy target nothing guarded, and it sat at
+    # 0.15.0 while every other manifest moved — an app submission pointing at an
+    # image tag twelve releases old.
+    "deploy/igel/README.md",
+    "deploy/igel/SUBMISSION.md",
+    "deploy/igel/app-recipe/input/all/etc/systemd/system/iaiops.service",
 )
 
 
@@ -107,3 +113,18 @@ def test_the_changelog_has_a_section_for_this_version():
     assert re.search(
         rf"^## {re.escape(_version())} — \d{{4}}-\d{{2}}-\d{{2}}", text, re.MULTILINE
     ), f"CHANGELOG.md has no `## {_version()} — <date>` heading"
+
+
+def test_the_igel_app_version_tracks_the_release():
+    """`app.json` states a SemVer of its own, which IGEL shows to the operator.
+    It is not an image tag, so the sweep above cannot see it."""
+    data = json.loads((_root() / "deploy/igel/app-recipe/app.json").read_text("utf-8"))
+    assert data["version"] == _version(), data["version"]
+
+
+def test_the_margo_dockerfile_builds_this_release():
+    """`ARG IAIOPS_VERSION` becomes `pip install iaiops==<version>`; stale, it
+    builds an image whose name says one release and whose contents are another."""
+    text = (_root() / "deploy/margo/Dockerfile").read_text("utf-8")
+    declared = re.findall(r"ARG IAIOPS_VERSION=(\d+\.\d+\.\d+)", text)
+    assert declared == [_version()], declared

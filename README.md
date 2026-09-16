@@ -39,8 +39,8 @@ deterministic; an LLM is optional and only *phrases* the verdict.
 | **Governs** | audit · budget · risk-tier · undo — on *every* call, through one engine, from both MCP and CLI |
 | **Stays yours** | no telemetry, no phone-home. Six tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all six for an air-gapped posture |
 
-Nine per-industry editions ship in this package — fab · factory · process · building · water ·
-warehouse · clinical · renewables · plcnext — each adding its own read-only advisory checks.
+Ten per-industry editions ship in this package — fab · factory · process · building · water ·
+warehouse · clinical · pharma · renewables · plcnext — each adding its own read-only advisory checks.
 Substation / utility telecontrol (IEC-104 · DNP3 · IEC-61850) ships separately as
 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
 
@@ -51,9 +51,9 @@ before it sends anything.
 
 ```bash
 pip install "iaiops[modbus]"     # pick the protocol you actually have, or [all]
-iaiops onboard status            # ← run this first. Contacts NOTHING.
 iaiops doctor                    # config, secrets, reachability — and the version
-iaiops readiness                 # every scenario and what each gap needs
+iaiops readiness                 # ← start here: every scenario, and what each gap needs
+iaiops onboard status            # the one next command — ships in the NEXT release, on main today
 ```
 
 `onboard status` answers the smaller questions you have first: **which journey is
@@ -134,11 +134,17 @@ Short version: **verified against real protocol libraries, containers and in-pro
 not yet against real plant gear.** We grade evidence rather than saying "tested", because a real
 container round-trip and a synthetic fixture are not the same claim.
 
-| Rung | What it means | Status |
+| Rung | Who judges our frames | Protocols at this rung today |
 |---|---|---|
-| Real libraries / containers / in-process servers | OPC-UA (incl. cert `Sign`/`SignAndEncrypt` + A&C), Modbus-RTU over a `socat` PTY + `pymodbus`, BACnet/IP via `bacpypes3` on a two-IP subnet, **MTConnect against the Institute's own `cppagent`**, IoTDB / TDengine live write→read, HART codec vs `hart-protocol`, PLCnext route via `asyncua` | ✅ |
-| Mock-verified (protocol logic exercised, no real device) | Omron FINS, IO-Link, BAS (Metasys / Niagara), Ignition Gateway, EtherNet/IP PCCC, Sparkplug B, S7 / MC / SECS-GEM | ⚠️ |
-| **Real gear** | physical RS-485 devices, EtherCAT slaves, live HART gateways, live HVAC / BAS / Ignition, real PLCs | **zero, for every protocol** |
+| **2a** — real wire to a **third-party** server | somebody else's implementation of the spec | OPC-UA (Microsoft `opc-plc`; certificate trust enforced both ways) · Modbus TCP (`pymodbus`) · Modbus RTU (`pymodbus` over a `socat` PTY) · MQTT / Sparkplug B (a real `mosquitto` broker) · BACnet/IP (`bacpypes3`, two IPs on one subnet) · MTConnect (the Institute's own `cppagent`) · SECS/GEM (`secsgem` equipment side) · EtherNet/IP (identification) |
+| **2b** — real wire to a server **we wrote** from the spec | the third-party *client* parses our frames | S7comm (`pyS7`) · Mitsubishi MC (`pymcprotocol`) · EtherNet/IP (tag layer — `pycomm3`, all three driver routes) · PROFINET-DCP |
+| **2c** — real wire, but **both ends are ours** | nobody independent | Omron FINS · IO-Link · HART-IP (codec itself at rung 1, against `hart-protocol`) |
+| **mock only** — protocol logic exercised, nothing on the wire | — | EtherCAT · BAS (Metasys / Niagara) · Ignition gateway |
+| **3** — real physical / vendor device | the device | **zero, for every protocol** |
+
+Each row's detail — and, per protocol, *what is still not covered* — is in
+[`docs/VERIFICATION-RECORD.md`](docs/VERIFICATION-RECORD.md). That file is the
+record; this table is its summary, and a test fails if the two disagree.
 
 **Per-protocol evidence — including what each test does *not* cover — is in
 [docs/VERIFICATION-RECORD.md](docs/VERIFICATION-RECORD.md)**, one row per protocol, naming the test

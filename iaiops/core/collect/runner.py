@@ -176,6 +176,11 @@ def run_collection(
 
     clock = clock or _RealClock()
     started = clock.monotonic()
+    # Read here, not in the result: `_now_iso()` evaluated at construction time
+    # reported the END of the run as its start — a week out on the week-long
+    # assessment run this feature exists for, and anyone correlating an incident
+    # against the stated start was off by the whole duration.
+    started_iso = _now_iso()
     deadline = started + plan.duration_s
     interval_s = plan.interval_ms / 1000.0
     tracker = _GapTracker()
@@ -295,7 +300,7 @@ def run_collection(
         gaps=tuple(tracker.gaps),
         elapsed_s=clock.monotonic() - started,
         stopped_because=stopped,
-        started_at=_now_iso(),
+        started_at=started_iso,
     )
 
 

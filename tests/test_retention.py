@@ -205,3 +205,26 @@ class TestAnEmptyStoreIsNotAnError:
     def test_pruning_nothing_is_fine(self, tmp_path):
         result = prune(tmp_path / "none.db", RetentionPolicy(), now=NOW, sealed_before=NOW)
         assert result["rows_to_remove"] == 0
+
+
+def test_sealed_before_without_an_offset_is_read_as_utc(tmp_path, monkeypatch):
+    """`--sealed-before 2026-08-16T00:00:00` — the form most people type — raised
+    a bare `TypeError: can't compare offset-naive and offset-aware datetimes`."""
+    from typer.testing import CliRunner
+
+    from iaiops.cli._root import app
+    from iaiops.core.sink.sqlite_local import SQLiteLocalSink
+
+    db = tmp_path / "data.db"
+    sink = SQLiteLocalSink(db_path=db, endpoint="line1", protocol="modbus")
+    sink.write(
+        [{"metric": "t", "value": 1, "numeric": True, "timestamp": "2020-01-01T00:00:00+00:00"}]
+    )
+    sink.close()
+    monkeypatch.setenv("IAIOPS_HOME", str(tmp_path))
+    result = CliRunner().invoke(
+        app, ["store", "prune", "--db", str(db), "--sealed-before", "2026-08-16T00:00:00", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Traceback" not in result.output
+    assert '"rows_to_remove": 1' in result.output

@@ -301,3 +301,23 @@ class TestTimestampsResolveWhatTheRunClaims:
         from iaiops.core.collect.runner import TIMESTAMP_RESOLUTION_S
 
         assert TIMESTAMP_RESOLUTION_S <= MIN_INTERVAL_MS / 1000.0
+
+
+class TestTheRunSaysWhenItStarted:
+    def test_started_at_is_the_start_not_the_end(self, tmp_path, monkeypatch):
+        """`started_at=_now_iso()` sat in the RESULT constructor, so it was read
+        after the loop: a week-long assessment run reported its start a week late,
+        and anyone correlating an incident against it was off by the duration."""
+        from iaiops.core.collect import runner as mod
+
+        stamps = iter([f"2026-09-16T01:{minute:02d}:00+00:00" for minute in range(1, 40)])
+        monkeypatch.setattr(mod, "_now_iso", lambda: next(stamps))
+        result = run_collection(
+            plan(duration_s=5),
+            target=object(),
+            reader=reader_returning(1.0),
+            db_path=tmp_path / "d.db",
+            clock=FakeClock(),
+        )
+        assert result.started_at == "2026-09-16T01:01:00+00:00"
+        assert result.as_dict()["started_at"] == result.started_at

@@ -89,7 +89,10 @@ def store_prune_cmd(
     sealed_before: str = typer.Option(
         None,
         "--sealed-before",
-        help="ISO timestamp up to which derived facts exist. Required to actually remove.",
+        help=(
+            "ISO timestamp up to which derived facts exist (UTC if no offset given). "
+            "Required to actually remove."
+        ),
     ),
     db: Path = typer.Option(None, "--db"),
     apply: bool = typer.Option(False, "--apply", help="Actually remove. Irreversible."),
@@ -101,7 +104,7 @@ def store_prune_cmd(
     value has been extracted into derived facts, or the deletion silently
     destroys the only record of a period nobody has looked at yet.
     """
-    from datetime import datetime
+    from datetime import UTC, datetime
 
     from iaiops.core.retain.policy import RetentionPolicy
     from iaiops.core.retain.prune import prune
@@ -115,7 +118,13 @@ def store_prune_cmd(
 
     seal = None
     if sealed_before:
+        # A bare `2026-08-16T00:00:00` is naive, and comparing it with the
+        # timezone-aware cutoff raised a bare TypeError. Read as UTC, the same
+        # reading `oee measure` gives a window bound, rather than crashing on the
+        # form most people type.
         seal = datetime.fromisoformat(sealed_before.replace("Z", "+00:00"))
+        if seal.tzinfo is None:
+            seal = seal.replace(tzinfo=UTC)
 
     result = prune(db, policy, sealed_before=seal, apply=apply)
     if as_json:
