@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Tests
+
+- **A Sparkplug B stream recorded from a real broker, replayed through the tap**
+  (`tests/data/sparkplug/`, `tests/test_sparkplug_recorded_frames.py`). Until now
+  every Sparkplug payload in the suite was built by the test itself, shaped the way
+  the decoder expects — which is how a real node's habit of naming metrics only in
+  NBIRTH once went unnoticed. The corpus is 122 frames as mosquitto 2.1.2 delivered
+  them across three lab hosts (broker, node and recorder on separate machines):
+  NBIRTH, 120 alias-only NDATA (360 metric entries, none named), a stopped window,
+  and an NDEATH the broker published as the node's Last Will after the node was
+  frozen — so it arrived only when keepalive expired, 7.5 s after the last update,
+  the way a pulled cable looks. The node is ours, written from the spec — not a
+  vendor device. Expected values are decoded independently of the tap's decoder.
+  Four mutations of the tap (no alias map, NDEATH ignored, arrival time in place of
+  node time, an alias served as a name) each fail it.
+
 ## 0.28.0 — 2026-09-16
 
 ### Fixed
