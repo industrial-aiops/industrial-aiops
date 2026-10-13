@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 #: Read-type codes that mean a measured reading.
 ACTUAL_CODES = frozenset({"A", "ACTUAL", "M", "MEASURED"})
@@ -33,7 +33,15 @@ _STAMP_FORMATS = tuple(f"{d} {t}" for d in _DATE_FORMATS for t in _TIME_FORMATS)
 
 _PERIOD_RE = re.compile(r"^(?:hh|p|period|hh ?period|half ?hour)?[ _-]?0?(\d{1,2})$")
 _CLOCK_RE = re.compile(r"^\d{1,2}:\d{2}$")
-_FLAG_WORDS = ("flag", "status", "est", "type", "quality", "actual")
+#: Header words, matched as WHOLE tokens. A substring match read "Timestamp" as a
+#: flag column ("tim-est-amp") and "Last Updated" as a date ("up-date-d").
+_FLAG_WORDS = frozenset(
+    {"flag", "flags", "status", "est", "estimated", "estimate", "type", "quality", "actual"}
+)
+_VALUE_WORDS = frozenset(
+    {"kwh", "wh", "kw", "consumption", "usage", "value", "reading", "energy", "demand"}
+)
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
 def norm(header: str) -> str:
@@ -41,9 +49,13 @@ def norm(header: str) -> str:
     return " ".join(header.strip().lower().split())
 
 
+def tokens(header: str) -> frozenset[str]:
+    """The header's alphanumeric words: ``"Consumption (kWh)"`` → {consumption, kwh}."""
+    return frozenset(_TOKEN_RE.findall(norm(header)))
+
+
 def is_flag_header(header: str) -> bool:
-    h = norm(header)
-    return any(word in h for word in _FLAG_WORDS)
+    return bool(tokens(header) & _FLAG_WORDS)
 
 
 def is_meter_header(header: str) -> bool:
@@ -59,8 +71,8 @@ def is_period_header(header: str) -> bool:
 
 
 def is_date_header(header: str) -> bool:
-    h = norm(header)
-    return "date" in h and "time" not in h and "stamp" not in h
+    words = tokens(header)
+    return "date" in words and not words & {"time", "timestamp"}
 
 
 def is_time_header(header: str) -> bool:
@@ -69,14 +81,15 @@ def is_time_header(header: str) -> bool:
 
 
 def is_stamp_header(header: str) -> bool:
-    h = norm(header)
-    return "timestamp" in h or "datetime" in h or ("date" in h and "time" in h)
+    words = tokens(header)
+    return bool(words & {"timestamp", "datetime"}) or {"date", "time"} <= words
 
 
 def is_value_header(header: str) -> bool:
-    h = norm(header)
-    words = ("kwh", "wh", "kw", "consumption", "usage", "value", "reading", "energy", "demand")
-    return not is_flag_header(h) and any(w in h for w in words)
+    words = tokens(header)
+    if is_flag_header(header) or words & {"date", "time", "timestamp", "datetime"}:
+        return False
+    return bool(words & _VALUE_WORDS)
 
 
 def unit_from_header(header: str) -> str | None:
@@ -142,6 +155,15 @@ def parse_stamp(cell: str) -> datetime | None:
     text = cell.strip()
     if not text:
         return None
+    for sep in (" ", "T"):
+        if text.endswith(f"{sep}24:00") or text.endswith(f"{sep}24:00:00"):
+            # An end-of-day label: "13/01/2026 24:00" is 00:00 on the 14th.
+            day = parse_day(text.split(sep)[0])
+            return (
+                None
+                if day is None
+                else datetime.combine(day + timedelta(days=1), datetime.min.time())
+            )
     try:
         return datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
@@ -185,6 +207,7 @@ __all__ = [
     "is_time_header",
     "is_value_header",
     "norm",
+    "tokens",
     "parse_clock",
     "parse_day",
     "parse_stamp",

@@ -83,6 +83,26 @@ def parse_operating_hours(spec: str) -> Mapping[int, tuple[tuple[int, int], ...]
     return MappingProxyType({d: tuple(sorted(hours.get(d, []))) for d in range(7)})
 
 
+class EmptyWindowError(ValueError):
+    """The requested window holds no measured half hour for this meter."""
+
+
+Hours = Mapping[int, tuple[tuple[int, int], ...]]
+
+
+def parse_holidays(values: Iterable[str | date]) -> frozenset[date]:
+    """Closed days as dates; accepts ISO or UK day-first, refuses anything else."""
+    from iaiops.core.brain.hh_fields import parse_day
+
+    out: set[date] = set()
+    for value in values:
+        day = value if isinstance(value, date) else parse_day(str(value))
+        if day is None:
+            raise ValueError(f"holiday {value!r} is not a date (use YYYY-MM-DD or dd/mm/yyyy)")
+        out.add(day)
+    return frozenset(out)
+
+
 def _instant(value: str | datetime | None) -> datetime | None:
     if value is None or value == "":
         return None
@@ -95,7 +115,11 @@ def _instant(value: str | datetime | None) -> datetime | None:
     return utc
 
 
-def resolve_window(intervals: Sequence[Interval], since, until) -> tuple[datetime, datetime, str]:
+def resolve_window(
+    intervals: Sequence[Interval],
+    since: str | datetime | None,
+    until: str | datetime | None,
+) -> tuple[datetime, datetime, str]:
     lo, hi = _instant(since), _instant(until)
     if (lo is None) != (hi is None):
         raise ValueError("since and until go together — one alone leaves the window undefined")
@@ -106,24 +130,46 @@ def resolve_window(intervals: Sequence[Interval], since, until) -> tuple[datetim
     return intervals[0].start_utc, intervals[-1].start_utc + _HALF_HOUR, "data_span"
 
 
-def _in_hours(local: datetime, hours, holidays: frozenset[date]) -> bool:
+def _minute_of_day(local: datetime) -> int:
+    return local.hour * 60 + local.minute
+
+
+def _is_closed_day(day: date, hours: Hours, holidays: frozenset[date]) -> bool:
+    """Closed = a declared holiday, or a weekday the operating hours never open."""
+    return day in holidays or not hours[day.weekday()]
+
+
+def _in_hours(local: datetime, hours: Hours, holidays: frozenset[date]) -> bool:
     if local.date() in holidays:
         return False
-    minute = local.hour * 60 + local.minute
+    minute = _minute_of_day(local)
     return any(start <= minute < end for start, end in hours[local.weekday()])
 
 
-def _read_type(intervals: Sequence[Interval], total: float) -> tuple[str, float | None, float]:
+def _in_night(minute: int, lo: int, hi: int) -> bool:
+    return lo <= minute < hi if lo < hi else (minute >= lo or minute < hi)
+
+
+def _consumption(intervals: Sequence[Interval], total: float) -> dict:
     flagged = [iv for iv in intervals if iv.estimated is not None]
     estimated_kwh = sum(iv.kwh for iv in intervals if iv.estimated)
+    unflagged_kwh = sum(iv.kwh for iv in intervals if iv.estimated is None)
     if not flagged:
-        return "unknown", None, 0.0
-    kind = "flagged" if len(flagged) == len(intervals) else "partly_flagged"
-    share = round(100.0 * estimated_kwh / total, 2) if total > 0 else 0.0
-    return kind, share, estimated_kwh
+        kind = "unknown"
+    else:
+        kind = "flagged" if len(flagged) == len(intervals) else "partly_flagged"
+    pct = lambda kwh: round(100.0 * kwh / total, 2) if total > 0 else 0.0  # noqa: E731
+    return {
+        "measured_kwh": round(total, 3),
+        "estimated_kwh": round(estimated_kwh, 3),
+        "estimated_share_pct": None if kind == "unknown" else pct(estimated_kwh),
+        "unflagged_share_pct": pct(unflagged_kwh),
+        "read_type": kind,
+        "note": "measured half hours only — gaps are not filled or scaled up",
+    }
 
 
-def _daily(intervals: Sequence[Interval], holidays: frozenset[date]) -> list[dict]:
+def _daily(intervals: Sequence[Interval], hours: Hours, holidays: frozenset[date]) -> list[dict]:
     per_day: dict[date, list[float]] = defaultdict(list)
     for iv in intervals:
         per_day[uk_clock.to_local(iv.start_utc).date()].append(iv.kwh)
@@ -131,25 +177,27 @@ def _daily(intervals: Sequence[Interval], holidays: frozenset[date]) -> list[dic
     for day in sorted(per_day):
         values = per_day[day]
         expected = uk_clock.periods_in_day(day)
-        closed = day.weekday() >= 5 or day in holidays
         rows.append({
             "date": day.isoformat(), "weekday": _DAY_NAMES[day.weekday()],
             "kwh": round(sum(values), 3), "periods_measured": len(values),
             "periods_in_day": expected, "complete": len(values) == expected,
-            "day_type": "weekend" if closed else "weekday",
+            "day_type": "closed" if _is_closed_day(day, hours, holidays) else "working",
         })  # fmt: skip
     return rows
 
 
 def _day_types(daily: list[dict]) -> dict:
     out = {}
-    for kind in ("weekday", "weekend"):
+    for kind in ("working", "closed"):
         full = [d["kwh"] for d in daily if d["day_type"] == kind and d["complete"]]
         out[kind] = {
             "avg_daily_kwh": round(sum(full) / len(full), 3) if full else None,
             "full_days": len(full),
         }
-    out["note"] = "complete days only; 'weekend' includes declared holidays"
+    out["note"] = (
+        "complete days only; 'closed' = days the declared operating hours never open, "
+        "plus declared holidays"
+    )
     return out
 
 
@@ -157,7 +205,7 @@ def _heatmap(locals_kw: Iterable[tuple[datetime, float]]) -> dict:
     sums = [[0.0] * 48 for _ in range(7)]
     counts = [[0] * 48 for _ in range(7)]
     for local, kw in locals_kw:
-        slot = (local.hour * 60 + local.minute) // 30
+        slot = _minute_of_day(local) // 30
         sums[local.weekday()][slot] += kw
         counts[local.weekday()][slot] += 1
     mean = [
@@ -176,6 +224,36 @@ def _single_meter(intervals: Sequence[Interval]) -> list[Interval]:
     return sorted(intervals, key=lambda iv: iv.start_utc)
 
 
+def _demand(
+    locals_kw: list[tuple[datetime, float]],
+    hours: Hours,
+    holidays: frozenset[date],
+    night: tuple[str, str],
+    total: float,
+) -> dict:
+    """Peak, overnight base load and out-of-hours use."""
+    lo, hi = _minutes(night[0]), _minutes(night[1]) % 1440
+    if lo == hi:
+        raise ValueError("night window starts and ends at the same time")
+    night_kw = [kw for loc, kw in locals_kw if _in_night(_minute_of_day(loc), lo, hi)]
+    base = round(median(night_kw), 3) if night_kw else None
+    peak_local, peak_kw = max(locals_kw, key=lambda pair: pair[1])
+    ooh = [kw for loc, kw in locals_kw if not _in_hours(loc, hours, holidays)]
+    ooh_kwh = sum(ooh) / 2.0
+    above = None if base is None else round(sum(max(0.0, kw - base) for kw in ooh) / 2.0, 3)
+    return {
+        "peak": {"kw": round(peak_kw, 3), "at_local": peak_local.isoformat(sep=" ")},
+        "base_load": {"kw": base, "samples": len(night_kw),
+                      "method": f"median demand {night[0]}–{night[1]} local"},
+        "out_of_hours": {
+            "kwh": round(ooh_kwh, 3),
+            "share_pct": round(100.0 * ooh_kwh / total, 2) if total > 0 else None,
+            "above_base_load_kwh": above, "note": OPPORTUNITY_NOTE,
+        },
+        "load_factor": round(total * 2.0 / len(locals_kw) / peak_kw, 4) if peak_kw > 0 else None,
+    }  # fmt: skip
+
+
 def analyse_load_profile(
     intervals: Sequence[Interval],
     *,
@@ -188,26 +266,15 @@ def analyse_load_profile(
     """Profile ONE meter's half-hourly consumption over a window."""
     ordered = _single_meter(intervals)
     hours = parse_operating_hours(operating_hours)
-    closed = frozenset(d if isinstance(d, date) else date.fromisoformat(str(d)) for d in holidays)
+    closed = parse_holidays(holidays)
     start, end, basis = resolve_window(ordered, since, until)
     inside = [iv for iv in ordered if start <= iv.start_utc < end]
     if not inside:
-        raise ValueError("no measured half hours inside the requested window")
+        raise EmptyWindowError("no measured half hours inside the requested window")
     expected = int((end - start) / _HALF_HOUR)
     locals_kw = [(uk_clock.to_local(iv.start_utc), iv.kwh * 2.0) for iv in inside]
     total = sum(iv.kwh for iv in inside)
-    read_type, est_share, est_kwh = _read_type(inside, total)
-
-    night_lo, night_hi = _minutes(night[0]), _minutes(night[1])
-    night_kw = [kw for loc, kw in locals_kw if night_lo <= loc.hour * 60 + loc.minute < night_hi]
-    base = round(median(night_kw), 3) if night_kw else None
-    peak_local, peak_kw = max(locals_kw, key=lambda pair: pair[1])
-    ooh = [kw for loc, kw in locals_kw if not _in_hours(loc, hours, closed)]
-    ooh_kwh = sum(ooh) / 2.0
-    above = None if base is None else round(sum(max(0.0, kw - base) for kw in ooh) / 2.0, 3)
-    daily = _daily(inside, closed)
-    mean_kw = total * 2.0 / len(inside)
-
+    daily = _daily(inside, hours, closed)
     result = {
         "meter": ordered[0].meter,
         "window": {
@@ -220,22 +287,10 @@ def analyse_load_profile(
             "missing_periods": expected - len(inside),
             "coverage_pct": round(100.0 * len(inside) / expected, 2),
         },
-        "consumption": {
-            "measured_kwh": round(total, 3), "estimated_kwh": round(est_kwh, 3),
-            "estimated_share_pct": est_share, "read_type": read_type,
-            "note": "measured half hours only — gaps are not filled or scaled up",
-        },
-        "peak": {"kw": round(peak_kw, 3), "at_local": peak_local.isoformat(sep=" ")},
-        "base_load": {"kw": base, "samples": len(night_kw),
-                      "method": f"median demand {night[0]}–{night[1]} local"},
+        "consumption": _consumption(inside, total),
+        **_demand(locals_kw, hours, closed, night, total),
         "operating_hours": {"spec": operating_hours or DEFAULT_OPERATING_HOURS,
                             "holidays": sorted(d.isoformat() for d in closed)},
-        "out_of_hours": {
-            "kwh": round(ooh_kwh, 3),
-            "share_pct": round(100.0 * ooh_kwh / total, 2) if total > 0 else None,
-            "above_base_load_kwh": above, "note": OPPORTUNITY_NOTE,
-        },
-        "load_factor": round(mean_kw / peak_kw, 4) if peak_kw > 0 else None,
         "day_types": _day_types(daily),
         "daily": daily,
         "heatmap": _heatmap(locals_kw),
@@ -261,8 +316,10 @@ def profile_by_meter(intervals: Sequence[Interval], *, meter: str = "", **option
 __all__ = [
     "DEFAULT_OPERATING_HOURS",
     "OPPORTUNITY_NOTE",
+    "EmptyWindowError",
     "analyse_load_profile",
     "parse_days",
+    "parse_holidays",
     "parse_operating_hours",
     "profile_by_meter",
     "resolve_window",

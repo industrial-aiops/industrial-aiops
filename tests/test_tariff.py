@@ -120,3 +120,15 @@ def test_cost_says_measured_only_and_excludes():
 def test_empty_tariff_rejected():
     with pytest.raises(ValueError):
         load_tariff({})
+
+
+@pytest.mark.unit
+def test_duplicate_band_names_refused():
+    spec = {
+        "unit_rates": [
+            {"name": "day", "rate": 10, "days": "weekdays", "start": "00:00", "end": "24:00"},
+            {"name": "day", "rate": 30, "days": "weekends", "start": "00:00", "end": "24:00"},
+        ]
+    }
+    with pytest.raises(ValueError, match="day"):
+        load_tariff(spec)

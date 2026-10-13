@@ -35,11 +35,15 @@ def _list(items: Sequence[str], css: str = "notes") -> str:
 
 def _tiles(profile: dict, cost: dict | None) -> str:
     cons, cov = profile["consumption"], profile["coverage"]
-    estimated = (
-        "unknown (not flagged)"
-        if cons["estimated_share_pct"] is None
-        else _num(cons["estimated_share_pct"], ".1f", "% of kWh")
-    )
+    if cons["estimated_share_pct"] is None:
+        estimated = "unknown (not flagged)"
+    elif cons["read_type"] == "partly_flagged":
+        estimated = (
+            f"at least {_num(cons['estimated_share_pct'], '.1f', '%')} "
+            f"({_num(cons['unflagged_share_pct'], '.0f', '%')} unflagged)"
+        )
+    else:
+        estimated = _num(cons["estimated_share_pct"], ".1f", "% of kWh")
     tiles = [
         kv("Measured consumption", _num(cons["measured_kwh"], ",.0f", " kWh")),
         kv("Coverage", f"{_num(cov['coverage_pct'], '.1f', '%')} of half hours"),

@@ -13,8 +13,12 @@ from datetime import datetime
 
 from iaiops.core.brain import uk_clock
 from iaiops.core.brain.hh_import import Interval, ParseResult, parse_hh_csv
-from iaiops.core.brain.load_profile import DEFAULT_OPERATING_HOURS, analyse_load_profile
-from iaiops.core.brain.tariff import cost_intervals, load_tariff
+from iaiops.core.brain.load_profile import (
+    DEFAULT_OPERATING_HOURS,
+    EmptyWindowError,
+    analyse_load_profile,
+)
+from iaiops.core.brain.tariff import Tariff, cost_intervals, load_tariff
 
 _SERIES_KEYS = ("daily", "heatmap")
 
@@ -47,6 +51,46 @@ def parse_summary(text: str, *, unit: str = "auto", timestamp_marks: str = "star
     return _summary(parse_hh_csv(text, unit=unit, timestamp_marks=timestamp_marks))
 
 
+def file_warnings(parsed: ParseResult) -> list[str]:
+    """What the parser left out, phrased for the reader of a profile.
+
+    Without these, rows the parser refused simply vanish: a profile built from what
+    remained reads 100% coverage when the refused rows sat at either end of the
+    file, because the data-span window shrinks to fit what is left.
+    """
+    c = parsed.counts
+    out = []
+    if c["rows_rejected"]:
+        out.append(
+            f"{c['rows_rejected']} rows of the file were rejected and are in none of these "
+            "figures (run `iaiops meter check` for why). Coverage counts only the period the "
+            "remaining rows span — pass since/until to measure the whole period."
+        )
+    if c["duplicate_conflicting"]:
+        out.append(
+            f"{c['duplicate_conflicting']} half hours appear twice in the file with different "
+            "values; the first was kept."
+        )
+    if c["negative_rejected"]:
+        out.append(f"{c['negative_rejected']} negative values rejected (export or a meter fault).")
+    if c["unrecognised_flags"]:
+        out.append(
+            f"{c['unrecognised_flags']} values carry an unrecognised read-type code and are "
+            "counted as estimated."
+        )
+    return out
+
+
+def _profile_one(
+    intervals: list[Interval], loaded: Tariff | None, notes: list[str], options: dict
+) -> dict:
+    profile = analyse_load_profile(intervals, **options)
+    profile = {**profile, "warnings": notes + profile["warnings"]}
+    window = {k: options[k] for k in ("holidays", "since", "until")}
+    cost = cost_intervals(intervals, loaded, **window) if loaded else None
+    return {"profile": profile, "cost": cost}
+
+
 def analyse_hh(
     text: str,
     *,
@@ -60,10 +104,13 @@ def analyse_hh(
     timestamp_marks: str = "start",
     include_series: bool = True,
 ) -> dict:
-    """Parse, then profile (and price, when a tariff is given) each meter."""
+    """Parse, then profile (and price, when a tariff is given) each meter.
+
+    A meter with no measured half hour inside a requested window is listed in
+    ``skipped`` rather than failing the others.
+    """
     parsed = parse_hh_csv(text, unit=unit, timestamp_marks=timestamp_marks)
     loaded = load_tariff(tariff) if tariff else None
-    days = tuple(holidays)
     grouped: dict[str, list[Interval]] = defaultdict(list)
     for iv in parsed.intervals:
         grouped[iv.meter].append(iv)
@@ -72,20 +119,23 @@ def analyse_hh(
     if not grouped:
         raise ValueError("the file contains no usable half-hour readings")
     chosen = {meter: grouped[meter]} if meter else dict(grouped)
-    profiles = {}
+    options = {"operating_hours": operating_hours, "holidays": tuple(holidays),
+               "since": since, "until": until}  # fmt: skip
+    notes = file_warnings(parsed)
+    profiles, skipped = {}, {}
     for name, intervals in sorted(chosen.items()):
-        profile = analyse_load_profile(
-            intervals, operating_hours=operating_hours, holidays=days, since=since, until=until
-        )
+        try:
+            entry = _profile_one(intervals, loaded, notes, options)
+        except EmptyWindowError as exc:
+            skipped[name] = str(exc)
+            continue
         if not include_series:
-            profile = {k: v for k, v in profile.items() if k not in _SERIES_KEYS}
-        cost = (
-            cost_intervals(intervals, loaded, holidays=days, since=since, until=until)
-            if loaded
-            else None
-        )
-        profiles[name] = {"profile": profile, "cost": cost}
-    return {"parse": _summary(parsed), "profiles": profiles}
+            entry = {**entry, "profile": {k: v for k, v in entry["profile"].items()
+                                          if k not in _SERIES_KEYS}}  # fmt: skip
+        profiles[name] = entry
+    if not profiles:
+        raise ValueError("no meter has measured half hours inside the requested window")
+    return {"parse": _summary(parsed), "profiles": profiles, "skipped": skipped}
 
 
-__all__ = ["analyse_hh", "parse_summary"]
+__all__ = ["analyse_hh", "file_warnings", "parse_summary"]

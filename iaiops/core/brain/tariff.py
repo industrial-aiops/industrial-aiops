@@ -28,7 +28,7 @@ from datetime import date, datetime, timedelta
 
 from iaiops.core.brain import uk_clock
 from iaiops.core.brain.hh_import import Interval
-from iaiops.core.brain.load_profile import parse_days, resolve_window
+from iaiops.core.brain.load_profile import parse_days, parse_holidays, resolve_window
 
 _ALL_DAYS = frozenset(range(7))
 _NAMED_DAYS = {"all": _ALL_DAYS, "weekdays": frozenset(range(5)), "weekends": frozenset({5, 6})}
@@ -66,7 +66,7 @@ class Tariff:
     standing_charge_p_per_day: float
 
 
-def _rate(value, label: str) -> float:
+def _rate(value: object, label: str) -> float:
     try:
         out = float(value)
     except (TypeError, ValueError) as exc:
@@ -76,7 +76,7 @@ def _rate(value, label: str) -> float:
     return out
 
 
-def _clock(value, label: str) -> int:
+def _clock(value: object, label: str) -> int:
     text = str(value).strip()
     try:
         hour, minute = (int(x) for x in text.split(":"))
@@ -88,7 +88,7 @@ def _clock(value, label: str) -> int:
     return total
 
 
-def _band_days(value, label: str) -> frozenset[int]:
+def _band_days(value: object, label: str) -> frozenset[int]:
     if isinstance(value, str) and value.strip().lower() in _NAMED_DAYS:
         return _NAMED_DAYS[value.strip().lower()]
     tokens = [value] if isinstance(value, str) else list(value or [])
@@ -166,6 +166,12 @@ def load_tariff(spec: Mapping) -> Tariff:
     if len(raw_bands) > MAX_BANDS:
         raise ValueError(f"too many bands ({len(raw_bands)}; cap {MAX_BANDS})")
     bands = tuple(_band(b if isinstance(b, Mapping) else {}, i) for i, b in enumerate(raw_bands))
+    names = [b.name for b in bands]
+    repeated = sorted({n for n in names if names.count(n) > 1})
+    if repeated:
+        # Costs are reported per band name; two bands sharing one would be summed
+        # together and priced at whichever rate came first.
+        raise ValueError(f"band names must be unique; repeated: {', '.join(repeated)}")
     _check_coverage(bands)
     standing = _rate(spec.get("standing_charge_p_per_day", 0), "standing_charge_p_per_day")
     return Tariff(str(spec.get("name") or "tariff")[:80], bands, standing)
@@ -219,14 +225,14 @@ def cost_intervals(
         raise ValueError("no half-hour intervals to price")
     if len({iv.meter for iv in ordered}) > 1:
         raise ValueError("intervals from several meters; price one meter at a time")
-    closed = frozenset(d if isinstance(d, date) else date.fromisoformat(str(d)) for d in holidays)
+    closed = parse_holidays(holidays)
     start, end, _ = resolve_window(ordered, since, until)
     kwh_by_band = {b.name: 0.0 for b in tariff.bands}
     for iv in ordered:
         if start <= iv.start_utc < end:
             band = _band_for(tariff, uk_clock.to_local(iv.start_utc), closed)
             kwh_by_band[band.name] += iv.kwh
-    rates = {b.name: b.rate_p_per_kwh for b in reversed(tariff.bands)}  # first listed wins
+    rates = {b.name: b.rate_p_per_kwh for b in tariff.bands}  # names are unique
     total_kwh = sum(kwh_by_band.values())
     energy = sum(kwh * rates[name] / 100.0 for name, kwh in kwh_by_band.items())
     rows = [

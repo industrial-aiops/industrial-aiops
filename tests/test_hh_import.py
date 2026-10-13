@@ -172,7 +172,11 @@ def test_long_layout_naive_local_start():
     out = parse_hh_csv(text)
     assert out.layout == "long"
     assert out.intervals[0].start_utc == datetime(2026, 6, 30, 23, tzinfo=UTC)
-    assert out.intervals[1].estimated is True
+    # Both rows, not just the E one: "tim-EST-amp" once matched the flag word "est",
+    # so the Timestamp column was read as the flag and every row came out estimated
+    # while this test — which checked only the E row — stayed green.
+    assert [iv.estimated for iv in out.intervals] == [False, True]
+    assert out.warnings == ()
 
 
 @pytest.mark.unit
@@ -257,3 +261,41 @@ def test_intervals_sorted_and_frozen():
     assert out.intervals[0].start_utc < out.intervals[1].start_utc
     with pytest.raises(AttributeError):
         out.intervals[0].kwh = 3  # type: ignore[misc]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("header", ["Timestamp", "Interest", "Site West", "Last Updated"])
+def test_flag_and_date_words_match_whole_tokens(header):
+    from iaiops.core.brain import hh_fields as f
+
+    assert not f.is_flag_header(header)
+    assert not f.is_date_header(header)
+
+
+@pytest.mark.unit
+def test_date_like_header_is_not_the_value_column():
+    text = "Date,Time,Reading Date,kWh\n15/01/2026,00:00,15/01/2026,1.5\n"
+    out = parse_hh_csv(text)
+    assert [iv.kwh for iv in out.intervals] == [1.5]
+
+
+@pytest.mark.unit
+def test_trailing_read_type_column_is_a_row_flag():
+    text = f"Date,{_HEAD48},Read Type\n15/01/2026," + ",".join(["1"] * 48) + ",E"
+    out = parse_hh_csv(text)
+    assert {iv.estimated for iv in out.intervals} == {True}
+
+
+@pytest.mark.unit
+def test_descending_long_file_keeps_the_repeated_hour_in_order():
+    rows = ["25/10/2026 01:30,2", "25/10/2026 01:00,2", "25/10/2026 01:30,1", "25/10/2026 01:00,1"]
+    out = parse_hh_csv("Timestamp,kWh\n" + "\n".join(rows))
+    by_start = {iv.start_utc: iv.kwh for iv in out.intervals}
+    assert by_start[datetime(2026, 10, 25, 0, 0, tzinfo=UTC)] == 1.0  # 01:00 BST
+    assert by_start[datetime(2026, 10, 25, 1, 0, tzinfo=UTC)] == 2.0  # 01:00 GMT
+
+
+@pytest.mark.unit
+def test_single_column_end_label_2400():
+    out = parse_hh_csv("Timestamp,kWh\n13/01/2026 24:00,1\n", timestamp_marks="end")
+    assert out.intervals[0].start_utc == datetime(2026, 1, 13, 23, 30, tzinfo=UTC)

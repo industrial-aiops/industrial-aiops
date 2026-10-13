@@ -63,9 +63,9 @@ def test_full_week_office():
         out["consumption"]["measured_kwh"] / (7 * 24) / 50, abs=1e-4
     )
     # weekday: 20 slots × 25 kWh + 28 × 5 = 640; weekend 48 × 5 = 240
-    assert out["day_types"]["weekday"]["avg_daily_kwh"] == 640.0
-    assert out["day_types"]["weekend"]["avg_daily_kwh"] == 240.0
-    assert out["day_types"]["weekday"]["full_days"] == 5
+    assert out["day_types"]["working"]["avg_daily_kwh"] == 640.0
+    assert out["day_types"]["closed"]["avg_daily_kwh"] == 240.0
+    assert out["day_types"]["working"]["full_days"] == 5
     ooh = 5 * 28 * 5 + 2 * 240
     assert out["out_of_hours"]["kwh"] == ooh
     assert out["out_of_hours"]["above_base_load_kwh"] == 0.0
@@ -95,7 +95,7 @@ def test_gap_is_missing_not_zero_and_not_scaled_up():
     # falls in busier-than-average hours, and a mutation that extrapolated survived.
     assert out["consumption"]["measured_kwh"] == pytest.approx(sum(iv.kwh for iv in holed))
     assert out["base_load"]["kw"] == 10.0
-    assert out["day_types"]["weekday"]["full_days"] < 5
+    assert out["day_types"]["working"]["full_days"] < 5
     assert any("not scaled up" in w for w in out["warnings"])
 
 
@@ -121,8 +121,8 @@ def test_window_excludes_intervals_outside_it():
 def test_holiday_counts_as_closed():
     intervals = _week(date(2026, 1, 12))
     out = analyse_load_profile(intervals, holidays=["2026-01-12"])
-    assert out["day_types"]["weekday"]["full_days"] == 4
-    assert out["day_types"]["weekend"]["full_days"] == 3
+    assert out["day_types"]["working"]["full_days"] == 4
+    assert out["day_types"]["closed"]["full_days"] == 3
 
 
 @pytest.mark.unit
@@ -168,3 +168,39 @@ def test_peak_local_time_reported():
     out = analyse_load_profile(_day(date(2026, 7, 1), _office))
     assert out["peak"]["at_local"].startswith("2026-07-01 08:00")
     assert out["window"]["start_utc"] == datetime(2026, 6, 30, 23, tzinfo=UTC).isoformat()
+
+
+@pytest.mark.unit
+def test_day_types_follow_declared_hours_not_the_calendar():
+    """A seven-day site has no closed days; a Mon–Sat site's Saturday is working."""
+    week = _week(date(2026, 1, 12))
+    always = analyse_load_profile(week, operating_hours="mon-sun 08:00-18:00")
+    assert always["day_types"]["closed"]["full_days"] == 0
+    assert always["day_types"]["working"]["full_days"] == 7
+    six = analyse_load_profile(week, operating_hours="mon-sat 08:00-18:00")
+    assert six["day_types"]["working"]["full_days"] == 6
+    assert not any("closed day (weekend" in f for f in always["findings"])
+
+
+@pytest.mark.unit
+def test_partly_flagged_reports_the_unflagged_share():
+    mixed = _day(date(2026, 1, 12), _office, estimated=True) + _day(date(2026, 1, 13), _office)
+    out = analyse_load_profile(mixed)
+    assert out["consumption"]["read_type"] == "partly_flagged"
+    assert out["consumption"]["unflagged_share_pct"] == 50.0
+    assert any("no actual/estimated flag" in w for w in out["warnings"])
+
+
+@pytest.mark.unit
+def test_night_window_may_cross_midnight():
+    out = analyse_load_profile(_week(date(2026, 1, 12)), night=("22:00", "05:00"))
+    assert out["base_load"]["samples"] == 7 * 14
+    assert out["base_load"]["kw"] == 10.0
+
+
+@pytest.mark.unit
+def test_holiday_accepts_uk_dates_and_explains_bad_ones():
+    out = analyse_load_profile(_week(date(2026, 1, 12)), holidays=["12/01/2026"])
+    assert out["operating_hours"]["holidays"] == ["2026-01-12"]
+    with pytest.raises(ValueError, match="holiday"):
+        analyse_load_profile(_week(date(2026, 1, 12)), holidays=["01/13/2026"])

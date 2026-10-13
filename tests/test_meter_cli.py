@@ -140,3 +140,22 @@ def test_registered_on_root():
     result = runner.invoke(app, ["meter", "--help"])
     assert result.exit_code == 0
     assert "profile" in result.output
+
+
+def test_file_level_rejections_reach_the_profile_and_report():
+    rows = _csv().splitlines()
+    bad = [f"1200000000001,{d:02d}/13/2026," + ",".join(["5"] * 48) for d in range(1, 8)]
+    text = "\n".join(rows + bad + [rows[1].replace(",25,", ",99,", 1)]) + "\n"
+    out = analyse_hh(text)
+    warnings = out["profiles"]["1200000000001"]["profile"]["warnings"]
+    assert any("7 rows" in w and "rejected" in w for w in warnings)
+    assert any("twice" in w for w in warnings)
+
+
+def test_a_meter_with_nothing_in_the_window_is_skipped_not_fatal():
+    text = _csv(meters=("A",)) + "\n".join(
+        f"B,{20 + d:02d}/01/2026," + ",".join(["5"] * 48) for d in range(3)
+    )
+    out = analyse_hh(text, since="2026-01-12", until="2026-01-19")
+    assert set(out["profiles"]) == {"A"}
+    assert "B" in out["skipped"]

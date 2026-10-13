@@ -114,6 +114,28 @@ def _print_profile(name: str, entry: dict) -> None:
         console.print(f"  • {line}")
 
 
+def _write_report(out: dict, report: Path, site: str, source: str) -> Path:
+    if len(out["profiles"]) != 1:
+        raise ValueError(
+            f"the file has {len(out['profiles'])} meters; a report covers one — pass --meter"
+        )
+    from iaiops.core.brain.meter_report import render_meter_report
+    from iaiops.core.governance.evidence import validate_output_path
+
+    path = validate_output_path(report, suffixes=(".html", ".htm"))
+    (entry,) = out["profiles"].values()
+    page = render_meter_report(
+        entry["profile"],
+        entry["cost"],
+        site=site,
+        source=source,
+        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        assumptions=out["parse"]["assumptions"],
+    )
+    path.write_text(page, encoding="utf-8")
+    return path
+
+
 @cli_errors
 def meter_profile_cmd(
     file: Path = typer.Argument(..., help="Supplier half-hourly CSV (wide or long layout)."),
@@ -146,23 +168,7 @@ def meter_profile_cmd(
         tariff=_load_tariff(tariff), unit=unit, timestamp_marks=marks,
     )  # fmt: skip
     if report is not None:
-        if len(out["profiles"]) != 1:
-            raise ValueError(
-                f"the file has {len(out['profiles'])} meters; a report covers one — pass --meter"
-            )
-        from iaiops.core.brain.meter_report import render_meter_report
-        from iaiops.core.governance.evidence import validate_output_path
-
-        path = validate_output_path(report, suffixes=(".html", ".htm"))
-        (entry,) = out["profiles"].values()
-        path.write_text(
-            render_meter_report(
-                entry["profile"], entry["cost"], site=site, source=file.name,
-                generated_at=datetime.now().strftime("%Y-%m-%d %H:%M"),
-                assumptions=out["parse"]["assumptions"],
-            ),
-            encoding="utf-8",
-        )  # fmt: skip
+        path = _write_report(out, report, site, file.name)
         if not as_json:
             console.print(f"[dim]report written to {path}[/]")
     if as_json:
@@ -170,6 +176,8 @@ def meter_profile_cmd(
         return
     for name, entry in out["profiles"].items():
         _print_profile(name, entry)
+    for name, reason in out["skipped"].items():
+        console.print(f"\n[yellow]Meter {name} skipped: {reason}[/]")
 
 
 meter_app.command("check")(meter_check_cmd)

@@ -141,9 +141,15 @@ def _wide_columns(header: list[str]) -> dict | None:
     period_flags = {
         p: p + 1 for p in periods if p + 1 < len(header) and f.is_flag_header(header[p + 1])
     }
+    # Per-period flags only when EVERY period has its own. A single "Read Type" column
+    # after HH48 is the row's flag; reading it as HH48's alone left 47 periods unflagged.
+    if len(period_flags) != len(periods):
+        period_flags = {}
+    paired = set(period_flags.values())
     row_flag = next(
-        (i for i, h in enumerate(header) if f.is_flag_header(h) and i < periods[0]), None
+        (i for i, h in enumerate(header) if f.is_flag_header(h) and i not in paired), None
     )
+    row_flag = None if period_flags else row_flag
     meter = next((i for i, h in enumerate(header) if f.is_meter_header(h)), None)
     return {
         "date": date_col,
@@ -214,7 +220,32 @@ def _long_stamp(row: list[str], cols: dict) -> datetime | None:
     return datetime.combine(day, datetime.min.time()) + timedelta(hours=clock[0], minutes=clock[1])
 
 
-def _long_row(row, cols, unit, marks, seen, tally) -> list[_Reading]:
+def _descending(body: list[list[str]], cols: dict) -> dict[str, bool]:
+    """Per meter: does the file list time backwards? Decides which run of the
+    repeated autumn hour is BST — the first one met in an ascending file, the
+    second in a descending one."""
+    ends: dict[str, list[datetime]] = {}
+    for row in body:
+        stamp = _long_stamp(row, cols)
+        if stamp is not None:
+            meter = _cell(row, cols["meter"]).strip() or UNNAMED_METER
+            ends.setdefault(meter, [stamp, stamp])[1] = stamp
+    return {m: _naive(last) < _naive(first) for m, (first, last) in ends.items()}
+
+
+def _naive(stamp: datetime) -> datetime:
+    return stamp.astimezone(UTC).replace(tzinfo=None) if stamp.tzinfo else stamp
+
+
+def _long_row(
+    row: list[str],
+    cols: dict,
+    unit: str,
+    marks: str,
+    seen: set[tuple[str, datetime]],
+    descending: Mapping[str, bool],
+    tally: _Tally,
+) -> list[_Reading]:
     stamp = _long_stamp(row, cols)
     meter = _cell(row, cols["meter"]).strip() or UNNAMED_METER
     if stamp is None:
@@ -224,7 +255,7 @@ def _long_row(row, cols, unit, marks, seen, tally) -> list[_Reading]:
     if stamp.tzinfo is not None:
         utc = stamp.astimezone(UTC)
     else:
-        fold = 1 if (meter, stamp) in seen else 0
+        fold = int((meter, stamp) in seen) ^ int(descending.get(meter, False))
         seen.add((meter, stamp))
         utc = uk_clock.local_to_utc(stamp, fold=fold)
         if utc is None:
@@ -274,6 +305,35 @@ def _resolve_unit(unit: str, header_unit: str | None, assumptions: list[str]) ->
     return "kwh"
 
 
+def _parse_wide(body: list[list[str]], cols: dict, unit: str, tally: _Tally, notes: list[str]):
+    resolved = _resolve_unit(unit, None, notes)
+    notes.append("period columns count half hours from UK local midnight")
+    readings = [r for row in body for r in _wide_row(row, cols, resolved, tally)]
+    return readings, resolved
+
+
+def _parse_long(
+    header: list[str], body: list[list[str]], unit: str, marks: str, tally: _Tally, notes: list[str]
+):
+    cols = _long_columns(header)
+    if cols is None:
+        raise ValueError(
+            "unrecognised layout: expected a date column plus 46–50 half-hour columns "
+            "(wide), or a timestamp / date+time column plus a kWh column (long)"
+        )
+    resolved = _resolve_unit(unit, f.unit_from_header(header[cols["value"]]), notes)
+    notes.append(f"each timestamp marks the {marks} of its half hour")
+    notes.append("timestamps without an offset are UK local time (GMT/BST)")
+    if resolved == "kw":
+        notes.append("kW values are half-hour average demand; kWh = kW ÷ 2")
+    seen: set[tuple[str, datetime]] = set()
+    order = _descending(body, cols)
+    readings = [
+        r for row in body for r in _long_row(row, cols, resolved, marks, seen, order, tally)
+    ]
+    return readings, resolved, cols
+
+
 def parse_hh_csv(text: str, *, unit: str = "auto", timestamp_marks: str = "start") -> ParseResult:
     """Parse a supplier HH CSV (wide or long) into UTC half-hour intervals.
 
@@ -287,50 +347,33 @@ def parse_hh_csv(text: str, *, unit: str = "auto", timestamp_marks: str = "start
     rows = _rows(text)
     header, body = rows[0], rows[1:]
     tally = _Tally()
-    assumptions: list[str] = []
-    readings: list[_Reading] = []
+    notes: list[str] = []
     cols = _wide_columns(header)
     if cols is not None:
         layout = "wide"
-        resolved = _resolve_unit(unit, None, assumptions)
-        assumptions.append("period columns count half hours from UK local midnight")
-        for row in body:
-            readings.extend(_wide_row(row, cols, resolved, tally))
+        readings, resolved = _parse_wide(body, cols, unit, tally, notes)
     else:
-        cols = _long_columns(header)
-        if cols is None:
-            raise ValueError(
-                "unrecognised layout: expected a date column plus 46–50 half-hour columns "
-                "(wide), or a timestamp / date+time column plus a kWh column (long)"
-            )
         layout = "long"
-        resolved = _resolve_unit(unit, f.unit_from_header(header[cols["value"]]), assumptions)
-        assumptions.append(f"each timestamp marks the {timestamp_marks} of its half hour")
-        assumptions.append("timestamps without an offset are UK local time (GMT/BST)")
-        seen: set = set()
-        for row in body:
-            readings.extend(_long_row(row, cols, resolved, timestamp_marks, seen, tally))
-        if resolved == "kw":
-            assumptions.append("kW values are half-hour average demand; kWh = kW ÷ 2")
+        readings, resolved, cols = _parse_long(header, body, unit, timestamp_marks, tally, notes)
     if len(readings) > MAX_INTERVALS:
         raise ValueError(f"too many intervals ({len(readings)}; cap {MAX_INTERVALS})")
     if not cols["has_flags"]:
-        assumptions.append("the file carries no actual/estimated flag; read type is unknown")
+        notes.append("the file carries no actual/estimated flag; read type is unknown")
     if tally.codes:
-        codes = ", ".join(sorted(tally.codes))
-        tally.warn(f"unrecognised read-type code(s) {codes} treated as estimated")
+        tally.warn(
+            f"unrecognised read-type code(s) {', '.join(sorted(tally.codes))} treated as estimated"
+        )
         tally.counts["unrecognised_flags"] = sum(tally.codes.values())
     intervals = _dedupe(readings, tally)
     tally.counts["rows_read"] = len(body)
     tally.counts["intervals"] = len(intervals)
-    warnings = tuple(m if n == 1 else f"{m} (×{n})" for m, n in tally.warnings.items())
     return ParseResult(
         intervals=intervals,
         meters=tuple(sorted({iv.meter for iv in intervals})),
         layout=layout,
         unit=resolved,
-        assumptions=tuple(assumptions),
-        warnings=warnings,
+        assumptions=tuple(notes),
+        warnings=tuple(m if n == 1 else f"{m} (×{n})" for m, n in tally.warnings.items()),
         counts=MappingProxyType({**dict.fromkeys(_COUNT_KEYS, 0), **tally.counts}),
     )
 

@@ -93,3 +93,13 @@ def test_charts_handle_none_and_nan():
 @pytest.mark.unit
 def test_daily_bars_empty():
     assert daily_bars_svg([]) == ""
+
+
+@pytest.mark.unit
+def test_partly_flagged_tile_says_minimum():
+    flagged = [
+        Interval(iv.start_utc, iv.kwh, n < 48, iv.meter) for n, iv in enumerate(_intervals())
+    ]
+    mixed = flagged[:96] + [Interval(iv.start_utc, iv.kwh, None, iv.meter) for iv in flagged[96:]]
+    page = render_meter_report(analyse_load_profile(mixed), None, generated_at="x")
+    assert "at least" in page and "unflagged" in page

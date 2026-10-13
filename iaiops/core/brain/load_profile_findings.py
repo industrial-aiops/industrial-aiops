@@ -40,11 +40,12 @@ def findings(p: dict) -> list[str]:
             f"peak demand of {peak:,.1f} kW (at {p['peak']['at_local'][:16]})."
         )
     days = p["day_types"]
-    weekday, weekend = days["weekday"]["avg_daily_kwh"], days["weekend"]["avg_daily_kwh"]
-    if weekday and weekend is not None:
+    working, closed = days["working"]["avg_daily_kwh"], days["closed"]["avg_daily_kwh"]
+    if working and closed is not None:
         out.append(
-            f"A complete closed day (weekend or holiday) averages {_kwh(weekend)} against "
-            f"{_kwh(weekday)} on a working day — {100.0 * weekend / weekday:.0f}%."
+            f"A complete closed day averages {_kwh(closed)} against {_kwh(working)} on a "
+            f"working day — {100.0 * closed / working:.0f}% (closed = days the declared hours "
+            "never open, plus listed holidays)."
         )
     if p["load_factor"] is not None:
         out.append(
@@ -69,17 +70,22 @@ def warnings(p: dict) -> list[str]:
     cons = p["consumption"]
     if cons["read_type"] == "unknown":
         out.append("The file does not say which values are estimated, so none can be ruled out.")
-    elif cons["estimated_share_pct"] and cons["estimated_share_pct"] > HIGH_ESTIMATED_PCT:
+    if cons["read_type"] == "partly_flagged":
+        out.append(
+            f"{cons['unflagged_share_pct']:.0f}% of measured kWh carries no actual/estimated "
+            "flag, so the estimated share is a minimum."
+        )
+    if cons["estimated_share_pct"] and cons["estimated_share_pct"] > HIGH_ESTIMATED_PCT:
         out.append(
             f"{cons['estimated_share_pct']:.0f}% of measured kWh is estimated by the supplier "
             "or data collector, not read from the meter."
         )
     if p["base_load"]["kw"] is None:
         out.append("No overnight data, so no base load could be measured.")
-    if not p["day_types"]["weekday"]["full_days"] or not p["day_types"]["weekend"]["full_days"]:
-        out.append(
-            "No complete working day or no complete closed day; day-type comparison is partial."
-        )
+    for kind in ("working", "closed"):
+        present = any(d["day_type"] == kind for d in p.get("daily", []))
+        if present and not p["day_types"][kind]["full_days"]:
+            out.append(f"No complete {kind} day in the data; the day-type comparison is partial.")
     return out
 
 
