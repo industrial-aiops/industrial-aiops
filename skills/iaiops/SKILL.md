@@ -34,7 +34,7 @@ description: >-
 | SECS/GEM · SECS-II · HSMS · 半导体/显示 fab · wafer · panel · MES equipment · SVID/ECID · recipe | **iaiops-fab** | `IAIOPS_MCP=fab` / `iaiops-mcp-fab` |
 | 离散制造产线 · PLC（S7/S7-1200/1500 · 三菱/MELSEC · Allen-Bradley/ControlLogix/CompactLogix · Omron/FINS/SYSMAC CS/CJ/CP/NX）· Modbus · EtherCAT/CoE/SOEM · PROFINET/DCP · MTConnect/CNC 机床 · Sparkplug B/UNS | **iaiops-factory** | `IAIOPS_MCP=factory` / `iaiops-mcp-factory` |
 | 流程工业（化工/食品饮料/原料药合成）· HART/HART-IP · 变送器/阀门定位器 · 过程仪表 · DCS 旁路读取 | **iaiops-process** | `IAIOPS_MCP=process` / `iaiops-mcp-process`（有 UNS 时 `IAIOPS_MCP=process,sparkplug`） |
-| BACnet/BACnet-IP · HVAC/暖通 · BMS/楼宇自控 · 厂务/facility · Who-Is · TrendLog | **iaiops-building** | `IAIOPS_MCP=building` / `iaiops-mcp-building` |
+| BACnet/BACnet-IP · HVAC/暖通 · BMS/楼宇自控 · 厂务/facility · Who-Is · TrendLog · 供应商半小时电表数据/half-hourly (HH)/MPAN · 基础负荷/非营业时段用电/电价时段 | **iaiops-building** | `IAIOPS_MCP=building` / `iaiops-mcp-building` |
 | 水处理/水厂 · pH · 浊度/turbidity · 电导率/conductivity · 加药/dosing · 泵站/pump station · 曝气 | **iaiops-water** | `IAIOPS_MCP=water` / `iaiops-mcp-water` |
 | 仓储/物流中心 · 输送线/conveyor · 分拣/sorter · AGV/AMR · WMS/WCS · 托盘/穿梭车 · 物料搬运 | **iaiops-warehouse** | `IAIOPS_MCP=warehouse` / `iaiops-mcp-warehouse` |
 | 医院设施/clinical facility · 负压/正压隔离病房 · 医用气体 · 手术室环境 · 医疗 BMS | **iaiops-clinical** | `IAIOPS_MCP=clinical` / `iaiops-mcp-clinical` |

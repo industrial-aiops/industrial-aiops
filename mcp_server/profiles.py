@@ -159,8 +159,10 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # ride the building & clinical editions — a raw ``bacnet`` selection (a dev
     # poking one device) does not need them. building also gets AHU economizer FDD.
     # BAS controller-layer tools (vendor supervisory REST above BACnet — Metasys
-    # OpenBlue / Niagara oBIX) ride the building edition only.
-    "building": ("clinical_tools", "building_tools", "bas_tools"),
+    # OpenBlue / Niagara oBIX) ride the building edition only. Supplier half-hourly
+    # electricity analysis (base load / out-of-hours / tariff bands) is a site-energy
+    # concern — it rides building and renewables, where the meters are.
+    "building": ("clinical_tools", "building_tools", "bas_tools", "metering_tools"),
     "clinical": ("clinical_tools",),
     # Line throughput / bottleneck (Theory-of-Constraints) + sortation performance
     # are material-handling concerns — they ride the warehouse edition.
@@ -181,7 +183,7 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # `water`: the protocols are shared, the limits and the procedure are not.
     "pharma": ("pharma_tools",),
     # PV string performance is a solar/renewables concern — renewables edition.
-    "renewables": ("renewables_tools",),
+    "renewables": ("renewables_tools", "metering_tools"),
 }
 
 # ``IAIOPS_MCP=menu`` — not a profile: print the menu and exit(0).

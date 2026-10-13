@@ -29,6 +29,7 @@ from iaiops.cli.investigate import investigate_app
 from iaiops.cli.iolink import iolink_app
 from iaiops.cli.knowledge import knowledge_app
 from iaiops.cli.mc import mc_app
+from iaiops.cli.meter import meter_app
 from iaiops.cli.metrics import metrics_app
 from iaiops.cli.modbus import modbus_app
 from iaiops.cli.mqtt import mqtt_app
@@ -125,6 +126,7 @@ app.add_typer(onboard_app, name="onboard")
 app.add_typer(tags_app, name="tags")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
+app.add_typer(meter_app, name="meter")
 app.add_typer(store_app, name="store")
 app.add_typer(case_app, name="case")
 app.add_typer(compliance_app, name="compliance")

@@ -11,6 +11,7 @@ description: >-
   sensors (JSON interface, read-only), and the vendor supervisory-controller REST
   layer above BACnet (Metasys/OpenBlue, Niagara/oBIX) for point/alarm/trend reads
   and one MOC-gated command. Read-first, MOC-gated writes.
+  Also supplier half-hourly (HH) electricity files — MPAN, base load, out-of-hours use, tariff time bands (meter_hh_check / meter_load_profile).
 ---
 
 # iaiops-building — 楼宇/厂务 edition（BACnet + Modbus + IO-Link + MQTT + 脑）
@@ -69,6 +70,16 @@ Bearer/token 从加密 secret store 按 key 取（`secret_name`），不走明�
   worst-first,每故障引用温度/状态。读数来自 BACnet AI/BI 点。
 - `zone_comfort` — **区域舒适度 + 室内空气质量**(ASHRAE 55/62.1):逐区判温度 20–26°C、相对湿度
   30–60%、CO₂ ≤1000 ppm(通风充分性代理),越界即 breach,worst-first,引用数值。读数来自 BACnet AI 点。
+
+### 半小时电表数据（edition 工具;随 building / renewables 加载;只读,不连设备）
+- `meter_hh_check` — 供应商半小时(HH)CSV 里有什么:宽表(日期 + 46–50 时段列)或长表(时间戳 + kWh)、
+  各 MPAN 起止、被拒的行/格及原因、解析时做的每个假设。空格/非数字=**缺失,不是 0**;日期只认英式日在前。
+- `meter_load_profile` — 每个表:覆盖率(缺口计数,**不外推**)、实测 kWh、估算读数占比(文件无标志时为
+  `unknown`)、峰值 kW 及时间、夜间基础负荷(00:00–05:00 中位数)、按**声明的**营业时间算的非营业时段用电、
+  高于基础负荷的非营业用电(**机会提示,不是保证的节省**)、完整日工作日/休息日均值、负荷率、发现与警告;
+  传 `tariff` 时按时段算钱 + 移出最贵时段的**上限**(不含 VAT/CCL/kVA/DUoS 单列项)。
+- HTML 报告只在 CLI:`iaiops meter profile FILE --tariff t.yaml --report out.html`。DUoS 红/黄/绿时段因配网区域而异,
+  **不内置**,请按合同写进 tariff。示例:`demo/metering/`。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`
