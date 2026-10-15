@@ -407,13 +407,20 @@ class AuditEngine:
             conn.close()
 
     def rows_after(
-        self, cursor_id: int, *, since: str | None = None, limit: int = 1000
+        self,
+        cursor_id: int,
+        *,
+        since: str | None = None,
+        limit: int = 1000,
+        db_path: Path | None = None,
     ) -> list[dict[str, Any]]:
         """Return audit rows with ``id > cursor_id`` in ascending id order.
 
-        Used by the forwarder to stream new records to a SIEM exactly once: the
-        caller persists the max id it saw as the next cursor. ``since`` adds an
-        optional ``ts >=`` floor for the very first run.
+        Ids are only unique within one DB file — a rotation starts the next file
+        at 1 again — so a caller that keeps a cursor across runs must also know
+        *which* file it points into (see :meth:`archive_paths`). ``db_path``
+        reads an archive instead of the live file. ``since`` adds an optional
+        ``ts >=`` floor for the very first run.
         """
         clauses = ["id > ?"]
         values: list[Any] = [int(cursor_id)]
@@ -424,13 +431,45 @@ class AuditEngine:
         where = " AND ".join(clauses)
         sql = f"SELECT * FROM audit_log WHERE {where} ORDER BY id ASC LIMIT ?"  # nosec B608
         values.append(int(limit))
-        conn = self._connect()
+        conn = self._connect_for(db_path)
         try:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(sql, values).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
+
+    def row_by_id(self, row_id: int, *, db_path: Path | None = None) -> dict[str, Any] | None:
+        """Return the row with ``id == row_id`` in the live DB or an archive."""
+        conn = self._connect_for(db_path)
+        try:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (int(row_id),)).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    @property
+    def path(self) -> Path:
+        """The live audit DB file."""
+        return self._path
+
+    def archive_paths(self) -> list[Path]:
+        """Rotated archives still on disk, oldest first.
+
+        Archive names embed the rotation time (``audit.YYYYmmdd-HHMMSS.db``), so
+        name order is rotation order. Archives beyond the retention limit have
+        already been deleted by :meth:`_cleanup_archives` and are not listed.
+        """
+        stem = self._path.stem
+        return sorted(p for p in self._path.parent.glob(f"{stem}.*.db") if p != self._path)
+
+    def _connect_for(self, db_path: Path | None) -> sqlite3.Connection:
+        """Connect to the live DB, or read-only to an archive."""
+        if db_path is None or Path(db_path) == self._path:
+            return self._connect()
+        uri = f"{Path(db_path).resolve().as_uri()}?mode=ro"
+        return sqlite3.connect(uri, uri=True, timeout=_BUSY_TIMEOUT_MS / 1000)
 
     def stats(self, days: int = 7) -> dict[str, Any]:
         """Aggregate statistics over the last N days."""

@@ -2,10 +2,19 @@
 
 Reads append-only rows from ``~/.iaiops/audit.db`` and emits each as one JSON
 line to a **syslog (UDP)** collector or an **HTTP POST** endpoint. A persisted
-*since-cursor* (the last forwarded ``id``) makes re-runs incremental — a second
-run forwards only rows written since the last successful send. Delivery is
+cursor (the last forwarded row) makes re-runs incremental — a second run
+forwards only rows written since the last successful send. Delivery is
 at-least-once: on a mid-batch failure the cursor keeps the rows already sent, so
 retry resumes after them (only the failing row may be re-sent; none are lost).
+
+The cursor survives rotation. At 100 MB the audit DB is archived and the new
+file starts its ids at 1 again, so an id alone cannot say where forwarding
+stopped. The cursor therefore records the row itself (``id`` + ``ts`` +
+``row_hash``) and each run finds that row in the live file or one of the
+retained archives, then forwards the rest of that file and every newer one.
+When the row is in none of them — its archive aged out past retention, or the
+file was replaced — the run refuses (:class:`CursorLost`) instead of guessing
+a position, because a guess either re-sends history or leaves a hole.
 
 This is egress of *governance metadata* the operator already owns, not a
 control-system write: it only ever reads the audit DB and sends copies out.
@@ -25,9 +34,11 @@ import json
 import logging
 import os
 import socket
+import sqlite3
 import time
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -232,29 +243,125 @@ def build_sink(kind: str, *, host: str, port: int = 0, path: str = "/") -> Forwa
 # ── cursor persistence ───────────────────────────────────────────────────────
 
 
+class CursorLost(LookupError):
+    """The persisted cursor cannot be placed in any audit file still on disk."""
+
+
+@dataclass(frozen=True)
+class Cursor:
+    """The last forwarded row, identified well enough to find it after rotation.
+
+    ``legacy`` marks a bare-id cursor written before the cursor carried the row's
+    identity; it can only be placed when no rotation has happened since.
+    """
+
+    id: int
+    ts: str = ""
+    row_hash: str = ""
+    legacy: bool = False
+
+    @classmethod
+    def of(cls, row: dict[str, Any]) -> Cursor:
+        return cls(
+            id=int(row["id"]), ts=str(row.get("ts") or ""), row_hash=str(row.get("row_hash") or "")
+        )
+
+    def matches(self, row: dict[str, Any] | None) -> bool:
+        return (
+            row is not None
+            and int(row["id"]) == self.id
+            and str(row.get("ts") or "") == self.ts
+            and str(row.get("row_hash") or "") == self.row_hash
+        )
+
+
 def _default_cursor_path() -> Path:
     return ops_path(_CURSOR_FILE)
 
 
-def read_cursor(path: Path) -> int:
-    """Return the last forwarded row id (0 when no cursor exists / is unreadable)."""
+def read_cursor(path: Path) -> Cursor | None:
+    """Return the persisted cursor, or ``None`` when nothing was forwarded yet.
+
+    A cursor file that exists but cannot be parsed raises :class:`CursorLost`:
+    restarting from the beginning would re-send the whole log, and skipping to
+    the end would drop rows — neither is ours to choose.
+    """
     try:
         text = path.read_text("utf-8").strip()
-    except OSError:
-        return 0
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise CursorLost(f"Forward cursor at {path} cannot be read: {exc}") from exc
+    if text.isdigit():
+        legacy_id = int(text)
+        return Cursor(id=legacy_id, legacy=True) if legacy_id > 0 else None
     try:
-        return max(0, int(text))
-    except ValueError:
-        _log.warning("Corrupt forward cursor at %s; restarting from 0", path)
-        return 0
+        data = json.loads(text)
+        return Cursor(id=int(data["id"]), ts=str(data["ts"]), row_hash=str(data["row_hash"]))
+    except (ValueError, TypeError, KeyError) as exc:
+        raise CursorLost(
+            f"Forward cursor at {path} is corrupt ({text[:40]!r}). Delete it and re-run "
+            "with --since <ts of the last row your collector has>."
+        ) from exc
 
 
-def write_cursor(path: Path, value: int) -> None:
+def write_cursor(path: Path, cursor: Cursor) -> None:
     """Atomically persist the cursor (write-temp-then-rename)."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(str(int(value)), "utf-8")
+    payload = {"id": cursor.id, "ts": cursor.ts, "row_hash": cursor.row_hash}
+    tmp.write_text(json.dumps(payload), "utf-8")
     tmp.replace(path)
+
+
+def _sources(engine: AuditEngine) -> list[Path]:
+    """Every audit file still on disk, oldest first: archives, then the live DB."""
+    return [*engine.archive_paths(), engine.path]
+
+
+def _find_row(engine: AuditEngine, row_id: int, source: Path) -> dict[str, Any] | None:
+    try:
+        return engine.row_by_id(row_id, db_path=source)
+    except sqlite3.Error as exc:
+        # An archive deleted (or unreadable) between listing and opening it
+        # simply does not hold the cursor; the caller refuses if none does.
+        _log.debug("Could not read %s while placing the cursor: %s", source, exc)
+        return None
+
+
+def _place(engine: AuditEngine, cursor: Cursor | None, sources: list[Path]) -> int:
+    """Index of the source the cursor points into; raise when it points nowhere."""
+    if cursor is None:
+        return 0
+    if cursor.legacy:
+        return _place_legacy(engine, cursor, sources)
+    for index in reversed(range(len(sources))):
+        if cursor.matches(_find_row(engine, cursor.id, sources[index])):
+            return index
+    raise CursorLost(
+        f"Forward cursor (row id {cursor.id}, ts {cursor.ts}) cannot be placed: that row "
+        f"is in neither the live audit DB nor the {len(sources) - 1} retained archive(s) — "
+        "its archive was deleted past retention, or the file was replaced. Rows between "
+        "it and the oldest file on disk cannot be forwarded from here. Delete the cursor "
+        "and re-run with --since <ts of the last row your collector has>."
+    )
+
+
+def _place_legacy(engine: AuditEngine, cursor: Cursor, sources: list[Path]) -> int:
+    """A bare id is only unambiguous while the live DB is the only file."""
+    if len(sources) > 1:
+        raise CursorLost(
+            f"Forward cursor is a bare row id ({cursor.id}) from an older iaiops, and the "
+            "audit DB has rotated since, so that id may name a row in either file. Delete "
+            "the cursor and re-run with --since <ts of the last row your collector has>."
+        )
+    if _find_row(engine, cursor.id, sources[0]) is None:
+        raise CursorLost(
+            f"Forward cursor is a bare row id ({cursor.id}) that is not in the live audit "
+            "DB. Delete the cursor and re-run with --since <ts of the last row your "
+            "collector has>."
+        )
+    return 0
 
 
 # ── row → JSON line ──────────────────────────────────────────────────────────
@@ -291,30 +398,46 @@ def forward_audit(
 ) -> dict[str, Any]:
     """Forward every audit row newer than the cursor to ``sink`` exactly once.
 
-    Rows are read in ascending id order and sent one JSON line each. Delivery is
-    **at-least-once**: the cursor is advanced (in a ``finally``) to the max id
+    Rows are read oldest file first (retained archives, then the live DB) and in
+    ascending id within a file, one JSON line each. Delivery is
+    **at-least-once**: the cursor is advanced (in a ``finally``) to the last row
     that was successfully sent, so a mid-batch send failure resumes on the next
-    run after the last delivered row — only the row that failed can be re-sent, no
-    rows are skipped.
+    run after the last delivered row — only the row that failed can be re-sent,
+    no rows are skipped. Raises :class:`CursorLost` (sending nothing) when the
+    cursor cannot be placed.
     """
     engine = engine or get_engine()
     cursor_path = cursor_path or _default_cursor_path()
     start = read_cursor(cursor_path)
-    rows = engine.rows_after(start, since=since, limit=limit)
+    sources = _sources(engine)
+    first = _place(engine, start, sources)
 
     sent = 0
-    last_id = start
+    last = start
+    last_source = sources[first]
     try:
-        for row in rows:
-            sink.send(row_to_line(row))
-            sent += 1
-            last_id = max(last_id, int(row.get("id", last_id)))
+        for index in range(first, len(sources)):
+            if sent >= limit:
+                break
+            after = start.id if start is not None and index == first else 0
+            rows = engine.rows_after(after, since=since, limit=limit - sent, db_path=sources[index])
+            for row in rows:
+                sink.send(row_to_line(row))
+                sent += 1
+                last = Cursor.of(row)
+                last_source = sources[index]
     finally:
         # Persist progress for rows that DID go out, even if a later send raised,
         # so retry doesn't re-deliver the whole batch (at-least-once, not lost).
-        if last_id > start:
-            write_cursor(cursor_path, last_id)
-    return {"forwarded": sent, "from_cursor": start, "cursor": last_id}
+        if last is not None and last != start:
+            write_cursor(cursor_path, last)
+    return {
+        "forwarded": sent,
+        "from_cursor": start.id if start is not None else 0,
+        "cursor": last.id if last is not None else 0,
+        # Ids restart per file, so the id alone does not say where the cursor is.
+        "cursor_file": last_source.name,
+    }
 
 
 def forward_follow(
@@ -346,6 +469,8 @@ def forward_follow(
 
 
 __all__ = [
+    "Cursor",
+    "CursorLost",
     "ForwardSink",
     "SyslogUDPSink",
     "HttpSink",

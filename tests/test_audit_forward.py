@@ -95,7 +95,7 @@ def test_partial_failure_persists_delivered_rows_at_least_once(tmp_path, engine)
         forward_audit(sink, engine=engine, cursor_path=cursor)
     assert sink.lines and len(sink.lines) == 1  # row 1 was delivered
     # At-least-once: the delivered row's id is persisted so retry does NOT re-send it.
-    assert read_cursor(cursor) == 1
+    assert read_cursor(cursor).id == 1
     retry = _FakeSink()
     out = forward_audit(retry, engine=engine, cursor_path=cursor)
     # Retry resumes after the last delivered row: re-sends the failing row (2) + rest (3),
@@ -235,3 +235,192 @@ def test_syslog_oversized_result_also_shrinks():
     assert len(payload) <= 65000
     record = _record_from(payload)
     assert record["_truncated"] is True and record["id"] == 8
+
+
+# ── rotation: the cursor must survive the DB restarting ids at 1 ─────────────
+
+
+def _rotate(engine: AuditEngine, monkeypatch, *, year: int = 2030) -> None:
+    """Force one rotation now, regardless of the real 100 MB threshold.
+
+    ``year`` fixes the archive's timestamped name, so two rotations in one test
+    get two archives instead of colliding within the same second.
+    """
+    import iaiops.core.governance.audit as audit_mod
+
+    real = audit_mod.datetime
+
+    class _Clock(real):  # type: ignore[misc, valid-type]
+        @classmethod
+        def now(cls, tz=None):  # noqa: ANN001, ANN206
+            return real(year, 1, 1, tzinfo=tz)
+
+    monkeypatch.setattr(audit_mod, "datetime", _Clock)
+    monkeypatch.setattr(audit_mod, "_MAX_DB_SIZE_BYTES", 1)
+    engine._maybe_rotate()
+    monkeypatch.undo()
+
+
+def _forwarded_params(sink: _FakeSink) -> list[int]:
+    return [json.loads(line)["params"]["i"] for line in sink.lines]
+
+
+def _seed_from(engine: AuditEngine, start: int, n: int) -> None:
+    for i in range(start, start + n):
+        engine.log(skill="opcua", tool="read", params={"i": i}, result={}, status="ok")
+
+
+@pytest.mark.unit
+def test_rows_after_rotation_are_all_forwarded_exactly_once(tmp_path, engine, monkeypatch):
+    """Ids restart at 1 after a rotation; an id cursor would skip rows 1..old."""
+    cursor = tmp_path / "cur"
+    sink = _FakeSink()
+    _seed_from(engine, 0, 5)
+    forward_audit(sink, engine=engine, cursor_path=cursor)
+    _seed_from(engine, 5, 2)  # written after the forward, before the rotation
+    _rotate(engine, monkeypatch)
+    _seed_from(engine, 7, 3)  # new file: ids 1..3, all below the old cursor (5)
+    forward_audit(sink, engine=engine, cursor_path=cursor)
+    forward_audit(sink, engine=engine, cursor_path=cursor)  # idempotent re-run
+    assert _forwarded_params(sink) == list(range(10))
+
+
+@pytest.mark.unit
+def test_rotation_survived_across_several_archives(tmp_path, engine, monkeypatch):
+    cursor = tmp_path / "cur"
+    sink = _FakeSink()
+    _seed_from(engine, 0, 2)
+    forward_audit(sink, engine=engine, cursor_path=cursor)
+    _seed_from(engine, 2, 2)
+    _rotate(engine, monkeypatch, year=2030)
+    _seed_from(engine, 4, 2)
+    _rotate(engine, monkeypatch, year=2031)
+    _seed_from(engine, 6, 1)
+    forward_audit(sink, engine=engine, cursor_path=cursor)
+    assert _forwarded_params(sink) == list(range(7))
+
+
+@pytest.mark.unit
+def test_batch_limit_resumes_inside_an_archive(tmp_path, engine, monkeypatch):
+    cursor = tmp_path / "cur"
+    sink = _FakeSink()
+    _seed_from(engine, 0, 4)
+    _rotate(engine, monkeypatch)
+    _seed_from(engine, 4, 3)
+    for _ in range(5):
+        forward_audit(sink, engine=engine, cursor_path=cursor, limit=2)
+    assert _forwarded_params(sink) == list(range(7))
+
+
+@pytest.mark.unit
+def test_first_run_includes_archived_rows(tmp_path, engine, monkeypatch):
+    _seed_from(engine, 0, 2)
+    _rotate(engine, monkeypatch)
+    _seed_from(engine, 2, 2)
+    sink = _FakeSink()
+    forward_audit(sink, engine=engine, cursor_path=tmp_path / "cur")
+    assert _forwarded_params(sink) == [0, 1, 2, 3]
+
+
+@pytest.mark.unit
+def test_cursor_row_gone_with_deleted_archive_refuses(tmp_path, engine, monkeypatch):
+    """Archives past the retention limit are deleted: refuse, don't guess."""
+    from iaiops.core.governance.forward import CursorLost
+
+    cursor = tmp_path / "cur"
+    _seed_from(engine, 0, 3)
+    forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+    _rotate(engine, monkeypatch)
+    for archive in tmp_path.glob("audit.*.db"):
+        archive.unlink()
+    _seed_from(engine, 3, 5)
+    sink = _FakeSink()
+    with pytest.raises(CursorLost, match="cannot be placed"):
+        forward_audit(sink, engine=engine, cursor_path=cursor)
+    assert sink.lines == []
+
+
+@pytest.mark.unit
+def test_cursor_whose_row_was_replaced_refuses(tmp_path, engine, monkeypatch):
+    """Same id, different row (new file, no archive): never treat it as placed."""
+    from iaiops.core.governance.forward import CursorLost
+
+    cursor = tmp_path / "cur"
+    _seed_from(engine, 0, 2)
+    forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+    _rotate(engine, monkeypatch)
+    for archive in tmp_path.glob("audit.*.db"):
+        archive.unlink()
+    _seed_from(engine, 2, 3)  # id 2 exists again, but it is a different row
+    with pytest.raises(CursorLost):
+        forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+
+
+@pytest.mark.unit
+def test_legacy_int_cursor_honoured_only_when_no_rotation_happened(tmp_path, engine, monkeypatch):
+    from iaiops.core.governance.forward import CursorLost
+
+    cursor = tmp_path / "cur"
+    _seed_from(engine, 0, 4)
+    cursor.write_text("2", "utf-8")  # pre-0.29 cursor format
+    sink = _FakeSink()
+    forward_audit(sink, engine=engine, cursor_path=cursor)
+    assert _forwarded_params(sink) == [2, 3]
+
+    cursor.write_text("2", "utf-8")
+    _rotate(engine, monkeypatch)
+    _seed_from(engine, 4, 3)
+    with pytest.raises(CursorLost, match="rotat"):
+        forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+
+
+@pytest.mark.unit
+def test_corrupt_cursor_refuses(tmp_path, engine):
+    from iaiops.core.governance.forward import CursorLost
+
+    cursor = tmp_path / "cur"
+    _seed_from(engine, 0, 2)
+    cursor.write_text("{not json", "utf-8")
+    with pytest.raises(CursorLost):
+        forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+
+
+def _set_column(db, row_id: int, column: str, value: str) -> None:
+    import sqlite3
+
+    conn = sqlite3.connect(db)
+    try:
+        # ``column`` is a test literal, never input.
+        conn.execute(f"UPDATE audit_log SET {column} = ? WHERE id = ?", (value, row_id))  # nosec B608
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("column", ["ts", "row_hash"])
+def test_each_identity_field_is_checked_when_placing(tmp_path, engine, column):
+    """A row matching on id but differing on ts *or* row_hash is not the cursor row.
+
+    ``ts`` is the only identity an unchained (pre-migration) row has, and
+    ``row_hash`` the one that changes when anything else differs.
+    """
+    from iaiops.core.governance.forward import CursorLost
+
+    cursor = tmp_path / "cur"
+    _seed_from(engine, 0, 2)
+    forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+    _set_column(engine.path, 2, column, "something-else")
+    with pytest.raises(CursorLost):
+        forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+
+
+@pytest.mark.unit
+def test_legacy_int_cursor_beyond_the_live_db_refuses(tmp_path, engine):
+    from iaiops.core.governance.forward import CursorLost
+
+    cursor = tmp_path / "cur"
+    _seed_from(engine, 0, 3)
+    cursor.write_text("99", "utf-8")
+    with pytest.raises(CursorLost, match="not in the live"):
+        forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
