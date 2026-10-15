@@ -8,19 +8,19 @@ are separate sections, so a reader cannot mistake "the plant's job" for "covered
 from __future__ import annotations
 
 from collections.abc import Callable
+from types import MappingProxyType
 
 from iaiops.core.brain.compliance_eu import (
+    COVERAGE,
     EU_DISCLAIMER,
     MECHANISMS,
     compliance_eu,
     normalize_eu_framework,
 )
 
-EU_SELECTORS: dict[str, tuple[str, ...]] = {
-    "nis2": ("nis2",),
-    "cra": ("cra",),
-    "eu": ("nis2", "cra"),
-}
+TableFn = Callable[[tuple[str, ...], list[tuple[str, ...]]], list[str]]
+
+EU_SELECTORS = MappingProxyType({"nis2": ("nis2",), "cra": ("cra",), "eu": ("nis2", "cra")})
 
 
 def eu_frameworks_for(framework: str) -> tuple[str, ...]:
@@ -28,14 +28,11 @@ def eu_frameworks_for(framework: str) -> tuple[str, ...]:
     key = str(framework).strip().lower()
     if key in EU_SELECTORS:
         return EU_SELECTORS[key]
-    return (normalize_eu_framework(key),)  # raises with the known ids
+    return (normalize_eu_framework(key),)  # raises naming nis2 / cra / eu
 
 
-def _section(
-    data: dict, number: int, table: Callable[[tuple[str, ...], list[tuple[str, ...]]], list[str]]
-) -> list[str]:
+def _header(data: dict, number: int, table: TableFn) -> list[str]:
     fw = data["framework"]
-    items = data["items"]
     summary = data["coverage_summary"]
     lines = [
         f"## {number}. {fw['name']}",
@@ -47,35 +44,32 @@ def _section(
     ]
     lines.extend(
         table(
-            ("Items", "product_evidence", "gap", "organisational", "待核实"),
-            [
-                (
-                    str(data["item_count"]),
-                    str(summary["product_evidence"]),
-                    str(summary["gap"]),
-                    str(summary["organisational"]),
-                    str(summary["待核实"]),
-                )
-            ],
+            ("Items", *COVERAGE), [(str(data["item_count"]), *(str(summary[c]) for c in COVERAGE))]
         )
     )
-    evidence = [i for i in items if i["coverage"] != "organisational"]
+    return lines
+
+
+def _row(item: dict) -> tuple[str, ...]:
+    mechanisms = "; ".join(MECHANISMS[m]["name"] for m in item["mechanisms"]) or "—"
+    return (
+        item["ref"],
+        item["measure"],
+        item["coverage"],
+        item["iaiops"],
+        mechanisms,
+        item["gap"] or "—",
+    )
+
+
+def _section(data: dict, number: int, table: TableFn) -> list[str]:
+    items = data["items"]
+    lines = _header(data, number, table)
     lines.extend(["", f"### {number}.1 Product evidence and gaps", ""])
     lines.extend(
         table(
-            ("Item", "Measure", "Coverage", "iaiops mechanism", "What is left"),
-            [
-                (
-                    i["ref"],
-                    i["measure"],
-                    i["coverage"],
-                    "; ".join(MECHANISMS[m]["name"] for m in i["mechanisms"]) or "—",
-                    f"{i['iaiops']} {i['gap']}".strip()
-                    if i["coverage"] == "gap"
-                    else i["gap"] or "—",
-                )
-                for i in evidence
-            ],
+            ("Item", "Measure", "Coverage", "iaiops", "Mechanism", "What is left"),
+            [_row(i) for i in items if i["coverage"] != "organisational"],
         )
     )
     organisational = [i for i in items if i["coverage"] == "organisational"]
@@ -88,13 +82,29 @@ def _section(
     return lines
 
 
+def _appendix(selected: list[dict]) -> list[str]:
+    cited = sorted({m for d in selected for i in d["items"] for m in i["mechanisms"]})
+    lines = [
+        "## Appendix A. Mechanisms cited",
+        "",
+        "Each mechanism with its known limit and where it lives in the code "
+        "(anchors are resolved by the test suite).",
+        "",
+    ]
+    for mech_id in cited:
+        mech = MECHANISMS[mech_id]
+        anchors = ", ".join(f"`{a.split(':', 1)[1]}`" for a in mech["anchors"])
+        lines.extend([f"### {mech['name']}", "", mech["fact"], "", f"- Code: {anchors}", ""])
+    return lines
+
+
 def render_eu_markdown(
     *,
     framework: str,
     site: str,
     date: str,
     version: str,
-    table: Callable[[tuple[str, ...], list[tuple[str, ...]]], list[str]],
+    table: TableFn,
 ) -> str:
     """Render the NIS2 and/or CRA self-assessment as Markdown."""
     selected = [compliance_eu(fw) for fw in eu_frameworks_for(framework)]
@@ -111,22 +121,7 @@ def render_eu_markdown(
     ]
     for number, data in enumerate(selected, start=1):
         lines.extend(_section(data, number, table))
-
-    cited = sorted({m for d in selected for i in d["items"] for m in i["mechanisms"]})
-    lines.extend(
-        [
-            "## Appendix A. Mechanisms cited",
-            "",
-            "Each mechanism with its known limit and where it lives in the code "
-            "(anchors are resolved by the test suite).",
-            "",
-        ]
-    )
-    for mech_id in cited:
-        mech = MECHANISMS[mech_id]
-        anchors = ", ".join(f"`{a.split(':', 1)[1]}`" for a in mech["anchors"])
-        lines.extend([f"### {mech['name']}", "", mech["fact"], "", f"- Code: {anchors}", ""])
-
+    lines.extend(_appendix(selected))
     lines.extend(
         [
             "## Appendix B. Source",

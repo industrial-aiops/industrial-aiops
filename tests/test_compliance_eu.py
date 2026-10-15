@@ -260,3 +260,141 @@ def test_compliance_frameworks_framework_parameter():
     assert "crosswalk" in compliance_frameworks(None)
     with pytest.raises(ValueError):
         compliance_frameworks("dengbao")
+
+
+# ─── the facts, pinned to the behaviour they describe ────────────────────────
+# An anchor proves a name exists; these prove the sentence about it is still
+# true. Each one fails the day the default it describes is flipped.
+
+
+def test_partial_evidence_rows_name_a_mechanism_and_what_is_missing():
+    for item in ALL_ITEMS:
+        if item["coverage"] == "partial_evidence":
+            assert item["mechanisms"], item["id"]
+            assert item["gap"].strip(), item["id"]
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "CRA Annex I Part I(2)(a)",  # no dependency CVE scan
+        "CRA Annex I Part I(2)(c)",  # publishing releases is not an update mechanism
+        "CRA Annex I Part I(2)(d)",  # no authentication of callers
+        "CRA Annex I Part I(2)(m)",  # no remove-all path
+        "CRA Annex I Part II(1)",  # no SBOM
+        "CRA Annex I Part II(2)",  # no remediation process
+        "CRA Annex I Part II(7)",  # wheels unsigned
+    ],
+)
+def test_rows_missing_their_central_requirement_are_not_full_evidence(ref):
+    item = next(i for i in CRA_ITEMS if i["ref"] == ref)
+    assert item["coverage"] != "product_evidence", ref
+
+
+def test_the_crosswalk_is_not_cited_as_evidence_for_itself():
+    assert "self_assessment" not in MECHANISMS
+
+
+def test_mechanisms_are_read_only():
+    with pytest.raises(TypeError):
+        MECHANISMS["invented"] = {}  # type: ignore[index]
+
+
+def test_every_mcp_write_tool_defaults_to_dry_run(full_tool_registry):
+    import inspect
+
+    high = {
+        name: tool.fn
+        for name, tool in full_tool_registry.items()
+        if getattr(tool.fn, "_risk_level", "low") in ("high", "critical")
+    }
+    assert high
+    for name, fn in high.items():
+        params = inspect.signature(fn).parameters
+        assert "dry_run" in params, f"{name} has no dry_run"
+        assert params["dry_run"].default is True, f"{name} does not preview by default"
+
+
+def test_audit_fail_open_is_what_the_fact_says():
+    from iaiops.core.governance import decorators
+
+    assert tuple(decorators._FAIL_CLOSED_RISK) == ("high", "critical")
+    assert "unaudited" in MECHANISMS["audit_trail"]["fact"]
+
+
+def test_rotation_numbers_match_the_fact():
+    from iaiops.core.governance import audit
+
+    assert audit._MAX_DB_SIZE_BYTES == 100 * 1024 * 1024
+    assert audit._MAX_ARCHIVES == 5
+    fact = MECHANISMS["audit_rotation"]["fact"]
+    assert "100 MB" in fact and "5 most recent" in fact and "deleted" in fact
+
+
+def test_breaker_numbers_and_opt_in_ceilings_match_the_fact(monkeypatch):
+    from iaiops.core.governance import budget
+
+    for env in ("OPCUA_MAX_TOOL_CALLS", "OPCUA_MAX_TOOL_SECONDS"):
+        monkeypatch.delenv(env, raising=False)
+    assert budget._DEFAULT_RUNAWAY_MAX == 25
+    assert budget._DEFAULT_RUNAWAY_WINDOW_SEC == 120
+    assert budget._env_int("OPCUA_MAX_TOOL_CALLS", None) is None  # off by default
+    fact = MECHANISMS["budget_breaker"]["fact"]
+    assert "25 times in 120 s" in fact and "off by default" in fact
+
+
+def test_transport_defaults_match_the_fact(monkeypatch):
+    from mcp_server.transport import TRANSPORT_ENV, resolve_transport
+
+    monkeypatch.delenv(TRANSPORT_ENV, raising=False)
+    assert resolve_transport(None) == "stdio"
+    dockerfile = (REPO / "deploy/margo/Dockerfile").read_text(encoding="utf-8")
+    assert "IAIOPS_MCP_TRANSPORT=stdio" in dockerfile
+    package = (REPO / "deploy/margo/package.compose.yaml").read_text(encoding="utf-8")
+    assert "IAIOPS_MCP_TRANSPORT:-streamable-http" in package
+    assert "streamable-http on 0.0.0.0" in MECHANISMS["mcp_profiles"]["fact"]
+
+
+def test_plaintext_env_fallback_is_admitted():
+    from iaiops.core.runtime import config
+
+    assert config.ENV_FILE.name == ".env"
+    assert "plaintext" in MECHANISMS["secret_store"]["fact"]
+
+
+def test_no_pypi_signing_is_stated_while_no_publish_workflow_exists():
+    workflows = " ".join(
+        p.read_text(encoding="utf-8") for p in (REPO / ".github/workflows").glob("*.yml")
+    )
+    if "pypa/gh-action-pypi-publish" not in workflows:
+        assert "no signature or attestation" in MECHANISMS["signed_images"]["fact"]
+
+
+_FLATTERY = (
+    "compliant",
+    "complies",
+    "certified",
+    "satisfies",
+    "fulfils",
+    "meets",
+    "ensures",
+    "guarantee",
+    "fully covered",
+    "addressed",
+    "cannot ship",
+    "已认证",
+    "通过认证",
+)
+
+
+def _our_words() -> str:
+    """Everything we wrote ourselves — the measure text paraphrases the law."""
+    rows = [{k: v for k, v in i.items() if k != "measure"} for i in ALL_ITEMS]
+    meta = [compliance_eu(fw)["framework"] for fw in ("nis2", "cra")]
+    facts = [dict(m) for m in MECHANISMS.values()]
+    return json.dumps([rows, meta, facts], ensure_ascii=False).lower()
+
+
+@pytest.mark.parametrize("word", _FLATTERY)
+def test_no_flattering_word_anywhere_we_wrote(word):
+    assert word not in _our_words(), word

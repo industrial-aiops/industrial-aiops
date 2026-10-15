@@ -66,6 +66,13 @@ def compliance_cmd(
     if ctx.invoked_subcommand is not None:
         return
     if framework:
+        if frameworks or dengbao_level:
+            # Refused rather than silently ranked: whichever flag "won" would leave
+            # the operator reading a table they did not ask for.
+            raise ValueError(
+                "--framework prints one EU text on its own; drop --frameworks / "
+                "--dengbao-level, or run them separately."
+            )
         _emit(compliance_frameworks(framework))
         return
     if dengbao_level:
@@ -94,6 +101,7 @@ def report_cmd(
     from iaiops.core.brain.compliance_report import (
         render_html_report,
         render_markdown_report,
+        report_framework_id,
     )
     from iaiops.core.governance.evidence import validate_output_path
 
@@ -111,7 +119,7 @@ def report_cmd(
         {
             "path": str(path),
             "format": "html" if html else "markdown",
-            "framework": framework or "dengbao",
+            "framework": report_framework_id(framework or None),
             "lines": content.count("\n") + 1,
         }
     )

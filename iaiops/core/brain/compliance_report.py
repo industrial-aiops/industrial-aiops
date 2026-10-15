@@ -17,7 +17,7 @@ from iaiops.core.brain.compliance import (
     compliance_frameworks,
     compliance_mapping,
 )
-from iaiops.core.brain.compliance_report_eu import eu_frameworks_for, render_eu_markdown
+from iaiops.core.brain.compliance_report_eu import EU_SELECTORS, render_eu_markdown
 
 DISCLAIMER = (
     "本报告为 onboarding / 自评参考 (self-assessment onboarding aid)，**非认证** "
@@ -78,15 +78,26 @@ def _table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
 _DENGBAO_REPORT_FRAMEWORKS = ("gjzn", "dengbao", "iec62443", "gxp")
 
 
+def report_framework_id(framework: str | None) -> str:
+    """Normalise a report selector to 'dengbao' / 'nis2' / 'cra' / 'eu'.
+
+    Raises:
+        ValueError: naming every accepted value, on anything else.
+    """
+    key = "" if framework is None else str(framework).strip().lower()
+    if key in ("", "dengbao", "等保"):
+        return "dengbao"
+    if key in EU_SELECTORS:
+        return key
+    raise ValueError(
+        f"Unknown report framework {framework!r}. Use dengbao (the default 等保 2.0 / "
+        "IEC 62443 report), nis2, cra or eu (= nis2 + cra)."
+    )
+
+
 def _is_eu(framework: str | None) -> bool:
     """True for an EU report selector; raises on an unknown framework."""
-    if framework is None or not str(framework).strip():
-        return False
-    key = str(framework).strip().lower()
-    if key in ("dengbao", "等保"):
-        return False
-    eu_frameworks_for(key)  # raises ValueError naming nis2 / cra / eu
-    return True
+    return report_framework_id(framework) != "dengbao"
 
 
 def render_markdown_report(
@@ -118,7 +129,11 @@ def render_markdown_report(
                 f"framework={framework!r}. Drop it, or omit framework for the 等保 report."
             )
         return render_eu_markdown(
-            framework=str(framework), site=site, date=date, version=version, table=_table
+            framework=report_framework_id(framework),
+            site=site,
+            date=date,
+            version=version,
+            table=_table,
         )
     dengbao = compliance_dengbao_levels(level)  # validates + normalizes level
     selected: str | None = dengbao["selected_level"]
@@ -336,4 +351,4 @@ def render_html_report(
     )
 
 
-__all__ = ["render_markdown_report", "render_html_report", "DISCLAIMER"]
+__all__ = ["render_markdown_report", "render_html_report", "report_framework_id", "DISCLAIMER"]

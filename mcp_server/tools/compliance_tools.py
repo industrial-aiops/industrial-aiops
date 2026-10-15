@@ -14,6 +14,7 @@ from iaiops.core.brain.compliance import compliance_dengbao_levels as _complianc
 from iaiops.core.brain.compliance import compliance_frameworks as _compliance_frameworks
 from iaiops.core.brain.compliance import compliance_mapping as _compliance_mapping
 from iaiops.core.brain.compliance_report import render_markdown_report as _render_markdown_report
+from iaiops.core.brain.compliance_report import report_framework_id as _report_framework_id
 from iaiops.core.governance import governed_tool
 from iaiops.core.governance.evidence import export_evidence_bundle as _export_evidence_bundle
 from iaiops.core.governance.evidence import validate_output_path as _validate_output_path
@@ -142,7 +143,7 @@ def compliance_report(
     line_count = markdown.count("\n") + 1
     result: dict = {
         "format": "markdown",
-        "framework": framework or "dengbao",
+        "framework": _report_framework_id(framework),
         "level": level,
         "line_count": line_count,
     }

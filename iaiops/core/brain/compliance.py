@@ -274,6 +274,10 @@ FRAMEWORKS: tuple[dict, ...] = (
 )
 
 _NO_EU_REF = "—（无条款引用此支柱 / no item cites this pillar）"
+# The pillar row also carries an ``iaiops_status`` ("addressed"…). That status is
+# the 防护指南 pillar's, never the EU item's — so the column says what it is, or
+# "数据保护 addressed | CRA I(2)(m)" would read as "CRA (m) addressed".
+_EU_REF_PREFIX = "引用本支柱的条款，非状态 (items citing this pillar — not a status): "
 
 
 def _eu_columns(pillar: str) -> dict:
@@ -281,7 +285,7 @@ def _eu_columns(pillar: str) -> dict:
     out: dict = {}
     for fw in ("nis2", "cra"):
         refs = refs_citing(fw, pillar)
-        out[fw] = "; ".join(refs) if refs else _NO_EU_REF
+        out[fw] = _EU_REF_PREFIX + "; ".join(refs) if refs else _NO_EU_REF
         out[f"{fw}_refs"] = refs
     return out
 

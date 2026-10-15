@@ -64,7 +64,7 @@ def test_default_report_is_still_the_dengbao_report():
     assert "NIS2 Art. 21(2)" not in md
     # The title page lists only the frameworks this report actually renders.
     header = md.split("## 1.", 1)[0]
-    assert "NIS2" not in header and "Cyber Resilience" not in header
+    assert "NIS2" not in header and "CRA" not in header
 
 
 def test_level_is_refused_on_an_eu_report():
@@ -82,6 +82,7 @@ def test_eu_html_is_english_and_escaped():
     html = render_html_report(framework="cra", site="Plant <B>", date="2026-10-15")
     assert '<html lang="en">' in html
     assert "Plant &lt;B&gt;" in html and "Plant <B>" not in html
+    assert "<title>iaiops cybersecurity self-assessment — Plant &lt;B&gt;</title>" in html
 
 
 # ─── MCP + CLI fronts ────────────────────────────────────────────────────────
@@ -129,3 +130,36 @@ def test_cli_renders_an_eu_report(tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert "CRA Annex I Part II(8)" in out.read_text("utf-8")
+
+
+def test_eu_report_shows_what_iaiops_does_on_each_row():
+    md = render_markdown_report(framework="cra", date="2026-10-15")
+    item = next(i for i in CRA_ITEMS if i["ref"].endswith("Part I(2)(l)"))
+    assert item["iaiops"].split(" — ")[0] in md
+
+
+def test_eu_report_counts_partial_evidence_separately():
+    md = render_markdown_report(framework="cra", date="2026-10-15")
+    assert "partial_evidence" in md.split("### 1.1", 1)[0]
+
+
+@pytest.mark.parametrize("word", ["compliant", "certified", "satisfies", "meets the", "fully"])
+def test_rendered_eu_report_never_flatters(word):
+    md = render_markdown_report(framework="eu", date="2026-10-15").lower()
+    assert word not in md
+
+
+def test_mcp_report_echoes_the_normalised_framework():
+    from mcp_server.tools.compliance_tools import compliance_report
+
+    assert compliance_report(framework=" Nis2 ")["framework"] == "nis2"
+    assert compliance_report()["framework"] == "dengbao"
+    out = compliance_report(framework="gxp")
+    assert "error" in out
+
+
+def test_cli_refuses_framework_with_another_table_flag():
+    from iaiops.cli._root import app
+
+    result = CliRunner().invoke(app, ["compliance", "--framework", "nis2", "--frameworks"])
+    assert result.exit_code != 0

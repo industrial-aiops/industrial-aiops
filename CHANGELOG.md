@@ -13,20 +13,32 @@
   and `compliance_report` (no new tool, so the tool count is unchanged). The
   per-pillar crosswalk gains `nis2` / `cra` columns derived from the item tables,
   never typed twice.
-  - Each item has a `coverage`: `product_evidence` (a cited mechanism produces
-    evidence relevant to the measure — never "the measure is met", and every
-    such row names what is left), `gap`, or `organisational` (product provides
-    no evidence: NIS2 (a)(b)(c)(d)(g), CRA Part I(1)). Organisational rows cite
+  - Each item has a `coverage`: `product_evidence` (cited mechanisms speak to
+    the measure's central requirement — never "the measure is met", and every
+    such row names what is left), `partial_evidence` (they touch it but the
+    central requirement is missing, e.g. CRA Part II(1) without an SBOM), `gap`,
+    or `organisational` (product provides no evidence: NIS2 (a)(b)(c)(d)(g), CRA
+    Part I(1)). The honest headline: 2 of 10 NIS2 items and 3 of 22 CRA items are
+    `product_evidence`. Organisational rows cite
     no mechanism and no pillar, so the enterprise report cannot print runtime
     evidence under a measure the product never touches.
   - Every cited mechanism lives in one registry with code anchors
     (`module:attr` or a repository file + token), and the tests resolve each
-    anchor — a mechanism the code does not contain cannot be cited.
+    anchor — a mechanism the code does not contain cannot be cited. Each fact
+    states its limit, and the limits a default could silently flip are pinned
+    to behaviour: every MCP write tool defaults to `dry_run=True`; reads still
+    run unaudited when `audit.db` is unwritable (only high/critical fail
+    closed); rotation at 100 MB keeps 5 archives and deletes the rest; the
+    runaway breaker trips on 25 identical calls in 120 s while the call/time
+    ceilings are off by default; a pip install speaks stdio but the Margo
+    package defaults to streamable-http on 0.0.0.0; the plaintext `.env`
+    credential fallback is still honoured; PyPI wheels are unsigned.
   - It says the unflattering parts a CRA reader looks for first: no SBOM, no
     coordinated vulnerability disclosure policy or security contact, no
     security advisories, no audit opt-out (I(2)(l) asks for one), no
-    multi-factor authentication (NIS2 (j)), no reset-to-original, audit database
-    unencrypted at rest. Whether the free MIT edition is in CRA scope is left
+    multi-factor authentication (NIS2 (j)), no authentication of MCP callers,
+    no dependency CVE scan, no reset-to-original, audit database unencrypted at
+    rest. Whether the free MIT edition is in CRA scope is left
     `待核实`.
   - NIS2 obliges entities and the CRA manufacturers, not this product; the
     disclaimer says so, and that the table is not a certification and not legal

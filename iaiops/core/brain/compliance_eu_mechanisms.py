@@ -4,33 +4,51 @@ One registry, so a row cannot name a mechanism by prose alone. Every entry
 carries ``anchors`` — where the mechanism lives — and
 ``tests/test_compliance_eu.py`` resolves each one (``py:`` = importable
 ``module:attr``; ``file:`` = repository file, optionally ``#`` a token it must
-contain). A mechanism the code does not contain cannot be cited, which is the
-stretch this registry exists to stop.
+contain — a directive or assignment, not a comment). Behavioural pins for the
+facts that a default could silently flip (dry-run, transport, audit fail-open,
+rotation) live in the same test file.
 
 ``fact`` states what the mechanism does *and its known limit*, in the same
-sentence, because a fact without its limit is the flattering half of a fact.
+text, because a fact without its limit is the flattering half of a fact.
 """
 
 from __future__ import annotations
 
-MECHANISMS: dict[str, dict] = {
+from types import MappingProxyType
+
+_MECHANISMS: dict[str, dict] = {
     "audit_trail": {
         "name": "Governed audit trail",
-        "fact": "Every MCP tool and every CLI command runs through @governed_tool and "
-        "leaves an append-only row in ~/.iaiops/audit.db (tool, params with secrets "
-        "redacted, result status, risk level, OS user, approver) — denied and failed "
-        "calls included. There is no switch to turn it off.",
+        "fact": "Every MCP tool and CLI command runs through @governed_tool and writes a "
+        "row to ~/.iaiops/audit.db (tool, params with secrets redacted, status, risk "
+        "level, OS user, approver), denied and failed calls included. Limits: if "
+        "audit.db cannot be written, low/medium-risk calls still run unaudited (one "
+        "warning per process) and only high/critical calls fail closed; the "
+        "`iaiops mcp` launcher itself is not audited (its tools are).",
         "anchors": (
             "py:iaiops.core.governance:governed_tool",
             "py:iaiops.core.governance.audit:AuditEngine",
+            "file:iaiops/core/governance/decorators.py#_FAIL_CLOSED_RISK",
+        ),
+    },
+    "audit_rotation": {
+        "name": "Audit rotation and archive deletion",
+        "fact": "At 100 MB the audit DB is archived and a new file starts a new hash "
+        "chain; only the 5 most recent archives are kept and older ones are deleted "
+        "automatically. Chain verification and the evidence zip cover the current "
+        "file only.",
+        "anchors": (
+            "py:iaiops.core.governance.audit:AuditEngine._maybe_rotate",
+            "py:iaiops.core.governance.audit:AuditEngine._cleanup_archives",
         ),
     },
     "audit_hash_chain": {
         "name": "Audit hash chain + `iaiops audit verify`",
         "fact": "Each audit row carries a SHA-256 chain (prev_hash/row_hash); "
-        "`iaiops audit verify` walks it and reports the first break. Unkeyed: it "
-        "detects an edited or deleted row, not an attacker who rewrites the whole "
-        "suffix — forward the trail off-box for that.",
+        "`iaiops audit verify` walks it and reports the first break. Limits: unkeyed "
+        "— it detects an edited or deleted row, not a rewrite of the whole suffix; "
+        "it covers the current DB file only (see rotation); it runs when invoked, "
+        "not continuously.",
         "anchors": (
             "py:iaiops.core.governance.audit:AuditEngine.verify_chain",
             "py:iaiops.core.governance.audit:compute_row_hash",
@@ -40,76 +58,99 @@ MECHANISMS: dict[str, dict] = {
         "name": "`iaiops audit forward` (SIEM)",
         "fact": "Streams new audit rows as JSON lines to a syslog (UDP) or HTTP "
         "collector with a persisted cursor. Best-effort / at-least-once: no delivery "
-        "acknowledgement.",
+        "acknowledgement; the cursor is a row id, so rows written after a rotation "
+        "are not forwarded until ids pass the old cursor — 待核实 / open defect.",
         "anchors": ("py:iaiops.core.governance.forward:build_sink",),
     },
     "evidence_bundle": {
         "name": "`iaiops compliance evidence` (evidence zip)",
         "fact": "Exports audit rows, the chain-verification result, rules.yaml and a "
-        "non-probing doctor summary as one deterministic zip for an assessor.",
+        "non-probing doctor summary as one deterministic zip. Current audit DB file "
+        "only.",
         "anchors": ("py:iaiops.core.governance.evidence:export_evidence_bundle",),
     },
     "approvals_moc": {
         "name": "Named approval tokens (MOC)",
         "fact": "High-risk calls need a recorded approver: `iaiops approve` issues a "
         "one-shot, TTL-bound token consumed by the next matching call and written to "
-        "the audit row. The approver is a name, not an authenticated identity.",
+        "the audit row. Limits: the approver is a typed name, not an authenticated "
+        "identity; a static OPCUA_AUDIT_APPROVED_BY env var is still honoured as a "
+        "deprecated, reusable fallback; a rules.yaml risk_tiers list that matches "
+        "nothing leaves an operation at tier none.",
         "anchors": (
             "py:iaiops.core.governance.approvals:record_approval",
             "py:iaiops.core.governance.approvals:consume_approval",
         ),
     },
     "dry_run_undo": {
-        "name": "Dry-run default + undo",
-        "fact": "Device-write tools default to dry_run=True (preview only); a real "
-        "write captures the BEFORE value and registers an inverse. Where no inverse "
-        "exists the undo says 'none' rather than inventing one.",
+        "name": "Dry-run default + undo (MCP write tools)",
+        "fact": "The MCP device-write tools default to dry_run=True (preview only); a "
+        "real write captures the BEFORE value and registers an inverse, or says "
+        "'none' where none exists. Limit: the CLI write commands preview by default "
+        "too, but register no undo.",
         "anchors": ("py:iaiops.core.governance.undo:UndoStore",),
     },
     "policy_engine": {
         "name": "Policy engine (rules.yaml)",
         "fact": "Deny rules, risk tiers and change limits from ~/.iaiops/rules.yaml, "
-        "evaluated before a governed call runs; the kill switch never bypasses deny "
-        "rules or approver tiers for high/critical calls.",
-        "anchors": ("py:iaiops.core.governance.policy:PolicyEngine",),
+        "evaluated before a governed call runs. Limits: change limits and deny rules "
+        "exist only if the operator writes them (none by default); "
+        "IAIOPS_POLICY_DISABLED=1 bypasses them for low/medium calls — only "
+        "high/critical keep deny rules and approver tiers.",
+        "anchors": (
+            "py:iaiops.core.governance.policy:PolicyEngine",
+            "file:iaiops/core/governance/policy.py#_POLICY_DISABLED_ENV = ",
+        ),
     },
     "budget_breaker": {
-        "name": "Call budget + runaway circuit-breaker",
-        "fact": "Per-process call/token budget and a breaker that trips when the same "
-        "(tool, params) repeats past a threshold, bounding the load an agent can put "
-        "on plant devices.",
-        "anchors": ("py:iaiops.core.governance.budget:BudgetTracker",),
+        "name": "Runaway breaker + opt-in call ceilings",
+        "fact": "On by default: a breaker trips when the same (tool, params) repeats "
+        "more than 25 times in 120 s. Opt-in, off by default: per-process call-count "
+        "and wall-time ceilings. A varied sweep is not bounded by either.",
+        "anchors": (
+            "py:iaiops.core.governance.budget:BudgetTracker",
+            "file:iaiops/core/governance/budget.py#_DEFAULT_RUNAWAY_MAX = 25",
+        ),
     },
     "sanitize": {
         "name": "Device-text sanitisation",
-        "fact": "Text returned by devices is sanitised and length-bounded before it "
-        "reaches a model, against prompt injection through device strings.",
+        "fact": "Text returned by devices has control and format characters stripped "
+        "and is length-bounded before it reaches a model. It does not detect or "
+        "remove plain-language prompt injection.",
         "anchors": ("py:iaiops.core.governance.sanitize:sanitize",),
     },
     "no_egress_gate": {
         "name": "IAIOPS_NO_EGRESS posture gate",
-        "fact": "IAIOPS_NO_EGRESS=1 withholds every tool declared egress=True at "
-        "registration, so the server cannot ship data off-box. Opt-in, not default.",
+        "fact": "IAIOPS_NO_EGRESS=1 withholds every MCP tool declared egress=True at "
+        "registration. Opt-in, not default. Not a firewall: it does not cover "
+        "`iaiops audit forward` or other CLI commands, and tool results still reach "
+        "the MCP client and its model.",
         "anchors": ("py:mcp_server.noegress:apply_no_egress",),
     },
     "mcp_profiles": {
         "name": "Menu-selected MCP surface (IAIOPS_MCP) + stdio default",
         "fact": "IAIOPS_MCP selects only the protocols a site needs, so unused "
-        "connectors are not exposed; the server speaks stdio by default and opens a "
-        "network listener only when IAIOPS_MCP_TRANSPORT asks for one.",
+        "connectors are not exposed. A pip install speaks stdio unless "
+        "IAIOPS_MCP_TRANSPORT asks for HTTP; the Margo application package defaults "
+        "to streamable-http on 0.0.0.0 with an optional IP allowlist and no "
+        "authentication of its own.",
         "anchors": (
             "py:mcp_server.profiles:resolve_selection",
-            "file:mcp_server/server.py#IAIOPS_MCP_TRANSPORT",
+            "py:mcp_server.transport:resolve_transport",
+            "file:deploy/margo/package.compose.yaml#IAIOPS_MCP_TRANSPORT:-streamable-http",
         ),
     },
     "secret_store": {
         "name": "Encrypted secret store",
-        "fact": "Credentials live in ~/.iaiops/secrets.enc (Fernet, scrypt-derived "
-        "key), never in plaintext config; `iaiops secret rotate` re-encrypts under a "
-        "new master password, `iaiops secret rm` deletes one. No HSM/KMS.",
+        "fact": "Credentials can live in ~/.iaiops/secrets.enc (Fernet, scrypt-derived "
+        "key); `iaiops secret rotate` re-encrypts under a new master password, "
+        "`iaiops secret rm` deletes one. Limits: a legacy plaintext ~/.iaiops/.env "
+        "(OT_<NAME>_PASSWORD) is still honoured as a fallback with a warning; the "
+        "master password reaches non-interactive runs by env var; no HSM/KMS.",
         "anchors": (
             "py:iaiops.core.runtime.secretstore:SecretStore",
             "py:iaiops.core.runtime.secretstore:SecretStore.delete",
+            "file:iaiops/core/runtime/config.py#ENV_FILE = ",
         ),
     },
     "channel_tls": {
@@ -126,8 +167,8 @@ MECHANISMS: dict[str, dict] = {
     "param_redaction": {
         "name": "Sensitive-parameter redaction",
         "fact": "Parameters a tool declares sensitive (passwords, tokens) are redacted "
-        "before the audit row is written.",
-        "anchors": ("file:iaiops/core/governance/decorators.py#sensitive_params",),
+        "before the audit row is written. Only declared parameters.",
+        "anchors": ("file:iaiops/core/governance/decorators.py#sensitive_params: list",),
     },
     "scan_bounds": {
         "name": "Bounded site survey (`iaiops scan`)",
@@ -149,60 +190,56 @@ MECHANISMS: dict[str, dict] = {
     },
     "store_prune": {
         "name": "`iaiops store prune` (retention)",
-        "fact": "Prunes collected history by retention rule. It does not touch the "
-        "audit trail, which is append-only by design.",
+        "fact": "Prunes collected history by retention rule. It does not touch the audit trail.",
         "anchors": ("py:iaiops.cli.store:store_prune_cmd",),
-    },
-    "self_assessment": {
-        "name": "Self-assessment crosswalk + report",
-        "fact": "This crosswalk and `iaiops compliance report`: a per-item statement "
-        "of which mechanism is relevant and what remains, gaps included.",
-        "anchors": ("py:iaiops.core.brain.compliance_report:render_markdown_report",),
     },
     "verify_determinism": {
         "name": "`iaiops verify determinism`",
         "fact": "Runs a pinned dataset through the analysis layers in fresh "
         "interpreters with the network blocked and compares SHA-256 digests; exits 1 "
-        "on disagreement, so it can be a test step.",
+        "on disagreement, so it can be a test step. It checks analysis, not security.",
         "anchors": ("py:iaiops.cli.verify:determinism_cmd",),
     },
     "ci_gate": {
         "name": "Release quality gate (CI)",
-        "fact": "Every change runs pytest, ruff and bandit (zero Medium+ findings) in "
-        "CI. No dependency-vulnerability scan, fuzzing or third-party review is part "
-        "of it.",
-        "anchors": ("file:.github/workflows/ci.yml#bandit",),
+        "fact": "Every change runs pytest, ruff and bandit (zero Medium+ findings) on "
+        "iaiops's own source. No dependency-vulnerability (CVE) scan, fuzzing or "
+        "third-party review is part of it.",
+        "anchors": ("file:.github/workflows/ci.yml#uvx bandit",),
     },
     "locked_deps": {
-        "name": "Locked dependency graph",
-        "fact": "uv.lock pins the full resolved dependency graph with hashes; each "
-        "connector declares its library pin (docs/HLD.md §5). A lockfile, not an SBOM.",
-        "anchors": ("file:uv.lock",),
+        "name": "Development lockfile",
+        "fact": "uv.lock pins the resolved dependency graph for development and CI. "
+        "What ships does not use it: the wheel declares version ranges and the "
+        "release image resolves them with pip at build time. A lockfile, not an SBOM.",
+        "anchors": ("file:uv.lock#version = 1",),
     },
     "signed_images": {
         "name": "cosign-signed container images",
         "fact": "Release container images and the Margo application package are "
-        "cosign-signed; the public key ships at deploy/margo/cosign.pub. Whether the "
-        "PyPI wheel carries a signature or attestation is 待核实.",
+        "cosign-signed; the public key ships at deploy/margo/cosign.pub. PyPI wheels "
+        "carry no signature or attestation — this repository has no PyPI publish "
+        "workflow.",
         "anchors": (
-            "file:.github/workflows/publish-image.yml#cosign sign",
-            "file:deploy/margo/cosign.pub",
+            "file:.github/workflows/publish-image.yml#cosign sign --yes",
+            "file:deploy/margo/cosign.pub#BEGIN PUBLIC KEY",
         ),
     },
     "container_hardening": {
         "name": "Hardened container profile",
-        "fact": "The edge image runs non-root on a read-only root filesystem with "
-        "state on one volume; CI checks both.",
+        "fact": "The edge image runs as a non-root user; the shipped compose files "
+        "mount the root filesystem read-only with state on one volume (a property "
+        "of the compose file, not of the image). CI checks both.",
         "anchors": (
+            "file:deploy/margo/Dockerfile#USER iaiops",
             "file:deploy/margo/compose.yaml#read_only: true",
-            "file:deploy/margo/Dockerfile#Non-root",
         ),
     },
     "changelog": {
         "name": "Per-release CHANGELOG",
         "fact": "Every release lists its fixes in CHANGELOG.md. It describes defects; "
         "it is not a vulnerability advisory (no identifiers, no severity).",
-        "anchors": ("file:CHANGELOG.md#Unreleased",),
+        "anchors": ("file:CHANGELOG.md#Changelog",),
     },
     "free_distribution": {
         "name": "MIT licence, public distribution",
@@ -211,6 +248,9 @@ MECHANISMS: dict[str, dict] = {
         "anchors": ("file:LICENSE#MIT License",),
     },
 }
+
+#: Read-only view: a caller cannot add or replace a mechanism at runtime.
+MECHANISMS = MappingProxyType(_MECHANISMS)
 
 
 __all__ = ["MECHANISMS"]

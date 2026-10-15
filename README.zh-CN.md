@@ -570,7 +570,7 @@ iaiops opcua discover -e line1
 
 ### 10. ISA-18.2 报警洪泛分析 + 合规报告(0.9 新增)
 
-`alarm_flood_analysis`(洪泛片段/抖动报警/常驻报警/合理化 worksheet,CLI `iaiops diag alarm-flood|alarm-worksheet`);`iaiops compliance report`(等保 2.0 二/三级状态 + IEC 62443 FR1–6 对照 + 诚实差距清单,md/html)与 `iaiops compliance evidence`(审计证据 zip,哈希链校验)。辅助整改,非认证。 `iaiops compliance --framework nis2|cra` / `iaiops compliance report --framework nis2|cra|eu` 出 **NIS2 第 21(2)(a)–(j) 条与 CRA 附件 I**(Part I(1)、I(2)(a)–(m)、Part II(1)–(8))逐条产品自评(英文):`product_evidence`(有代码锚定的机制产出相关证据——从不等于"措施已满足",且每条写明剩余差距)/ `gap` / `organisational`(组织措施,产品不提供证据)。NIS2 约束的是实体、CRA 约束的是制造商;本表是产品自评,**非认证、非法律意见**,并如实列出缺口:无 SBOM、无协调漏洞披露政策与安全联系地址、无安全公告、审计不可关闭(CRA I(2)(l) 要求 opt-out)、无多因素认证。MCP 用 `compliance_frameworks` / `compliance_report` 的 `framework` 参数,不新增工具。
+`alarm_flood_analysis`(洪泛片段/抖动报警/常驻报警/合理化 worksheet,CLI `iaiops diag alarm-flood|alarm-worksheet`);`iaiops compliance report`(等保 2.0 二/三级状态 + IEC 62443 FR1–6 对照 + 诚实差距清单,md/html)与 `iaiops compliance evidence`(审计证据 zip,哈希链校验)。辅助整改,非认证。 `iaiops compliance --framework nis2|cra` / `iaiops compliance report --framework nis2|cra|eu` 出 **NIS2 第 21(2)(a)–(j) 条与 CRA 附件 I**(Part I(1)、I(2)(a)–(m)、Part II(1)–(8))逐条产品自评(英文):`product_evidence`(有代码锚定的机制对上该条的核心要求——从不等于"措施已满足",且每条写明剩余差距)/ `partial_evidence`(沾边,但核心要求缺失)/ `gap` / `organisational`(组织措施,产品不提供证据)。NIS2 约束的是实体、CRA 约束的是制造商;本表是产品自评,**非认证、非法律意见**,并如实列出缺口:无 SBOM、无协调漏洞披露政策与安全联系地址、无安全公告、审计不可关闭(CRA I(2)(l) 要求 opt-out)、无多因素认证、MCP 调用方无认证、无依赖漏洞扫描、PyPI wheel 未签名。MCP 用 `compliance_frameworks` / `compliance_report` 的 `framework` 参数,不新增工具。
 
 ### 11. 数据导出 + Prometheus/Grafana 桥(0.9 新增)
 

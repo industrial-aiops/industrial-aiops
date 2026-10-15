@@ -5,16 +5,21 @@ governance pillar. The two European texts are organised by *their own* items,
 because that is how an EU assessor reads them: NIS2 Article 21(2)(a)–(j) and
 CRA Annex I Part I(1), Part I(2)(a)–(m) and Part II(1)–(8). Each item states:
 
-* ``coverage`` — ``product_evidence`` (a cited mechanism produces evidence
-  relevant to the measure; never that the measure is met), ``gap`` (a technical
-  measure the product could speak to and does not), ``organisational`` (a
-  process measure; the product provides no evidence), or ``待核实``;
+* ``coverage`` — ``product_evidence`` (cited mechanisms speak to the
+  measure's central requirement; never that the measure is met, and the
+  remainder is named), ``partial_evidence`` (cited mechanisms touch the measure
+  but its central requirement is missing — named in ``gap``), ``gap`` (a
+  technical measure the product could speak to and does not),
+  ``organisational`` (a process measure; the product provides no evidence), or
+  ``待核实``;
 * ``mechanisms`` — ids into ``compliance_eu_mechanisms.MECHANISMS``, each
   anchored in code and resolved by the tests;
-* ``pillars`` — exact ``CONTROLS[].pillar`` strings, so the enterprise E1/E9
-  report can attach this site's runtime evidence through the same key it
-  already uses. Organisational rows carry none: runtime evidence printed under
-  a measure the product never touches would be the flattering error.
+* ``pillars`` — exact ``CONTROLS[].pillar`` strings whose *site* evidence is
+  relevant to the measure, so the enterprise E1/E9 report can attach this
+  site's runtime evidence through the key it already uses. Listed only where
+  that evidence speaks to the measure (no pillar on data-removal or
+  device-availability rows); organisational rows carry none — runtime evidence
+  printed under a measure the product never touches is the flattering error.
 
 Neither text obliges this product. NIS2 obliges essential and important
 *entities*; the CRA obliges the *manufacturer* of a product with digital
@@ -23,13 +28,20 @@ elements. Pure data + selectors; no I/O.
 
 from __future__ import annotations
 
+from types import MappingProxyType
+
 from iaiops.core.brain.compliance_eu_mechanisms import MECHANISMS
 
-COVERAGE: tuple[str, ...] = ("product_evidence", "gap", "organisational", "待核实")
+COVERAGE: tuple[str, ...] = (
+    "product_evidence",
+    "partial_evidence",
+    "gap",
+    "organisational",
+    "待核实",
+)
 
 _AUDIT = "可审计 (auditability)"
 _LEAST = "最小权限 (least privilege)"
-_DATA = "数据保护 (data protection)"
 _AUTH = "双向认证 (mutual authentication)"
 _ZONE = "分区隔离 (zoning / isolation)"
 
@@ -110,7 +122,7 @@ NIS2_ITEMS: tuple[dict, ...] = (
         "suppliers or service providers.",
         "organisational",
         f"{_ORG} For the entity's assessment of iaiops as one of its suppliers, the "
-        "supplier facts (signed images, locked dependencies, no SBOM, no disclosure "
+        "supplier facts (signed images but unsigned wheels, no SBOM, no disclosure "
         "policy yet) are the CRA Part II rows.",
     ),
     _item(
@@ -119,12 +131,14 @@ NIS2_ITEMS: tuple[dict, ...] = (
         "Security in network and information systems acquisition, development and "
         "maintenance, including vulnerability handling and disclosure.",
         "product_evidence",
-        "Changes iaiops makes to OT systems are controlled and recorded: device writes "
-        "default to dry-run, need a named approver, are checked against policy change "
-        "limits, capture the BEFORE value for undo, and leave an audit row.",
+        "Changes iaiops makes to OT systems are previewed by default, need a named "
+        "approver, leave an audit row, and — for the MCP write tools — capture the "
+        "BEFORE value for undo. Policy change limits apply where the operator has "
+        "written them.",
         "Vulnerability handling and disclosure for the entity's systems is "
-        "organisational. iaiops's own vulnerability handling has no disclosure policy "
-        "yet (CRA Part II(5)).",
+        "organisational. CLI writes register no undo; change limits are opt-in. "
+        "iaiops's own vulnerability handling has no disclosure policy yet (CRA "
+        "Part II(5)).",
         ("dry_run_undo", "approvals_moc", "policy_engine", "audit_trail"),
         (_LEAST, _AUDIT),
     ),
@@ -135,11 +149,11 @@ NIS2_ITEMS: tuple[dict, ...] = (
         "risk-management measures.",
         "product_evidence",
         "Checkable records an effectiveness review can test against: the audit chain "
-        "verdict, the evidence zip, an executable determinism check, and this "
-        "self-assessment.",
-        "The assessment procedure itself is the entity's. The product supplies "
-        "records, not the review.",
-        ("audit_hash_chain", "evidence_bundle", "verify_determinism", "self_assessment"),
+        "verdict, the evidence zip, and an executable determinism check.",
+        "The assessment procedure itself is the entity's; the product supplies "
+        "records, not the review. The chain and the zip cover the current audit file "
+        "only — rotated archives are deleted after five.",
+        ("audit_hash_chain", "evidence_bundle", "audit_rotation", "verify_determinism"),
         (_AUDIT,),
     ),
     _item(
@@ -153,27 +167,29 @@ NIS2_ITEMS: tuple[dict, ...] = (
         "nis2-21-2-h",
         "NIS2 Art. 21(2)(h)",
         "Policies and procedures on the use of cryptography and, where appropriate, encryption.",
-        "product_evidence",
-        "Credentials encrypted at rest; OPC UA and MQTT channels can run "
+        "partial_evidence",
+        "Credentials can be encrypted at rest; OPC UA and MQTT channels can run "
         "certificate-based TLS; the audit trail is SHA-256 chained (integrity, not "
         "secrecy).",
         "The cryptography policy is the entity's. Modbus, S7, MC, EtherCAT and other "
         "OT transports carry no encryption; the audit database and collected history "
-        "are not encrypted at rest; no HSM/KMS.",
+        "are not encrypted at rest; a plaintext .env credential fallback is still "
+        "honoured; no HSM/KMS.",
         ("secret_store", "channel_tls", "audit_hash_chain"),
-        (_AUTH, _DATA),
+        (_AUTH,),
     ),
     _item(
         "nis2-21-2-i",
         "NIS2 Art. 21(2)(i)",
         "Human resources security, access control policies and asset management.",
-        "product_evidence",
+        "partial_evidence",
         "Access control on what iaiops may do: risk tiers, policy deny rules, named "
         "approvals for writes. Asset management input: an active asset inventory of "
         "the endpoints iaiops reaches, and a bounded site survey.",
         "Human resources security is organisational — the product provides no "
-        "evidence. Per-user identity and RBAC are delegated to the host / MCP client; "
-        "the access-control policy itself is the entity's.",
+        "evidence. Per-user identity and RBAC are delegated to the host / MCP client "
+        "(approvers are typed names); the access-control policy itself is the "
+        "entity's.",
         ("policy_engine", "approvals_moc", "asset_inventory", "scan_bounds"),
         (_LEAST,),
     ),
@@ -205,10 +221,12 @@ CRA_ITEMS: tuple[dict, ...] = (
         "cra-i-1-2-a",
         "CRA Annex I Part I(2)(a)",
         "Made available on the market without known exploitable vulnerabilities.",
-        "product_evidence",
-        "Each release passes a static security scan with zero Medium+ findings and "
-        "ships a locked dependency graph.",
-        "No dependency-vulnerability scan (e.g. OSV / pip-audit) in the gate; no "
+        "partial_evidence",
+        "Each release passes a static security scan of iaiops's own source with zero "
+        "Medium+ findings.",
+        "Known exploitable vulnerabilities are mostly in dependencies, and nothing "
+        "checks for them: no dependency-vulnerability (CVE) scan, and what ships "
+        "resolves dependency ranges at install time rather than the dev lockfile. No "
         "published statement of known vulnerabilities.",
         ("ci_gate", "locked_deps"),
     ),
@@ -216,10 +234,13 @@ CRA_ITEMS: tuple[dict, ...] = (
         "cra-i-1-2-b",
         "CRA Annex I Part I(2)(b)",
         "Secure by default configuration, with the possibility to reset to the original state.",
-        "product_evidence",
-        "Defaults: read-first, device writes preview-only (dry_run=True) and "
-        "approver-gated, stdio transport (no listener), non-root read-only container.",
-        "IAIOPS_NO_EGRESS is opt-in, not the default. There is no reset-to-original command.",
+        "partial_evidence",
+        "Defaults of a pip install: read-first, MCP device writes preview-only "
+        "(dry_run=True) and approver-gated, stdio transport (no listener). The edge "
+        "image runs non-root.",
+        "The Margo application package defaults to streamable-http on 0.0.0.0 with no "
+        "authentication of its own. IAIOPS_NO_EGRESS is opt-in. There is no "
+        "reset-to-original command.",
         ("dry_run_undo", "approvals_moc", "mcp_profiles", "container_hardening"),
         (_LEAST,),
     ),
@@ -228,25 +249,28 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(c)",
         "Vulnerabilities can be addressed through security updates (automatic by "
         "default where applicable, with user notification and opt-out).",
-        "product_evidence",
+        "partial_evidence",
         "Updates ship as new releases on PyPI and as signed container images, each "
         "with a CHANGELOG entry.",
-        "No automatic updates and no update notification; the operator pulls "
-        "releases. No separate security-update channel.",
+        "Publishing releases is not an update mechanism: no automatic updates, no "
+        "update notification, no separate security-update channel; the operator "
+        "pulls releases.",
         ("signed_images", "changelog"),
     ),
     _item(
         "cra-i-1-2-d",
         "CRA Annex I Part I(2)(d)",
-        "Protection from unauthorised access by appropriate control mechanisms, and "
+        "Protection from unauthorised access by appropriate control mechanisms, "
+        "including authentication, identity or access management systems, and "
         "reporting on possible unauthorised access.",
-        "product_evidence",
+        "partial_evidence",
         "What a caller may do is gated by risk tier, policy deny rules and named "
-        "approvals; credentials are encrypted; denied calls are written to the audit "
-        "trail.",
-        "Caller identity is not authenticated by iaiops (delegated to the host / MCP "
-        "client). Denied calls are recorded, not alerted on, unless the trail is "
-        "forwarded to a SIEM that alerts.",
+        "approvals; credentials can be encrypted; denied calls are written to the "
+        "audit trail.",
+        "No authentication, identity or access management of callers in iaiops — "
+        "delegated to the host / MCP client, and the Margo package's HTTP transport "
+        "has none of its own. Denied calls are recorded, not alerted on, unless the "
+        "trail is forwarded to a SIEM that alerts.",
         ("policy_engine", "approvals_moc", "secret_store", "audit_trail"),
         (_LEAST, _AUDIT),
     ),
@@ -255,27 +279,28 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(e)",
         "Protect the confidentiality of stored, transmitted or otherwise processed "
         "data (e.g. encryption at rest and in transit).",
-        "product_evidence",
-        "Credentials encrypted at rest; OPC UA / MQTT TLS in transit where configured; "
-        "secrets redacted from audit rows.",
-        "Audit database and collected history are not encrypted at rest. Most OT "
-        "transports have no encryption to turn on.",
+        "partial_evidence",
+        "Credentials can be encrypted at rest; OPC UA / MQTT TLS in transit where "
+        "configured; declared-sensitive parameters are redacted from audit rows.",
+        "Audit database and collected history are not encrypted at rest; a plaintext "
+        ".env credential fallback is still honoured; most OT transports have no "
+        "encryption to turn on.",
         ("secret_store", "channel_tls", "param_redaction"),
-        (_DATA, _AUTH),
+        (_AUTH,),
     ),
     _item(
         "cra-i-1-2-f",
         "CRA Annex I Part I(2)(f)",
         "Protect the integrity of stored, transmitted or otherwise processed data, "
         "commands, programs and configuration, and report on corruptions.",
-        "product_evidence",
+        "partial_evidence",
         "The audit trail is hash-chained and `iaiops audit verify` reports the first "
         "break; the evidence zip carries the verdict.",
-        "The chain is unkeyed (a full-suffix rewrite is not detected without an "
-        "off-box copy). Integrity of collected history and of config.yaml is not "
-        "protected — 待核实. Corruption is reported when verify is run, not "
-        "automatically.",
-        ("audit_hash_chain", "evidence_bundle"),
+        "Only the audit trail is integrity-protected, and only within the current "
+        "file (rotation starts a new chain and deletes old archives). The chain is "
+        "unkeyed. Collected history and config.yaml have no integrity protection. "
+        "Corruption is reported when verify is run, not automatically.",
+        ("audit_hash_chain", "audit_rotation", "evidence_bundle"),
         (_AUDIT,),
     ),
     _item(
@@ -283,14 +308,13 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(g)",
         "Process only data that are adequate, relevant and limited to the intended "
         "purpose (data minimisation).",
-        "product_evidence",
-        "Sensitive parameters are redacted before audit; collected history is pruned "
-        "by retention rule.",
+        "partial_evidence",
+        "Declared-sensitive parameters are redacted before audit; collected history "
+        "can be pruned by retention rule.",
         "Which tags are collected is the operator's configuration. Audit rows keep the "
         "OS user and approver names by design — personal data the audit purpose "
         "needs; whether that is minimal is the manufacturer's assessment.",
         ("param_redaction", "store_prune"),
-        (_DATA,),
     ),
     _item(
         "cra-i-1-2-h",
@@ -307,23 +331,24 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(i)",
         "Minimise the negative impact on the availability of services provided by "
         "other devices or networks.",
-        "product_evidence",
-        "Load on plant devices is bounded: call budget and runaway breaker, bounded "
-        "collection, port-allowlisted survey with a worst-case preview.",
-        "Collection rates are operator-configured; the effect on fragile legacy "
-        "devices is 待核实 per device.",
+        "partial_evidence",
+        "Repeated identical calls to plant devices are bounded by the runaway breaker; "
+        "the site survey is port-allowlisted with a worst-case preview.",
+        "A varied sweep is not bounded unless the operator sets the opt-in call "
+        "ceilings. Collection rates are operator-configured; the effect on fragile "
+        "legacy devices is 待核实 per device.",
         ("budget_breaker", "scan_bounds"),
-        (_ZONE,),
     ),
     _item(
         "cra-i-1-2-j",
         "CRA Annex I Part I(2)(j)",
         "Designed, developed and produced to limit attack surfaces, including external interfaces.",
         "product_evidence",
-        "Only the protocols a site selects are exposed; stdio by default; egress tools "
-        "can be withheld at registration; minimal container.",
-        "IAIOPS_NO_EGRESS is opt-in. When the HTTP transport is enabled its "
-        "authentication is delegated to whatever fronts it.",
+        "Only the protocols a site selects are exposed; a pip install speaks stdio; "
+        "egress tools can be withheld at registration; minimal non-root image.",
+        "The Margo package exposes an HTTP interface on 0.0.0.0 by default, guarded "
+        "only by an optional IP allowlist. IAIOPS_NO_EGRESS is opt-in and covers MCP "
+        "tools only.",
         ("mcp_profiles", "no_egress_gate", "container_hardening"),
         (_ZONE,),
     ),
@@ -334,10 +359,11 @@ CRA_ITEMS: tuple[dict, ...] = (
         "appropriate exploitation mitigation mechanisms and techniques.",
         "product_evidence",
         "A compromised or confused agent is contained: writes preview by default and "
-        "need a named approver, an undo captures the prior state, device-returned "
-        "text is sanitised, the container runs non-root and read-only.",
-        "No memory-safety or sandboxing claim beyond the container. Some writes have "
-        "no inverse (undo reports 'none').",
+        "need a named approver, MCP writes capture the prior state for undo, "
+        "device-returned control characters are stripped, the image runs non-root.",
+        "No memory-safety or sandboxing claim beyond the container. CLI writes and "
+        "some MCP writes have no inverse. Sanitisation does not stop plain-language "
+        "prompt injection.",
         ("dry_run_undo", "approvals_moc", "sanitize", "container_hardening"),
         (_LEAST,),
     ),
@@ -348,12 +374,14 @@ CRA_ITEMS: tuple[dict, ...] = (
         "internal activity (access to or modification of data, services or "
         "functions), with an opt-out mechanism for the user.",
         "product_evidence",
-        "Every tool call and CLI command — reads, writes, denials, failures — is "
+        "Tool calls and CLI commands — reads, writes, denials, failures — are "
         "recorded in a hash-chained trail and can be streamed to a SIEM.",
-        "No opt-out mechanism: the trail cannot be switched off, deliberately, so it "
-        "stays tamper-evident. Whether that departure from the opt-out clause is "
-        "acceptable is the manufacturer's assessment — 待核实.",
-        ("audit_trail", "audit_hash_chain", "audit_forward"),
+        "No opt-out mechanism: there is no setting to turn the trail off, "
+        "deliberately, so it stays tamper-evident; whether that departure from the "
+        "opt-out clause is acceptable is the manufacturer's assessment — 待核实. When "
+        "audit.db is unwritable, low/medium calls run unrecorded. Archives are "
+        "deleted after five rotations. Monitoring is the SIEM's, not iaiops's.",
+        ("audit_trail", "audit_hash_chain", "audit_forward", "audit_rotation"),
         (_AUDIT,),
     ),
     _item(
@@ -361,24 +389,24 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(m)",
         "Users can securely and easily remove on a permanent basis all data and "
         "settings, and securely transfer data to other products where applicable.",
-        "product_evidence",
+        "partial_evidence",
         "Individual secrets can be deleted; collected history can be pruned.",
-        "No single command removes all data and settings — that is deleting "
-        "~/.iaiops by hand. The audit trail is append-only and cannot be removed from "
-        "inside the product. No secure-transfer function.",
+        "No way to remove all data and settings: that is deleting ~/.iaiops by hand. "
+        "The audit trail has no removal command (old archives are deleted only by "
+        "automatic rotation). No secure-transfer function.",
         ("secret_store", "store_prune"),
-        (_DATA,),
     ),
     _item(
         "cra-i-2-1",
         "CRA Annex I Part II(1)",
         "Identify and document vulnerabilities and components, including a software "
         "bill of materials (SBOM) covering at least top-level dependencies.",
-        "product_evidence",
-        "The resolved dependency graph is locked in uv.lock; connectors declare their "
-        "library pins.",
+        "partial_evidence",
+        "The development dependency graph is locked in uv.lock; connectors declare "
+        "their library pins.",
         "No SBOM in a commonly used machine-readable format (SPDX / CycloneDX) is "
-        "published; uv.lock is a lockfile, not an SBOM. No vulnerability register.",
+        "published; uv.lock is a development lockfile, not an SBOM, and not what "
+        "ships. No vulnerability register.",
         ("locked_deps",),
     ),
     _item(
@@ -386,18 +414,20 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part II(2)",
         "Address and remediate vulnerabilities without delay, including by providing "
         "security updates (separately from functionality updates where feasible).",
-        "product_evidence",
+        "partial_evidence",
         "Fixes ship in regular releases and are listed per release in the CHANGELOG.",
-        "No separate security-update channel and no stated remediation timeline.",
+        "No vulnerability-remediation process: no separate security-update channel, "
+        "no stated remediation timeline, and the CHANGELOG is not an advisory.",
         ("changelog",),
     ),
     _item(
         "cra-i-2-3",
         "CRA Annex I Part II(3)",
         "Apply effective and regular tests and reviews of the security of the product.",
-        "product_evidence",
-        "Every change runs the CI gate (pytest, ruff, bandit 0 Medium+).",
-        "No penetration test, fuzzing or independent security review.",
+        "partial_evidence",
+        "Every change runs the CI gate, including a static security scan (bandit, 0 Medium+).",
+        "No dependency-vulnerability scan, penetration test, fuzzing or independent "
+        "security review.",
         ("ci_gate",),
     ),
     _item(
@@ -433,9 +463,10 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part II(7)",
         "Provide mechanisms to securely distribute updates so exploitable "
         "vulnerabilities are fixed or mitigated in a timely manner.",
-        "product_evidence",
+        "partial_evidence",
         "Container images and the Margo package are cosign-signed with a published public key.",
-        "Wheel signing / attestation on PyPI is 待核实. No automatic distribution.",
+        "PyPI wheels — the main distribution — carry no signature or attestation. No "
+        "automatic distribution.",
         ("signed_images",),
     ),
     _item(
@@ -443,7 +474,7 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part II(8)",
         "Security updates disseminated without delay and free of charge, with "
         "advisory messages on action to take.",
-        "product_evidence",
+        "partial_evidence",
         "Every release is free of charge under the MIT licence.",
         "No advisory messages accompany updates (see Part II(4)).",
         ("free_distribution", "changelog"),
@@ -451,7 +482,7 @@ CRA_ITEMS: tuple[dict, ...] = (
 )
 
 
-FRAMEWORK_META: dict[str, dict] = {
+_FRAMEWORK_META: dict[str, dict] = {
     "nis2": {
         "id": "nis2",
         "name": "NIS2 — Directive (EU) 2022/2555, Art. 21(2)",
@@ -478,14 +509,20 @@ FRAMEWORK_META: dict[str, dict] = {
     },
 }
 
-_ITEMS = {"nis2": NIS2_ITEMS, "cra": CRA_ITEMS}
+#: Read-only view, like MECHANISMS.
+FRAMEWORK_META = MappingProxyType(_FRAMEWORK_META)
+
+_ITEMS = MappingProxyType({"nis2": NIS2_ITEMS, "cra": CRA_ITEMS})
 
 
 def normalize_eu_framework(framework: str) -> str:
     """Map a user-supplied framework id to 'nis2' / 'cra', or raise ValueError."""
     key = str(framework).strip().lower().replace(" ", "").replace("-", "")
     if key not in _ITEMS:
-        raise ValueError(f"Unknown EU framework {framework!r}. Use one of: nis2, cra.")
+        raise ValueError(
+            f"Unknown EU framework {framework!r}. Use nis2 or cra (the report also "
+            "accepts eu = both)."
+        )
     return key
 
 
@@ -519,9 +556,10 @@ def compliance_eu(framework: str) -> dict:
         "items": items,
         "disclaimer": EU_DISCLAIMER,
         "source": SOURCE_NOTE,
-        "note": "'product_evidence' = a cited mechanism produces evidence relevant to "
-        "the measure, never that the measure is met; every such row names what is "
-        "left. 'organisational' rows cite nothing on purpose.",
+        "note": "'product_evidence' = cited mechanisms speak to the measure's central "
+        "requirement, never that the measure is met; 'partial_evidence' = they touch "
+        "it but the central requirement is missing. Both name what is left. "
+        "'organisational' and 'gap' rows cite nothing on purpose.",
     }
 
 
