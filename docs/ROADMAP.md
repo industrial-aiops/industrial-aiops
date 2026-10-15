@@ -879,6 +879,11 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   Releases since then (through 0.17.0) have used the credentials already stored in
   `~/.pypirc` with no token in chat — but if that file still holds the exposed token,
   the exposure is live. Revoking it is the only fix; nothing in this repo can do it.
+  **Structural fix (2026-10-15):** `.github/workflows/publish-pypi.yml` publishes on tag
+  via **Trusted Publishing** (OIDC) — once the trusted publisher is registered on pypi.org,
+  no API token needs to exist at all, and the old one can be deleted rather than rotated.
+  The release then needs no local upload: `gh release create --target main vX.Y.Z` tags,
+  and PyPI → images → registry follow in CI.
 - ✅ Published all channels: **iaiops 0.21.1** + **iaiops-energy 0.1.11** — PyPI, GitHub
   Releases (with the signed Margo package), the MCP registry
   (`io.github.industrial-aiops/iaiops` + `…/iaiops-energy`, auto-published from CI via

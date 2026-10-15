@@ -65,6 +65,15 @@
   `(via $IAIOPS_CONFIG)` when it is an override, and tightens permissions only on
   its own `~/.iaiops` directory, never on a directory an override lives in.
 
+### CI
+
+- **PyPI releases publish from CI with Trusted Publishing** (`publish-pypi.yml`, on
+  tag). Uploads were made by hand with a long-lived API token that had been pasted
+  into chat sessions; OIDC leaves no token to leak. Needs a one-time trusted-publisher
+  registration on pypi.org (steps in the workflow header); until then the upload step
+  fails and changes nothing. `skip-existing` makes a hand upload of the same version
+  harmless.
+
 ### Tests
 
 - **Two test-isolation holes, found because the new `init` tests walked into
