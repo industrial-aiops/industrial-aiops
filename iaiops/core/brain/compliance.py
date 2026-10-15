@@ -12,6 +12,15 @@ Pure data + a formatter; no external dependencies, fully testable.
 
 from __future__ import annotations
 
+from iaiops.core.brain.compliance_eu import (
+    EU_DISCLAIMER,
+    compliance_eu,
+    refs_citing,
+)
+from iaiops.core.brain.compliance_eu import (
+    FRAMEWORK_META as _EU_META,
+)
+
 # Each control: the guidance pillar, what it requires, how iaiops addresses it, an
 # honest status, and the remaining gap (empty when none).
 CONTROLS: tuple[dict, ...] = (
@@ -258,7 +267,23 @@ FRAMEWORKS: tuple[dict, ...] = (
         "region": "EU / US · 制药与生物制品",
         "kind": "法规 / regulation",
     },
+    # NIS2 / CRA are organised by their own items, not by pillar: the item-level
+    # table is compliance_frameworks(framework="nis2"|"cra"); the per-pillar
+    # columns below are a reverse index into it, never a second hand-typed table.
+    *({k: _EU_META[fw][k] for k in ("id", "name", "region", "kind")} for fw in ("nis2", "cra")),
 )
+
+_NO_EU_REF = "—（无条款引用此支柱 / no item cites this pillar）"
+
+
+def _eu_columns(pillar: str) -> dict:
+    """Per-pillar NIS2 / CRA columns, derived from the item tables."""
+    out: dict = {}
+    for fw in ("nis2", "cra"):
+        refs = refs_citing(fw, pillar)
+        out[fw] = "; ".join(refs) if refs else _NO_EU_REF
+        out[f"{fw}_refs"] = refs
+    return out
 
 
 def compliance_mapping() -> dict:
@@ -268,7 +293,16 @@ def compliance_mapping() -> dict:
     class and IEC 62443 foundational requirement (see ``compliance_frameworks``).
     """
     rows = sorted(CONTROLS, key=lambda c: _STATUS_ORDER.get(c["status"], 3))
-    rows = [{**c, "crosswalk": _CROSSWALK.get(c["pillar"], {})} for c in rows]
+    rows = [
+        {
+            **c,
+            "crosswalk": {
+                **_CROSSWALK.get(c["pillar"], {}),
+                **{k: v for k, v in _eu_columns(c["pillar"]).items() if k in ("nis2", "cra")},
+            },
+        }
+        for c in rows
+    ]
     summary = {
         s: sum(1 for c in CONTROLS if c["status"] == s) for s in ("addressed", "partial", "待核实")
     }
@@ -301,8 +335,26 @@ GXP_DISCLAIMER = (
 )
 
 
-def compliance_frameworks() -> dict:
-    """[READ] 跨框架对照: 防护指南 ↔ 等保 2.0 ↔ IEC 62443 ↔ GxP, one row per pillar."""
+def compliance_frameworks(framework: str | None = None) -> dict:
+    """[READ] 跨框架对照: 防护指南 ↔ 等保 2.0 ↔ IEC 62443 ↔ GxP ↔ NIS2 ↔ CRA.
+
+    Omit ``framework`` for the per-pillar crosswalk (NIS2 / CRA appear as columns
+    listing the item refs that cite each pillar). Pass ``"nis2"`` or ``"cra"`` for
+    that text's item-by-item table (see ``compliance_eu``).
+
+    Raises:
+        ValueError: on any other framework value — 等保 levels have their own
+            selector (``compliance_dengbao_levels``).
+    """
+    if framework is not None and str(framework).strip():
+        try:
+            return compliance_eu(framework)
+        except ValueError:
+            raise ValueError(
+                f"Unknown framework {framework!r}. Use nis2 or cra, or omit it for the "
+                "per-pillar crosswalk (防护指南 / 等保 2.0 / IEC 62443 / GxP / NIS2 / CRA); "
+                "等保 二级/三级 deltas are compliance_dengbao_levels."
+            ) from None
     crosswalk = []
     for c in CONTROLS:
         xw = _CROSSWALK.get(c["pillar"], {})
@@ -313,6 +365,7 @@ def compliance_frameworks() -> dict:
                 "dengbao": xw.get("dengbao", "待核实"),
                 "iec62443": xw.get("iec62443", "待核实"),
                 "gxp": xw.get("gxp", "待核实"),
+                **_eu_columns(c["pillar"]),
                 "iaiops_status": c["status"],
             }
         )
@@ -322,8 +375,10 @@ def compliance_frameworks() -> dict:
         "pillar_count": len(crosswalk),
         "crosswalk": crosswalk,
         "gxp_disclaimer": GXP_DISCLAIMER,
+        "eu_disclaimer": EU_DISCLAIMER,
         "note": "跨框架对照 (onboarding / 审计参考，非认证)。防护指南为主映射，"
-        "等保 2.0 / IEC 62443 / GxP 为对照条款；逐项 gap / 状态见 compliance_mapping。",
+        "等保 2.0 / IEC 62443 / GxP 为对照条款；逐项 gap / 状态见 compliance_mapping。"
+        "NIS2 / CRA 按其自身条款组织，逐条表见 framework='nis2' / 'cra'。",
     }
 
 

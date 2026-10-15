@@ -32,7 +32,7 @@ def _emit(data) -> None:
 
 
 compliance_app = typer.Typer(
-    help="信创 / compliance: 防护指南 ↔ 等保 2.0 ↔ IEC 62443 mapping, rendered "
+    help="compliance: 防护指南 ↔ 等保 2.0 ↔ IEC 62443 ↔ NIS2 ↔ CRA mapping, rendered "
     "report, and audit-evidence bundle export.",
     invoke_without_command=True,
 )
@@ -50,14 +50,23 @@ def compliance_cmd(
         "--dengbao-level",
         help="Print 等保 2.0 二级 vs 三级 per-pillar deltas (l2/l3, 二级/三级, 2/3; empty=both).",
     ),
+    framework: str = typer.Option(
+        "",
+        "--framework",
+        help="Print one EU text item by item: nis2 (Art. 21) or cra (Annex I).",
+    ),
 ) -> None:
     """Print the 《工控系统网络安全防护指南》 ↔ iaiops governance mapping.
 
     With --frameworks, print the cross-framework 对照 (等保 2.0 / IEC 62443) instead.
     With --dengbao-level, print the 等保 2.0 二级/三级 per-pillar deltas (pass a level
-    to focus, or leave blank for both). Subcommands: report / evidence.
+    to focus, or leave blank for both). With --framework nis2|cra, print that EU
+    text item by item with honest coverage. Subcommands: report / evidence.
     """
     if ctx.invoked_subcommand is not None:
+        return
+    if framework:
+        _emit(compliance_frameworks(framework))
         return
     if dengbao_level:
         _emit(compliance_dengbao_levels(dengbao_level))
@@ -74,8 +83,14 @@ def report_cmd(
     level: str = typer.Option(
         "", "--level", help="等保 2.0 target level (l2/l3, 二级/三级); empty = both."
     ),
+    framework: str = typer.Option(
+        "",
+        "--framework",
+        help="Empty = the 等保 2.0 / IEC 62443 report; nis2 / cra / eu = the English "
+        "NIS2 / CRA self-assessment.",
+    ),
 ) -> None:
-    """Render the 等保 2.0 / IEC 62443 compliance report (onboarding aid, 非认证)."""
+    """Render the 等保 2.0 / IEC 62443 or NIS2 / CRA report (self-assessment, 非认证)."""
     from iaiops.core.brain.compliance_report import (
         render_html_report,
         render_markdown_report,
@@ -89,12 +104,14 @@ def report_cmd(
         site=site,
         date=datetime.now(tz=UTC).date().isoformat(),
         level=level or None,
+        framework=framework or None,
     )
     path.write_text(content, encoding="utf-8")
     _emit(
         {
             "path": str(path),
             "format": "html" if html else "markdown",
+            "framework": framework or "dengbao",
             "lines": content.count("\n") + 1,
         }
     )

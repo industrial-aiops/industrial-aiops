@@ -17,6 +17,7 @@ from iaiops.core.brain.compliance import (
     compliance_frameworks,
     compliance_mapping,
 )
+from iaiops.core.brain.compliance_report_eu import eu_frameworks_for, render_eu_markdown
 
 DISCLAIMER = (
     "本报告为 onboarding / 自评参考 (self-assessment onboarding aid)，**非认证** "
@@ -71,12 +72,30 @@ def _table(headers: tuple[str, ...], rows: list[tuple[str, ...]]) -> list[str]:
     return lines
 
 
+#: Frameworks the default (等保 / IEC 62443) report renders sections for. The
+#: title page names only these — listing NIS2 / CRA there would claim coverage
+#: the document does not contain.
+_DENGBAO_REPORT_FRAMEWORKS = ("gjzn", "dengbao", "iec62443", "gxp")
+
+
+def _is_eu(framework: str | None) -> bool:
+    """True for an EU report selector; raises on an unknown framework."""
+    if framework is None or not str(framework).strip():
+        return False
+    key = str(framework).strip().lower()
+    if key in ("dengbao", "等保"):
+        return False
+    eu_frameworks_for(key)  # raises ValueError naming nis2 / cra / eu
+    return True
+
+
 def render_markdown_report(
     *,
     site: str = "",
     date: str = "",
     level: str | None = None,
     version: str = _iaiops_version,
+    framework: str | None = None,
 ) -> str:
     """Render the full compliance report as Markdown.
 
@@ -85,10 +104,22 @@ def render_markdown_report(
         date: Report date (caller-supplied, e.g. ISO ``2026-07-02``).
         level: 等保 level focus — 'l2'/'l3'/二级/三级; None renders both.
         version: iaiops version stamped on the title page.
+        framework: None / 'dengbao' = the 等保 2.0 / IEC 62443 report (default);
+            'nis2' / 'cra' / 'eu' (both) = the English NIS2 / CRA self-assessment.
 
     Raises:
-        ValueError: on an unrecognized 等保 level (via compliance_dengbao_levels).
+        ValueError: on an unrecognized 等保 level or framework, or a 等保 level
+            passed with an EU framework (it would be silently meaningless).
     """
+    if _is_eu(framework):
+        if level is not None and str(level).strip():
+            raise ValueError(
+                f"level={level!r} is a 等保 2.0 level and has no meaning for "
+                f"framework={framework!r}. Drop it, or omit framework for the 等保 report."
+            )
+        return render_eu_markdown(
+            framework=str(framework), site=site, date=date, version=version, table=_table
+        )
     dengbao = compliance_dengbao_levels(level)  # validates + normalizes level
     selected: str | None = dengbao["selected_level"]
     mapping = compliance_mapping()
@@ -101,7 +132,10 @@ def render_markdown_report(
         f"- **报告日期 / Date**: {date or '（未指定）'}",
         f"- **iaiops 版本**: {version}",
         f"- **等保 2.0 目标等级**: {_LEVEL_TITLES[selected]}",
-        f"- **对照框架**: {' / '.join(f['name'] for f in frameworks['frameworks'])}",
+        "- **对照框架**: "
+        + " / ".join(
+            f["name"] for f in frameworks["frameworks"] if f["id"] in _DENGBAO_REPORT_FRAMEWORKS
+        ),
         "",
         f"> {DISCLAIMER}",
         "",
@@ -255,9 +289,13 @@ def render_html_report(
     date: str = "",
     level: str | None = None,
     version: str = _iaiops_version,
+    framework: str | None = None,
 ) -> str:
     """Render the compliance report as a standalone HTML page (stdlib only)."""
-    markdown = render_markdown_report(site=site, date=date, level=level, version=version)
+    markdown = render_markdown_report(
+        site=site, date=date, level=level, version=version, framework=framework
+    )
+    eu = _is_eu(framework)
     body: list[str] = []
     table_buffer: list[str] = []
     in_list = False
@@ -287,9 +325,11 @@ def render_html_report(
     _flush_table(table_buffer, body)
     if in_list:
         body.append("</ul>")
-    title = _html.escape("iaiops 合规自评报告" + (f" — {site}" if site else ""))
+    heading = "iaiops cybersecurity self-assessment" if eu else "iaiops 合规自评报告"
+    title = _html.escape(heading + (f" — {site}" if site else ""))
+    lang = "en" if eu else "zh-CN"
     return (
-        '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="utf-8">\n'
+        f'<!DOCTYPE html>\n<html lang="{lang}">\n<head>\n<meta charset="utf-8">\n'
         f"<title>{title}</title>\n<style>{_HTML_STYLE}</style>\n</head>\n<body>\n"
         + "\n".join(body)
         + "\n</body>\n</html>\n"

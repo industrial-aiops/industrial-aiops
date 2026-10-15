@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### Added
+
+- **NIS2 and CRA product self-assessment crosswalks**, next to 等保 2.0 / IEC
+  62443 / GxP. NIS2 Directive (EU) 2022/2555 Art. 21(2)(a)–(j) and CRA
+  Regulation (EU) 2024/2847 Annex I — Part I(1), I(2)(a)–(m), Part II(1)–(8) —
+  item by item, in English, because that is how an EU assessor reads them.
+  `iaiops compliance --framework nis2|cra`, `iaiops compliance report --framework
+  nis2|cra|eu [--html]`; on MCP, a `framework` argument on `compliance_frameworks`
+  and `compliance_report` (no new tool, so the tool count is unchanged). The
+  per-pillar crosswalk gains `nis2` / `cra` columns derived from the item tables,
+  never typed twice.
+  - Each item has a `coverage`: `product_evidence` (a cited mechanism produces
+    evidence relevant to the measure — never "the measure is met", and every
+    such row names what is left), `gap`, or `organisational` (product provides
+    no evidence: NIS2 (a)(b)(c)(d)(g), CRA Part I(1)). Organisational rows cite
+    no mechanism and no pillar, so the enterprise report cannot print runtime
+    evidence under a measure the product never touches.
+  - Every cited mechanism lives in one registry with code anchors
+    (`module:attr` or a repository file + token), and the tests resolve each
+    anchor — a mechanism the code does not contain cannot be cited.
+  - It says the unflattering parts a CRA reader looks for first: no SBOM, no
+    coordinated vulnerability disclosure policy or security contact, no
+    security advisories, no audit opt-out (I(2)(l) asks for one), no
+    multi-factor authentication (NIS2 (j)), no reset-to-original, audit database
+    unencrypted at rest. Whether the free MIT edition is in CRA scope is left
+    `待核实`.
+  - NIS2 obliges entities and the CRA manufacturers, not this product; the
+    disclaimer says so, and that the table is not a certification and not legal
+    advice. Item wording is paraphrased and marked `待核实` against the Official
+    Journal (EUR-Lex refused automated retrieval).
+  - `compliance report --level` together with an EU framework is refused rather
+    than ignored, and the 等保 report's title page does not list NIS2 / CRA,
+    which it has no section for.
+
 ### Fixed
 
 - **`iaiops init` deleted the rest of the config file.** Adding one endpoint

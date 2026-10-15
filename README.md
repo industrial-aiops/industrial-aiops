@@ -297,9 +297,9 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten — each o
 | Ignition | `ignition_alarm_status` | active alarms | R | low | {alarm_count, alarms:[{path, priority, state}]} |
 | Ignition | `ignition_tag_history` | tag-history query (bounded) | R | low | {rows:[{path, timestamp, value}]} |
 | 信创 / compliance | `compliance_mapping` | 《工控网络安全防护指南》↔ iaiops | R | low | {pillars[], status_summary, controls:[{pillar, status, gap}]} |
-| 信创 / compliance | `compliance_frameworks` | 等保 2.0 + IEC 62443 FR1–6 crosswalk | R | low | {controls:[{crosswalk}]} |
+| 信创 / compliance | `compliance_frameworks` | 等保 2.0 + IEC 62443 FR1–6 + GxP crosswalk; `framework="nis2"\|"cra"` = NIS2 Art. 21 / CRA Annex I item by item | R | low | {crosswalk[]} \| {items:[{ref, coverage, mechanisms, gap}]} |
 | 信创 / compliance | `compliance_dengbao_levels` | 等保 二级 baseline vs 三级 增量 | R | low | {pillars:[{l2, l3_delta, status}]} |
-| 信创 / compliance | `compliance_report` | deliverable compliance report (md/html) | R | low | {markdown \| out_path} |
+| 信创 / compliance | `compliance_report` | deliverable compliance report (md/html); `framework="nis2"\|"cra"\|"eu"` for the English EU self-assessment | R | low | {markdown \| out_path} |
 | 信创 / compliance | `compliance_evidence_bundle` | audit-evidence zip (hash-chain verified) | R | low | {bundle_path, manifest} |
 | 信创 / historian | `historian_push` | push telemetry to sqlite/TDengine/IoTDB | R(→historian) | low | {sink, received, written, skipped_non_numeric} |
 | Self | `protocols_supported` | capability map | R | low | {protocols[], diagnostics[], analytics[]} |
@@ -462,6 +462,7 @@ For 自主可控 / 信创 deployments — see **[docs/CHINA.md](docs/CHINA.md)**
 - **ISA-18.2 alarm flood deep-dive** (`alarm_flood_analysis` / `alarm_rationalization_worksheet`, CLI `iaiops diag alarm-flood|alarm-worksheet`) — flood *episodes* (≥10 alarms/10 min), chattering, stale/standing (>24h), percent-time-in-flood vs target, and a CSV-exportable rationalization worksheet; over injected events or a live OPC-UA active-condition scan.
 - **Open-format export + metrics bridge** — `iaiops export csv|sqlite|parquet` (from the local SQLite sink; Parquet via `iaiops[export]`) / MCP `export_data`; `iaiops metrics serve --port 9184` exposes Prometheus **`/metrics`** (latest tag values + counters, binds 127.0.0.1 by default) — Grafana recipe in `docs/GRAFANA.md`.
 - **Compliance deliverables** — `iaiops compliance report` (等保 2.0 L2/L3 status + IEC 62443 FR1–6 crosswalk + honest gap list, md/html) and `iaiops compliance evidence` (audit-evidence zip with hash-chain verification + manifest); MCP `compliance_report` / `compliance_evidence_bundle`. Onboarding aids, 非认证.
+- **NIS2 / CRA self-assessment** — `iaiops compliance --framework nis2|cra` and `iaiops compliance report --framework nis2|cra|eu` (MCP: the `framework` argument on `compliance_frameworks` / `compliance_report`; no new tool). NIS2 Art. 21(2)(a)–(j) and CRA Annex I Part I(1), I(2)(a)–(m), II(1)–(8), item by item: `product_evidence` (a code-anchored mechanism produces relevant evidence — never "the measure is met", and every such row names what is left), `gap`, or `organisational` (product provides no evidence). NIS2 obliges entities, the CRA manufacturers; this is a product self-assessment, **not a certification and not legal advice**. It admits the gaps a CRA reader will look for first: no SBOM, no coordinated-disclosure policy or security contact, no advisories, no audit opt-out, no MFA.
 
 ### Cross-protocol brain & editions — 0.11/0.12 additions (all read-only)
 - **Downtime triage copilot** (`downtime_triage`) — composes **alarm cascade + RCA verdict + PdM precursors** into one triage and cross-checks whether the first-out alarm agrees with the diagnosed cause; advisory, cite-first (builds on the earlier `alarm_cascade` first-out reconstruction and `pdm_forecast` time-to-threshold early-warning).
