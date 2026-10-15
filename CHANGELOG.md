@@ -2,7 +2,32 @@
 
 ## Unreleased
 
+### Fixed
+
+- **`iaiops init` deleted the rest of the config file.** Adding one endpoint
+  rewrote `config.yaml` as `{"endpoints": [...]}`, so a site's `historian:`
+  block vanished the first time anyone used the wizard — with or without an
+  override. The wizard now replaces the endpoint list and keeps every other
+  section; a legacy `targets:` list is folded into `endpoints` rather than left
+  beside it for the loader to choose between. YAML comments are still not
+  preserved (the file is re-serialised).
+- **`iaiops init` wrote a file no command reads when `$IAIOPS_CONFIG` was set.**
+  It held its own import-time copy of the default path while every loader
+  resolves the override through `default_config_path()` — the drift the 0.28.0
+  doctor fix named and left open. It now writes the file the loaders read,
+  prints that path before the first prompt and again at the end, says
+  `(via $IAIOPS_CONFIG)` when it is an override, and tightens permissions only on
+  its own `~/.iaiops` directory, never on a directory an override lives in.
+
 ### Tests
+
+- **Two test-isolation holes, found because the new `init` tests walked into
+  them.** `iaiops init` imported the config path by value, so it kept whichever
+  path the first test to import it had — and the secret store binds
+  `~/.iaiops/secrets.enc` at import, ignoring `IAIOPS_HOME`, so the first run of
+  the new tests tried to unlock the developer's real store (read only; nothing
+  was written). The autouse fixture now moves the secret store's root along with
+  the other two.
 
 - **A Sparkplug B stream recorded from a real broker, replayed through the tap**
   (`tests/data/sparkplug/`, `tests/test_sparkplug_recorded_frames.py`). Until now
