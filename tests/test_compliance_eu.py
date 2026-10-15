@@ -362,12 +362,17 @@ def test_plaintext_env_fallback_is_admitted():
     assert "plaintext" in MECHANISMS["secret_store"]["fact"]
 
 
-def test_no_pypi_signing_is_stated_while_no_publish_workflow_exists():
-    workflows = " ".join(
-        p.read_text(encoding="utf-8") for p in (REPO / ".github/workflows").glob("*.yml")
-    )
-    if "pypa/gh-action-pypi-publish" not in workflows:
-        assert "no signature or attestation" in MECHANISMS["signed_images"]["fact"]
+def test_pypi_signing_is_not_claimed_before_a_release_carries_it():
+    """The workflow exists; a signed wheel on PyPI does not yet. Say both."""
+    fact = MECHANISMS["signed_images"]["fact"]
+    assert "Trusted Publishing" in fact
+    assert "no signature or attestation" in fact and "待核实" in fact
+
+
+def test_cra_wording_was_checked_against_the_regulation_text():
+    out = compliance_eu("cra")
+    assert "02024R2847" in out["source"]
+    assert "Art. 3(22)" in out["scope"] and "NOT yet assessed" in out["scope"]
 
 
 _FLATTERY = (

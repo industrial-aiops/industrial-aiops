@@ -38,12 +38,15 @@
     security advisories, no audit opt-out (I(2)(l) asks for one), no
     multi-factor authentication (NIS2 (j)), no authentication of MCP callers,
     no dependency CVE scan, no reset-to-original, audit database unencrypted at
-    rest. Whether the free MIT edition is in CRA scope is left
-    `待核实`.
+    rest. Whether the free MIT edition is "made available on the market" (Art.
+    3(22)) is declared as not yet assessed (`待核实`, a later release); the
+    table is written as if it were in scope.
   - NIS2 obliges entities and the CRA manufacturers, not this product; the
     disclaimer says so, and that the table is not a certification and not legal
-    advice. Item wording is paraphrased and marked `待核实` against the Official
-    Journal (EUR-Lex refused automated retrieval).
+    advice. Item wording is paraphrased. The CRA items and Art. 71(2) dates were
+    checked one by one against the consolidated regulation text (02024R2847, EN,
+    20.11.2024); NIS2 Art. 21 was checked against a reproduction only and stays
+    `待核实` against the Official Journal.
   - `compliance report --level` together with an EU framework is refused rather
     than ignored, and the 等保 report's title page does not list NIS2 / CRA,
     which it has no section for.

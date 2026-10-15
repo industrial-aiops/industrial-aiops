@@ -58,11 +58,12 @@ EU_DISCLAIMER = (
 )
 
 SOURCE_NOTE = (
-    "Item wording is paraphrased from Directive (EU) 2022/2555 (OJ L 333, "
-    "27.12.2022) and Regulation (EU) 2024/2847 (OJ L, 20.11.2024). It was "
-    "cross-checked against reproductions of those texts because EUR-Lex refused "
-    "automated retrieval — 待核实 against the Official Journal before quoting any "
-    "item verbatim to an assessor."
+    "Item wording is paraphrased, not quoted. CRA: checked item by item against the "
+    "consolidated text of Regulation (EU) 2024/2847 (02024R2847, EN, 20.11.2024) — "
+    "Annex I Part I(1), I(2)(a)–(m), Part II(1)–(8) and the Art. 71(2) dates. NIS2: "
+    "Directive (EU) 2022/2555 (OJ L 333, 27.12.2022), cross-checked against a "
+    "reproduction only because EUR-Lex refused automated retrieval — 待核实 against "
+    "the Official Journal before quoting an Art. 21 item to an assessor."
 )
 
 
@@ -465,7 +466,9 @@ CRA_ITEMS: tuple[dict, ...] = (
         "vulnerabilities are fixed or mitigated in a timely manner.",
         "partial_evidence",
         "Container images and the Margo package are cosign-signed with a published public key.",
-        "PyPI wheels — the main distribution — carry no signature or attestation. No "
+        "PyPI uploads move to Trusted Publishing (publish-pypi.yml), whose action also "
+        "uploads attestations, but no release has gone through it yet — until one "
+        "does, the wheels on PyPI carry no signature or attestation (待核实). No "
         "automatic distribution.",
         ("signed_images",),
     ),
@@ -502,10 +505,15 @@ _FRAMEWORK_META: dict[str, dict] = {
         "kind": "regulation / essential cybersecurity requirements",
         "obliges": "the manufacturer of a product with digital elements",
         "applies": "Applies from 11 Dec 2027; Art. 14 reporting from 11 Sep 2026 (Art. 71(2)).",
-        "scope": "Whether the free MIT edition is in CRA scope (commercial activity, "
-        "open-source treatment) is 待核实 and not settled here; the commercial "
-        "enterprise edition is more likely in scope — also 待核实. Rows describe iaiops "
-        "as the product under assessment.",
+        "scope": "Rows describe iaiops as the product under assessment. The CRA reaches "
+        "a product 'made available on the market' — supplied in the course of a "
+        "commercial activity, whether for payment or free of charge (Art. 3(22)). "
+        "Declared position: whether the free MIT edition is so supplied, given a "
+        "commercial enterprise edition from the same author, is NOT yet assessed — "
+        "待核实, to be settled in a later release (the deciding recitals on free and "
+        "open-source software are not in the consolidated text). The enterprise "
+        "edition is more likely in scope — also 待核实. Until then this table is "
+        "written as if both were in scope.",
     },
 }
 

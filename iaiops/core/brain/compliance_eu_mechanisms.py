@@ -217,12 +217,14 @@ _MECHANISMS: dict[str, dict] = {
     "signed_images": {
         "name": "cosign-signed container images",
         "fact": "Release container images and the Margo application package are "
-        "cosign-signed; the public key ships at deploy/margo/cosign.pub. PyPI wheels "
-        "carry no signature or attestation — this repository has no PyPI publish "
-        "workflow.",
+        "cosign-signed; the public key ships at deploy/margo/cosign.pub. PyPI uploads "
+        "go through Trusted Publishing (publish-pypi.yml, short-lived OIDC, no stored "
+        "token), whose action also uploads attestations; until a release has gone "
+        "through it, the wheels on PyPI carry no signature or attestation — 待核实.",
         "anchors": (
             "file:.github/workflows/publish-image.yml#cosign sign --yes",
             "file:deploy/margo/cosign.pub#BEGIN PUBLIC KEY",
+            "file:.github/workflows/publish-pypi.yml#pypa/gh-action-pypi-publish",
         ),
     },
     "container_hardening": {
