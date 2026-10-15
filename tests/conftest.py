@@ -57,6 +57,14 @@ def isolated_iaiops_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Ite
     monkeypatch.setattr(
         _config_mod, "CONFIG_FILE", tmp_path / "config" / "config.yaml", raising=False
     )
+    # The secret store is a THIRD root bound at import (`ops_home()` read once),
+    # so it too ignored IAIOPS_HOME: a test driving `iaiops init` unlocked the
+    # developer's real ~/.iaiops/secrets.enc. Moved with the other two.
+    from iaiops.core.runtime import secretstore as _secret_mod
+
+    monkeypatch.setattr(_secret_mod, "CONFIG_DIR", tmp_path, raising=False)
+    monkeypatch.setattr(_secret_mod, "SECRETS_FILE", tmp_path / "secrets.enc", raising=False)
+    monkeypatch.setattr(_secret_mod, "LEGACY_ENV_FILE", tmp_path / ".env", raising=False)
     _reset_governance_singletons()
     yield tmp_path
     _reset_governance_singletons()

@@ -8,14 +8,15 @@ into the *encrypted* store (never plaintext on disk).
 from __future__ import annotations
 
 import getpass
+from pathlib import Path
 
 import typer
 import yaml
 
 from iaiops.cli._common import cli_errors, console
+from iaiops.core.runtime import config as _config_mod
 from iaiops.core.runtime.config import (
-    CONFIG_DIR,
-    CONFIG_FILE,
+    CONFIG_ENV_VAR,
     DEFAULT_BACNET_PORT,
     DEFAULT_EIP_PORT,
     DEFAULT_MC_PORT,
@@ -23,6 +24,8 @@ from iaiops.core.runtime.config import (
     DEFAULT_MQTT_PORT,
     DEFAULT_S7_PORT,
     SUPPORTED_PROTOCOLS,
+    config_path_source,
+    default_config_path,
 )
 from iaiops.core.runtime.secretstore import SecretStore, resolve_master_password
 
@@ -80,20 +83,57 @@ def _write_default_rules() -> None:
     console.print(f"[green]✓ Wrote default governance rules:[/] {rules_file}")
 
 
+def _config_target() -> Path:
+    """The file every loader reads — so the one the wizard must write.
+
+    Resolved per call through ``default_config_path()``: an import-time copy of
+    ``CONFIG_FILE`` ignored ``$IAIOPS_CONFIG``, so ``init`` reported success
+    while the endpoint landed in a file no command reads.
+    """
+    return default_config_path()
+
+
+def _describe_target(path: Path) -> str:
+    via = f" (via ${CONFIG_ENV_VAR})" if config_path_source() == CONFIG_ENV_VAR else ""
+    return f"{path}{via}"
+
+
+def _read_document(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    raw = yaml.safe_load(path.read_text("utf-8")) or {}
+    if not isinstance(raw, dict):
+        raise typer.BadParameter(f"{path} is not a YAML mapping; refusing to rewrite it.")
+    return raw
+
+
 def _load_existing() -> list[dict]:
-    if not CONFIG_FILE.exists():
-        return []
-    raw = yaml.safe_load(CONFIG_FILE.read_text("utf-8")) or {}
+    raw = _read_document(_config_target())
     return list(raw.get("endpoints", raw.get("targets", [])))
 
 
 def _write_endpoints(endpoints: list[dict]) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        CONFIG_DIR.chmod(0o700)
-    except OSError:
-        pass
-    CONFIG_FILE.write_text(yaml.safe_dump({"endpoints": endpoints}, sort_keys=False), "utf-8")
+    """Replace the endpoint list and keep every other section of the file.
+
+    The wizard used to write ``{"endpoints": [...]}`` over the whole file, so
+    adding one endpoint deleted the site's ``historian:`` block. A legacy
+    ``targets:`` key is folded into ``endpoints`` rather than kept beside it —
+    two lists would leave the loader to pick one.
+    """
+    path = _config_target()
+    document = {
+        **{k: v for k, v in _read_document(path).items() if k not in ("endpoints", "targets")},
+        "endpoints": endpoints,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.parent == _config_mod.CONFIG_DIR:
+        # Only our own directory is tightened; an override may live in a
+        # directory the operator owns and shares (/config, a site repo).
+        try:
+            path.parent.chmod(0o700)
+        except OSError:
+            pass
+    path.write_text(yaml.safe_dump(document, sort_keys=False), "utf-8")
 
 
 def _prompt_opcua(entry: dict, name: str, store):
@@ -272,6 +312,7 @@ def init_cmd() -> None:
     password = resolve_master_password(confirm_if_new=True)
     store = SecretStore.unlock(password)
 
+    console.print(f"[dim]Config file: {_describe_target(_config_target())}[/]")
     endpoints = _load_existing()
     existing_names = {e.get("name") for e in endpoints}
 
@@ -298,7 +339,7 @@ def init_cmd() -> None:
         if not typer.confirm("\nAdd another endpoint?", default=False):
             break
 
-    console.print(f"\n[green]✓ Setup complete.[/] Config: {CONFIG_FILE}")
+    console.print(f"\n[green]✓ Setup complete.[/] Config: {_describe_target(_config_target())}")
     console.print(
         "[dim]Tip: export IAIOPS_MASTER_PASSWORD=... so the MCP server and CLI "
         "can unlock secrets non-interactively.[/]"
