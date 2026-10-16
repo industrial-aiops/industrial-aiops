@@ -15,7 +15,7 @@
 #                             a known vulnerability not listed in
 #                             .github/pip-audit-ignore.txt) + a CycloneDX SBOM build check.
 #   * margo-descriptor      — validates deploy/margo/margo.yaml against the vendored
-#                             margo.org/v1-alpha1 LinkML schema (structural validity
+#                             Margo v1.0.0-rc.3 LinkML schema (structural validity
 #                             only; NOT a compliance claim).
 #
 # Action pins are floating major tags verified to exist:

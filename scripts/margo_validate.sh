@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Validate deploy/margo/margo.yaml against the vendored Margo Application
-# Description schema (margo.org/v1-alpha1).
+# Description schema (specification v1.0.0-rc.3, apiVersion v1).
 #
 # Run locally:   ./scripts/margo_validate.sh
 # In CI:         the `margo-descriptor` job of .github/workflows/ci.yml

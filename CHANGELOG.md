@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Changed — Margo descriptor migrated to v1.0.0-rc.3
+
+- **`deploy/margo/margo.yaml` was invalid against the current Margo schema.**
+  Margo Preview Release 3 (`v1.0.0-rc.3`, 2026-09-15) removed `kind`, requires
+  `apiVersion: v1`, replaced `requiredResources` with `deviceConstraints
+  {capacityRequirements, eligibilityRules}`, and replaced component
+  `packageLocation` / `keyLocation` with `repository: oci://…` + `revision`. The
+  vendored schema and its control examples are re-vendored at the rc.3 tag
+  (commit `dc0bf84`), and the descriptor is migrated; `scripts/margo_validate.sh`
+  passes, with the upstream valid examples accepted and the invalid one rejected.
+- **The application package is published as OCI artifacts** (rc.3's
+  application-registry spec makes the registry the channel): the Application
+  Package at `ghcr.io/industrial-aiops/iaiops-margo:<version>` (artifactType
+  `application/vnd.margo.app.v1+json`, empty config, the descriptor as a
+  `application/vnd.margo.app.description.v1+yaml` layer, tag = `metadata.version`,
+  enforced in CI) and the compose component at
+  `ghcr.io/industrial-aiops/iaiops-compose:<version>`, both cosign-signed by digest
+  (new `margo-oci` job). Margo does not specify a compose component's OCI format;
+  it is pushed as `docker compose publish` does — `待核实` against a real WFM. The
+  signed release tarball stays as a mirror. The first push happens on the next
+  release tag; it was not run locally.
+- `docs/MARGO-ALIGNMENT.md` and `PROVENANCE.md` no longer say the conformance
+  toolkit does not exist (it does since 2026-08; its app-supplier runner is still
+  an unmerged PR) or that PR1 is current.
+
 ### Added — `iaiops reset` (CRA Annex I Part I(2)(b)(m))
 
 - **`iaiops reset`** lists everything iaiops wrote under its state roots —

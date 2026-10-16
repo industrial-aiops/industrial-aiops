@@ -8,8 +8,8 @@ truth so a release bump or a profile-menu change cannot silently drift:
 * descriptor ``metadata.version`` == ``pyproject.toml`` version,
 * descriptor profile options == workflow build matrix == pip extras, and every
   option is a real ``NAMED_PROFILES`` entry,
-* ``packageLocation`` / ``keyLocation`` point at the current release asset and the
-  committed cosign public key,
+* the component's OCI ``repository`` is the one CI pushes and its ``revision`` is
+  the current release (Margo rc.3); the cosign public key is committed,
 * the packaged compose references the published, version-pinned GHCR image with
   the same hardened posture as the dev compose (non-root, read-only, no caps),
 * every descriptor parameter pointer is an env var the packaged compose wires.
@@ -78,22 +78,27 @@ class TestProfileBundles:
 
 
 class TestPackageLocation:
-    def test_package_location_pins_current_release(self) -> None:
-        version = _project_version()
-        component = _descriptor()["deploymentProfiles"][0]["components"][0]
-        location = component["properties"]["packageLocation"]
-        expected = (
-            "https://github.com/industrial-aiops/industrial-aiops/releases/download/"
-            f"v{version}/iaiops-margo-package-{version}.tar.gz"
-        )
-        assert location == expected
+    """rc.3: a component names its deployable by OCI repository + revision."""
 
-    def test_key_location_points_at_committed_public_key(self) -> None:
-        component = _descriptor()["deploymentProfiles"][0]["components"][0]
-        key_location = component["properties"]["keyLocation"]
-        assert key_location.endswith("/main/deploy/margo/cosign.pub")
+    def _properties(self) -> dict[str, Any]:
+        return _descriptor()["deploymentProfiles"][0]["components"][0]["properties"]
+
+    def test_revision_is_the_current_release(self) -> None:
+        assert self._properties()["revision"] == _project_version()
+
+    def test_repository_is_the_oci_artifact_ci_pushes(self) -> None:
+        repository = self._properties()["repository"]
+        assert repository == "oci://ghcr.io/industrial-aiops/iaiops-compose"
+        workflow = (REPO / ".github" / "workflows" / "publish-image.yml").read_text("utf-8")
+        assert repository.removeprefix("oci://") in workflow, "CI never pushes this repository"
+
+    def test_rc2_fields_are_gone(self) -> None:
+        descriptor = _descriptor()
+        assert "kind" not in descriptor and descriptor["apiVersion"] == "v1"
+        assert not {"packageLocation", "keyLocation"} & set(self._properties())
+
+    def test_signing_key_is_committed(self) -> None:
         pub = MARGO_DIR / "cosign.pub"
-        assert pub.exists(), "deploy/margo/cosign.pub must be committed (keyLocation target)"
         assert "BEGIN PUBLIC KEY" in pub.read_text(encoding="utf-8")
 
 
