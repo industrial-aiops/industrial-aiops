@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Changed — breaking for socket deployments
+
+- **The HTTP/SSE MCP transports authenticate, and refuse to serve unauthenticated
+  off loopback.** Until now the socket had an optional IP allowlist and a
+  warning, while every shipped container bound `0.0.0.0` — and Margo rc.3
+  leaves workload-to-workload authentication to the application. Now:
+  - `IAIOPS_MCP_TOKEN` (or `IAIOPS_MCP_TOKEN_FILE`, never both; at least 32
+    characters) makes every request require `Authorization: Bearer <token>`,
+    compared in constant time; a wrong or missing token gets `401` with a
+    `WWW-Authenticate: Bearer` challenge.
+  - A bind to anything but a loopback address **without** a token does not
+    start. A warning is what the old design did, and nobody reads warnings.
+  - A refusal is logged and written to the audit trail as `mcp_http_auth`
+    `denied` (CRA Annex I Part I(2)(d), "report on possible unauthorised
+    access") — one row per client per minute, so a client hammering the port
+    cannot flood the trail. The token never reaches a log or an audit row.
+  - **Upgrade:** the Margo package and compose file, the airgap compose, the
+    Siemens IE app and the IGEL unit now require `IAIOPS_MCP_TOKEN` from the
+    secret store (`openssl rand -base64 48`); the Margo descriptor gains an
+    `mcpToken` secret parameter. Clients send the header. stdio is unchanged.
+  - The CRA crosswalk follows: I(2)(d) moves to `product_evidence` (one shared
+    token, not per-user identity — said so), I(2)(b) and (j) cite it.
+
 ### Security
 
 - **30 known vulnerabilities in 8 locked dependencies, fixed.** The first

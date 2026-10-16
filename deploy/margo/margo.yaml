@@ -103,6 +103,13 @@ parameters:
     targets:
       - pointer: IAIOPS_MASTER_PASSWORD
         components: [iaiops]
+  mcpToken:
+    # Secret parameter, same REFERENCE model as masterPassword: inject at deploy time. The bearer
+    # token every MCP request must carry; the socket transport refuses to start without it.
+    value: ""
+    targets:
+      - pointer: IAIOPS_MCP_TOKEN
+        components: [iaiops]
 
 configuration:
   sections:
@@ -138,6 +145,14 @@ configuration:
             Unlocks the encrypted on-box secret store. 待核实: the spec has no secret-typed
             parameter yet — tracked at margo/specification#145. Carried as a reference (inject the
             value from the device secret facility at deploy time), never stored in this descriptor.
+          immutable: false
+          schema: passwordSchema
+        - parameter: mcpToken
+          name: MCP bearer token
+          description: >-
+            Every MCP request must carry it as 'Authorization: Bearer <token>'; the socket transport
+            refuses to start without one (at least 32 characters, e.g. openssl rand -base64 48).
+            Same reference model as the master password — never stored in this descriptor.
           immutable: false
           schema: passwordSchema
   schema:

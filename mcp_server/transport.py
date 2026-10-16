@@ -8,9 +8,15 @@ adds an opt-in HTTP/SSE transport, selected by env:
     IAIOPS_MCP_HOST      = bind host (default 127.0.0.1 — localhost only unless overridden)
     IAIOPS_MCP_PORT      = bind port (default 8000)
 
-For the HTTP/SSE transports, if an IP allowlist is configured (``IAIOPS_ALLOWLIST_IPS``) it is
-enforced by a small ASGI middleware (403 for non-allowed clients) — defense-in-depth for the
-standalone case; account/token auth is best terminated at the gateway. stdio is unchanged.
+For the HTTP/SSE transports:
+
+* a bearer token (``IAIOPS_MCP_TOKEN`` / ``IAIOPS_MCP_TOKEN_FILE``, see ``http_auth``) is
+  required on every request when configured, and a **non-loopback bind without one refuses
+  to start** — Margo leaves workload authentication to the application;
+* an IP allowlist (``IAIOPS_ALLOWLIST_IPS``), when configured, is enforced first by a small
+  ASGI middleware (403 for non-allowed clients) — a second layer, not the authentication.
+
+stdio is unchanged.
 """
 
 from __future__ import annotations
@@ -19,6 +25,7 @@ import logging
 import os
 
 from iaiops.core.governance.allowlist import load_allowlist_env
+from mcp_server.http_auth import bearer_token_app, load_token, require_token_for_bind
 
 logger = logging.getLogger(__name__)
 
@@ -76,21 +83,22 @@ def run_server(mcp) -> None:
 
     host = os.environ.get(HOST_ENV, "127.0.0.1")
     port = int(os.environ.get(PORT_ENV, "8000"))
+    # Before the app is built: a refused bind must not leave a half-started server.
+    token = load_token()
+    require_token_for_bind(host, token)
     mcp.settings.host = host
     mcp.settings.port = port
     app = mcp.sse_app() if transport == "sse" else mcp.streamable_http_app()
 
+    if token is not None:
+        app = bearer_token_app(app, token)
+        logger.info("Bearer-token authentication active.")
+    # Added last = outermost: a client outside the allowlist is refused before the
+    # token is even looked at.
     allowlist = load_allowlist_env()
     if allowlist.restricts_ips:
         app = _ip_allowlist_app(app, allowlist)
         logger.info("IP allowlist active (%d network(s)).", len(allowlist.ip_networks))
-    if host not in ("127.0.0.1", "localhost", "::1") and not allowlist.restricts_ips:
-        logger.warning(
-            "%s=%s exposes the MCP server on a non-loopback interface with NO IP allowlist — "
-            "front it with a gateway or set IAIOPS_ALLOWLIST_IPS.",
-            HOST_ENV,
-            host,
-        )
 
     import uvicorn
 

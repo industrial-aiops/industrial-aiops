@@ -270,3 +270,68 @@ async def test_the_allowlist_is_off_by_default(http_server: _Server) -> None:
     assert response.status_code < 500, (
         f"the transport is broken for everyone: {response.status_code} {response.text[:200]}"
     )
+
+
+# ─── bearer token ────────────────────────────────────────────────────────────
+
+_TOKEN = "live-test-token-" + "x" * 32
+
+
+@pytest.fixture
+def token_server(tmp_path) -> Iterator[_Server]:
+    yield from _start("streamable-http", tmp_path, IAIOPS_MCP_TOKEN=_TOKEN)
+
+
+async def test_a_token_server_refuses_a_request_without_the_token(token_server: _Server) -> None:
+    import httpx
+
+    response = httpx.post(
+        token_server.url,
+        json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+        headers={"Accept": "application/json, text/event-stream"},
+        timeout=10,
+    )
+    assert response.status_code == 401, response.text[:200]
+    assert response.headers.get("www-authenticate", "").startswith("Bearer")
+
+
+async def test_a_token_server_serves_a_real_session_with_the_token(token_server: _Server) -> None:
+    """The positive half: an always-401 middleware must not pass the suite."""
+    import httpx
+    from mcp.client.streamable_http import streamable_http_client
+
+    headers = {"Authorization": f"Bearer {_TOKEN}"}
+    async with httpx.AsyncClient(headers=headers, timeout=30) as http_client:
+        async with streamable_http_client(token_server.url, http_client=http_client) as (
+            read,
+            write,
+            _get_session_id,
+        ):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                assert "modbus_read_holding" in await _tool_names(session)
+
+
+def test_a_non_loopback_bind_without_a_token_does_not_start(tmp_path) -> None:
+    """Fail closed: the process exits, says why, and never listens."""
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("IAIOPS_MCP_TOKEN", "IAIOPS_MCP_TOKEN_FILE")
+    }
+    proc = subprocess.run(  # noqa: S603 — fixed argv, no shell
+        [sys.executable, "-c", "from mcp_server.server import main; main()"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={
+            **env,
+            "IAIOPS_MCP": _PROFILE,
+            "IAIOPS_HOME": str(tmp_path),
+            "IAIOPS_MCP_TRANSPORT": "streamable-http",
+            "IAIOPS_MCP_HOST": "0.0.0.0",  # noqa: S104 — the bind under test
+            "IAIOPS_MCP_PORT": str(_free_port()),
+        },
+    )
+    assert proc.returncode != 0
+    assert "IAIOPS_MCP_TOKEN" in proc.stdout + proc.stderr

@@ -12,9 +12,10 @@ Wants=network-online.target
 # Hardened, matching deploy/margo/compose.yaml. The image is cosign-signed — verify before first run:
 #   cosign verify --key <deploy/margo/cosign.pub> ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 #
-# Secrets: /etc/iaiops/env is OPTIONAL (the leading '-') — put IAIOPS_MASTER_PASSWORD=... there
-# (0600) or inject it via the device secret facility. Without it the unit still starts; the
-# encrypted secret store simply stays locked until the password is provided.
+# Secrets: /etc/iaiops/env (0600) or the device secret facility must provide IAIOPS_MCP_TOKEN —
+# the bearer token every MCP request carries; generate with `openssl rand -base64 48`. Without it
+# the container refuses to serve the socket (fail closed) and the unit restarts until it is set.
+# IAIOPS_MASTER_PASSWORD is optional there: without it the encrypted secret store stays locked.
 EnvironmentFile=-/etc/iaiops/env
 ExecStartPre=-/usr/bin/podman pull ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 ExecStart=/usr/bin/podman run --rm --name iaiops \
@@ -22,7 +23,7 @@ ExecStart=/usr/bin/podman run --rm --name iaiops \
   --publish 127.0.0.1:8000:8000 \
   --env IAIOPS_MCP=factory \
   --env IAIOPS_MCP_TRANSPORT=streamable-http --env IAIOPS_MCP_HOST=0.0.0.0 --env IAIOPS_MCP_PORT=8000 \
-  --env IAIOPS_MASTER_PASSWORD \
+  --env IAIOPS_MCP_TOKEN --env IAIOPS_MASTER_PASSWORD \
   --volume iaiops-state:/home/iaiops/.iaiops \
   ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 ExecStop=/usr/bin/podman stop iaiops

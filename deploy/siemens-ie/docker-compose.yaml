@@ -51,6 +51,10 @@ services:
       IAIOPS_MCP_TRANSPORT: streamable-http
       IAIOPS_MCP_HOST: "0.0.0.0"
       IAIOPS_MCP_PORT: "8000"
+      # Bearer token every MCP request must carry ('Authorization: Bearer <token>'). REQUIRED:
+      # a non-loopback bind without one refuses to start. Inject from the secret facility; generate
+      # with `openssl rand -base64 48`. Or mount a secret file and set IAIOPS_MCP_TOKEN_FILE instead.
+      IAIOPS_MCP_TOKEN: ${IAIOPS_MCP_TOKEN:?inject from the IED secret store (openssl rand -base64 48)}
       # Defence in depth on top of the platform's own network isolation.
       IAIOPS_ALLOWLIST_IPS: "127.0.0.1/32"
       # Secret REFERENCE model: the value is injected by the device secret facility at deploy time

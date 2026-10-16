@@ -26,6 +26,10 @@ services:
       IAIOPS_MCP_TRANSPORT: ${IAIOPS_MCP_TRANSPORT:-streamable-http}
       IAIOPS_MCP_HOST: "0.0.0.0"
       IAIOPS_MCP_PORT: "8000"
+      # Bearer token every MCP request must carry ('Authorization: Bearer <token>'). REQUIRED:
+      # a non-loopback bind without one refuses to start. Inject from the secret facility; generate
+      # with `openssl rand -base64 48`. Or mount a secret file and set IAIOPS_MCP_TOKEN_FILE instead.
+      IAIOPS_MCP_TOKEN: ${IAIOPS_MCP_TOKEN:?set in the host secret store (openssl rand -base64 48)}
       IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}
       # Secret REFERENCE model: inject from the host secret facility — never hardcode.
       IAIOPS_MASTER_PASSWORD: ${IAIOPS_MASTER_PASSWORD:?set in the host secret store}
