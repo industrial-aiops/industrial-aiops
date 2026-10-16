@@ -289,3 +289,25 @@ jobs:
           for ref in "$(cat compose.ref)" "$(cat app.ref)"; do
             cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${ref}"
           done
+
+      # A WFM pulls `oci://ghcr.io/industrial-aiops/iaiops-compose` anonymously.
+      # Packages created by a workflow token may start out PRIVATE (the org's
+      # default decides — 待核实), and then the descriptor points at something no
+      # device can fetch. Checked after the push and signing, so the artifacts
+      # exist either way; the run fails loudly until both are public.
+      - name: Both artifacts are anonymously pullable
+        run: |
+          v="${{ needs.wait-for-pypi.outputs.version }}"
+          failed=0
+          for repo in iaiops-compose iaiops-margo; do
+            token=$(curl -fsS "https://ghcr.io/token?scope=repository:industrial-aiops/${repo}:pull" | jq -r '.token // empty' || true)
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+              "https://ghcr.io/v2/industrial-aiops/${repo}/manifests/${v}")
+            if [ "${code}" != "200" ]; then
+              echo "::error::ghcr.io/industrial-aiops/${repo}:${v} is not anonymously pullable (HTTP ${code}). Make the package public: GitHub → org industrial-aiops → Packages → ${repo} → Package settings → Change visibility → Public. Then re-run this job."
+              failed=1
+            fi
+          done
+          exit "${failed}"

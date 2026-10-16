@@ -88,7 +88,7 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
    cosign-signed by digest; the signed tarball stays attached to each GitHub release as a mirror.
    `tests/test_margo_package.py` lints the descriptor against the pinned profile bundles. The
    compose component's OCI format is not specified by Margo — pushed as `docker compose publish`
-   does (`待核实` against a real WFM). First push happens on the next release tag. Remaining: only the secret-parameter flag (pending
+   does (`待核实` against a real WFM). First push happens on the next release tag; the job then checks both packages are anonymously pullable and fails with instructions if GHCR created them private (a one-time visibility flip by the org owner). Remaining: only the secret-parameter flag (pending
    [`margo/specification#145`](https://github.com/margo/specification/issues/145)).
 3. **`✅` On-box LLM brain option (2026-07-15)** — documented + deployable: `docs/AIRGAP.md`
    (tiered architecture, offline wheelhouse + offline model provisioning, zero-egress

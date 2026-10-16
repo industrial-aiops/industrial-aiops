@@ -22,7 +22,11 @@
   (new `margo-oci` job). Margo does not specify a compose component's OCI format;
   it is pushed as `docker compose publish` does — `待核实` against a real WFM. The
   signed release tarball stays as a mirror. The first push happens on the next
-  release tag; it was not run locally.
+  release tag; it was not run locally. After pushing, the job checks both
+  packages are anonymously pullable and fails with the fix if GHCR created them
+  private — a descriptor pointing at a private package is one no device can use.
+- `scripts/margo_validate.sh` now requires each invalid control to be rejected
+  for the reason it was written for, not merely rejected.
 - `docs/MARGO-ALIGNMENT.md` and `PROVENANCE.md` no longer say the conformance
   toolkit does not exist (it does since 2026-08; its app-supplier runner is still
   an unmerged PR) or that PR1 is current.

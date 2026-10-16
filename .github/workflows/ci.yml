@@ -265,7 +265,7 @@ jobs:
       # Validates the upstream valid AND invalid controls before our descriptor,
       # so a validator that stopped discriminating fails here instead of passing
       # us vacuously.
-      - name: Validate against vendored margo.org/v1-alpha1 schema
+      - name: Validate against the vendored Margo v1.0.0-rc.3 schema
         run: ./scripts/margo_validate.sh
 
       # Advisory: tells us the spec moved, never fails somebody's PR. Re-vendor
