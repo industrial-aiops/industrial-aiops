@@ -197,7 +197,7 @@ advances Work item §4.2. Watch the Events page for **Plug Fests** (interop test
 1. **Runtime shape** — *"specifying how applications communicate with each other is not in Margo's
    scope."* No position on stdio vs socket; **socket recommended** as simpler to deploy (just open a
    container port). → **Done:** `deploy/margo/` now defaults the deployment to the **streamable-http
-   socket** transport (`IAIOPS_MCP_TRANSPORT` / `_HOST` / `_PORT`, one IP-allowlisted port), stdio
+   socket** transport (`IAIOPS_MCP_TRANSPORT` / `_HOST` / `_PORT`, one token-authenticated port, optional IP allowlist), stdio
    kept as the local-pipe fallback.
 2. **Profiles / variants** — *"Margo doesn't have an opinion on how applications are implemented."*
    A `profile` parameter is valid; multiple packages are also valid. → **Done:** we keep **one

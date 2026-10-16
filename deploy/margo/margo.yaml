@@ -46,7 +46,7 @@ deploymentProfiles:
     id: iaiops-compose
     description: >-
       Single hardened, non-root container (read-only rootfs; outbound-only to the operator-configured
-      OT endpoints, with ONE bearer-token-authenticated, IP-allowlisted inbound port for the MCP
+      OT endpoints, with ONE bearer-token-authenticated inbound port (optional IP allowlist) for the MCP
       tool interface — not an OT listener).
     components:
       - name: iaiops

@@ -91,11 +91,11 @@ def warn_on_unreachable_allowlist(host: str, allowlist) -> None:
     nets = allowlist.ip_networks
     if nets and not is_loopback(host) and all(n.is_loopback for n in nets):
         logger.warning(
-            "IAIOPS_ALLOWLIST_IPS allows only loopback but the server binds %s: behind "
-            "a container port mapping every caller arrives from the bridge gateway "
-            "(e.g. 172.17.0.1) or its own container address, so ALL requests will be "
-            "refused. Set it to the orchestrator's address(es), or leave it unset and "
-            "rely on the bearer token.",
+            "IAIOPS_ALLOWLIST_IPS allows only loopback but the server binds %s: if this "
+            "runs behind a container port mapping or on a container network, callers "
+            "arrive from the bridge gateway (e.g. 172.17.0.1) or their own container "
+            "address, and every one of them will be refused. Set it to the "
+            "orchestrator's address(es), or leave it unset and rely on the bearer token.",
             host,
         )
 

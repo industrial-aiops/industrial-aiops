@@ -23,6 +23,12 @@ cleanup() { docker rm -f "${name}" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
 
 # `IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-<default>}` → <default>
+# Refuse to pass vacuously: if the line moved or got re-quoted, the sed below
+# would print nothing and the container would run with the allowlist off.
+grep -q '^ *IAIOPS_ALLOWLIST_IPS: *\${IAIOPS_ALLOWLIST_IPS:-' "${compose}" || {
+  echo "::error::IAIOPS_ALLOWLIST_IPS: \${IAIOPS_ALLOWLIST_IPS:-...} not found in ${compose} — update this check"
+  exit 1
+}
 allowlist_default="$(sed -n 's/^ *IAIOPS_ALLOWLIST_IPS: *\${IAIOPS_ALLOWLIST_IPS:-\([^}]*\)}.*/\1/p' "${compose}")"
 echo "package.compose.yaml allowlist default: '${allowlist_default}'"
 token="$(head -c 48 /dev/urandom | base64 | tr -d '\n=+/' | head -c 48)"
@@ -44,7 +50,7 @@ done
 code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${port}/mcp" \
   -H "Authorization: Bearer ${token}" -H 'Content-Type: application/json' \
   -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"socket-check","version":"1"}}}')"
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"socket-check","version":"1"}}}' || true)"
 
 if [ "${code}" != "200" ]; then
   echo "server log:"; docker logs "${name}" 2>&1 | tail -20
