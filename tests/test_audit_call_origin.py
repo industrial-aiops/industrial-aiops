@@ -385,3 +385,84 @@ def test_mcp_origin_from_a_session_is_stable_per_session():
 def test_mcp_origin_without_a_session_is_still_mcp():
     bare = origin_mod.mcp_origin(None)
     assert (bare.kind, bare.client, bare.session) == ("mcp", "", "")
+
+
+# ── review findings: boundary relocation, non-string values ──────────────────
+
+
+@pytest.mark.unit
+def test_moving_origin_into_the_previous_field_does_not_verify(tmp_path):
+    """The separator can't be used to slide a value across a field boundary."""
+    db = tmp_path / "audit.db"
+    engine = AuditEngine(db)
+    engine.log(
+        skill="iaiops",
+        tool="w",
+        approver_source="token",
+        origin="mcp",
+        origin_client="c/1",
+        origin_session="mcp-a",
+        write_mode="apply",
+    )
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "UPDATE audit_log SET approver_source = ?, origin = '', origin_client = '', "
+        "origin_session = '', write_mode = '' WHERE id = 1",
+        ("token\x1forigin=mcp\x1forigin_client=c/1\x1forigin_session=mcp-a\x1fwrite_mode=apply",),
+    )
+    conn.commit()
+    conn.close()
+    result = engine.verify_chain()
+    assert not result["ok"] and "separator" in result["reason"]
+
+
+@pytest.mark.unit
+def test_moving_between_the_new_fields_does_not_verify(tmp_path):
+    db = tmp_path / "audit.db"
+    engine = AuditEngine(db)
+    engine.log(skill="iaiops", tool="w", origin="cli", origin_client="iaiops-cli")
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "UPDATE audit_log SET origin = ?, origin_client = '' WHERE id = 1",
+        ("cli\x1forigin_client=iaiops-cli",),
+    )
+    conn.commit()
+    conn.close()
+    assert not engine.verify_chain()["ok"]
+
+
+@pytest.mark.unit
+def test_the_writer_never_stores_the_separator(tmp_path):
+    engine = AuditEngine(tmp_path / "audit.db")
+    assert engine.log(skill="iaiops", tool="w", approved_by="a\x1fb", rationale="x\x1fy")
+    row = engine.rows_after(0)[0]
+    assert "\x1f" not in row["approved_by"] + row["rationale"]
+    assert engine.verify_chain()["ok"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [0, None, 7])
+def test_non_string_origin_values_are_stored_and_verify(tmp_path, value):
+    engine = AuditEngine(tmp_path / "audit.db")
+    assert engine.log(skill="iaiops", tool="w", origin_session=value, write_mode=value)
+    assert engine.verify_chain()["ok"]
+    row = engine.rows_after(0)[0]
+    assert row["origin_session"] == ("" if value is None else str(value))
+
+
+@pytest.mark.unit
+def test_an_oversized_forward_keeps_origin_in_the_minimal_envelope():
+    from iaiops.core.governance import forward
+
+    record = {
+        "id": 1,
+        "ts": "t",
+        "tool": "w",
+        "status": "ok",
+        "origin": "mcp",
+        "origin_session": "mcp-a",
+        "write_mode": "apply",
+        "agent": "x" * 5000,
+    }
+    out = json.loads(forward._shrink_line(json.dumps(record), 300))
+    assert (out["origin"], out["origin_session"], out["write_mode"]) == ("mcp", "mcp-a", "apply")

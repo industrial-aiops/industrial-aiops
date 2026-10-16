@@ -20,8 +20,9 @@
     `dry_run`, CLI `--apply`), empty otherwise. A write preview and a read both
     audit at `low`; this is what tells them apart. A denied apply still says `apply`.
 - **Empty means unknown.** Rows written before this release, and calls that
-  enter through neither front-end (library code calling a tool directly), have an
-  empty `origin`. Read that as unknown, never as human or agent. The `agent`
+  enter through neither front-end (library code calling a tool directly, or a
+  governed call made from a thread a tool started itself — the origin does not
+  cross a raw `threading.Thread`), have an empty `origin`. Read that as unknown, never as human or agent. The `agent`
   column is unchanged and stays a guess.
 - **Old trails keep verifying.** The new fields join the hash chain only when
   non-empty, so every existing row hashes exactly as before and `iaiops audit
@@ -30,6 +31,16 @@
   origin, an **older** iaiops reading the same `audit.db` reports them as modified,
   because it does not hash the new fields. Do not share one `IAIOPS_HOME` between
   this version and an older one.
+- **Field boundaries cannot be moved.** The writer now strips the hash separator
+  (`\x1f`) from every stored field, and `iaiops audit verify` fails a row whose
+  field contains one: otherwise a value could be slid into the end of the
+  previous field (`origin=mcp` appended to `approver_source`, `origin` blanked)
+  without changing the hash. Old rows only fail this if an approver or rationale
+  string ever contained that control character.
+- Non-string values (`0`, `None`) passed to `AuditEngine.log` for the new fields
+  are stored as text, so the row still verifies instead of reading as modified.
+- The oversized-row fallback in `iaiops audit forward` keeps `origin`,
+  `origin_session` and `write_mode` in its minimal envelope.
 - **Not covered:** a call FastMCP refuses before the tool runs (unknown tool name,
   invalid arguments) leaves no row, as before; a tool withheld by
   `IAIOPS_NO_EGRESS` cannot be called, so there is nothing to record; refused HTTP

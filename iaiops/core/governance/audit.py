@@ -119,10 +119,29 @@ _HASH_SEP = "\x1f"
 _EXTENSION_HASHED_FIELDS = ("origin", "origin_client", "origin_session", "write_mode")
 
 
+def _text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _no_separator(value: Any) -> Any:
+    """Strip the hash separator from text before it is stored.
+
+    The canonical form joins fields with ``_HASH_SEP``; a stored value containing
+    it could slide content across a field boundary (e.g. move ``origin=mcp`` into
+    the end of ``approver_source`` and blank ``origin``) without changing the
+    hash. The writer never stores it; ``verify_chain`` refuses a row that does.
+    """
+    return value.replace(_HASH_SEP, "") if isinstance(value, str) else value
+
+
 def compute_row_hash(prev_hash: str, fields: dict[str, Any]) -> str:
     """SHA-256 over prev_hash + canonical (ordered, text) row fields."""
     canon = _HASH_SEP.join(str(fields.get(name, "")) for name in _HASHED_FIELDS)
-    extensions = [f"{name}={fields[name]}" for name in _EXTENSION_HASHED_FIELDS if fields.get(name)]
+    extensions = [
+        f"{name}={_text(fields.get(name))}"
+        for name in _EXTENSION_HASHED_FIELDS
+        if _text(fields.get(name))
+    ]
     if extensions:
         canon = canon + _HASH_SEP + _HASH_SEP.join(extensions)
     return hashlib.sha256((prev_hash + _HASH_SEP + canon).encode("utf-8")).hexdigest()
@@ -273,11 +292,12 @@ class AuditEngine:
                 "approved_by": approved_by,
                 "risk_tier": risk_tier,
                 "approver_source": approver_source,
-                "origin": origin,
-                "origin_client": origin_client,
-                "origin_session": origin_session,
-                "write_mode": write_mode,
+                "origin": _text(origin),
+                "origin_client": _text(origin_client),
+                "origin_session": _text(origin_session),
+                "write_mode": _text(write_mode),
             }
+            fields = {name: _no_separator(value) for name, value in fields.items()}
             conn = self._connect()
             try:
                 conn.execute("BEGIN IMMEDIATE")
@@ -328,6 +348,18 @@ class AuditEngine:
             if not record.get("row_hash"):
                 unhashed += 1
                 continue
+            if any(
+                _HASH_SEP in _text(record.get(name))
+                for name in (*_HASHED_FIELDS, *_EXTENSION_HASHED_FIELDS)
+            ):
+                return {
+                    "ok": False,
+                    "checked": checked,
+                    "unhashed": unhashed,
+                    "first_broken_id": record["id"],
+                    "reason": "a field contains the hash separator (field boundaries "
+                    "are ambiguous — content may have been moved between fields)",
+                }
             if record.get("prev_hash", "") != expected_prev:
                 return {
                     "ok": False,
