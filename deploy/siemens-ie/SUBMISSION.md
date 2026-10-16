@@ -48,7 +48,7 @@ Three properties that matter on an IED:
 - **Resources**: `mem_limit: 1g`, `mem_reservation: 256m`, `cpus: 1.0`.
 - **Posture**: non-root (uid 10001), `read_only` rootfs, `cap_drop: ALL`,
   `no-new-privileges:true`. **No privileged mode and no host networking are requested.**
-- **Network**: joins `proxy-redirect`. One MCP port (8000), IP-allowlisted. **No inbound OT
+- **Network**: joins `proxy-redirect`. One MCP port (8000), bearer-token authenticated (optional IP allowlist). **No inbound OT
   listener** — the OT side is strictly outbound to the endpoints the operator configures.
 - **State**: named volume `iaiops-state` → `/home/iaiops/.iaiops` (config, encrypted secrets,
   hash-chained audit, undo store). Must survive app updates.
@@ -61,7 +61,7 @@ Three properties that matter on an IED:
 
 | Question | Answer |
 |---|---|
-| Inbound exposure? | One MCP port on `proxy-redirect`, IP-allowlisted. No inbound OT ports. |
+| Inbound exposure? | One MCP port on `proxy-redirect`, bearer-token authenticated (optional IP allowlist). No inbound OT ports. |
 | Outbound? | Only to the OT endpoints the operator configures, plus any egress target they explicitly enable. |
 | Runs as root? | No — uid 10001, read-only rootfs, all capabilities dropped. |
 | Privileged mode / host network? | **Not requested.** |

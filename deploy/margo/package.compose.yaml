@@ -11,7 +11,7 @@ services:
   iaiops:
     image: ghcr.io/industrial-aiops/iaiops:0.28.0-${IAIOPS_MCP:-factory}
     # Least-privilege posture a Margo device/host would give an OT workload (same as compose.yaml):
-    # non-root, read-only rootfs, no capabilities, one IP-allowlisted MCP port, no OT inbound.
+    # non-root, read-only rootfs, no capabilities, one token-authenticated MCP port (optional IP allowlist), no OT inbound.
     read_only: true
     tmpfs: ["/tmp"]
     cap_drop: ["ALL"]
