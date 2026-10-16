@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The CRA/NIS2 crosswalk's `audit_forward` mechanism no longer lists the
+  rotation hole as an open defect: the cursor now names the row itself and
+  continues through retained archives, and refuses when it cannot place itself
+  (see the `iaiops audit forward` entry below).
+
 ### Fixed
 
 - **The shipped socket deployments refused every caller.** `IAIOPS_ALLOWLIST_IPS`
