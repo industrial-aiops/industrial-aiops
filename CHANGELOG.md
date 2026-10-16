@@ -25,6 +25,218 @@
   `demo/metering/`; no real supplier file has been run through it yet (`待核实`).
 ### Fixed
 
+- **The shipped socket deployments refused every caller.** `IAIOPS_ALLOWLIST_IPS`
+  defaulted to `127.0.0.1/32` in the Margo package and compose file, the airgap
+  compose and the Siemens IE app, while the port is published as
+  `127.0.0.1:8000:8000`. Behind that mapping the server sees a host caller as the
+  bridge gateway, not 127.0.0.1 — verified on Docker 27.5: a correct bearer token
+  got `403`, and the server logged the caller as `172.17.0.1`. Apps on a
+  container network arrive from their own addresses, refused the same way. The
+  default is now **off** (the bearer token, mandatory off loopback, is the
+  authentication); set the allowlist to the orchestrator's address if you want
+  the second layer. The Margo descriptor's `allowlistIps` default follows.
+- The server now warns at start when a loopback-only allowlist guards a
+  non-loopback bind, naming the bridge-gateway reason.
+- **New CI step** (`scripts/socket_defaults_check.sh`, immutable-host job): runs
+  the image with `package.compose.yaml`'s own allowlist default and calls it from
+  the host through the port mapping; anything but `200` fails. It fails on the
+  old default and passes on the new one. No test had ever gone through a port
+  mapping, which is why this shipped.
+
+### Changed — Margo descriptor migrated to v1.0.0-rc.3
+
+- **`deploy/margo/margo.yaml` was invalid against the current Margo schema.**
+  Margo Preview Release 3 (`v1.0.0-rc.3`, 2026-09-15) removed `kind`, requires
+  `apiVersion: v1`, replaced `requiredResources` with `deviceConstraints
+  {capacityRequirements, eligibilityRules}`, and replaced component
+  `packageLocation` / `keyLocation` with `repository: oci://…` + `revision`. The
+  vendored schema and its control examples are re-vendored at the rc.3 tag
+  (commit `dc0bf84`), and the descriptor is migrated; `scripts/margo_validate.sh`
+  passes, with the upstream valid examples accepted and the invalid one rejected.
+- **The application package is published as OCI artifacts** (rc.3's
+  application-registry spec makes the registry the channel): the Application
+  Package at `ghcr.io/industrial-aiops/iaiops-margo:<version>` (artifactType
+  `application/vnd.margo.app.v1+json`, empty config, the descriptor as a
+  `application/vnd.margo.app.description.v1+yaml` layer, tag = `metadata.version`,
+  enforced in CI) and the compose component at
+  `ghcr.io/industrial-aiops/iaiops-compose:<version>`, both cosign-signed by digest
+  (new `margo-oci` job). Margo does not specify a compose component's OCI format;
+  it is pushed as `docker compose publish` does — `待核实` against a real WFM. The
+  signed release tarball stays as a mirror. The first push happens on the next
+  release tag; it was not run locally. After pushing, the job checks both
+  packages are anonymously pullable and fails with the fix if GHCR created them
+  private — a descriptor pointing at a private package is one no device can use.
+- `scripts/margo_validate.sh` now requires each invalid control to be rejected
+  for the reason it was written for, not merely rejected.
+- `docs/MARGO-ALIGNMENT.md` and `PROVENANCE.md` no longer say the conformance
+  toolkit does not exist (it does since 2026-08; its app-supplier runner is still
+  an unmerged PR) or that PR1 is current.
+
+### Added — `iaiops reset` (CRA Annex I Part I(2)(b)(m))
+
+- **`iaiops reset`** lists everything iaiops wrote under its state roots —
+  config, encrypted secrets, the audit trail and its archives, undo and approval
+  state, collected history, and an `$IAIOPS_CONFIG` file outside them — and
+  changes nothing. **`--apply`** removes it, behind a named approver (it is a
+  write: `iaiops approve reset_cmd --by <name>`) and two confirmations; the
+  audit trail restarts with the reset's own row. Failures are reported and exit
+  1, never swallowed. **Only names iaiops itself writes are removed** (a fixed
+  list, their SQLite sidecars and temp files, audit archives); anything else in
+  a root is listed as *kept*, never deleted — `IAIOPS_HOME` can point anywhere,
+  and "delete everything in the root" would wipe a project directory or a shared
+  volume on one mistyped variable. Roots are `resolve()`d; a relative
+  `IAIOPS_HOME`, `/`, the home directory or one of its parents is refused;
+  symlinks are removed, not followed; an `$IAIOPS_CONFIG` that names a directory
+  is kept. The plan says when the config directory is shared by every instance
+  on the host, and when a legacy `~/.ot-aiops` exists and is not covered.
+- It says what it does not do: files are unlinked, not shredded (on flash only
+  full-disk encryption or a device wipe sanitises the medium), and external
+  historians, forwarded audit rows and files written with `--out` elsewhere are
+  not reached, and a running server keeps what it holds in memory (stop it
+  first). **CLI only — no MCP tool**: an agent that can erase the audit
+  trail is what the trail exists to prevent (a test pins it).
+- CRA crosswalk: I(2)(b) and I(2)(m) move to `product_evidence`.
+
+### Added — audit opt-out for reads (CRA Annex I Part I(2)(l))
+
+- **`IAIOPS_AUDIT_OPT_OUT=reads`** stops recording successful calls of tools
+  that are *reads by declaration*: tagged `[READ]`, declared low/medium risk, no
+  write mode (no preview parameter), no egress — decided once, at decoration.
+  The opt-out the CRA asks activity recording to offer, kept narrow because the
+  trail is the governance backbone: device writes and their previews, data
+  shipped off-box (`historian_push`, stream publishing), low-risk local state
+  changes (case and investigation records, baselines, learned weights),
+  denials, failures and every CLI command are always recorded. The opt-out
+  writes one `audit_opt_out` marker row per process — retried until it lands, so
+  the trail always shows from when reads went unrecorded; `iaiops doctor` and
+  the evidence zip's `doctor_summary.json` report it. Any other value keeps
+  recording and warns — a typo must never switch the trail off.
+
+### Changed — breaking for socket deployments
+
+- **The HTTP/SSE MCP transports authenticate, and refuse to serve unauthenticated
+  off loopback.** Until now the socket had an optional IP allowlist and a
+  warning, while every shipped container bound `0.0.0.0` — and Margo rc.3
+  leaves workload-to-workload authentication to the application. Now:
+  - `IAIOPS_MCP_TOKEN` (or `IAIOPS_MCP_TOKEN_FILE`, never both; at least 32
+    characters) makes every request require `Authorization: Bearer <token>`,
+    compared in constant time; a wrong or missing token gets `401` with a
+    `WWW-Authenticate: Bearer` challenge.
+  - A bind to anything but a loopback address **without** a token does not
+    start. A warning is what the old design did, and nobody reads warnings.
+  - A refusal is logged and written to the audit trail as `mcp_http_auth`
+    `denied` (CRA Annex I Part I(2)(d), "report on possible unauthorised
+    access") — one row per client per minute and at most 10 per minute in total
+    (the suppressed count rides on the next row), path truncated, written off
+    the event loop, so neither one client nor one rotating its source address
+    can flood the trail. The token never reaches a log or an audit row.
+  - Off loopback, FastMCP's DNS-rebinding Host check — which knows only
+    loopback names and answered every caller reaching a container by address
+    or service name with `421 Invalid Host header` — is replaced:
+    `IAIOPS_MCP_ALLOWED_HOSTS` lists accepted Host headers; unset, the check is
+    off and the token is the control (a rebinding page cannot present it). A
+    live test drives a 0.0.0.0-bound server with a remote Host header.
+  - Tokens must be printable ASCII (a header could not carry anything else);
+    a group/world-readable token file is warned about; an empty
+    `IAIOPS_MCP_TOKEN` counts as unset, so the shipped compose files can offer
+    both `IAIOPS_MCP_TOKEN` and `IAIOPS_MCP_TOKEN_FILE` (preferred — the value
+    then never shows in `docker inspect`). On loopback without a token a
+    warning says any local process can call the tools.
+  - **Upgrade:** the Margo package and compose file, the airgap compose, the
+    Siemens IE app and the IGEL unit now require `IAIOPS_MCP_TOKEN` from the
+    secret store (`openssl rand -base64 48`); the Margo descriptor gains an
+    `mcpToken` secret parameter whose schema requires the same 32 characters.
+    Clients send the header. stdio is unchanged.
+  - The CRA crosswalk follows: I(2)(d) moves to `product_evidence` (one shared
+    token, not per-user identity — said so), I(2)(b) and (j) cite it.
+
+### Security
+
+- **30 known vulnerabilities in 8 locked dependencies, fixed.** The first
+  dependency scan of the locked runtime set (every extra, no dev group) found
+  advisories in anyio, cryptography, mcp, pyarrow, pyjwt, setuptools, thrift and
+  urllib3. All eight are upgraded in `uv.lock`; the floors of the direct ones
+  are raised so a fresh install cannot resolve a vulnerable version:
+  `cryptography>=50.0.0`, `mcp[cli]>=1.30`, and the `export` extra's
+  `pyarrow>=23.0.1,<24` (its old `<22` cap blocked the fix). Transitive
+  dependencies are not pinned in what ships, so a pip install can still resolve
+  a version the scan never saw — the CRA crosswalk says so.
+
+### Added — vulnerability handling (CRA Annex I Part II)
+
+- **`SECURITY.md`** — the coordinated vulnerability disclosure policy and
+  contact (Part II(5)(6)): GitHub private vulnerability reporting (now enabled)
+  or e-mail, response targets, a 90-day disclosure window, and a GitHub Security
+  Advisory per fixed vulnerability linked from a `### Security` CHANGELOG
+  section (Part II(4)(8)). Targets, not service levels.
+- **Dependency-vulnerability gate** (`dependency-audit` CI job): pip-audit on
+  the locked runtime set on every change; a finding fails the build unless
+  `.github/pip-audit-ignore.txt` lists it with a reason (a test refuses an
+  ignore without one).
+- **A CycloneDX SBOM per release**: `publish-pypi.yml` exports uv.lock as
+  CycloneDX 1.5 and attaches it (with its SHA-256) to the GitHub release; CI
+  builds the same SBOM on every change so a broken one fails a PR, not a
+  release. It describes the locked set the release was tested with.
+- **PyPI attestations stated explicitly** in `publish-pypi.yml` (the action's
+  default under Trusted Publishing), so an edit cannot drop them unnoticed.
+- Repository settings: Dependabot alerts and security updates, secret scanning
+  and push protection enabled.
+- The CRA crosswalk follows: I(2)(a), II(1), II(5), II(6), II(8) move to
+  `product_evidence` and II(4) to `partial_evidence`, each still naming what
+  is unexercised (no release has carried an SBOM or an attestation yet; no
+  advisory has been published).
+
+### Added
+
+- **NIS2 and CRA product self-assessment crosswalks**, next to 等保 2.0 / IEC
+  62443 / GxP. NIS2 Directive (EU) 2022/2555 Art. 21(2)(a)–(j) and CRA
+  Regulation (EU) 2024/2847 Annex I — Part I(1), I(2)(a)–(m), Part II(1)–(8) —
+  item by item, in English, because that is how an EU assessor reads them.
+  `iaiops compliance --framework nis2|cra`, `iaiops compliance report --framework
+  nis2|cra|eu [--html]`; on MCP, a `framework` argument on `compliance_frameworks`
+  and `compliance_report` (no new tool, so the tool count is unchanged). The
+  per-pillar crosswalk gains `nis2` / `cra` columns derived from the item tables,
+  never typed twice.
+  - Each item has a `coverage`: `product_evidence` (cited mechanisms speak to
+    the measure's central requirement — never "the measure is met", and every
+    such row names what is left), `partial_evidence` (they touch it but the
+    central requirement is missing, e.g. CRA Part II(1) without an SBOM), `gap`,
+    or `organisational` (product provides no evidence: NIS2 (a)(b)(c)(d)(g), CRA
+    Part I(1)). The honest headline: 2 of 10 NIS2 items and 3 of 22 CRA items are
+    `product_evidence`. Organisational rows cite
+    no mechanism and no pillar, so the enterprise report cannot print runtime
+    evidence under a measure the product never touches.
+  - Every cited mechanism lives in one registry with code anchors
+    (`module:attr` or a repository file + token), and the tests resolve each
+    anchor — a mechanism the code does not contain cannot be cited. Each fact
+    states its limit, and the limits a default could silently flip are pinned
+    to behaviour: every MCP write tool defaults to `dry_run=True`; reads still
+    run unaudited when `audit.db` is unwritable (only high/critical fail
+    closed); rotation at 100 MB keeps 5 archives and deletes the rest; the
+    runaway breaker trips on 25 identical calls in 120 s while the call/time
+    ceilings are off by default; a pip install speaks stdio but the Margo
+    package defaults to streamable-http on 0.0.0.0; the plaintext `.env`
+    credential fallback is still honoured; PyPI wheels are unsigned.
+  - It says the unflattering parts a CRA reader looks for first: no SBOM, no
+    coordinated vulnerability disclosure policy or security contact, no
+    security advisories, no audit opt-out (I(2)(l) asks for one), no
+    multi-factor authentication (NIS2 (j)), no authentication of MCP callers,
+    no dependency CVE scan, no reset-to-original, audit database unencrypted at
+    rest. Whether the free MIT edition is "made available on the market" (Art.
+    3(22)) is declared as not yet assessed (`待核实`, a later release); the
+    table is written as if it were in scope.
+  - NIS2 obliges entities and the CRA manufacturers, not this product; the
+    disclaimer says so, and that the table is not a certification and not legal
+    advice. Item wording is paraphrased. The CRA items and Art. 71(2) dates were
+    checked one by one against the consolidated regulation text (02024R2847, EN,
+    20.11.2024); NIS2 Art. 21 was checked against a reproduction only and stays
+    `待核实` against the Official Journal.
+  - `compliance report --level` together with an EU framework is refused rather
+    than ignored, and the 等保 report's title page does not list NIS2 / CRA,
+    which it has no section for.
+
+### Fixed
+
 - **`iaiops init` deleted the rest of the config file.** Adding one endpoint
   rewrote `config.yaml` as `{"endpoints": [...]}`, so a site's `historian:`
   block vanished the first time anyone used the wizard — with or without an
@@ -39,6 +251,20 @@
   prints that path before the first prompt and again at the end, says
   `(via $IAIOPS_CONFIG)` when it is an override, and tightens permissions only on
   its own `~/.iaiops` directory, never on a directory an override lives in.
+- **`iaiops audit forward` left a hole after every audit DB rotation.** The cursor
+  was a bare row id, and at 100 MB the rotated-in file starts its ids at 1 again:
+  rows written after a rotation were not forwarded until the new ids passed the
+  old cursor, and rows written between the last forward and the rotation were
+  never forwarded at all. That is the off-host copy `audit verify` points to as
+  the remedy for an unkeyed chain. The cursor now names the row itself (`id` +
+  `ts` + `row_hash`); each run finds it in the live file or a retained archive
+  and forwards the rest of that file and every newer one, oldest first. A first
+  run also forwards the retained archives. When the row is in no file on disk —
+  more than 5 rotations between runs, or the file was replaced — the run
+  **refuses** and says so instead of guessing a position; so does a corrupt
+  cursor file, which used to restart silently from 0. A bare-id cursor from an
+  older iaiops is honoured only while no rotation has happened since. Output
+  gains `cursor_file`, because an id alone no longer says where the cursor is.
 
 ### CI
 

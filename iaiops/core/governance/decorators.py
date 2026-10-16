@@ -32,6 +32,7 @@ import traceback
 from functools import wraps
 from typing import Any
 
+from iaiops.core.governance import audit_opt_out
 from iaiops.core.governance.approvals import consume_approval
 from iaiops.core.governance.audit import detect_agent, get_engine
 from iaiops.core.governance.budget import BudgetExceeded, get_budget
@@ -153,6 +154,15 @@ def governed_tool(
         # Cache the signature at decoration time so positional args can be
         # mapped to parameter names on every call (audit + env scoping).
         signature = inspect.signature(func)
+        # Decided once, from what the tool DECLARES: only a [READ]-tagged,
+        # low/medium-risk tool with no write mode and no egress may go unrecorded
+        # under the read opt-out. Never a write, a preview of one, or a shipment.
+        _opt_out_eligible = audit_opt_out.eligible(
+            risk_level=risk_level,
+            egress=egress,
+            preview_param=preview_param,
+            doc=inspect.getdoc(func),
+        )
 
         if inspect.iscoroutinefunction(func):
             # ── Async tools get an async wrapper with identical audit /
@@ -171,6 +181,7 @@ def governed_tool(
                     undo,
                     preview_param,
                     preview_truthy,
+                    _opt_out_eligible,
                 )
                 try:
                     _pre_check_with_loop_guard(state)
@@ -197,6 +208,7 @@ def governed_tool(
                     undo,
                     preview_param,
                     preview_truthy,
+                    _opt_out_eligible,
                 )
                 try:
                     _pre_check_with_loop_guard(state)
@@ -256,6 +268,7 @@ class _CallState:
         "approver_source",
         "risk_tier",
         "undo",
+        "opt_out_eligible",
     )
 
     def __init__(
@@ -270,8 +283,10 @@ class _CallState:
         undo: Any = None,
         preview_param: str | None = None,
         preview_truthy: bool = True,
+        opt_out_eligible: bool = False,
     ) -> None:
         self.undo = undo
+        self.opt_out_eligible = opt_out_eligible
         self.skill = _infer_skill(func)
         self.tool_name = func.__name__
         self.agent = detect_agent()
@@ -622,6 +637,12 @@ def _finalize(state: _CallState) -> None:
 
     pattern_id = state.pattern_match.pattern.pattern_id if state.pattern_match else ""
     pattern_armed = bool(state.pattern_match and state.pattern_match.armed)
+
+    # The one opt-out the trail allows (CRA Annex I Part I(2)(l)): a successful
+    # low/medium-risk call. Never a high/critical one, never a denial or failure.
+    if audit_opt_out.skips(state.opt_out_eligible, state.risk_level, final_status):
+        audit_opt_out.mark_once(state.audit)
+        return
 
     written = state.audit.log(
         skill=state.skill,

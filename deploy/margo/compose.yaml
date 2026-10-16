@@ -1,6 +1,6 @@
 # Example run of the iaiops edge-application container (Podman/Docker compatible).
 # Demonstrates the least-privilege posture a Margo device/host would give an OT workload:
-# non-root, read-only rootfs, a single IP-allowlisted MCP port (no OT inbound), one config volume.
+# non-root, read-only rootfs, a single token-authenticated MCP port (optional IP allowlist; no OT inbound), one config volume.
 #
 # This example uses the SOCKET MCP transport (streamable-http) — the shape the Margo
 # app-package-definition-wg recommends (2026-07-13): one container port, no protocol glue. For the
@@ -25,18 +25,30 @@ services:
     user: "10001:10001"
     # The ONLY inbound port is the MCP tool interface for the orchestrator/agent — NOT an OT port.
     # The OT side stays strictly outbound to the endpoints in config.yaml. Bound to host loopback
-    # here; on a real host publish to the interface the orchestrator reaches and keep the allowlist.
+    # here; on a real host publish to the interface the orchestrator reaches (and, if you want the second
+    # layer, set the allowlist to the orchestrator's address).
     ports:
       - "127.0.0.1:8000:8000"
     environment:
       # Socket transport (Margo-recommended). Bind all interfaces INSIDE the container; the port
-      # mapping + IP allowlist below control who can actually reach it.
+      # mapping, the bearer token and (optionally) the IP allowlist below control who can reach it.
       IAIOPS_MCP_TRANSPORT: streamable-http
       IAIOPS_MCP_HOST: "0.0.0.0"
       IAIOPS_MCP_PORT: "8000"
-      # Defense-in-depth: only these client networks may call the MCP port (403 otherwise). Set to
-      # the orchestrator/gateway's address(es). Token/account auth is best terminated at a gateway.
-      IAIOPS_ALLOWLIST_IPS: "${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}"
+      # Bearer token every MCP request must carry ('Authorization: Bearer <token>'). REQUIRED: the
+      # server refuses to start on this non-loopback bind without one. Set EXACTLY ONE of the two —
+      # the value from the secret facility (`openssl rand -base64 48`), or a path to a mounted
+      # secret file (preferred: the value then never shows in `docker inspect`). Empty = unset.
+      IAIOPS_MCP_TOKEN: ${IAIOPS_MCP_TOKEN:-}
+      IAIOPS_MCP_TOKEN_FILE: ${IAIOPS_MCP_TOKEN_FILE:-}
+      # Optional: Host headers to accept (comma-separated host:port, '*' = any port), e.g.
+      # "iaiops:*,10.0.0.5:8000". Unset = no Host check; the token is the control.
+      IAIOPS_MCP_ALLOWED_HOSTS: ${IAIOPS_MCP_ALLOWED_HOSTS:-}
+      # Optional second layer under the token: CIDRs allowed to call the MCP port (403 otherwise).
+      # Default OFF. Do NOT set 127.0.0.1/32: behind the port mapping a host caller arrives as the
+      # bridge gateway (e.g. 172.17.0.1), so a loopback-only list refuses everyone (verified on
+      # Docker 27.5). Set it to the orchestrator/gateway address(es) if you set it at all.
+      IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-}
       # Unlocks the encrypted secret store non-interactively. Inject via your host's secret manager
       # (Margo device secret facility) — do NOT hardcode. Left unset here on purpose.
       IAIOPS_MASTER_PASSWORD: "${IAIOPS_MASTER_PASSWORD:?set in the host secret store}"

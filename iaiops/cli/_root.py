@@ -41,6 +41,7 @@ from iaiops.cli.profinet import profinet_app
 from iaiops.cli.program import program_app
 from iaiops.cli.readiness import readiness_cmd
 from iaiops.cli.relations import relations_app
+from iaiops.cli.reset import reset_cmd
 from iaiops.cli.s7 import s7_app
 from iaiops.cli.scan import scan_app
 from iaiops.cli.secret import secret_app
@@ -118,6 +119,7 @@ app.command("init")(init_cmd)
 app.command("export")(export_cmd)
 app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
+app.command("reset")(reset_cmd)
 app.command("readiness")(readiness_cmd)
 app.add_typer(investigate_app, name="investigate")
 app.add_typer(relations_app, name="relations")

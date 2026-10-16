@@ -5,7 +5,7 @@
 
 # Industrial-AIOps × Margo — ecosystem alignment (design note)
 
-> **TL;DR（中文）** — [Margo](https://margo.org/)（Linux Foundation 的工业边缘互操作标准，PR1 2026-01，GA 计划 2026 内）把边缘世界分成三个角色：**设备 / 应用 / 编排软件**。iaiops 天然是其中的**边缘应用（edge application）**——一个厂商中立、带治理的 OT 只读 tap + 跨协议 RCA，全部以受治理的 MCP 工具暴露。本文记录：角色映射、**诚实的差距（我们现在还不是 Margo-compliant）**、以及不花钱先当贡献者的落地路径。定位是 roadmap `⏳`，不是既成事实。
+> **TL;DR（中文）** — [Margo](https://margo.org/)（Linux Foundation 的工业边缘互操作标准；Preview Release 3 = `v1.0.0-rc.3`，2026-09-15；1.0 正式版日期 待核实）把边缘世界分成三个角色：**设备 / 应用 / 编排软件**。iaiops 天然是其中的**边缘应用（edge application）**——一个厂商中立、带治理的 OT 只读 tap + 跨协议 RCA，全部以受治理的 MCP 工具暴露。本文记录：角色映射、**诚实的差距（我们现在还不是 Margo-compliant）**、以及不花钱先当贡献者的落地路径。定位是 roadmap `⏳`，不是既成事实。
 
 ## 1. Why Margo, and why it's complementary (not either/or)
 
@@ -39,7 +39,7 @@ iaiops is a portable, governed OT-domain app that *any* compliant orchestrator c
 | **Edge application** (containerised workload) | Pure-Python core, lazy per-protocol extras, runs headless as an MCP server | Package the `IAIOPS_MCP` profiles (`fab`/`factory`/`process`/`building`/`water`) as deployable app variants |
 | **Device role** (compliant host) | N/A — we ride on the host. What an immutable host demands OF THE APPLICATION is now gated in CI (`immutable-host` job, `scripts/immutable_host_check.sh`): non-root, read-only root filesystem, all mutable state in the declared volume, and the audit chain accepting a row under those constraints. **The published images failed that check** until 2026-08-02 — `VOLUME` after `USER` left the state directory root-owned | Validate on an actual immutable/centrally-managed edge OS (candidate: IGEL OS + its container runtime) — that still needs the host vendor |
 | **Orchestration (WOS)** desired-state | N/A — we are the payload | Confirm iaiops deploys/updates cleanly under a compliant orchestrator's desired-state lifecycle |
-| **Compliance test suite** (open, publicly traceable results) | **Still does not exist** — re-checked 2026-08-02: no conformance repo among the 12 in the `margo` org. Two things DO now exist that did not before: the **Code First Sandbox** (`margo/sandbox` — a reference Symphony WFM, Harbor registry, compose/helm deployment path) and the published Application Description **LinkML schema**, which `deploy/margo/margo.yaml` validates clean against (CI job `margo-descriptor`) | Deploy into the sandbox WFM — the nearest thing to a conformance run that exists — then run the toolkit and publish the result the day it ships. Only then may we say *Margo-compliant* |
+| **Conformance test toolkit** (open, publicly traceable results) | **Exists, not yet usable by us** — re-checked 2026-10-16: `margo/conformance_test_toolkit` was created 2026-08-10, but `main` holds only a README; the app-supplier runner (a Go Application Description validator) is open PR #3, still active 2026-10-15. Requirements: `margo/conformance_documentation`. Also available: the **Code First Sandbox** (`margo/sandbox`) and the rc.3 Application Description **LinkML schema**, which `deploy/margo/margo.yaml` validates clean against (CI job `margo-descriptor`) | Run the toolkit's app-supplier runner against our descriptor as soon as it is usable (even from the PR branch) and keep the result; deploy into the sandbox WFM. Only after a published passing result may we say *Margo-compliant* |
 
 **Honest status:** iaiops is **NOT Margo-compliant today** (`待核实` until the conformance toolkit
 exists and passes on a real device). Everything in §4 is roadmap `⏳`. Do not claim compliance in
@@ -71,23 +71,34 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
    (`deploy/margo/Dockerfile`). CI builds multi-arch per-profile images on every release tag,
    **cosign-signs them** (public key `deploy/margo/cosign.pub`), and pushes
    `ghcr.io/industrial-aiops/iaiops:<version>-<profile>`.
-2. **`✅` Margo application description (2026-07-15)** — **done to the real `margo.org/v1-alpha1`
-   schema** (`deploy/margo/margo.yaml`: compose `deploymentProfiles` / `components` /
-   `requiredResources` / `parameters` / `configuration`). **WG feedback folded in (2026-07-13,
+2. **`✅` Margo application description (2026-07-15; migrated to rc.3 2026-10-16)** — validated
+   against the **v1.0.0-rc.3** Application Description schema (`deploy/margo/margo.yaml`:
+   `apiVersion: v1`, compose `deploymentProfiles` / `components` with `repository: oci://…` +
+   `revision` / `deviceConstraints` / `parameters` / `configuration`). The earlier
+   `margo.org/v1-alpha1` descriptor (with `kind`, `requiredResources`, `packageLocation`) fails
+   rc.3 and was replaced. **WG feedback folded in (2026-07-13,
    ABB / P. Presson):** the descriptor targets the **socket (streamable-http) transport**
-   (WG-recommended; `transport` / `mcpPort` / `allowlistIps` parameters + the compose port), and
+   (WG-recommended; `transport` / `mcpPort` / `allowlistIps` / `mcpToken` parameters + the compose
+   port — bearer-token authenticated, since Margo leaves workload authentication to the app), and
    keeps the **single parameterised application** (`profile`) rather than N packages. **Hosted +
-   signed + CI-linted:** CI attaches the cosign-signed `iaiops-margo-package-<version>.tar.gz`
-   (descriptor + deploy-ready compose) to each GitHub release (= `packageLocation` /
-   `keyLocation`), and `tests/test_margo_package.py` lints the descriptor against the pinned
-   profile bundles. Remaining: only the secret-parameter flag (pending
+   signed + CI-linted:** per rc.3's application-registry spec, CI pushes the **Application
+   Package as an OCI artifact** (`ghcr.io/industrial-aiops/iaiops-margo:<version>`, artifactType
+   `application/vnd.margo.app.v1+json`, tag = `metadata.version`) and the **compose component**
+   (`ghcr.io/industrial-aiops/iaiops-compose:<version>`, the descriptor's `repository`), both
+   cosign-signed by digest; the signed tarball stays attached to each GitHub release as a mirror.
+   `tests/test_margo_package.py` lints the descriptor against the pinned profile bundles. The
+   compose component's OCI format is not specified by Margo — pushed as `docker compose publish`
+   does (`待核实` against a real WFM). First push happens on the next release tag; the job then checks both packages are anonymously pullable and fails with instructions if GHCR created them private (a one-time visibility flip by the org owner). Remaining: only the secret-parameter flag (pending
    [`margo/specification#145`](https://github.com/margo/specification/issues/145)).
 3. **`✅` On-box LLM brain option (2026-07-15)** — documented + deployable: `docs/AIRGAP.md`
    (tiered architecture, offline wheelhouse + offline model provisioning, zero-egress
    verification) + `deploy/airgap/compose.yaml` (signed iaiops image + pinned Ollama on an
    internal-only network). Live pass on real edge hardware stays `待核实`.
-4. **`⏳` Conformance run** — execute the Margo compliance toolkit on a real device; publish the
-   traceable result. **Only after this passes** does any material say *Margo-compliant*.
+4. **`⏳` Conformance run** — run the conformance toolkit's app-supplier runner against the
+   descriptor (possible from its PR branch now) and then a device-side run; publish the
+   traceable result. Signing is an open point to raise: docs.margo.org's conformance row
+   MARGO-APP-APPLICATIONDESCRIPTION-004 says PGP for package signatures, while the registry spec
+   recommends cosign (`待核实` which text rc.3 means). **Only after this passes** does any material say *Margo-compliant*.
 5. **`◐` Immutable-host validation** — the application-side requirements are now enforced on every
    build (`immutable-host` CI job); what remains is a live deploy on a candidate immutable edge OS (IGEL OS or
    equivalent), captured as a `待核实 → verified` row like every other hardware pass.
@@ -100,8 +111,11 @@ sponsorship only buys governance/steering seats. For a small team the right orde
 1. **Now (free):** contribute on Margo's GitHub org + Discourse — raise the *governed MCP-based OT
    diagnostics app* as a use case, and offer iaiops as a reference edge application. See the
    ready-to-paste intro in the appendix.
-2. **Track the spec:** PR1 (2026-01) → GA (2026); the descriptor format may still move, so align
-   packaging while it's cheap and feed back friction as issues.
+2. **Track the spec:** PR3 = `v1.0.0-rc.3` (2026-09-15; plugfests tagged `plugfest-2026-07` /
+   `plugfest-2026-10`, venues and results `待核实`) → 1.0 (date `待核实`). The descriptor format moved
+   once already (v1-alpha1 → rc.3); re-vendor the schema at each rc and feed friction back as
+   issues. Margo still has no workload-identity profile (MIAF covers only MIS trust endpoints and
+   the WFM interface) and no mention of MCP or AI agents.
 3. **Membership later:** only once there's customer/revenue pull — don't pre-pay for a seat.
 
 ## 6. Brand-isolation note
@@ -183,7 +197,7 @@ advances Work item §4.2. Watch the Events page for **Plug Fests** (interop test
 1. **Runtime shape** — *"specifying how applications communicate with each other is not in Margo's
    scope."* No position on stdio vs socket; **socket recommended** as simpler to deploy (just open a
    container port). → **Done:** `deploy/margo/` now defaults the deployment to the **streamable-http
-   socket** transport (`IAIOPS_MCP_TRANSPORT` / `_HOST` / `_PORT`, one IP-allowlisted port), stdio
+   socket** transport (`IAIOPS_MCP_TRANSPORT` / `_HOST` / `_PORT`, one token-authenticated port, optional IP allowlist), stdio
    kept as the local-pipe fallback.
 2. **Profiles / variants** — *"Margo doesn't have an opinion on how applications are implemented."*
    A `profile` parameter is valid; multiple packages are also valid. → **Done:** we keep **one

@@ -156,6 +156,7 @@ def test_write_commands_are_classified_as_writes():
         "write_words_cmd",  # mc + fins share the name
         "publish_cmd",
         "store_prune_cmd",  # deletes history irreversibly; no device involved
+        "reset_cmd",  # erases config, secrets and the audit trail; no undo exists
     }
 
 

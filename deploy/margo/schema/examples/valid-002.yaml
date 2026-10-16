@@ -1,5 +1,4 @@
-apiVersion: margo.org/v1-alpha1
-kind: ApplicationDescription
+apiVersion: v1
 id: com-northstartida-digitron-orchestrator
 metadata:
   name: Digitron orchestrator
@@ -37,27 +36,41 @@ deploymentProfiles:
           repository: oci://northstarida.azurecr.io/charts/northstarida-digitron-orchestrator
           revision: 1.0.9
           wait: true
-    requiredResources:
-      cpu: 
-        cores: 1.5
-        architectures: 
-          - amd64 
-      memory: 1024Mi
-      storage: 10Gi
-      peripherals:
-        - type: gpu
-          manufacturer: NVIDIA
-        - type: display
-      interfaces:
-        - type: ethernet
-        - type: bluetooth
+    deviceConstraints:
+      capacityRequirements:
+        cpu:
+          cores: 1.5
+          architectures:
+            - amd64
+        memory: 1024Mi
+        storage: 10Gi
+      eligibilityRules:
+        - propertySelector:
+            matchExpressions:
+              - key: /peripherals
+                operator: ContainsAll
+                itemSelector:
+                  matchExpressions:
+                    - key: /type
+                      operator: In
+                      values: ["gpu"]
+                    - key: /manufacturer
+                      operator: In
+                      values: ["NVIDIA"]
+              - key: /interfaces
+                operator: ContainsAll
+                itemSelector:
+                  matchExpressions:
+                    - key: /type
+                      operator: In
+                      values: ["ethernet", "bluetooth"]
   - type: compose
     id: com-northstartida-digitron-orchestrator-compose-a
     components:
       - name: digitron-orchestrator-docker
         properties:
-          packageLocation: https://northsitarida.com/digitron/docker/digitron-orchestrator.tar.gz
-          keyLocation: https://northsitarida.com/digitron/docker/public-key.asc
+          repository: oci://northstarida.azurecr.io/compose/digitron-orchestrator
+          revision: 1.0.9
 parameters:
   idpName:
     value: "test"

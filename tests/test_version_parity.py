@@ -86,22 +86,25 @@ def test_the_uv_lock_pins_this_version_of_iaiops():
 def test_a_coincidental_third_party_version_is_not_swept_along():
     """The complement, and the reason this file checks named strings instead of
     grepping for a number: `thrift` was 0.23.0 at the same time we were, and a
-    blind replace would have pinned a thrift release that does not exist."""
+    blind replace would have pinned a thrift release that does not exist.
+
+    The pin moved to 0.25.0 deliberately (three advisories fixed from 0.24.0, found by
+    the dependency-audit job). Move it again only for the same kind of reason."""
     text = (_root() / "uv.lock").read_text("utf-8")
-    assert "thrift-0.23.0.tar.gz" in text, "the thrift pin was rewritten by a version bump"
+    assert "thrift-0.25.0.tar.gz" in text, "the thrift pin was rewritten by a version bump"
 
 
 def test_the_margo_descriptor_and_its_package_url_agree():
-    """Two places: the descriptor's own `version:` and the release URL it points
-    at. Matched by their surrounding text rather than by "anything dotted" — the
-    first version of this test flagged `127.0.0.1/32`, an ALLOWED-CALLER CIDR, as
-    a stale release. A guard that cries wolf stops being read."""
+    """Two places: the descriptor's own `version:` and the component `revision:`
+    (rc.3's OCI tag). Matched by their surrounding text rather than by "anything
+    dotted" — the first version of this test flagged `127.0.0.1/32`, an
+    ALLOWED-CALLER CIDR, as a stale release. A guard that cries wolf stops being read."""
     text = (_root() / "deploy/margo/margo.yaml").read_text("utf-8")
     declared = re.findall(r'^\s*version:\s*"([^"]+)"', text, re.MULTILINE)
-    in_url = re.findall(r"/download/v(\d+\.\d+\.\d+)/iaiops-margo-package-(\d+\.\d+\.\d+)", text)
+    revisions = re.findall(r"^\s*revision:\s*(\S+)", text, re.MULTILINE)
     assert declared, "margo.yaml declares no version"
-    assert in_url, "margo.yaml has no package download URL"
-    found = set(declared) | {v for pair in in_url for v in pair}
+    assert revisions, "margo.yaml has no component revision"
+    found = set(declared) | set(revisions)
     assert found == {_version()}, f"margo.yaml names {sorted(found)}; project is {_version()}"
 
 

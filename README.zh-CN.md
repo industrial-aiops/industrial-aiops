@@ -571,7 +571,7 @@ iaiops opcua discover -e line1
 
 ### 10. ISA-18.2 报警洪泛分析 + 合规报告(0.9 新增)
 
-`alarm_flood_analysis`(洪泛片段/抖动报警/常驻报警/合理化 worksheet,CLI `iaiops diag alarm-flood|alarm-worksheet`);`iaiops compliance report`(等保 2.0 二/三级状态 + IEC 62443 FR1–6 对照 + 诚实差距清单,md/html)与 `iaiops compliance evidence`(审计证据 zip,哈希链校验)。辅助整改,非认证。
+`alarm_flood_analysis`(洪泛片段/抖动报警/常驻报警/合理化 worksheet,CLI `iaiops diag alarm-flood|alarm-worksheet`);`iaiops compliance report`(等保 2.0 二/三级状态 + IEC 62443 FR1–6 对照 + 诚实差距清单,md/html)与 `iaiops compliance evidence`(审计证据 zip,哈希链校验)。辅助整改,非认证。 `iaiops compliance --framework nis2|cra` / `iaiops compliance report --framework nis2|cra|eu` 出 **NIS2 第 21(2)(a)–(j) 条与 CRA 附件 I**(Part I(1)、I(2)(a)–(m)、Part II(1)–(8))逐条产品自评(英文):`product_evidence`(有代码锚定的机制对上该条的核心要求——从不等于"措施已满足",且每条写明剩余差距)/ `partial_evidence`(沾边,但核心要求缺失)/ `gap` / `organisational`(组织措施,产品不提供证据)。NIS2 约束的是实体、CRA 约束的是制造商;本表是产品自评,**非认证、非法律意见**,并如实列出仍有的缺口:无多因素认证与按人身份(HTTP 传输是一个共享 bearer token,自身不带 TLS)、审计只允许关闭成功的读(写、拒绝、失败始终记录)、审计库与采集历史未做静态加密(`iaiops reset` 可删除但不做覆写粉碎)、无渗透测试与模糊测试;SBOM、PyPI attestation 与安全公告流程已就位,但尚未被一次发版或一次漏洞报告验证过。漏洞处理见 [SECURITY.md](SECURITY.md)。MCP 用 `compliance_frameworks` / `compliance_report` 的 `framework` 参数,不新增工具。
 
 ### 11. 数据导出 + Prometheus/Grafana 桥(0.9 新增)
 
@@ -579,7 +579,7 @@ iaiops opcua discover -e line1
 
 ### 12. 信创 / 国产时序库下沉
 
-`historian_push` 把任意 connector 归一化后的数据写入本地 SQLite 或国产时序库 **TDengine** / **IoTDB**(不自建库、不绑 InfluxDB)。`compliance_mapping` 对照《工控系统网络安全防护指南》给诚实的逐项状态;`compliance_frameworks` / `compliance_dengbao_levels` 给等保 2.0 + IEC 62443 对照与二/三级增量。
+`historian_push` 把任意 connector 归一化后的数据写入本地 SQLite 或国产时序库 **TDengine** / **IoTDB**(不自建库、不绑 InfluxDB)。`compliance_mapping` 对照《工控系统网络安全防护指南》给诚实的逐项状态;`compliance_frameworks` / `compliance_dengbao_levels` 给等保 2.0 + IEC 62443 + GxP 对照与二/三级增量;`compliance_frameworks(framework="nis2"|"cra")` 给 NIS2 / CRA 逐条表。
 
 ---
 

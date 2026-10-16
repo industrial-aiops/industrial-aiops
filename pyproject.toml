@@ -25,8 +25,8 @@ dependencies = [
     "rich>=13.0,<16.0",
     "pyyaml>=6.0,<7.0",
     "python-dotenv>=1.0,<2.0",
-    "cryptography>=42.0",
-    "mcp[cli]>=1.10,<2.0",
+    "cryptography>=50.0.0",
+    "mcp[cli]>=1.30,<2.0",
 ]
 
 [project.optional-dependencies]
@@ -36,14 +36,16 @@ dependencies = [
 #   pip install iaiops[opcua]        ·  pip install iaiops[opcua,modbus]
 # pyOpenSSL is asyncua's transitive dep, floored here as a RESOLVER GUARD, not
 # because this package uses it. asyncua asks for `pyOpenSSL` unbounded; a fresh
-# resolve prefers the newest `cryptography` (50.x), which no modern pyOpenSSL
-# accepts (26.3 caps it at <50), so the resolver backtracks pyOpenSSL all the way
-# to 22.0.0 — a 2022 release whose bounds are loose enough to "fit" and whose
-# bindings then fail against cryptography 50 at import
+# resolve prefers the newest `cryptography`, and a pyOpenSSL that caps below it
+# (26.3 capped at <50) makes the resolver backtrack pyOpenSSL all the way to
+# 22.0.0 — a 2022 release whose bounds are loose enough to "fit" and whose
+# bindings then fail against a new cryptography at import
 # (`module 'lib' has no attribute 'GEN_EMAIL'`). The combination installs cleanly
-# and breaks at runtime on any OPC-UA cert path. The floor forces the resolver to
-# keep cryptography at 49 and pick a pyOpenSSL that actually works with it.
-opcua = ["asyncua>=2.0,<3", "pyopenssl>=25"]
+# and breaks at runtime on any OPC-UA cert path. The base dependency now floors
+# cryptography at 50 (known vulnerabilities below it), so the floor here is the
+# first pyOpenSSL that accepts 50: 26.4 (it caps cryptography at <51 — the next
+# cryptography major will need this floor moved again).
+opcua = ["asyncua>=2.0,<3", "pyopenssl>=26.4"]
 modbus = ["pymodbus>=3.5,<4", "pyserial>=3.5"]  # pyserial for Modbus-RTU (serial)
 s7 = ["pyS7>=2.8,<3"]
 mc = ["pymcprotocol>=0.3,<1"]
@@ -95,7 +97,7 @@ mqtt = ["iaiops[sparkplug]"]      # MQTT/UNS telemetry publisher (paho + protobu
 ollama = ["requests>=2.31,<3"]        # on-box local LLM (air-gapped RCA narration; Ollama HTTP API)
 # Queryability layer: Parquet export from the local SQLite sink (CSV/SQLite are
 # stdlib-only; only `iaiops export parquet` / export_data(fmt="parquet") need this).
-export = ["pyarrow>=15,<22"]
+export = ["pyarrow>=23.0.1,<24"]
 # Convenience: install every pip-installable connector (full installs + the test
 # matrix). The energy edition (IEC-104 / DNP3 / IEC-61850) ships separately as
 # `iaiops-energy`, so its extras are not part of this package's `all`.

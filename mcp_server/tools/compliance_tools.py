@@ -14,6 +14,7 @@ from iaiops.core.brain.compliance import compliance_dengbao_levels as _complianc
 from iaiops.core.brain.compliance import compliance_frameworks as _compliance_frameworks
 from iaiops.core.brain.compliance import compliance_mapping as _compliance_mapping
 from iaiops.core.brain.compliance_report import render_markdown_report as _render_markdown_report
+from iaiops.core.brain.compliance_report import report_framework_id as _report_framework_id
 from iaiops.core.governance import governed_tool
 from iaiops.core.governance.evidence import export_evidence_bundle as _export_evidence_bundle
 from iaiops.core.governance.evidence import validate_output_path as _validate_output_path
@@ -49,20 +50,30 @@ def compliance_mapping() -> dict:
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
-def compliance_frameworks() -> dict:
-    """[READ][risk=low] 跨框架对照: 防护指南 ↔ 等保 2.0 (GB/T 22239) ↔ IEC 62443.
+def compliance_frameworks(framework: Optional[str] = None) -> dict:
+    """[READ][risk=low] 跨框架对照: 防护指南 ↔ 等保 2.0 ↔ IEC 62443 ↔ GxP ↔ NIS2 ↔ CRA.
 
-    One row per governance pillar, showing the matching 《工控系统网络安全防护指南》
-    requirement, 等保 2.0 control class, IEC 62443 foundational requirement, and the
-    current iaiops status. Companion to compliance_mapping (which carries the honest
-    per-control gap); use this to answer "which 等保 / 62443 clause does this satisfy".
+    Omit ``framework`` for one row per governance pillar: the matching 《防护指南》
+    requirement, 等保 2.0 control class, IEC 62443 FR, GxP clause, the NIS2 / CRA item
+    refs that cite the pillar, and the iaiops status. Pass framework="nis2" (Directive
+    (EU) 2022/2555 Art. 21(2)(a)-(j)) or "cra" (Regulation (EU) 2024/2847 Annex I) for
+    that text item by item, each with an honest coverage: product_evidence (a cited,
+    code-anchored mechanism produces relevant evidence — never "the measure is met"),
+    gap, or organisational (product provides no evidence). NIS2 obliges entities, the
+    CRA manufacturers — a product self-assessment, NOT a certification.
 
-    Returns dict: {frameworks:[{id,name,region,kind}], framework_count, pillar_count,
-        crosswalk:[{pillar, gjzn, dengbao, iec62443, iaiops_status}], note}.
+    Args:
+        framework: None for the per-pillar crosswalk, or 'nis2' / 'cra'.
 
-    Example: compliance_frameworks().
+    Returns dict: per-pillar {frameworks[], framework_count, pillar_count,
+        crosswalk:[{pillar, gjzn, dengbao, iec62443, gxp, nis2, nis2_refs, cra,
+        cra_refs, iaiops_status}], note} — or for nis2/cra {framework, applies, scope,
+        item_count, coverage_summary, items:[{id, ref, measure, coverage, iaiops, gap,
+        mechanisms, mechanism_detail, pillars}], disclaimer, source}.
+
+    Example: compliance_frameworks(framework="nis2").
     """
-    return _compliance_frameworks()
+    return _compliance_frameworks(framework)
 
 
 @mcp.tool()
@@ -94,23 +105,29 @@ def compliance_report(
     level: Optional[str] = None,
     site: str = "",
     out_path: Optional[str] = None,
+    framework: Optional[str] = None,
 ) -> dict:
-    """[READ][risk=low] Render the 等保 2.0 / IEC 62443 compliance report (Markdown).
+    """[READ][risk=low] Render the 等保 2.0 / IEC 62443 or NIS2 / CRA report (Markdown).
 
     Turns the compliance crosswalk into a deliverable document a CISO can read:
     title-page metadata (site / date / iaiops version), per-pillar 等保 L2/L3 status
     table, IEC 62443 FR1–6 crosswalk, honest gap list, and a governance-controls
-    appendix (audit hash chain / approval tokens / dry-run+undo / mTLS). An
-    onboarding/self-assessment aid, NOT a certification.
+    appendix (audit hash chain / approval tokens / dry-run+undo / mTLS). With
+    framework='nis2' / 'cra' / 'eu' it renders instead the English NIS2 Art. 21 /
+    CRA Annex I self-assessment (product evidence and gaps, organisational measures
+    separated, cited mechanisms with code anchors). An onboarding/self-assessment
+    aid, NOT a certification.
 
     Args:
         level: 等保 2.0 target level — 'l2'/'l3', '二级'/'三级', '2'/'3'. Omit for both.
+            Refused together with an EU framework.
         site: Site / plant name stamped on the title page.
         out_path: Optional file to write the markdown to (.md). Required when the
             report exceeds the inline bound (~400 lines): without it the inline
             markdown is truncated with a note.
+        framework: Omit for the 等保 report; 'nis2', 'cra' or 'eu' (both).
 
-    Returns dict: {format, level, line_count, path?} plus either the full inline
+    Returns dict: {format, framework, level, line_count, path?} plus either the full inline
         {markdown} (when within bounds and no out_path) or {markdown (truncated),
         truncated: true} with a hint to pass out_path.
 
@@ -118,10 +135,18 @@ def compliance_report(
         out_path="/tmp/compliance-report.md").
     """
     markdown = _render_markdown_report(
-        site=site, date=datetime.now(tz=UTC).date().isoformat(), level=level
+        site=site,
+        date=datetime.now(tz=UTC).date().isoformat(),
+        level=level,
+        framework=framework,
     )
     line_count = markdown.count("\n") + 1
-    result: dict = {"format": "markdown", "level": level, "line_count": line_count}
+    result: dict = {
+        "format": "markdown",
+        "framework": _report_framework_id(framework),
+        "level": level,
+        "line_count": line_count,
+    }
     # "Items" here are markdown LINES; the envelope contract is unchanged —
     # how many came back, how many exist, was anything cut.
     if out_path:
