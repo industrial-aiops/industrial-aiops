@@ -11,6 +11,7 @@ words and the meaning is device-specific.
 
 from __future__ import annotations
 
+import re
 import struct
 from typing import Any
 
@@ -333,6 +334,10 @@ def modbus_health_summary(
             results.append(entry)
     offenders = [r for r in results if r["status"] in ("warn", "alarm")]
     overall = "alarm" if counts["alarm"] else "warn" if counts["warn"] else "ok"
+    if results and counts["unknown"] == len(results):
+        # Nothing could be classified (typos, NaN, sentinels, failed reads):
+        # "ok" would report health that was never observed.
+        overall = "unknown"
     return {
         "endpoint": s(target.name, 64),
         "register_type": register_type,
@@ -394,6 +399,10 @@ def _health_entry(
     from iaiops.connectors.modbus.points import parse_point
 
     tag = _resolve_addr_tag(target, ref, thresholds)
+    legacy_key = str(int(ref)) if re.fullmatch(r"\+?[0-9_]+", ref) else ""
+    if thresholds and ref not in thresholds and legacy_key in thresholds:
+        # Overrides were keyed by str(int(ref)) before typed points ("040" → "40").
+        tag = _resolve_addr_tag(target, legacy_key, thresholds)
     entry: dict[str, Any] = {"ref": s(ref, 64), "label": s(tag.label, 64)}
     try:
         point = parse_point(ref)

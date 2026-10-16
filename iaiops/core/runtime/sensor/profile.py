@@ -14,6 +14,7 @@ The objects are frozen; a profile is read, never edited in place.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -156,7 +157,12 @@ def _int(value: Any, key: str, where: str, low: int, high: int) -> int:
 def _number(value: Any, key: str, where: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise ValueError(f"{where}: {key} must be a number; got {value!r}.")
-    return float(value)
+    number = float(value)
+    if not math.isfinite(number):
+        # YAML's .nan / .inf: a NaN range refuses every reading, a NaN scale
+        # turns every reading into NaN.
+        raise ValueError(f"{where}: {key} must be a finite number; got {value!r}.")
+    return number
 
 
 def modbus_layout(
@@ -248,7 +254,10 @@ def _accuracy(raw: Any, where: str) -> Accuracy | None:
     }
     if any(v < 0 for v in parts.values()):
         raise ValueError(f"{where}: accuracy components cannot be negative.")
-    return Accuracy(full_scale=_number(raw["full_scale"], "full_scale", where), **parts)
+    full_scale = _number(raw["full_scale"], "full_scale", where)
+    if full_scale <= 0:
+        raise ValueError(f"{where}: accuracy full_scale must be positive; got {full_scale}.")
+    return Accuracy(full_scale=full_scale, **parts)
 
 
 def _channel(raw: Any, protocol: str, index: int) -> Channel:
@@ -260,15 +269,24 @@ def _channel(raw: Any, protocol: str, index: int) -> Channel:
     if scale == 0:
         raise ValueError(f"{where}: scale 0 would turn every reading into 0.")
     response = raw.get("response_ms")
+    layout = _layout(raw.get("layout"), protocol, where)
+    invalid = _sentinels(raw.get("invalid"), where)
+    width = layout.words * 16 if isinstance(layout, ModbusLayout) else layout.bit_length
+    for sentinel in invalid:
+        if sentinel.raw >= 1 << width:
+            raise ValueError(
+                f"{where}: sentinel 0x{sentinel.raw:X} does not fit the {width}-bit field, "
+                "so it could never match — check the datasheet value."
+            )
     return Channel(
         name=name,
-        layout=_layout(raw.get("layout"), protocol, where),
+        layout=layout,
         unit=_text(raw, "unit", where),
         signal=_choice(raw, "signal", SIGNALS, where),
         scale=scale,
         offset=_number(raw.get("offset", 0.0), "offset", where),
         range=_range(raw.get("range"), where),
-        invalid=_sentinels(raw.get("invalid"), where),
+        invalid=invalid,
         accuracy=_accuracy(raw.get("accuracy"), where),
         response_ms=None if response is None else _number(response, "response_ms", where),
     )

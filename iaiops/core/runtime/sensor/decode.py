@@ -48,11 +48,30 @@ def decode_registers(channel: Channel, registers: list[int]) -> Reading:
     layout = channel.layout
     if not isinstance(layout, ModbusLayout):
         raise TypeError(f"Channel {channel.name!r} is not a Modbus channel.")
-    from iaiops.connectors.modbus.byteorder import decode_value
-
+    if len(registers) < layout.words:
+        # The device answered, with less than the value needs: a gap, not a
+        # connection fault that would tear down a held session.
+        raise InvalidReadingError(
+            f"{channel.name}: {layout.value_type} needs {layout.words} register(s); "
+            f"the device returned {len(registers)}."
+        )
     raw = _raw_unsigned(registers, layout)
     _check_sentinel(channel, raw)
-    return _finish(channel, decode_value(registers, layout.value_type, layout.order))
+    return _finish(channel, _typed(raw, layout))
+
+
+def _typed(raw: int, layout: ModbusLayout) -> float | int:
+    """The ordered raw field as its declared type — unrounded.
+
+    ``byteorder.decode_value`` rounds float32 to 6 decimals for display, which
+    turns a 3.2e-9 reading into 0.0; a measurement must not go through it.
+    """
+    width = layout.words * 16
+    if layout.value_type == "float32":
+        return struct.unpack(">f", raw.to_bytes(4, "big"))[0]
+    if layout.value_type.startswith("int") and raw >> (width - 1):
+        return raw - (1 << width)
+    return raw
 
 
 def decode_bits(channel: Channel, data: bytes) -> Reading:
@@ -90,6 +109,8 @@ def _finish(channel: Channel, value: float | int) -> Reading:
         raise InvalidReadingError(f"{channel.name}: device sent a non-finite value ({value}).")
     if channel.scale != 1.0 or channel.offset != 0.0:
         value = value * channel.scale + channel.offset
+        if isinstance(value, float) and not math.isfinite(value):
+            raise InvalidReadingError(f"{channel.name}: scaling gave a non-finite value ({value}).")
     if channel.range is not None:
         low, high = channel.range
         # Scaling happens in binary floating point (60000 × 0.1 = 6000.000000000001),

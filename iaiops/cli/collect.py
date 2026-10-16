@@ -112,6 +112,7 @@ def collect_run_cmd(
 
     from iaiops.core.collect.reader import (
         read_point,
+        ref_problems,
         session_builder_for,
         session_read_for,
     )
@@ -135,6 +136,11 @@ def collect_run_cmd(
         # would produce a series whose resolution changes half-way through.
         plan = session.plan
         target = load_config().get_target(endpoint)
+        # Re-checked: a run saved by an older iaiops (or before config changed)
+        # may hold refs this build refuses — fail now, not on every tick.
+        problems = ref_problems(target, plan.tags)
+        if problems:
+            raise ValueError("Cannot resume:\n  " + "\n  ".join(problems))
         session = session.resumed_at(now.isoformat())
         remaining = session.remaining_s(now)
         console.print(
