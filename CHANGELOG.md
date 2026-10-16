@@ -35,7 +35,8 @@
   `IAIOPS_NO_EGRESS` cannot be called, so there is nothing to record; refused HTTP
   requests (`mcp_http_auth`) are not tool calls and carry no origin. Servers built
   on their own FastMCP instance (not `mcp_server._shared.mcp`) record no origin
-  until they declare one with `iaiops.core.governance.origin.origin_scope`.
+  until they declare one: `iaiops.core.governance.origin.mcp_origin(session)` builds the
+  origin from an MCP server session, and `origin_scope` declares it around the call.
 
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 

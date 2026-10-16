@@ -23,10 +23,13 @@ guess) and is left as it was.
 from __future__ import annotations
 
 import contextvars
+import threading
 import uuid
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from typing import Any
 
 from iaiops.core.governance.sanitize import sanitize
 
@@ -88,6 +91,42 @@ def new_session_id(kind: str) -> str:
 
 _CLI_SESSION = new_session_id(KIND_CLI)
 
+# One opaque id per MCP client connection (a server-session object). Weak keys,
+# so a closed session's entry goes with it.
+_mcp_session_ids: weakref.WeakKeyDictionary[Any, str] = weakref.WeakKeyDictionary()
+_mcp_session_lock = threading.Lock()
+
+
+def _mcp_session_id(session: Any) -> str:
+    with _mcp_session_lock:
+        sid = _mcp_session_ids.get(session)
+        if sid is None:
+            sid = new_session_id(KIND_MCP)
+            _mcp_session_ids[session] = sid
+        return sid
+
+
+def mcp_origin(session: Any | None) -> CallOrigin:
+    """The origin of an MCP ``tools/call`` served on ``session``.
+
+    ``session`` is the MCP SDK's server session (duck-typed, so this module needs
+    no MCP import): its ``client_params.clientInfo`` gives the self-reported client
+    name/version, and the object itself keys the per-connection id. ``None`` — a
+    call with no request context, such as a test calling the server directly —
+    still came through the MCP boundary, it just has no client to name.
+
+    Shared by every MCP server built on iaiops (the edition servers here, and the
+    servers of packages that run beside them on the same audit trail).
+    """
+    if session is None:
+        return CallOrigin(kind=KIND_MCP)
+    info = getattr(getattr(session, "client_params", None), "clientInfo", None)
+    return CallOrigin.for_mcp_client(
+        name=getattr(info, "name", "") or "",
+        version=getattr(info, "version", "") or "",
+        session=_mcp_session_id(session),
+    )
+
 
 def cli_origin() -> CallOrigin:
     """The origin for a CLI command: one session id per ``iaiops`` process."""
@@ -103,6 +142,7 @@ __all__ = [
     "CallOrigin",
     "cli_origin",
     "current",
+    "mcp_origin",
     "new_session_id",
     "origin_scope",
 ]

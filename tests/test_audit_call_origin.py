@@ -353,3 +353,35 @@ def test_the_forwarded_row_carries_origin(tmp_path):
         "write_mode": "apply",
     }
     json.dumps(row)  # serialisable as forwarded
+
+
+# ── the shared MCP helper other servers on the same trail reuse ──────────────
+
+
+class _FakeInfo:
+    name = "fake-client"
+    version = "0.1"
+
+
+class _FakeParams:
+    clientInfo = _FakeInfo()  # noqa: N815 — the MCP SDK attribute name
+
+
+class _FakeSession:
+    client_params = _FakeParams()
+
+
+def test_mcp_origin_from_a_session_is_stable_per_session():
+    a, b = _FakeSession(), _FakeSession()
+    first, again, other = (
+        origin_mod.mcp_origin(a),
+        origin_mod.mcp_origin(a),
+        origin_mod.mcp_origin(b),
+    )
+    assert (first.kind, first.client) == ("mcp", "fake-client/0.1")
+    assert first.session == again.session != other.session
+
+
+def test_mcp_origin_without_a_session_is_still_mcp():
+    bare = origin_mod.mcp_origin(None)
+    assert (bare.kind, bare.client, bare.session) == ("mcp", "", "")
