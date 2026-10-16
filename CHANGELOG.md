@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### Security
+
+- **30 known vulnerabilities in 8 locked dependencies, fixed.** The first
+  dependency scan of the locked runtime set (every extra, no dev group) found
+  advisories in anyio, cryptography, mcp, pyarrow, pyjwt, setuptools, thrift and
+  urllib3. All eight are upgraded in `uv.lock`; the floors of the direct ones
+  are raised so a fresh install cannot resolve a vulnerable version:
+  `cryptography>=50.0.0`, `mcp[cli]>=1.30`, and the `export` extra's
+  `pyarrow>=23.0.1,<24` (its old `<22` cap blocked the fix). Transitive
+  dependencies are not pinned in what ships, so a pip install can still resolve
+  a version the scan never saw — the CRA crosswalk says so.
+
+### Added — vulnerability handling (CRA Annex I Part II)
+
+- **`SECURITY.md`** — the coordinated vulnerability disclosure policy and
+  contact (Part II(5)(6)): GitHub private vulnerability reporting (now enabled)
+  or e-mail, response targets, a 90-day disclosure window, and a GitHub Security
+  Advisory per fixed vulnerability linked from a `### Security` CHANGELOG
+  section (Part II(4)(8)). Targets, not service levels.
+- **Dependency-vulnerability gate** (`dependency-audit` CI job): pip-audit on
+  the locked runtime set on every change; a finding fails the build unless
+  `.github/pip-audit-ignore.txt` lists it with a reason (a test refuses an
+  ignore without one).
+- **A CycloneDX SBOM per release**: `publish-pypi.yml` exports uv.lock as
+  CycloneDX 1.5 and attaches it (with its SHA-256) to the GitHub release; CI
+  builds the same SBOM on every change so a broken one fails a PR, not a
+  release. It describes the locked set the release was tested with.
+- **PyPI attestations stated explicitly** in `publish-pypi.yml` (the action's
+  default under Trusted Publishing), so an edit cannot drop them unnoticed.
+- Repository settings: Dependabot alerts and security updates, secret scanning
+  and push protection enabled.
+- The CRA crosswalk follows: I(2)(a), II(1), II(5), II(6), II(8) move to
+  `product_evidence` and II(4) to `partial_evidence`, each still naming what
+  is unexercised (no release has carried an SBOM or an attestation yet; no
+  advisory has been published).
+
 ### Added
 
 - **NIS2 and CRA product self-assessment crosswalks**, next to 等保 2.0 / IEC

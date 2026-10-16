@@ -25,8 +25,8 @@ dependencies = [
     "rich>=13.0,<16.0",
     "pyyaml>=6.0,<7.0",
     "python-dotenv>=1.0,<2.0",
-    "cryptography>=42.0",
-    "mcp[cli]>=1.10,<2.0",
+    "cryptography>=50.0.0",
+    "mcp[cli]>=1.30,<2.0",
 ]
 
 [project.optional-dependencies]
@@ -95,7 +95,7 @@ mqtt = ["iaiops[sparkplug]"]      # MQTT/UNS telemetry publisher (paho + protobu
 ollama = ["requests>=2.31,<3"]        # on-box local LLM (air-gapped RCA narration; Ollama HTTP API)
 # Queryability layer: Parquet export from the local SQLite sink (CSV/SQLite are
 # stdlib-only; only `iaiops export parquet` / export_data(fmt="parquet") need this).
-export = ["pyarrow>=15,<22"]
+export = ["pyarrow>=23.0.1,<24"]
 # Convenience: install every pip-installable connector (full installs + the test
 # matrix). The energy edition (IEC-104 / DNP3 / IEC-61850) ships separately as
 # `iaiops-energy`, so its extras are not part of this package's `all`.

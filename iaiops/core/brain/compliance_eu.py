@@ -123,8 +123,8 @@ NIS2_ITEMS: tuple[dict, ...] = (
         "suppliers or service providers.",
         "organisational",
         f"{_ORG} For the entity's assessment of iaiops as one of its suppliers, the "
-        "supplier facts (signed images but unsigned wheels, no SBOM, no disclosure "
-        "policy yet) are the CRA Part II rows.",
+        "supplier facts (signed images, an SBOM per release, a disclosure policy, "
+        "PyPI attestations pending the first release) are the CRA Part II rows.",
     ),
     _item(
         "nis2-21-2-e",
@@ -138,8 +138,8 @@ NIS2_ITEMS: tuple[dict, ...] = (
         "written them.",
         "Vulnerability handling and disclosure for the entity's systems is "
         "organisational. CLI writes register no undo; change limits are opt-in. "
-        "iaiops's own vulnerability handling has no disclosure policy yet (CRA "
-        "Part II(5)).",
+        "iaiops's own vulnerability handling is the CRA Part II rows "
+        "(SECURITY.md).",
         ("dry_run_undo", "approvals_moc", "policy_engine", "audit_trail"),
         (_LEAST, _AUDIT),
     ),
@@ -222,14 +222,15 @@ CRA_ITEMS: tuple[dict, ...] = (
         "cra-i-1-2-a",
         "CRA Annex I Part I(2)(a)",
         "Made available on the market without known exploitable vulnerabilities.",
-        "partial_evidence",
-        "Each release passes a static security scan of iaiops's own source with zero "
-        "Medium+ findings.",
-        "Known exploitable vulnerabilities are mostly in dependencies, and nothing "
-        "checks for them: no dependency-vulnerability (CVE) scan, and what ships "
-        "resolves dependency ranges at install time rather than the dev lockfile. No "
-        "published statement of known vulnerabilities.",
-        ("ci_gate", "locked_deps"),
+        "product_evidence",
+        "Every change scans iaiops's own source (bandit, 0 Medium+) and the locked "
+        "dependency set (pip-audit); a known vulnerability fails the build. The "
+        "direct dependencies' minimum versions are raised past the versions the first "
+        "scan found vulnerable.",
+        "The scan covers the lock, not each install: transitive dependencies are not "
+        "pinned in what ships, so a pip install can resolve a version the scan never "
+        "saw. Released versions are not re-scanned when a new advisory appears.",
+        ("ci_gate", "dependency_audit"),
     ),
     _item(
         "cra-i-1-2-b",
@@ -402,13 +403,14 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part II(1)",
         "Identify and document vulnerabilities and components, including a software "
         "bill of materials (SBOM) covering at least top-level dependencies.",
-        "partial_evidence",
-        "The development dependency graph is locked in uv.lock; connectors declare "
-        "their library pins.",
-        "No SBOM in a commonly used machine-readable format (SPDX / CycloneDX) is "
-        "published; uv.lock is a development lockfile, not an SBOM, and not what "
-        "ships. No vulnerability register.",
-        ("locked_deps",),
+        "product_evidence",
+        "Each release attaches a CycloneDX SBOM of every locked dependency, transitive "
+        "included; CI builds it on every change, and the dependency scan identifies "
+        "known vulnerabilities in the same set.",
+        "The SBOM describes the locked set the release was tested with, not an "
+        "individual install; no release has carried one yet (待核实 until one does). No "
+        "vulnerability register beyond the scan and the advisories.",
+        ("sbom", "dependency_audit", "locked_deps"),
     ),
     _item(
         "cra-i-2-2",
@@ -416,20 +418,21 @@ CRA_ITEMS: tuple[dict, ...] = (
         "Address and remediate vulnerabilities without delay, including by providing "
         "security updates (separately from functionality updates where feasible).",
         "partial_evidence",
-        "Fixes ship in regular releases and are listed per release in the CHANGELOG.",
-        "No vulnerability-remediation process: no separate security-update channel, "
-        "no stated remediation timeline, and the CHANGELOG is not an advisory.",
-        ("changelog",),
+        "SECURITY.md sets remediation targets (critical / high within 90 days); fixes "
+        "ship in releases listed in the CHANGELOG.",
+        "Security fixes ship in the next regular release; there is no separate "
+        "security-update channel, and the targets are not yet tested by a report.",
+        ("security_policy", "changelog"),
     ),
     _item(
         "cra-i-2-3",
         "CRA Annex I Part II(3)",
         "Apply effective and regular tests and reviews of the security of the product.",
         "partial_evidence",
-        "Every change runs the CI gate, including a static security scan (bandit, 0 Medium+).",
-        "No dependency-vulnerability scan, penetration test, fuzzing or independent "
-        "security review.",
-        ("ci_gate",),
+        "Every change runs a static security scan of the source and a "
+        "dependency-vulnerability scan of the locked set.",
+        "No penetration test, fuzzing or independent security review.",
+        ("ci_gate", "dependency_audit"),
     ),
     _item(
         "cra-i-2-4",
@@ -437,27 +440,34 @@ CRA_ITEMS: tuple[dict, ...] = (
         "Once a security update is available, share and publicly disclose information "
         "about fixed vulnerabilities (description, affected product, impact, "
         "severity, remediation).",
-        "gap",
-        "Not provided.",
-        "No security advisories are published. The CHANGELOG describes defects, not "
-        "vulnerabilities — no identifiers, severity or affected-version statements.",
+        "partial_evidence",
+        "SECURITY.md commits to a GitHub Security Advisory per fixed vulnerability with "
+        "those contents, a CVE where it qualifies, and a CHANGELOG `### Security` "
+        "link; delayed publication is stated when used.",
+        "A process, not yet exercised: no advisory has been published.",
+        ("security_policy",),
     ),
     _item(
         "cra-i-2-5",
         "CRA Annex I Part II(5)",
         "Put in place and enforce a policy on coordinated vulnerability disclosure.",
-        "gap",
-        "Not provided.",
-        "No coordinated vulnerability disclosure policy (no SECURITY.md).",
+        "product_evidence",
+        "SECURITY.md is the coordinated vulnerability disclosure policy: private "
+        "channels, response targets, a 90-day disclosure window, advisories.",
+        "Enforcement is the maintainers' practice and is not yet tested by a report.",
+        ("security_policy",),
     ),
     _item(
         "cra-i-2-6",
         "CRA Annex I Part II(6)",
         "Facilitate sharing of information about potential vulnerabilities, including "
         "a contact address for reporting them.",
-        "gap",
-        "Not provided.",
-        "No published security contact address.",
+        "product_evidence",
+        "GitHub private vulnerability reporting and a security e-mail address are "
+        "published in SECURITY.md; reports about bundled third-party components are "
+        "accepted there too.",
+        "Reports about third-party components are routed upstream by hand.",
+        ("security_policy",),
     ),
     _item(
         "cra-i-2-7",
@@ -477,10 +487,11 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part II(8)",
         "Security updates disseminated without delay and free of charge, with "
         "advisory messages on action to take.",
-        "partial_evidence",
-        "Every release is free of charge under the MIT licence.",
-        "No advisory messages accompany updates (see Part II(4)).",
-        ("free_distribution", "changelog"),
+        "product_evidence",
+        "Every release is free of charge under the MIT licence; SECURITY.md commits to "
+        "an advisory stating what users must do for each security fix.",
+        "Not yet exercised: no security fix has shipped with an advisory.",
+        ("free_distribution", "security_policy"),
     ),
 )
 

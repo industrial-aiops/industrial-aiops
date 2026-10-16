@@ -203,8 +203,8 @@ _MECHANISMS: dict[str, dict] = {
     "ci_gate": {
         "name": "Release quality gate (CI)",
         "fact": "Every change runs pytest, ruff and bandit (zero Medium+ findings) on "
-        "iaiops's own source. No dependency-vulnerability (CVE) scan, fuzzing or "
-        "third-party review is part of it.",
+        "iaiops's own source. No fuzzing, penetration test or third-party review is "
+        "part of it.",
         "anchors": ("file:.github/workflows/ci.yml#uvx bandit",),
     },
     "locked_deps": {
@@ -219,12 +219,50 @@ _MECHANISMS: dict[str, dict] = {
         "fact": "Release container images and the Margo application package are "
         "cosign-signed; the public key ships at deploy/margo/cosign.pub. PyPI uploads "
         "go through Trusted Publishing (publish-pypi.yml, short-lived OIDC, no stored "
-        "token), whose action also uploads attestations; until a release has gone "
-        "through it, the wheels on PyPI carry no signature or attestation — 待核实.",
+        "token), whose action also uploads attestations (set explicitly); until a "
+        "release has gone through it, the wheels on PyPI carry no signature or "
+        "attestation — 待核实.",
         "anchors": (
             "file:.github/workflows/publish-image.yml#cosign sign --yes",
             "file:deploy/margo/cosign.pub#BEGIN PUBLIC KEY",
             "file:.github/workflows/publish-pypi.yml#pypa/gh-action-pypi-publish",
+        ),
+    },
+    "dependency_audit": {
+        "name": "Dependency-vulnerability scan (CI)",
+        "fact": "Every change exports the locked runtime dependency set (all extras, no "
+        "dev group) and runs pip-audit on it; a known vulnerability fails the build "
+        "unless .github/pip-audit-ignore.txt lists it with a reason. Limits: it scans "
+        "the lock, not each install (a pip install resolves declared ranges); it runs "
+        "per change, not continuously against released versions.",
+        "anchors": (
+            "file:.github/workflows/ci.yml#uvx pip-audit -r runtime-requirements.txt",
+            "file:.github/pip-audit-ignore.txt",
+        ),
+    },
+    "sbom": {
+        "name": "CycloneDX SBOM per release",
+        "fact": "Each tagged release attaches a CycloneDX 1.5 SBOM exported from uv.lock "
+        "(every dependency, transitive included) to the GitHub release; CI builds the "
+        "same SBOM on every change. Limits: it describes the locked set the release "
+        "was tested with, not an individual install; no release has carried one yet "
+        "— 待核实 until one does.",
+        "anchors": (
+            "file:.github/workflows/publish-pypi.yml#--format cyclonedx1.5",
+            "file:.github/workflows/ci.yml#--format cyclonedx1.5",
+        ),
+    },
+    "security_policy": {
+        "name": "SECURITY.md (coordinated disclosure)",
+        "fact": "Coordinated vulnerability disclosure policy: private reporting through "
+        "GitHub or e-mail, response targets, a 90-day disclosure window, and a GitHub "
+        "Security Advisory per fixed vulnerability (affected/fixed versions, impact, "
+        "severity, remediation) linked from a CHANGELOG `### Security` section. "
+        "Limits: targets, not service levels; not yet exercised by a reported "
+        "vulnerability.",
+        "anchors": (
+            "file:SECURITY.md#Coordinated disclosure",
+            "file:SECURITY.md#security/advisories/new",
         ),
     },
     "container_hardening": {
