@@ -4,14 +4,18 @@
 
 ### Added — audit opt-out for reads (CRA Annex I Part I(2)(l))
 
-- **`IAIOPS_AUDIT_OPT_OUT=reads`** stops recording *successful low/medium-risk*
-  calls — the opt-out the CRA asks activity recording to offer, kept narrow
-  because the trail is the governance backbone. High/critical calls are always
-  recorded and still fail closed; denials and failures are always recorded; the
-  opt-out writes one `audit_opt_out` marker row per process, so the trail shows
-  from when reads went unrecorded; `iaiops doctor` and the evidence zip's
-  `doctor_summary.json` report it. Any other value keeps recording and warns —
-  a typo must never switch the trail off. There is no opt-out for writes.
+- **`IAIOPS_AUDIT_OPT_OUT=reads`** stops recording successful calls of tools
+  that are *reads by declaration*: tagged `[READ]`, declared low/medium risk, no
+  write mode (no preview parameter), no egress — decided once, at decoration.
+  The opt-out the CRA asks activity recording to offer, kept narrow because the
+  trail is the governance backbone: device writes and their previews, data
+  shipped off-box (`historian_push`, stream publishing), low-risk local state
+  changes (case and investigation records, baselines, learned weights),
+  denials, failures and every CLI command are always recorded. The opt-out
+  writes one `audit_opt_out` marker row per process — retried until it lands, so
+  the trail always shows from when reads went unrecorded; `iaiops doctor` and
+  the evidence zip's `doctor_summary.json` report it. Any other value keeps
+  recording and warns — a typo must never switch the trail off.
 
 ### Changed — breaking for socket deployments
 

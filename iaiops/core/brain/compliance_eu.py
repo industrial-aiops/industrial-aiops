@@ -386,10 +386,11 @@ CRA_ITEMS: tuple[dict, ...] = (
         "product_evidence",
         "Tool calls and CLI commands — reads, writes, denials, failures — are "
         "recorded in a hash-chained trail and can be streamed to a SIEM; the user can "
-        "opt out of recording successful reads.",
-        "The opt-out is narrow on purpose: device writes, denials and failures cannot "
-        "be opted out, to keep change control tamper-evident; whether a partial "
-        "opt-out answers the clause is the manufacturer's assessment — 待核实. When "
+        "opt out of recording successful declared reads.",
+        "The opt-out is narrow on purpose: writes and their previews, egress, local "
+        "state changes, denials, failures and CLI commands cannot be opted out, to "
+        "keep change control tamper-evident; whether a partial opt-out answers the "
+        "clause is the manufacturer's assessment — 待核实. When "
         "audit.db is unwritable, low/medium calls run unrecorded. Archives are "
         "deleted after five rotations. Monitoring is the SIEM's, not iaiops's.",
         ("audit_trail", "audit_hash_chain", "audit_forward", "audit_rotation", "audit_opt_out"),

@@ -5,7 +5,12 @@ mechanism for the user". The trail is also this product's governance backbone,
 so the opt-out is deliberately narrow:
 
 * ``IAIOPS_AUDIT_OPT_OUT=reads`` — the only accepted value — stops recording
-  calls that are low/medium risk **and** succeeded;
+  successful calls of tools that are **reads by declaration**: tagged ``[READ]``,
+  declared low/medium risk, with no write mode (no preview parameter) and no
+  egress. Anything else is recorded, including low-risk local state changes
+  (case and investigation records, baselines), data shipped off-box
+  (``historian_push``, stream publishing), previews of device writes, and every
+  CLI command (CLI docstrings carry no tag);
 * high/critical calls (device writes) are always recorded, and still fail closed
   when the trail cannot be written;
 * denied and failed calls are always recorded — they are the security-relevant
@@ -68,19 +73,36 @@ def opted_out() -> bool:
     return False
 
 
-def skips(risk_level: str, status: str) -> bool:
+def eligible(*, risk_level: str, egress: bool, preview_param: str | None, doc: str | None) -> bool:
+    """Whether a tool is a read by declaration (decided once, at decoration)."""
+    first_line = (doc or "").lstrip().splitlines()[0] if (doc or "").strip() else ""
+    return (
+        risk_level in ("low", "medium")
+        and not egress
+        and preview_param is None
+        and first_line.startswith("[READ]")
+    )
+
+
+def skips(eligible_tool: bool, risk_level: str, status: str) -> bool:
     """Whether this finished call's audit row is opted out."""
-    return status == "ok" and risk_level not in ALWAYS_RECORDED_RISK and opted_out()
+    return (
+        eligible_tool and status == "ok" and risk_level not in ALWAYS_RECORDED_RISK and opted_out()
+    )
 
 
 def mark_once(audit: Any) -> None:
-    """Write the opt-out marker row the first time a row is skipped."""
+    """Write the opt-out marker row the first time a row is skipped.
+
+    The flag is set only once the row is committed: a failed write must leave the
+    next skipped call to try again, or reads could go unrecorded with nothing in
+    the trail saying so.
+    """
     global _marked
     with _lock:
         if _marked:
             return
-        _marked = True
-    audit.log(
+    written = audit.log(
         skill="iaiops",
         tool=MARKER_TOOL,
         params={"scope": _SCOPE, "env": OPT_OUT_ENV},
@@ -90,6 +112,15 @@ def mark_once(audit: Any) -> None:
         "(CRA Annex I Part I(2)(l) opt-out); high/critical, denied and failed calls "
         "still are",
     )
+    if written:
+        with _lock:
+            _marked = True
+    else:
+        _log.error(
+            "%s=reads is active but its marker row could not be written to the audit "
+            "trail — will retry on the next unrecorded call.",
+            OPT_OUT_ENV,
+        )
 
 
 def status() -> dict[str, Any]:
@@ -99,7 +130,15 @@ def status() -> dict[str, Any]:
         "opted_out": on,
         "scope": _SCOPE if on else "",
         "env": OPT_OUT_ENV,
-        "always_recorded": [*ALWAYS_RECORDED_RISK, "denied", "failed"],
+        "always_recorded": [
+            *ALWAYS_RECORDED_RISK,
+            "denied",
+            "failed",
+            "egress",
+            "write previews",
+            "untagged or non-[READ] tools",
+            "CLI commands",
+        ],
     }
 
 
@@ -113,6 +152,7 @@ def reset_for_tests() -> None:
 
 __all__ = [
     "ALWAYS_RECORDED_RISK",
+    "eligible",
     "MARKER_TOOL",
     "OPT_OUT_ENV",
     "mark_once",
