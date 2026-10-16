@@ -38,11 +38,11 @@ class OTConnectionError(Exception):
 class OTNoReadingError(OTConnectionError):
     """This point has no CURRENT value — and the connection is healthy.
 
-    Push protocols need this and poll protocols do not. A Modbus read either
-    answers or the socket failed; an MQTT subscription is perfectly alive while a
-    metric simply has not been published for an hour. Collapsing the two would
-    make the collector tear down a working subscription (and its last-value
-    cache) every time a slow point went quiet.
+    An MQTT subscription is perfectly alive while a metric simply has not been
+    published for an hour; a Modbus sensor answers promptly with its "no target"
+    sentinel or a NaN (HLD §16.3). Collapsing either into a connection failure
+    would make the collector tear down a working session (and an MQTT last-value
+    cache) every time one point had nothing to say.
 
     It is a refusal, not a value: the collector records it as a GAP — a window
     where collection was blind — which is the one honest rendering. Returning the

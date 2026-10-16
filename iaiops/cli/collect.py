@@ -29,6 +29,7 @@ collect_app = typer.Typer(help="Bounded collection runs — fill the local store
 
 def _build_plan(endpoint: str, tags: str, duration: str, interval_ms: int):
     from iaiops.core.collect.plan import CollectionPlan, parse_duration
+    from iaiops.core.collect.reader import ref_problems
     from iaiops.core.runtime.config import load_config
 
     config = load_config()
@@ -44,6 +45,9 @@ def _build_plan(endpoint: str, tags: str, duration: str, interval_ms: int):
         duration_s=parse_duration(duration),
         interval_ms=interval_ms,
     )
+    problems = ref_problems(target, plan.tags)
+    if problems:
+        raise ValueError("Refused before contacting anything:\n  " + "\n  ".join(problems))
     return plan, target
 
 
