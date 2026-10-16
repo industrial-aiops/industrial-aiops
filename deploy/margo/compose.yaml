@@ -43,9 +43,11 @@ services:
       # Optional: Host headers to accept (comma-separated host:port, '*' = any port), e.g.
       # "iaiops:*,10.0.0.5:8000". Unset = no Host check; the token is the control.
       IAIOPS_MCP_ALLOWED_HOSTS: ${IAIOPS_MCP_ALLOWED_HOSTS:-}
-      # Defense-in-depth: only these client networks may call the MCP port (403 otherwise). Set to
-      # the orchestrator/gateway's address(es) — a second layer under the token, not instead of it.
-      IAIOPS_ALLOWLIST_IPS: "${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}"
+      # Optional second layer under the token: CIDRs allowed to call the MCP port (403 otherwise).
+      # Default OFF. Do NOT set 127.0.0.1/32: behind the port mapping a host caller arrives as the
+      # bridge gateway (e.g. 172.17.0.1), so a loopback-only list refuses everyone (verified on
+      # Docker 27.5). Set it to the orchestrator/gateway address(es) if you set it at all.
+      IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-}
       # Unlocks the encrypted secret store non-interactively. Inject via your host's secret manager
       # (Margo device secret facility) — do NOT hardcode. Left unset here on purpose.
       IAIOPS_MASTER_PASSWORD: "${IAIOPS_MASTER_PASSWORD:?set in the host secret store}"

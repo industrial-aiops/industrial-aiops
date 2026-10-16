@@ -356,9 +356,9 @@ CRA_ITEMS: tuple[dict, ...] = (
         "Designed, developed and produced to limit attack surfaces, including external interfaces.",
         "product_evidence",
         "Only the protocols a site selects are exposed; a pip install speaks stdio; the "
-        "containers' one inbound port is token-authenticated with an IP allowlist as a "
-        "second layer; egress tools can be withheld at registration; minimal non-root "
-        "image.",
+        "containers' one inbound port is token-authenticated, with an optional IP "
+        "allowlist as a second layer; egress tools can be withheld at registration; "
+        "minimal non-root image.",
         "IAIOPS_NO_EGRESS is opt-in and covers MCP tools only. The HTTP port has no TLS "
         "of its own.",
         ("mcp_profiles", "http_bearer_auth", "no_egress_gate", "container_hardening"),
