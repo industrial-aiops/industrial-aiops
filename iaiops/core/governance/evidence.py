@@ -111,6 +111,11 @@ def _doctor_summary() -> dict:
         summary["targets"] = [{"name": t.name, "protocol": t.protocol} for t in config.targets]
     except Exception as exc:  # noqa: BLE001 — evidence export must not crash on config
         summary["config_error"] = str(exc)[:200]
+    # An assessor reading this bundle must be able to tell "no reads happened"
+    # from "reads happened and were not recorded".
+    from iaiops.core.governance import audit_opt_out
+
+    summary["audit_opt_out"] = audit_opt_out.status()
     return summary
 
 

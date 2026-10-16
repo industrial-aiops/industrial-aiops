@@ -85,6 +85,8 @@ def run_doctor(skip_probe: bool = False) -> int:
         )
         problems += 1
 
+    _report_audit_opt_out()
+
     if not config.targets:
         _console.print("[yellow]! No endpoints configured.[/]")
         problems += 1
@@ -115,6 +117,18 @@ def run_doctor(skip_probe: bool = False) -> int:
         problems += _report_target_probe(target)
 
     return 1 if problems else 0
+
+
+def _report_audit_opt_out() -> None:
+    """Say plainly when successful reads are going unrecorded — not a problem, a fact."""
+    from iaiops.core.governance import audit_opt_out
+
+    if audit_opt_out.opted_out():
+        _console.print(
+            f"[yellow]! {audit_opt_out.OPT_OUT_ENV}=reads — successful low/medium-risk "
+            "calls are NOT recorded in the audit trail (high/critical, denied and "
+            "failed calls still are).[/]"
+        )
 
 
 def _report_target_probe(target) -> int:

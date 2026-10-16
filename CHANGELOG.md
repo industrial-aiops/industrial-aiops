@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added — audit opt-out for reads (CRA Annex I Part I(2)(l))
+
+- **`IAIOPS_AUDIT_OPT_OUT=reads`** stops recording *successful low/medium-risk*
+  calls — the opt-out the CRA asks activity recording to offer, kept narrow
+  because the trail is the governance backbone. High/critical calls are always
+  recorded and still fail closed; denials and failures are always recorded; the
+  opt-out writes one `audit_opt_out` marker row per process, so the trail shows
+  from when reads went unrecorded; `iaiops doctor` and the evidence zip's
+  `doctor_summary.json` report it. Any other value keeps recording and warns —
+  a typo must never switch the trail off. There is no opt-out for writes.
+
 ### Changed — breaking for socket deployments
 
 - **The HTTP/SSE MCP transports authenticate, and refuse to serve unauthenticated

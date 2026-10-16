@@ -32,6 +32,7 @@ import traceback
 from functools import wraps
 from typing import Any
 
+from iaiops.core.governance import audit_opt_out
 from iaiops.core.governance.approvals import consume_approval
 from iaiops.core.governance.audit import detect_agent, get_engine
 from iaiops.core.governance.budget import BudgetExceeded, get_budget
@@ -622,6 +623,12 @@ def _finalize(state: _CallState) -> None:
 
     pattern_id = state.pattern_match.pattern.pattern_id if state.pattern_match else ""
     pattern_armed = bool(state.pattern_match and state.pattern_match.armed)
+
+    # The one opt-out the trail allows (CRA Annex I Part I(2)(l)): a successful
+    # low/medium-risk call. Never a high/critical one, never a denial or failure.
+    if audit_opt_out.skips(state.risk_level, final_status):
+        audit_opt_out.mark_once(state.audit)
+        return
 
     written = state.audit.log(
         skill=state.skill,

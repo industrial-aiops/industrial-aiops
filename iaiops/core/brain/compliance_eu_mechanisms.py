@@ -31,6 +31,18 @@ _MECHANISMS: dict[str, dict] = {
             "file:iaiops/core/governance/decorators.py#_FAIL_CLOSED_RISK",
         ),
     },
+    "audit_opt_out": {
+        "name": "Audit opt-out for reads (IAIOPS_AUDIT_OPT_OUT=reads)",
+        "fact": "IAIOPS_AUDIT_OPT_OUT=reads stops recording successful low/medium-risk "
+        "calls; high/critical calls, denials and failures are always recorded, the "
+        "opt-out writes a marker row once per process, and doctor and the evidence "
+        "zip report it. Any other value keeps recording and warns. Limits: there is "
+        "no opt-out for writes, by design.",
+        "anchors": (
+            "py:iaiops.core.governance.audit_opt_out:skips",
+            "file:iaiops/core/governance/decorators.py#audit_opt_out.skips(",
+        ),
+    },
     "audit_rotation": {
         "name": "Audit rotation and archive deletion",
         "fact": "At 100 MB the audit DB is archived and a new file starts a new hash "
