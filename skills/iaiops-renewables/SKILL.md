@@ -10,6 +10,7 @@ description: >-
   组串 / string / combiner, irradiance / 辐照 / POA, wind / 风电 / turbine / 风机 /
   nacelle / pitch / yaw, plant SCADA, performance ratio, soiling / 积灰 / shading /
   遮挡, or 电站. Read-first; this edition's tool surface is read-only.
+  Also supplier half-hourly (HH) electricity files for the site's import meter — base load, out-of-hours use, tariff time bands.
 ---
 
 # iaiops-renewables — 光伏 / 风电 edition（Modbus + OPC-UA + Sparkplug + 脑）
@@ -42,6 +43,16 @@ rotor_speed / pitch / yaw / state_of_charge 等可再生类别(`opcua_discover_t
 - `sparkplug_node_list` `sparkplug_subscribe_sample` `sparkplug_decode_payload`
 - `mqtt_read_topic` `mqtt_publish` `sparkplug_live_schema`
 - `uns_browse` `uns_topic_audit` `uns_schema_drift` `uns_live_audit` `uns_live_drift`
+
+### 半小时电表数据（edition 工具;随 building / renewables 加载;只读,不连设备）
+- `meter_hh_check` — 供应商半小时(HH)CSV 里有什么:宽表(日期 + 46–50 时段列)或长表(时间戳 + kWh)、
+  各 MPAN 起止、被拒的行/格及原因、解析时做的每个假设。空格/非数字=**缺失,不是 0**;日期只认英式日在前。
+- `meter_load_profile` — 每个表:覆盖率(缺口计数,**不外推**)、实测 kWh、估算读数占比(文件无标志时为
+  `unknown`)、峰值 kW 及时间、夜间基础负荷(00:00–05:00 中位数)、按**声明的**营业时间算的非营业时段用电、
+  高于基础负荷的非营业用电(**机会提示,不是保证的节省**)、完整日工作日/休息日均值、负荷率、发现与警告;
+  传 `tariff` 时按时段算钱 + 移出最贵时段的**上限**(不含 VAT/CCL/kVA/DUoS 单列项)。
+- HTML 报告只在 CLI:`iaiops meter profile FILE --tariff t.yaml --report out.html`。DUoS 红/黄/绿时段因配网区域而异,
+  **不内置**,请按合同写进 tariff。示例:`demo/metering/`。
 
 ### 跨协议脑（永远随 server 暴露）
 - 诊断：`diagnose_dataflow` `downtime_root_cause` `downtime_root_cause_live` `downtime_triage`

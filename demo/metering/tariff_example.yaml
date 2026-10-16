@@ -1,0 +1,16 @@
+# ILLUSTRATIVE tariff for the metering demo — NOT any supplier's real prices.
+#
+# Replace every number with the site's own contract. In particular the "red"
+# band below is a placeholder: DNO DUoS red/amber/green times differ by
+# distribution region and change with each charging statement (待核实 per site),
+# so iaiops deliberately ships no built-in table of them.
+#
+# Bands are matched in the order listed — first match wins — so a short peak band
+# goes ABOVE the day band it sits inside. Every half hour of every day must be
+# priced by some band, or the tariff is refused with the gap named.
+name: Illustrative three-rate (demo only)
+unit_rates:
+  - {name: red,   rate: 38.0, days: weekdays, start: "16:00", end: "19:00"}
+  - {name: day,   rate: 26.0, days: all,      start: "07:00", end: "23:00"}
+  - {name: night, rate: 17.0, days: all,      start: "23:00", end: "07:00"}
+standing_charge_p_per_day: 140

@@ -183,6 +183,26 @@
 
 ### Added
 
+- **Supplier half-hourly electricity files, read and explained** (`iaiops meter
+  check|profile`; MCP `meter_hh_check` / `meter_load_profile` on the building and
+  renewables editions; 196 → 198 governed tools). Every UK non-domestic meter is
+  moving to half-hourly settlement (MHHS, all meters by May 2027), and the small
+  sites that will get the data — colleges, clubs, charities — have nobody to read
+  it. `check` says what a file contains (wide: date + 46–50 half-hour columns;
+  long: timestamp + kWh) and what was rejected; `profile` reports the overnight
+  base load, out-of-hours use against the **declared** operating hours, peak
+  demand, complete-day working vs closed averages, load factor and a weekday ×
+  time heatmap, and — given a tariff — cost by time band with an **upper bound**
+  for moving use out of the dearest band. `--report` writes a self-contained HTML
+  page for the bill payer. The refusals are the feature: a blank cell is missing,
+  never zero; totals are measured only, never scaled up over gaps; dates are UK
+  day-first only; a file with no actual/estimated flag reports read type
+  **unknown**, not actual; and the UK clock is computed from its rule (no
+  `tzdata`), so the 46- and 50-period clock-change days land correctly. DUoS
+  time bands are **not** built in — they vary by region — and VAT, CCL, kVA and
+  reactive charges are listed as excluded on every cost. Synthetic demo in
+  `demo/metering/`; no real supplier file has been run through it yet (`待核实`).
+
 - **NIS2 and CRA product self-assessment crosswalks**, next to 等保 2.0 / IEC
   62443 / GxP. NIS2 Directive (EU) 2022/2555 Art. 21(2)(a)–(j) and CRA
   Regulation (EU) 2024/2847 Annex I — Part I(1), I(2)(a)–(m), Part II(1)–(8) —
