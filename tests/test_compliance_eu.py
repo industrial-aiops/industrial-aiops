@@ -116,11 +116,12 @@ def test_no_mfa_is_said_plainly():
     assert "multi-factor" in item["gap"].lower()
 
 
-def test_logging_row_admits_there_is_no_opt_out():
-    """CRA I(2)(l) asks for an opt-out; the audit trail deliberately has none."""
+def test_logging_row_says_the_opt_out_is_narrow():
+    """CRA I(2)(l) asks for an opt-out; ours covers reads only, and says so."""
     item = next(i for i in CRA_ITEMS if i["ref"].endswith("Part I(2)(l)"))
     assert item["coverage"] == "product_evidence"
-    assert "no opt-out mechanism" in item["gap"].lower()
+    assert "audit_opt_out" in item["mechanisms"]
+    assert "cannot be opted out" in item["gap"] and "待核实" in item["gap"]
 
 
 def test_the_disclosure_policy_is_cited_and_says_it_is_untested():
