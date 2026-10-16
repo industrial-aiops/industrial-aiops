@@ -1000,6 +1000,8 @@ Modbus 那一行是**最该先修的**：一个 float32 的力值占两个寄存
 存下来的是**一个看起来正常的整数**。这正是本仓库反复出现的那一类缺陷 —— 不报错，
 而是给出一个讨好的错值。
 
+（上表是本节写定时的状态；之后的进展见 §16.5 末尾。）
+
 推论：「有 connector」≠「读得懂」≠「能采集」。对外材料里「支持 14 协议」这句话，
 对传感器而言今天只成立到第一级。
 
@@ -1072,10 +1074,20 @@ diagnostics:                                         # 传感器自身健康，�
 |---|---|---|---|
 | **S1** | 描述格式 + 纯解码器（字节/寄存器 → 工程值 / 哨兵 / `undecoded`），无设备、可全量单测 | — | 读得懂（引擎） |
 | **S2** | **Modbus 带类型的点**：输入/保持寄存器、16/32 位、浮点、字节序、比例、单位，复用 `byteorder.decode_value`；裸地址点保持今天的行为，但 `readiness` 标「未声明类型」 | S1 | Modbus 通道：读得懂 + 采得准 |
-| **S3** | **IO-Link 可采集**：`monitor_read` 走 `pdin` + 描述解码，点形如 `port[N]/<channel>`；诊断量经 ISDU 低频读取；`iaiops sensor import-iodd` 产出草稿描述 | S1 | IO-Link 通道：读得懂 + 采得准 |
+| **S3** | **IO-Link 可采集**：`monitor_read` 走 `pdin` + 描述解码，点形如 `port<N>/<channel>`；诊断量经 ISDU 低频读取；`iaiops sensor import-iodd` 产出草稿描述 | S1 | IO-Link 通道：读得懂 + 采得准 |
 | **S4** | `readiness` / brain 接入：每通道三级报告、§16.4 的信号种类检查、精度带进入变化判定 | S1–S3 | 采得准（判定） |
 | **S5** | 边缘特征约定：带节拍号的特征消息（Sparkplug metric 命名约定），给 ESP32 / 力控工作站用；**不新增协议**，走已有 MQTT 路 | S4 | waveform 类信号可用 |
 | **S6** | HART / BACnet 的采集路径 | 按现场需求 | — |
+
+**进展（2026-10-16，均在 PR 中、未发布）：**
+
+- S1 + S2 → #248：描述格式与纯解码器；Modbus 带类型的点贯通全部读路径；格式错误的点在采集开始前被拒绝。
+- S3 → #249（叠在 #248 上）：`sensor_profile`（Modbus，`ch:<name>`）与 `port_profiles`（IO-Link，
+  `port<N>/<channel>`）随 config 加载校验；IO-Link 可采集，端口上的设备身份先核对；
+  `iaiops sensor import-iodd | check`。S4 的 `readiness` 部分一并交付：每个点「能否解码」，
+  裸地址点标「未声明类型」（站点因此从 ready 变为 degraded，采集照常）。
+- **仍未做**：S3 的 ISDU 低频诊断量；S4 的精度带进入 brain 变化判定、§16.4 信号种类检查；S5、S6。
+  真实 IO-Link 主站的身份字段编码、真实厂商 IODD 仍 `待核实`。
 
 每一步都遵守「支持版本是一等公民」（`CLAUDE.md` 铁律）：描述格式版本、已核实的设备清单
 与核实等级随发版更新，不确定项标 `待核实`。
