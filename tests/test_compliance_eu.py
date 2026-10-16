@@ -123,15 +123,29 @@ def test_logging_row_admits_there_is_no_opt_out():
     assert "no opt-out mechanism" in item["gap"].lower()
 
 
-def test_no_vulnerability_disclosure_policy_is_admitted():
-    for ref in ("Part II(5)", "Part II(6)"):
+def test_the_disclosure_policy_is_cited_and_says_it_is_untested():
+    """II(5)/(6) rest on SECURITY.md — which must exist, and be called unexercised."""
+    assert (REPO / "SECURITY.md").is_file()
+    for ref in ("Part II(4)", "Part II(5)", "Part II(6)"):
         item = next(i for i in CRA_ITEMS if i["ref"].endswith(ref))
-        assert item["coverage"] == "gap", ref
+        assert "security_policy" in item["mechanisms"], ref
+    assert "not yet exercised" in MECHANISMS["security_policy"]["fact"]
 
 
-def test_sbom_absence_is_admitted():
+def test_sbom_row_says_what_the_sbom_describes():
     item = next(i for i in CRA_ITEMS if i["ref"].endswith("Part II(1)"))
-    assert item["gap"].lower().startswith("no sbom")
+    assert "sbom" in item["mechanisms"]
+    assert "not an individual install" in item["gap"]
+    assert "待核实" in item["gap"]
+
+
+def test_the_dependency_scan_has_no_silent_ignores():
+    """Every ignored advisory needs a reason written next to it."""
+    lines = (REPO / ".github/pip-audit-ignore.txt").read_text(encoding="utf-8").splitlines()
+    for line in lines:
+        if line.strip() and not line.lstrip().startswith("#"):
+            advisory, _, reason = line.strip().partition(" ")
+            assert reason.strip(), f"{advisory} is ignored without a reason"
 
 
 def test_nothing_claims_compliance_or_certification():
@@ -277,11 +291,9 @@ def test_partial_evidence_rows_name_a_mechanism_and_what_is_missing():
 @pytest.mark.parametrize(
     "ref",
     [
-        "CRA Annex I Part I(2)(a)",  # no dependency CVE scan
         "CRA Annex I Part I(2)(c)",  # publishing releases is not an update mechanism
         "CRA Annex I Part I(2)(d)",  # no authentication of callers
         "CRA Annex I Part I(2)(m)",  # no remove-all path
-        "CRA Annex I Part II(1)",  # no SBOM
         "CRA Annex I Part II(2)",  # no remediation process
         "CRA Annex I Part II(7)",  # wheels unsigned
     ],

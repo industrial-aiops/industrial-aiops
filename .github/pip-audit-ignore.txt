@@ -1,0 +1,6 @@
+# Known vulnerabilities the dependency-audit CI job is allowed to ignore.
+#
+# One advisory per line: `<ID>  <reason>`. A line here is a decision someone has
+# to defend to an assessor (CRA Annex I Part I(2)(a)): say why the advisory does
+# not reach iaiops, or why no fixed version can be used yet, and when to revisit.
+# An empty file is the goal.

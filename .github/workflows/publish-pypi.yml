@@ -19,6 +19,7 @@
 # ORDER
 #   tag push v*.*.* → this job uploads → publish-image and publish-mcp, which
 #   already poll the PyPI SIMPLE index, pick the release up. No manual upload.
+#   The `sbom` job attaches a CycloneDX SBOM of uv.lock to the GitHub release.
 #   `skip-existing` makes a re-run (or an upload already done by hand) a no-op
 #   rather than a red run.
 name: publish-pypi
@@ -53,6 +54,21 @@ jobs:
             exit 1
           fi
 
+      # The PR gate (ci.yml dependency-audit) does not guard a tag cut from a
+      # commit that never went through CI. Same scan, same ignore file, here too:
+      # the CRA crosswalk (Annex I Part I(2)(a)) says a known vulnerability stops
+      # a release, and this is what makes that true.
+      - name: Dependency-vulnerability scan (blocks the release)
+        run: |
+          uv export --format requirements.txt --no-dev --all-extras \
+            --no-emit-project --no-hashes -o runtime-requirements.txt
+          ignores=()
+          while read -r id _ || [ -n "$id" ]; do
+            [ -n "$id" ] && ignores+=(--ignore-vuln "$id")
+          done < <(grep -v '^[[:space:]]*#' .github/pip-audit-ignore.txt || true)
+          uvx pip-audit -r runtime-requirements.txt --disable-pip --no-deps \
+            --progress-spinner off "${ignores[@]}"
+
       - name: Build sdist + wheel
         run: uv build
 
@@ -73,7 +89,51 @@ jobs:
           name: dist
           path: dist/
 
+      # attestations: PEP 740 provenance, signed with this run's OIDC identity and
+      # uploaded beside each file. It is the action's default under Trusted
+      # Publishing; stated so a future edit cannot drop it unnoticed — the CRA
+      # crosswalk (Annex I Part II(7)) cites it.
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           skip-existing: true
+          attestations: true
+
+  # CycloneDX SBOM of the locked, tested dependency set, attached to the GitHub
+  # release (CRA Annex I Part II(1)). Not put in dist/: everything there is
+  # uploaded to PyPI. It describes uv.lock — what the release was tested with; a
+  # pip install resolves the declared ranges and can differ, which the SBOM's own
+  # metadata cannot say, so the release asset name says "locked".
+  sbom:
+    # After `upload`: an SBOM on a release whose PyPI upload failed would describe
+    # a release that does not exist.
+    needs: upload
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # attach the asset to the existing release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Export the SBOM
+        run: |
+          out="iaiops-${GITHUB_REF_NAME#v}-locked.cdx.json"
+          uv export --format cyclonedx1.5 --no-dev --all-extras -o "$out"
+          sha256sum "$out" > "$out.sha256"
+          echo "SBOM=$out" >> "$GITHUB_ENV"
+
+      # The release flow is `gh release create`, which pushes the tag that started
+      # this run, so the release normally exists. A bare `git push --tags` has no
+      # release: say so instead of failing with gh's generic "release not found".
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::error::no GitHub release for $GITHUB_REF_NAME — create it with gh release create, then re-run this job to attach the SBOM"
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" "$SBOM" "$SBOM.sha256" --clobber

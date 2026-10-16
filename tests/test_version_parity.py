@@ -86,9 +86,12 @@ def test_the_uv_lock_pins_this_version_of_iaiops():
 def test_a_coincidental_third_party_version_is_not_swept_along():
     """The complement, and the reason this file checks named strings instead of
     grepping for a number: `thrift` was 0.23.0 at the same time we were, and a
-    blind replace would have pinned a thrift release that does not exist."""
+    blind replace would have pinned a thrift release that does not exist.
+
+    The pin moved to 0.25.0 deliberately (three advisories fixed from 0.24.0, found by
+    the dependency-audit job). Move it again only for the same kind of reason."""
     text = (_root() / "uv.lock").read_text("utf-8")
-    assert "thrift-0.23.0.tar.gz" in text, "the thrift pin was rewritten by a version bump"
+    assert "thrift-0.25.0.tar.gz" in text, "the thrift pin was rewritten by a version bump"
 
 
 def test_the_margo_descriptor_and_its_package_url_agree():
