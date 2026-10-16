@@ -266,8 +266,9 @@ _MECHANISMS: dict[str, dict] = {
     },
     "signed_images": {
         "name": "cosign-signed container images",
-        "fact": "Release container images and the Margo application package are "
-        "cosign-signed; the public key ships at deploy/margo/cosign.pub. PyPI uploads "
+        "fact": "Release container images and the Margo application package (OCI artifacts "
+        "per Margo rc.3, plus a tarball mirror) are cosign-signed; the public key "
+        "ships at deploy/margo/cosign.pub. PyPI uploads "
         "go through Trusted Publishing (publish-pypi.yml, short-lived OIDC, no stored "
         "token), whose action also uploads attestations (set explicitly); until a "
         "release has gone through it, the wheels on PyPI carry no signature or "

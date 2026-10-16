@@ -95,16 +95,16 @@ def test_a_coincidental_third_party_version_is_not_swept_along():
 
 
 def test_the_margo_descriptor_and_its_package_url_agree():
-    """Two places: the descriptor's own `version:` and the release URL it points
-    at. Matched by their surrounding text rather than by "anything dotted" — the
-    first version of this test flagged `127.0.0.1/32`, an ALLOWED-CALLER CIDR, as
-    a stale release. A guard that cries wolf stops being read."""
+    """Two places: the descriptor's own `version:` and the component `revision:`
+    (rc.3's OCI tag). Matched by their surrounding text rather than by "anything
+    dotted" — the first version of this test flagged `127.0.0.1/32`, an
+    ALLOWED-CALLER CIDR, as a stale release. A guard that cries wolf stops being read."""
     text = (_root() / "deploy/margo/margo.yaml").read_text("utf-8")
     declared = re.findall(r'^\s*version:\s*"([^"]+)"', text, re.MULTILINE)
-    in_url = re.findall(r"/download/v(\d+\.\d+\.\d+)/iaiops-margo-package-(\d+\.\d+\.\d+)", text)
+    revisions = re.findall(r"^\s*revision:\s*(\S+)", text, re.MULTILINE)
     assert declared, "margo.yaml declares no version"
-    assert in_url, "margo.yaml has no package download URL"
-    found = set(declared) | {v for pair in in_url for v in pair}
+    assert revisions, "margo.yaml has no component revision"
+    found = set(declared) | set(revisions)
     assert found == {_version()}, f"margo.yaml names {sorted(found)}; project is {_version()}"
 
 

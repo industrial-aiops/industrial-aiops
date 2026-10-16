@@ -1,26 +1,26 @@
-# Margo ApplicationDescription for iaiops — built to the REAL margo.org/v1-alpha1 schema
-# (docs.margo.org, PR1 pre-draft). This is no longer a blind guess: the structure, field names,
-# and validators below follow the published Application Description spec.
+# Margo Application Description for iaiops — built to the Margo specification v1.0.0-rc.3
+# (Preview Release 3, tag v1.0.0-rc.3 = commit dc0bf84, 2026-09-15) and validated against its
+# LinkML schema by scripts/margo_validate.sh (structural validity only — NOT a compliance claim).
 #
-# WG feedback resolved (app-package-definition-wg, 2026-07-13, ABB / P. Presson — Discourse t/43):
-#   • Runtime shape — OUT of Margo's scope; socket transport recommended. This descriptor now
-#     targets the socket (streamable-http) transport (one container port); see compose.yaml.
-#   • Profiles — either idiom is valid; we keep ONE parameterised application (the `profile` param),
-#     not N packages.
-#   • Secrets — the spec has NO secret-typed parameter YET; tracked at margo/specification#145.
-#     iaiops's model differs from both proposals there: the deploy config carries only a secret
-#     NAME/reference, never a value — resolved on-device from the encrypted secret store. See
-#     `masterPassword` below and ../../docs/MARGO-ALIGNMENT.md appendix B.
+# rc.3 changed the package model: an Application Package is an OCI artifact in an application
+# registry (artifactType application/vnd.margo.app.v1+json, tag == metadata.version), and each
+# component names its deployable by `repository: oci://…` + `revision`. CI
+# (.github/workflows/publish-image.yml, job margo-oci) pushes both and cosign-signs them; the
+# signed HTTPS tarball of earlier releases is still attached to each GitHub release as a mirror.
 #
-# Package hosting + signing (resolved): CI (.github/workflows/publish-image.yml) builds
-# ghcr.io/industrial-aiops/iaiops:<version>-<profile> (cosign-signed), assembles this descriptor +
-# the deploy-ready compose into iaiops-margo-package-<version>.tar.gz, cosign-signs the tarball,
-# and attaches both to the GitHub release. Verify key: deploy/margo/cosign.pub (keyLocation).
+# WG feedback (app-package-definition-wg, 2026-07-13, ABB / P. Presson — Discourse t/43):
+#   • Runtime shape — out of Margo's scope; socket transport recommended. This descriptor targets
+#     the socket (streamable-http) transport (one container port), bearer-token authenticated
+#     because Margo leaves workload-to-workload authentication to the application.
+#   • Profiles — one parameterised application (the `profile` parameter), not N packages.
+#   • Secrets — still no secret-typed parameter (margo/specification#145, open). The deploy config
+#     carries only a REFERENCE; see `masterPassword` / `mcpToken` and ../../docs/MARGO-ALIGNMENT.md.
 #
-# Remaining genuine `待核实`: the secret-parameter flag pending #145. iaiops has NOT been run
-# through the conformance toolkit, so it is still NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
-apiVersion: margo.org/v1-alpha1
-kind: ApplicationDescription
+# 待核实: the OCI format of a compose component is not specified by Margo (left to supplier and
+# WFM to agree); we publish it the way `docker compose publish` does. iaiops has NOT been run
+# through the conformance test toolkit (margo/conformance_test_toolkit, unmerged as of
+# 2026-10-15), so it is NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
+apiVersion: v1
 id: io-github-industrial-aiops-iaiops
 metadata:
   name: Industrial-AIOps
@@ -46,31 +46,35 @@ deploymentProfiles:
     id: iaiops-compose
     description: >-
       Single hardened, non-root container (read-only rootfs; outbound-only to the operator-configured
-      OT endpoints, with ONE IP-allowlisted inbound port for the MCP tool interface — not an OT
-      listener). The OCI image is referenced inside the signed compose archive built from
-      deploy/margo/compose.yaml.
+      OT endpoints, with ONE bearer-token-authenticated, IP-allowlisted inbound port for the MCP
+      tool interface — not an OT listener).
     components:
       - name: iaiops
         properties:
-          # Signed package (built + attached to the release by CI; version kept in sync with
-          # pyproject.toml by tests/test_margo_package.py). Detached signature at the same URL + .sig.
-          packageLocation: https://github.com/industrial-aiops/industrial-aiops/releases/download/v0.28.0/iaiops-margo-package-0.28.0.tar.gz
-          # Cosign public key (verify: cosign verify-blob --key … --signature <pkg>.sig <pkg>).
-          keyLocation: https://raw.githubusercontent.com/industrial-aiops/industrial-aiops/main/deploy/margo/cosign.pub
+          # The deploy-ready compose (deploy/margo/package.compose.yaml), pushed by CI as an OCI
+          # artifact and cosign-signed (key: deploy/margo/cosign.pub). Kept in sync with
+          # pyproject.toml by tests/test_margo_package.py.
+          repository: oci://ghcr.io/industrial-aiops/iaiops-compose
+          revision: 0.28.0
           wait: true
-          timeout: "5m00s"
-    requiredResources:
-      cpu:
-        cores: 0.5
-        architectures: [amd64, arm64]
-      memory: 512Mi
-      storage: 1Gi
-      interfaces:
-        - type: ethernet
-      # NOTE: the socket transport exposes one inbound MCP port (default 8000, see compose.yaml and
-      # the `mcpPort` parameter). Whether v1-alpha1 has a first-class ingress/port field on
-      # requiredResources is `待核实` — if it does, declare 8000/tcp here; for now the port is
-      # expressed via the deployment (compose) and the mcpPort parameter.
+          timeout: 5m00s
+    deviceConstraints:
+      capacityRequirements:
+        cpu:
+          cores: 0.5
+          architectures: [amd64, arm64]
+        memory: 512Mi
+        storage: 1Gi
+      eligibilityRules:
+        - propertySelector:
+            matchExpressions:
+              - key: /interfaces
+                operator: ContainsAll
+                itemSelector:
+                  matchExpressions:
+                    - key: /type
+                      operator: In
+                      values: ["ethernet"]
 
 parameters:
   profile:

@@ -218,3 +218,96 @@ jobs:
             "iaiops-margo-package-${v}.tar.gz" \
             "iaiops-margo-package-${v}.tar.gz.sig" \
             --clobber --repo "${{ github.repository }}"
+
+  # ── Margo rc.3: the application package as an OCI artifact ─────────────────
+  # Margo v1.0.0-rc.3 (application-registry.md) makes the registry the
+  # distribution channel: the Application Package is an OCI image manifest with
+  # artifactType application/vnd.margo.app.v1+json, an empty config, the
+  # Application Description as a layer of mediaType
+  # application/vnd.margo.app.description.v1+yaml, and a tag equal to
+  # metadata.version. The descriptor's component then points at its deployable
+  # by `repository: oci://…` + `revision`.
+  #
+  # The compose component's OCI format is NOT specified by Margo (custom/compose
+  # packaging is left to supplier and WFM to agree — 待核实 against a real WFM); it
+  # is pushed the way `docker compose publish` does, so a Compose-capable device
+  # can pull it without an iaiops-specific tool. Both artifacts are cosign-signed
+  # by digest with the same key as the images (deploy/margo/cosign.pub).
+  margo-oci:
+    needs: [wait-for-pypi, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oras-project/setup-oras@v1
+
+      - uses: sigstore/cosign-installer@v3
+
+      - name: Log in to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "$GH_TOKEN" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # Pushed from inside the directory so the layer titles are bare file names
+      # (`compose.yaml`, `margo.yaml`), not CI paths.
+      - name: Push the compose component (oci://ghcr.io/industrial-aiops/iaiops-compose)
+        run: |
+          v="${{ needs.wait-for-pypi.outputs.version }}"
+          work="$(mktemp -d)"
+          cp deploy/margo/package.compose.yaml "${work}/compose.yaml"
+          cd "${work}"
+          oras push "ghcr.io/industrial-aiops/iaiops-compose:${v}" \
+            --artifact-type application/vnd.docker.compose.project \
+            compose.yaml:application/vnd.docker.compose.file+yaml
+          digest=$(oras resolve "ghcr.io/industrial-aiops/iaiops-compose:${v}")
+          echo "ghcr.io/industrial-aiops/iaiops-compose@${digest}" > "${GITHUB_WORKSPACE}/compose.ref"
+          echo "pushed $(cat "${GITHUB_WORKSPACE}/compose.ref")"
+
+      - name: Push the application package (oci://ghcr.io/industrial-aiops/iaiops-margo)
+        run: |
+          v="${{ needs.wait-for-pypi.outputs.version }}"
+          declared=$(sed -n 's/^  version: "\(.*\)"/\1/p' deploy/margo/margo.yaml)
+          if [ "$declared" != "$v" ]; then
+            echo "::error::margo.yaml metadata.version is $declared, release is $v — Margo requires the tag to equal it"
+            exit 1
+          fi
+          work="$(mktemp -d)"
+          cp deploy/margo/margo.yaml "${work}/margo.yaml"
+          cd "${work}"
+          oras push "ghcr.io/industrial-aiops/iaiops-margo:${v}" \
+            --artifact-type application/vnd.margo.app.v1+json \
+            margo.yaml:application/vnd.margo.app.description.v1+yaml
+          digest=$(oras resolve "ghcr.io/industrial-aiops/iaiops-margo:${v}")
+          echo "ghcr.io/industrial-aiops/iaiops-margo@${digest}" > "${GITHUB_WORKSPACE}/app.ref"
+          echo "pushed $(cat "${GITHUB_WORKSPACE}/app.ref")"
+
+      - name: Cosign-sign both artifacts (by digest)
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          for ref in "$(cat compose.ref)" "$(cat app.ref)"; do
+            cosign sign --yes --key env://COSIGN_PRIVATE_KEY "${ref}"
+          done
+
+      # A WFM pulls `oci://ghcr.io/industrial-aiops/iaiops-compose` anonymously.
+      # Packages created by a workflow token may start out PRIVATE (the org's
+      # default decides — 待核实), and then the descriptor points at something no
+      # device can fetch. Checked after the push and signing, so the artifacts
+      # exist either way; the run fails loudly until both are public.
+      - name: Both artifacts are anonymously pullable
+        run: |
+          v="${{ needs.wait-for-pypi.outputs.version }}"
+          failed=0
+          for repo in iaiops-compose iaiops-margo; do
+            token=$(curl -fsS "https://ghcr.io/token?scope=repository:industrial-aiops/${repo}:pull" | jq -r '.token // empty' || true)
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+              "https://ghcr.io/v2/industrial-aiops/${repo}/manifests/${v}")
+            if [ "${code}" != "200" ]; then
+              echo "::error::ghcr.io/industrial-aiops/${repo}:${v} is not anonymously pullable (HTTP ${code}). Make the package public: GitHub → org industrial-aiops → Packages → ${repo} → Package settings → Change visibility → Public. Then re-run this job."
+              failed=1
+            fi
+          done
+          exit "${failed}"
