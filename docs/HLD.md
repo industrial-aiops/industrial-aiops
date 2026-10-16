@@ -991,8 +991,8 @@ MQTT 是**推送**的：连接器持有一个订阅与最后值缓存，而不�
 
 | 协议 / 路径 | 连得上 | 读得懂 | 采得准（`collect`） |
 |---|---|---|---|
-| **IO-Link**（经主站 REST/JSON） | ✅ 主站身份、端口、设备身份、ISDU | ❌ 过程数据 `pdin` 原样返回十六进制，注释写着「按设备 IODD 解码」—— 没有人解码 | ❌ `monitor_read` 未实现，不可采集 |
-| **Modbus TCP / RTU**（RS-485 传感器最可能的路） | ✅ | ⚠️ 只在显式调用模板时解码（`modbus/templates.py`） | ⚠️ **只读一个保持寄存器（`count=1`）**：没有输入寄存器、没有 32 位 / 浮点、没有比例与单位 |
+| **IO-Link**（经主站 REST/JSON） | ✅ 主站身份、端口、设备身份、ISDU | ❌ 过程数据 `pdin` 只返回十六进制 / 字节数组，返回值里的 `note` 写着「按设备 IODD 解码」—— 没有人解码 | ❌ `monitor_read` 未实现，不可采集 |
+| **Modbus TCP / RTU**（RS-485 传感器最可能的路） | ✅ | ⚠️ 单次读取可带 `decode=`（int16/32、float32，固定大端字序）或套模板（`modbus/templates.py`）；**采集路径不解码** | ⚠️ **只读一个保持寄存器（`count=1`）**：没有输入寄存器、没有 32 位 / 浮点、没有比例与单位 |
 | HART-IP / BACnet | ✅ | ✅ 协议自带工程值 | ❌ 不可采集 |
 | MQTT / Sparkplug（自建 ESP32 节点的路） | ✅ | ✅ 由发布方定 | ✅ 0.28.0 起，带陈旧→盲区（§15.3） |
 
@@ -1011,7 +1011,7 @@ Modbus 那一行是**最该先修的**：一个 float32 的力值占两个寄存
 
 | 级 | 回答什么 | 依据 | 缺了怎么报 |
 |---|---|---|---|
-| **连得上** | 能和它通信吗，它是谁 | 连接探测；IO-Link 自带 vendorid/deviceid，Modbus 没有身份 → 只能人声明 | 连接错误（现有） |
+| **连得上** | 能和它通信吗，它是谁 | 连接探测；IO-Link 自带数字 vendorid/deviceid；Modbus 只有可选的 FC43 文本身份（很多从站不实现），没有可核对的数字身份 → 只能人声明 | 连接错误（现有） |
 | **读得懂** | 原始字节 → 带单位的工程值，哪些值是无效哨兵 | **传感器描述**（§16.3） | `undecoded`：值可留存，**不进任何数值分析** |
 | **采得准** | 以这个采样方式，这个通道能回答哪类问题 | 描述里的响应时间 / 精度 + 实际轮询周期 + 问题的需要 | `readiness` 列为缺口，并说明差什么 |
 
@@ -1023,18 +1023,19 @@ Modbus 那一行是**最该先修的**：一个 float32 的力值占两个寄存
 
 ```yaml
 id: distance-tof-iolink-example          # 厂商名只出现在描述文件自己的目录里
-match: {protocol: iolink, vendor_id: …, device_id: …}   # IO-Link 自动匹配；Modbus 由端点显式声明
+protocol: iolink                         # 或 modbus
+match: {vendor_id: …, device_id: …}      # 仅 IO-Link：核对端口上的设备是不是它（端口由 port_profiles 显式绑定，不自动匹配）
 source: iodd | datasheet | manual        # 这份描述从哪来
 verified: 待核实 | bench | field          # 核实到哪一级，随描述走，进报告
 channels:
   - name: distance
-    layout: {bit_offset: 16, bit_length: 16, type: uint16}       # IO-Link pdin
-    # Modbus 形如 {table: input, address: 0, words: 2, type: float32, order: ABCD}
+    layout: {bit_offset: 16, bit_length: 16, type: uint}         # IO-Link pdin（IODD 位偏移：0 = 最后一个字节的最低位）
+    # Modbus 形如 {table: input, address: 0, type: float32, order: ABCD}（字数由类型决定）
     scale: 0.1
     unit: mm
     range: [50, 6000]
     invalid: [{raw: 0xFFFF, meaning: out_of_range}]   # 哨兵 → 盲区，不是样本
-    accuracy: {basis: full_scale, linearity_pct: 3.0, hysteresis_pct: 3.0, crosstalk_pct: 5.0}
+    accuracy: {full_scale: 6000, linearity_pct: …}   # % F.S. 必须给出 F.S. 的数值；各分量按最坏情况相加
     response_ms: 2
     signal: level | counter | event | waveform        # 决定 §16.4 的采集方式
 diagnostics:                                         # 传感器自身健康，与工艺值分开标记
@@ -1048,10 +1049,13 @@ diagnostics:                                         # 传感器自身健康，�
 2. **IODD 导入产出草稿，不产出事实。** IODD 是厂商发布的 XML，解析是确定性的（不涉及模型，
    §1 的零模型守卫覆盖它），但导入结果标 `source: iodd, verified: 待核实`，直到在台架或现场
    对过一次读数。**不随包分发厂商 IODD**（再分发许可 待核实）—— 用户提供文件，我们导入。
-3. **没有描述就不猜。** 没有匹配描述的 IO-Link 端口、没有声明类型的 Modbus 地址，原始值照样
+3. **没有描述就不猜。** 目标：没有匹配描述的 IO-Link 端口、没有声明类型的 Modbus 地址，原始值
    可以留存，但标 `undecoded`，任何 brain 分析拒绝使用它。猜一个字节序得到的是看起来合理的错数。
+   **今天（#248/#249）还没到这一步**：无描述的 IO-Link 端口直接拒采（不留存原始值）；裸 Modbus 地址
+   为了兼容照旧按 uint16 入库、照旧进分析，只在 `readiness` 里标「未声明类型」。`undecoded` 标记入库
+   与 brain 拒用列在 §16.5「仍未做」。
 4. **哨兵值是盲区，不是样本。** 与 §15.3「陈旧必须变成盲区」同一原则：0xFFFF「超量程」
-   被当成 65535 mm 记下来，比不记更糟。
+   按 `scale: 0.1` 被当成 6553.5 mm 记下来，比不记更糟。
 5. **精度随值走。** 小于传感器精度带的差异不构成证据 —— 300 N 量程、±3 % F.S. 的力传感器，
    两次读数差 6 N 不能被 RCA 或基线当成「变化」。brain 判定变化时必须带上这条带宽。
 
@@ -1073,7 +1077,7 @@ diagnostics:                                         # 传感器自身健康，�
 | 步 | 内容 | 依赖 | 交付后哪一级变绿 |
 |---|---|---|---|
 | **S1** | 描述格式 + 纯解码器（字节/寄存器 → 工程值 / 哨兵 / `undecoded`），无设备、可全量单测 | — | 读得懂（引擎） |
-| **S2** | **Modbus 带类型的点**：输入/保持寄存器、16/32 位、浮点、字节序、比例、单位，复用 `byteorder.decode_value`；裸地址点保持今天的行为，但 `readiness` 标「未声明类型」 | S1 | Modbus 通道：读得懂 + 采得准 |
+| **S2** | **Modbus 带类型的点**：输入/保持寄存器、16/32 位、浮点、字节序、比例（单位经描述的 `ch:<name>` 给出），复用 `byteorder.decode_value`；裸地址点保持今天的行为，但 `readiness` 标「未声明类型」 | S1 | Modbus 通道：读得懂 + 采得准 |
 | **S3** | **IO-Link 可采集**：`monitor_read` 走 `pdin` + 描述解码，点形如 `port<N>/<channel>`；诊断量经 ISDU 低频读取；`iaiops sensor import-iodd` 产出草稿描述 | S1 | IO-Link 通道：读得懂 + 采得准 |
 | **S4** | `readiness` / brain 接入：每通道三级报告、§16.4 的信号种类检查、精度带进入变化判定 | S1–S3 | 采得准（判定） |
 | **S5** | 边缘特征约定：带节拍号的特征消息（Sparkplug metric 命名约定），给 ESP32 / 力控工作站用；**不新增协议**，走已有 MQTT 路 | S4 | waveform 类信号可用 |
@@ -1085,11 +1089,11 @@ diagnostics:                                         # 传感器自身健康，�
 - S3 → #249（叠在 #248 上）：`sensor_profile`（Modbus，`ch:<name>`）与 `port_profiles`（IO-Link，
   `port<N>/<channel>`）随 config 加载校验；IO-Link 可采集，端口上的设备身份先核对；
   `iaiops sensor import-iodd | check`。S4 的 `readiness` 部分一并交付：每个点「能否解码」，
-  裸地址点标「未声明类型」（站点因此从 ready 变为 degraded，采集照常）。
-- **仍未做**：S3 的 ISDU 低频诊断量；S4 的精度带进入 brain 变化判定、§16.4 信号种类检查；S5、S6。
+  裸地址点标「未声明类型」（「持续采集」能力因此从 ready 变为 degraded，采集照常）。
+- **仍未做**：`undecoded` 标记入库与 brain 拒用（规则 3 / D44 的后半句）；S3 的 ISDU 低频诊断量；S4 的精度带进入 brain 变化判定、§16.4 信号种类检查；S5、S6。
   真实 IO-Link 主站的身份字段编码、真实厂商 IODD 仍 `待核实`。
 
-每一步都遵守「支持版本是一等公民」（`CLAUDE.md` 铁律）：描述格式版本、已核实的设备清单
+每一步都遵守「支持版本是一等公民」（每个 connector 声明库 pin、规范版本、设备覆盖、传输与自测方式）：描述格式版本、已核实的设备清单
 与核实等级随发版更新，不确定项标 `待核实`。
 
 RS-485 传感器的现实前提：RS-485 只是物理层。上面跑的是 Modbus RTU 时 S2 直接覆盖；
