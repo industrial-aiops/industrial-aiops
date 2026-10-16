@@ -14,7 +14,8 @@ import functools
 import logging
 import os
 import threading
-from collections.abc import Callable
+import weakref
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Optional
 
@@ -23,6 +24,7 @@ from mcp.types import Icon, ToolAnnotations
 
 from iaiops import __version__
 from iaiops.core.governance import sanitize
+from iaiops.core.governance.origin import CallOrigin, new_session_id, origin_scope
 from iaiops.core.runtime.config import load_config
 from iaiops.core.runtime.connection import ConnectionManager, OTConnectionError
 from mcp_server.hints import hints_for
@@ -132,6 +134,51 @@ class _GovernedFastMCP(FastMCP):
             )(fn)
 
         return decorator
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> Sequence[Any] | dict[str, Any]:
+        """Every ``tools/call`` runs inside an MCP call-origin scope.
+
+        This is the MCP boundary: the governed tool the call reaches records
+        ``origin="mcp"``, the client's self-reported ``clientInfo`` and an id for
+        this client connection on its audit row.
+        """
+        with origin_scope(_mcp_origin(self)):
+            return await super().call_tool(name, arguments)
+
+
+# One opaque id per client connection (a ServerSession object). Weak keys so a
+# closed session's entry goes with it.
+_session_ids: "weakref.WeakKeyDictionary[Any, str]" = weakref.WeakKeyDictionary()
+_session_ids_lock = threading.Lock()
+
+
+def _session_id(session: Any) -> str:
+    with _session_ids_lock:
+        sid = _session_ids.get(session)
+        if sid is None:
+            sid = new_session_id("mcp")
+            _session_ids[session] = sid
+        return sid
+
+
+def _mcp_origin(server: FastMCP) -> CallOrigin:
+    """The origin of the current ``tools/call``: client info + connection id.
+
+    Outside a request (a test calling ``call_tool`` directly) there is no client
+    to name, but the call still came through the MCP boundary.
+    """
+    try:
+        session = server._mcp_server.request_context.session
+    except LookupError:
+        return CallOrigin(kind="mcp")
+    info = getattr(getattr(session, "client_params", None), "clientInfo", None)
+    return CallOrigin.for_mcp_client(
+        name=getattr(info, "name", "") or "",
+        version=getattr(info, "version", "") or "",
+        session=_session_id(session),
+    )
 
 
 mcp = _GovernedFastMCP(
