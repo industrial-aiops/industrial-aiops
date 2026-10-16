@@ -23,7 +23,7 @@ ExecStart=/usr/bin/podman run --rm --name iaiops \
   --publish 127.0.0.1:8000:8000 \
   --env IAIOPS_MCP=factory \
   --env IAIOPS_MCP_TRANSPORT=streamable-http --env IAIOPS_MCP_HOST=0.0.0.0 --env IAIOPS_MCP_PORT=8000 \
-  --env IAIOPS_MCP_TOKEN --env IAIOPS_MASTER_PASSWORD \
+  --env IAIOPS_MCP_TOKEN --env IAIOPS_MCP_ALLOWED_HOSTS --env IAIOPS_MASTER_PASSWORD \
   --volume iaiops-state:/home/iaiops/.iaiops \
   ghcr.io/industrial-aiops/iaiops:0.28.0-factory
 ExecStop=/usr/bin/podman stop iaiops

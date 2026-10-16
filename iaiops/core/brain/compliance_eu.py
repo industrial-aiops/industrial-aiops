@@ -271,13 +271,15 @@ CRA_ITEMS: tuple[dict, ...] = (
         "including authentication, identity or access management systems, and "
         "reporting on possible unauthorised access.",
         "product_evidence",
-        "HTTP callers must present a bearer token (a non-loopback bind will not start "
-        "without one); what any caller may do is gated by risk tier, policy deny rules "
-        "and named approvals; refused requests and denied calls are written to the "
-        "audit trail.",
-        "One shared token, not per-user identity or RBAC (delegated to the host / MCP "
-        "client); approver names are typed, not authenticated. Refusals are recorded, "
-        "not alerted on, unless the trail is forwarded to a SIEM that alerts.",
+        "HTTP callers off loopback must present a bearer token (a non-loopback bind "
+        "will not start without one); what any caller may do is gated by risk tier, "
+        "policy deny rules and named approvals; refused requests and denied calls are "
+        "written to the audit trail.",
+        "On loopback a token is optional: without one, any local user or process can "
+        "call an HTTP-served instance (a warning is logged). One shared token, not "
+        "per-user identity or RBAC (delegated to the host / MCP client); approver "
+        "names are typed, not authenticated. Refusals are recorded, not alerted on, "
+        "unless the trail is forwarded to a SIEM that alerts.",
         ("http_bearer_auth", "policy_engine", "approvals_moc", "secret_store", "audit_trail"),
         (_LEAST, _AUDIT),
     ),

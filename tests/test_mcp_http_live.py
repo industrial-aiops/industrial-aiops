@@ -335,3 +335,54 @@ def test_a_non_loopback_bind_without_a_token_does_not_start(tmp_path) -> None:
     )
     assert proc.returncode != 0
     assert "IAIOPS_MCP_TOKEN" in proc.stdout + proc.stderr
+
+
+def _start_on_all_interfaces(transport: str, tmp_path, **env: str) -> Iterator[_Server]:
+    """Like _start, but bound to 0.0.0.0 — the shape every shipped container uses."""
+    return _start(transport, tmp_path, IAIOPS_MCP_HOST="0.0.0.0", **env)  # noqa: S104
+
+
+@pytest.fixture
+def container_shaped_server(tmp_path) -> Iterator[_Server]:
+    yield from _start_on_all_interfaces("streamable-http", tmp_path, IAIOPS_MCP_TOKEN=_TOKEN)
+
+
+async def test_an_off_loopback_token_server_answers_a_remote_host_header(
+    container_shaped_server: _Server,
+) -> None:
+    """Review finding H1: FastMCP's loopback-only Host check answered 421 to every
+    caller that reached the container by its address or service name."""
+    import httpx
+
+    response = httpx.post(
+        container_shaped_server.url,
+        json={
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "t", "version": "1"},
+            },
+        },
+        headers={
+            "Authorization": f"Bearer {_TOKEN}",
+            "Accept": "application/json, text/event-stream",
+            "Host": f"iaiops:{container_shaped_server.port}",
+        },
+        timeout=10,
+    )
+    assert response.status_code == 200, (response.status_code, response.text[:200])
+
+
+@pytest.fixture
+def sse_token_server(tmp_path) -> Iterator[_Server]:
+    yield from _start("sse", tmp_path, IAIOPS_MCP_TOKEN=_TOKEN)
+
+
+async def test_the_sse_transport_also_requires_the_token(sse_token_server: _Server) -> None:
+    import httpx
+
+    response = httpx.get(sse_token_server.url, timeout=10)
+    assert response.status_code == 401

@@ -146,7 +146,10 @@ _MECHANISMS: dict[str, dict] = {
         "IAIOPS_MCP_TOKEN or IAIOPS_MCP_TOKEN_FILE (at least 32 characters); with a "
         "token configured, every request needs 'Authorization: Bearer <token>', "
         "compared in constant time; refusals are logged and audited (one row per "
-        "client per minute). Limits: one shared token, not a per-user identity; no "
+        "client per minute, at most 10 per minute in total, path truncated). Off "
+        "loopback the SDK's loopback-only Host check is replaced by "
+        "IAIOPS_MCP_ALLOWED_HOSTS, or off. Limits: on loopback a token is optional; "
+        "one shared token, not a per-user identity; no "
         "TLS of its own (terminate it in front, or keep the port on a trusted "
         "segment); stdio has no token — it inherits the OS identity of the client "
         "that spawned it.",
