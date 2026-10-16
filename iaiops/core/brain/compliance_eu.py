@@ -238,13 +238,17 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(b)",
         "Secure by default configuration, with the possibility to reset to the original state.",
         "partial_evidence",
-        "Defaults of a pip install: read-first, MCP device writes preview-only "
-        "(dry_run=True) and approver-gated, stdio transport (no listener). The edge "
-        "image runs non-root.",
-        "The Margo application package defaults to streamable-http on 0.0.0.0 with no "
-        "authentication of its own. IAIOPS_NO_EGRESS is opt-in. There is no "
-        "reset-to-original command.",
-        ("dry_run_undo", "approvals_moc", "mcp_profiles", "container_hardening"),
+        "Defaults: read-first, MCP device writes preview-only (dry_run=True) and "
+        "approver-gated, stdio transport for a pip install; the shipped containers "
+        "serve HTTP only with a bearer token (no token, no start) and run non-root.",
+        "IAIOPS_NO_EGRESS is opt-in. There is no reset-to-original command.",
+        (
+            "dry_run_undo",
+            "approvals_moc",
+            "mcp_profiles",
+            "http_bearer_auth",
+            "container_hardening",
+        ),
         (_LEAST,),
     ),
     _item(
@@ -266,15 +270,17 @@ CRA_ITEMS: tuple[dict, ...] = (
         "Protection from unauthorised access by appropriate control mechanisms, "
         "including authentication, identity or access management systems, and "
         "reporting on possible unauthorised access.",
-        "partial_evidence",
-        "What a caller may do is gated by risk tier, policy deny rules and named "
-        "approvals; credentials can be encrypted; denied calls are written to the "
-        "audit trail.",
-        "No authentication, identity or access management of callers in iaiops — "
-        "delegated to the host / MCP client, and the Margo package's HTTP transport "
-        "has none of its own. Denied calls are recorded, not alerted on, unless the "
-        "trail is forwarded to a SIEM that alerts.",
-        ("policy_engine", "approvals_moc", "secret_store", "audit_trail"),
+        "product_evidence",
+        "HTTP callers off loopback must present a bearer token (a non-loopback bind "
+        "will not start without one); what any caller may do is gated by risk tier, "
+        "policy deny rules and named approvals; refused requests and denied calls are "
+        "written to the audit trail.",
+        "On loopback a token is optional: without one, any local user or process can "
+        "call an HTTP-served instance (a warning is logged). One shared token, not "
+        "per-user identity or RBAC (delegated to the host / MCP client); approver "
+        "names are typed, not authenticated. Refusals are recorded, not alerted on, "
+        "unless the trail is forwarded to a SIEM that alerts.",
+        ("http_bearer_auth", "policy_engine", "approvals_moc", "secret_store", "audit_trail"),
         (_LEAST, _AUDIT),
     ),
     _item(
@@ -347,12 +353,13 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(j)",
         "Designed, developed and produced to limit attack surfaces, including external interfaces.",
         "product_evidence",
-        "Only the protocols a site selects are exposed; a pip install speaks stdio; "
-        "egress tools can be withheld at registration; minimal non-root image.",
-        "The Margo package exposes an HTTP interface on 0.0.0.0 by default, guarded "
-        "only by an optional IP allowlist. IAIOPS_NO_EGRESS is opt-in and covers MCP "
-        "tools only.",
-        ("mcp_profiles", "no_egress_gate", "container_hardening"),
+        "Only the protocols a site selects are exposed; a pip install speaks stdio; the "
+        "containers' one inbound port is token-authenticated with an IP allowlist as a "
+        "second layer; egress tools can be withheld at registration; minimal non-root "
+        "image.",
+        "IAIOPS_NO_EGRESS is opt-in and covers MCP tools only. The HTTP port has no TLS "
+        "of its own.",
+        ("mcp_profiles", "http_bearer_auth", "no_egress_gate", "container_hardening"),
         (_ZONE,),
     ),
     _item(

@@ -292,7 +292,6 @@ def test_partial_evidence_rows_name_a_mechanism_and_what_is_missing():
     "ref",
     [
         "CRA Annex I Part I(2)(c)",  # publishing releases is not an update mechanism
-        "CRA Annex I Part I(2)(d)",  # no authentication of callers
         "CRA Annex I Part I(2)(m)",  # no remove-all path
         "CRA Annex I Part II(2)",  # no remediation process
         "CRA Annex I Part II(7)",  # wheels unsigned
@@ -365,6 +364,16 @@ def test_transport_defaults_match_the_fact(monkeypatch):
     package = (REPO / "deploy/margo/package.compose.yaml").read_text(encoding="utf-8")
     assert "IAIOPS_MCP_TRANSPORT:-streamable-http" in package
     assert "streamable-http on 0.0.0.0" in MECHANISMS["mcp_profiles"]["fact"]
+    assert "IAIOPS_MCP_TOKEN:" in package and "IAIOPS_MCP_TOKEN_FILE:" in package
+
+
+def test_the_token_fact_matches_the_refusal():
+    from mcp_server.http_auth import MIN_TOKEN_LENGTH, require_token_for_bind
+    from mcp_server.transport import TransportError
+
+    with pytest.raises(TransportError):
+        require_token_for_bind("0.0.0.0", None)
+    assert f"at least {MIN_TOKEN_LENGTH} characters" in MECHANISMS["http_bearer_auth"]["fact"]
 
 
 def test_plaintext_env_fallback_is_admitted():

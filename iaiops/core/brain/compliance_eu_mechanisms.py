@@ -132,12 +132,31 @@ _MECHANISMS: dict[str, dict] = {
         "fact": "IAIOPS_MCP selects only the protocols a site needs, so unused "
         "connectors are not exposed. A pip install speaks stdio unless "
         "IAIOPS_MCP_TRANSPORT asks for HTTP; the Margo application package defaults "
-        "to streamable-http on 0.0.0.0 with an optional IP allowlist and no "
-        "authentication of its own.",
+        "to streamable-http on 0.0.0.0, which starts only with a bearer token (see "
+        "http_bearer_auth).",
         "anchors": (
             "py:mcp_server.profiles:resolve_selection",
             "py:mcp_server.transport:resolve_transport",
             "file:deploy/margo/package.compose.yaml#IAIOPS_MCP_TRANSPORT:-streamable-http",
+        ),
+    },
+    "http_bearer_auth": {
+        "name": "Bearer-token authentication (HTTP/SSE transports)",
+        "fact": "Off loopback the HTTP/SSE server refuses to start without "
+        "IAIOPS_MCP_TOKEN or IAIOPS_MCP_TOKEN_FILE (at least 32 characters); with a "
+        "token configured, every request needs 'Authorization: Bearer <token>', "
+        "compared in constant time; refusals are logged and audited (one row per "
+        "client per minute, at most 10 per minute in total, path truncated). Off "
+        "loopback the SDK's loopback-only Host check is replaced by "
+        "IAIOPS_MCP_ALLOWED_HOSTS, or off. Limits: on loopback a token is optional; "
+        "one shared token, not a per-user identity; no "
+        "TLS of its own (terminate it in front, or keep the port on a trusted "
+        "segment); stdio has no token — it inherits the OS identity of the client "
+        "that spawned it.",
+        "anchors": (
+            "py:mcp_server.http_auth:require_token_for_bind",
+            "py:mcp_server.http_auth:bearer_token_app",
+            "file:mcp_server/transport.py#require_token_for_bind(host, token)",
         ),
     },
     "secret_store": {

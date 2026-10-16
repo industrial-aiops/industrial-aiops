@@ -53,16 +53,25 @@ Margo/edge deployment fronts it as a **socket** instead — the shape the app-pa
 IAIOPS_MCP_TRANSPORT=streamable-http   # or: sse
 IAIOPS_MCP_HOST=0.0.0.0                 # bind inside the container
 IAIOPS_MCP_PORT=8000                    # the one inbound MCP tool port (not an OT port)
+IAIOPS_MCP_TOKEN=<openssl rand -base64 48>  # REQUIRED off loopback: 'Authorization: Bearer <token>'
 IAIOPS_ALLOWLIST_IPS=10.0.0.0/24        # who may call it (403 otherwise) — set to the orchestrator
 ```
+
+A socket bound to anything but loopback **refuses to start without a token** (or
+`IAIOPS_MCP_TOKEN_FILE` pointing at a mounted secret — preferred, the value then never shows in
+`docker inspect`). Off loopback the SDK's loopback-only Host check is replaced: list accepted Host
+headers in `IAIOPS_MCP_ALLOWED_HOSTS` (e.g. `iaiops:*,10.0.0.5:8000`), or leave it unset and rely
+on the token. Margo leaves workload-to-workload
+authentication to the application, so iaiops does it; the IP allowlist is a second layer, not the
+authentication.
 
 The OT side stays strictly **outbound** to the endpoints in `config.yaml`; the socket port is only
 the tool interface for the orchestrator/agent.
 
 ## Why this is a good Margo citizen (already)
 
-- **Non-root, read-only rootfs, outbound-only to OT** — the single inbound port is the IP-allowlisted
-  MCP tool interface, not an OT listener.
+- **Non-root, read-only rootfs, outbound-only to OT** — the single inbound port is the token-
+  authenticated, IP-allowlisted MCP tool interface, not an OT listener.
 - **Governed by construction** — audit / budget / risk-tier / undo + MOC gating wrap every tool.
 - **Air-gap friendly** — pure-Python, offline wheelhouse install, encrypted local secrets, optional
   on-box LLM brain (data never leaves the plant).
