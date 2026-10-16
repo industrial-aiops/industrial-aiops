@@ -1,0 +1,79 @@
+# Publish the sdist + wheel to PyPI with Trusted Publishing (OIDC).
+#
+# WHY THIS EXISTS
+# ---------------
+# Releases were uploaded by hand with twine and a long-lived API token, and that
+# token was pasted into a chat session more than once. A token that can publish
+# every version of this package should not exist on a laptop at all. With
+# Trusted Publishing, PyPI trusts THIS workflow in THIS repository: GitHub mints
+# a short-lived OIDC token per run and there is no secret to leak.
+#
+# ONE-TIME SETUP (on pypi.org, by a project owner — not automatable from here)
+#   pypi.org → project `iaiops` → Settings → Publishing → Add a trusted publisher
+#     owner: industrial-aiops   repository: industrial-aiops
+#     workflow: publish-pypi.yml   environment: pypi
+#   Then delete the old API token(s) under Account settings → API tokens.
+#   Until that is done this workflow fails at the upload step with an OIDC
+#   "invalid-publisher" error and changes nothing.
+#
+# ORDER
+#   tag push v*.*.* → this job uploads → publish-image and publish-mcp, which
+#   already poll the PyPI SIMPLE index, pick the release up. No manual upload.
+#   `skip-existing` makes a re-run (or an upload already done by hand) a no-op
+#   rather than a red run.
+name: publish-pypi
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      # The version comes from pyproject.toml, which the release commit bumps.
+      # Verified rather than rewritten: a mismatch means the release commit was
+      # incomplete, and publishing it would put the wrong number on PyPI forever.
+      - name: Verify pyproject version matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::tag v$tag but pyproject.toml says $ver"
+            exit 1
+          fi
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # OIDC — PyPI's trusted publisher matches on this
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true

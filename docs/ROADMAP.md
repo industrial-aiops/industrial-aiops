@@ -496,8 +496,9 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
 Latest published: base **`iaiops 0.21.1`**, energy **`iaiops-energy 0.1.11`** — PyPI +
 GitHub Release (with the signed Margo package) + MCP registry + SkillHub ×10 + 5 signed
 profile images. Energy carries no unreleased commits; its `iaiops>=0.20.3` pin picks up
-the current base on a fresh install. Glama re-indexes manually and is the one channel
-nothing here can automate.
+the current base on a fresh install. Glama needs no per-release step: both repos are
+listed and the page re-renders the GitHub README on its own schedule (re-checked
+2026-10-13: the listing showed 0.28.0 with nothing submitted).
 
 Since the 2026-07-19 block below: **0.18–0.20.x** (audit on both front-ends via a central
 `_govern.py`, effect-based write risk, MCP tool annotations derived from
@@ -878,11 +879,16 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   Releases since then (through 0.17.0) have used the credentials already stored in
   `~/.pypirc` with no token in chat — but if that file still holds the exposed token,
   the exposure is live. Revoking it is the only fix; nothing in this repo can do it.
+  **Structural fix (2026-10-15):** `.github/workflows/publish-pypi.yml` publishes on tag
+  via **Trusted Publishing** (OIDC) — once the trusted publisher is registered on pypi.org,
+  no API token needs to exist at all, and the old one can be deleted rather than rotated.
+  The release then needs no local upload: `gh release create --target main vX.Y.Z` tags,
+  and PyPI → images → registry follow in CI.
 - ✅ Published all channels: **iaiops 0.21.1** + **iaiops-energy 0.1.11** — PyPI, GitHub
   Releases (with the signed Margo package), the MCP registry
   (`io.github.industrial-aiops/iaiops` + `…/iaiops-energy`, auto-published from CI via
-  OIDC on tag), SkillHub ×10, and 5 signed profile images. Glama is manual and is the
-  only channel that cannot be automated from here.
+  OIDC on tag), SkillHub ×10, and 5 signed profile images. Glama needs no per-release
+  step — it re-renders the GitHub README itself (re-checked 2026-10-13).
 - **Release order that works** (learned twice): PyPI first — the image and registry
   workflows both gate on the PyPI simple index — then `gh release create --target main`
   so the release exists before the Margo-package job attaches to it. If one image matrix
