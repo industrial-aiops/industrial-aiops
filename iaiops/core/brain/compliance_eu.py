@@ -224,7 +224,8 @@ CRA_ITEMS: tuple[dict, ...] = (
         "Made available on the market without known exploitable vulnerabilities.",
         "product_evidence",
         "Every change scans iaiops's own source (bandit, 0 Medium+) and the locked "
-        "dependency set (pip-audit); a known vulnerability fails the build. The "
+        "dependency set (pip-audit); a known vulnerability fails the PR gate and "
+        "blocks the PyPI upload of a release. The "
         "direct dependencies' minimum versions are raised past the versions the first "
         "scan found vulnerable.",
         "The scan covers the lock, not each install: transitive dependencies are not "
@@ -272,13 +273,15 @@ CRA_ITEMS: tuple[dict, ...] = (
         "including authentication, identity or access management systems, and "
         "reporting on possible unauthorised access.",
         "product_evidence",
-        "HTTP callers must present a bearer token (a non-loopback bind will not start "
-        "without one); what any caller may do is gated by risk tier, policy deny rules "
-        "and named approvals; refused requests and denied calls are written to the "
-        "audit trail.",
-        "One shared token, not per-user identity or RBAC (delegated to the host / MCP "
-        "client); approver names are typed, not authenticated. Refusals are recorded, "
-        "not alerted on, unless the trail is forwarded to a SIEM that alerts.",
+        "HTTP callers off loopback must present a bearer token (a non-loopback bind "
+        "will not start without one); what any caller may do is gated by risk tier, "
+        "policy deny rules and named approvals; refused requests and denied calls are "
+        "written to the audit trail.",
+        "On loopback a token is optional: without one, any local user or process can "
+        "call an HTTP-served instance (a warning is logged). One shared token, not "
+        "per-user identity or RBAC (delegated to the host / MCP client); approver "
+        "names are typed, not authenticated. Refusals are recorded, not alerted on, "
+        "unless the trail is forwarded to a SIEM that alerts.",
         ("http_bearer_auth", "policy_engine", "approvals_moc", "secret_store", "audit_trail"),
         (_LEAST, _AUDIT),
     ),
@@ -385,10 +388,11 @@ CRA_ITEMS: tuple[dict, ...] = (
         "product_evidence",
         "Tool calls and CLI commands — reads, writes, denials, failures — are "
         "recorded in a hash-chained trail and can be streamed to a SIEM; the user can "
-        "opt out of recording successful reads.",
-        "The opt-out is narrow on purpose: device writes, denials and failures cannot "
-        "be opted out, to keep change control tamper-evident; whether a partial "
-        "opt-out answers the clause is the manufacturer's assessment — 待核实. When "
+        "opt out of recording successful declared reads.",
+        "The opt-out is narrow on purpose: writes and their previews, egress, local "
+        "state changes, denials, failures and CLI commands cannot be opted out, to "
+        "keep change control tamper-evident; whether a partial opt-out answers the "
+        "clause is the manufacturer's assessment — 待核实. When "
         "audit.db is unwritable, low/medium calls run unrecorded. Archives are "
         "deleted after five rotations. Monitoring is the SIEM's, not iaiops's.",
         ("audit_trail", "audit_hash_chain", "audit_forward", "audit_rotation", "audit_opt_out"),

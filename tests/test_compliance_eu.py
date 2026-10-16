@@ -378,7 +378,7 @@ def test_transport_defaults_match_the_fact(monkeypatch):
     package = (REPO / "deploy/margo/package.compose.yaml").read_text(encoding="utf-8")
     assert "IAIOPS_MCP_TRANSPORT:-streamable-http" in package
     assert "streamable-http on 0.0.0.0" in MECHANISMS["mcp_profiles"]["fact"]
-    assert "IAIOPS_MCP_TOKEN:?" in package, "the package must refuse to deploy without a token"
+    assert "IAIOPS_MCP_TOKEN:" in package and "IAIOPS_MCP_TOKEN_FILE:" in package
 
 
 def test_the_token_fact_matches_the_refusal():

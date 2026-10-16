@@ -26,10 +26,15 @@ services:
       IAIOPS_MCP_TRANSPORT: ${IAIOPS_MCP_TRANSPORT:-streamable-http}
       IAIOPS_MCP_HOST: "0.0.0.0"
       IAIOPS_MCP_PORT: "8000"
-      # Bearer token every MCP request must carry ('Authorization: Bearer <token>'). REQUIRED:
-      # a non-loopback bind without one refuses to start. Inject from the secret facility; generate
-      # with `openssl rand -base64 48`. Or mount a secret file and set IAIOPS_MCP_TOKEN_FILE instead.
-      IAIOPS_MCP_TOKEN: ${IAIOPS_MCP_TOKEN:?set in the host secret store (openssl rand -base64 48)}
+      # Bearer token every MCP request must carry ('Authorization: Bearer <token>'). REQUIRED: the
+      # server refuses to start on this non-loopback bind without one. Set EXACTLY ONE of the two —
+      # the value from the secret facility (`openssl rand -base64 48`), or a path to a mounted
+      # secret file (preferred: the value then never shows in `docker inspect`). Empty = unset.
+      IAIOPS_MCP_TOKEN: ${IAIOPS_MCP_TOKEN:-}
+      IAIOPS_MCP_TOKEN_FILE: ${IAIOPS_MCP_TOKEN_FILE:-}
+      # Optional: Host headers to accept (comma-separated host:port, '*' = any port), e.g.
+      # "iaiops:*,10.0.0.5:8000". Unset = no Host check; the token is the control.
+      IAIOPS_MCP_ALLOWED_HOSTS: ${IAIOPS_MCP_ALLOWED_HOSTS:-}
       IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}
       # Secret REFERENCE model: inject from the host secret facility — never hardcode.
       IAIOPS_MASTER_PASSWORD: ${IAIOPS_MASTER_PASSWORD:?set in the host secret store}

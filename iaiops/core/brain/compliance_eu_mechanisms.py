@@ -33,12 +33,15 @@ _MECHANISMS: dict[str, dict] = {
     },
     "audit_opt_out": {
         "name": "Audit opt-out for reads (IAIOPS_AUDIT_OPT_OUT=reads)",
-        "fact": "IAIOPS_AUDIT_OPT_OUT=reads stops recording successful low/medium-risk "
-        "calls; high/critical calls, denials and failures are always recorded, the "
-        "opt-out writes a marker row once per process, and doctor and the evidence "
-        "zip report it. Any other value keeps recording and warns. Limits: there is "
-        "no opt-out for writes, by design.",
+        "fact": "IAIOPS_AUDIT_OPT_OUT=reads stops recording successful calls of tools "
+        "that are reads by declaration — tagged [READ], low/medium risk, no write mode, "
+        "no egress. Device writes and their previews, data shipped off-box, low-risk "
+        "local state changes, denials, failures and every CLI command are always "
+        "recorded; the opt-out writes a marker row (retried until it lands), and "
+        "doctor and the evidence zip report it. Any other value keeps recording and "
+        "warns. Limits: there is no opt-out for anything but declared reads, by design.",
         "anchors": (
+            "py:iaiops.core.governance.audit_opt_out:eligible",
             "py:iaiops.core.governance.audit_opt_out:skips",
             "file:iaiops/core/governance/decorators.py#audit_opt_out.skips(",
         ),
@@ -158,7 +161,10 @@ _MECHANISMS: dict[str, dict] = {
         "IAIOPS_MCP_TOKEN or IAIOPS_MCP_TOKEN_FILE (at least 32 characters); with a "
         "token configured, every request needs 'Authorization: Bearer <token>', "
         "compared in constant time; refusals are logged and audited (one row per "
-        "client per minute). Limits: one shared token, not a per-user identity; no "
+        "client per minute, at most 10 per minute in total, path truncated). Off "
+        "loopback the SDK's loopback-only Host check is replaced by "
+        "IAIOPS_MCP_ALLOWED_HOSTS, or off. Limits: on loopback a token is optional; "
+        "one shared token, not a per-user identity; no "
         "TLS of its own (terminate it in front, or keep the port on a trusted "
         "segment); stdio has no token — it inherits the OS identity of the client "
         "that spawned it.",
@@ -273,12 +279,14 @@ _MECHANISMS: dict[str, dict] = {
     "dependency_audit": {
         "name": "Dependency-vulnerability scan (CI)",
         "fact": "Every change exports the locked runtime dependency set (all extras, no "
-        "dev group) and runs pip-audit on it; a known vulnerability fails the build "
-        "unless .github/pip-audit-ignore.txt lists it with a reason. Limits: it scans "
+        "dev group) and runs pip-audit on it, and the release workflow repeats the "
+        "scan before uploading to PyPI; a known vulnerability fails either unless "
+        ".github/pip-audit-ignore.txt lists it with a reason. Limits: it scans "
         "the lock, not each install (a pip install resolves declared ranges); it runs "
         "per change, not continuously against released versions.",
         "anchors": (
             "file:.github/workflows/ci.yml#uvx pip-audit -r runtime-requirements.txt",
+            "file:.github/workflows/publish-pypi.yml#uvx pip-audit -r runtime-requirements.txt",
             "file:.github/pip-audit-ignore.txt",
         ),
     },

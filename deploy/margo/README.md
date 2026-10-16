@@ -58,7 +58,10 @@ IAIOPS_ALLOWLIST_IPS=10.0.0.0/24        # who may call it (403 otherwise) — se
 ```
 
 A socket bound to anything but loopback **refuses to start without a token** (or
-`IAIOPS_MCP_TOKEN_FILE` pointing at a mounted secret). Margo leaves workload-to-workload
+`IAIOPS_MCP_TOKEN_FILE` pointing at a mounted secret — preferred, the value then never shows in
+`docker inspect`). Off loopback the SDK's loopback-only Host check is replaced: list accepted Host
+headers in `IAIOPS_MCP_ALLOWED_HOSTS` (e.g. `iaiops:*,10.0.0.5:8000`), or leave it unset and rely
+on the token. Margo leaves workload-to-workload
 authentication to the application, so iaiops does it; the IP allowlist is a second layer, not the
 authentication.
 

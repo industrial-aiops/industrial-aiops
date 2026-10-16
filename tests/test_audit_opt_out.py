@@ -34,17 +34,38 @@ def _isolate(tmp_path, monkeypatch):
 
 @governed_tool(risk_level="low")
 def _read() -> dict:
+    """[READ][risk=low] A read by declaration."""
     return {"value": 1}
 
 
 @governed_tool(risk_level="low")
 def _failing_read() -> dict:
+    """[READ][risk=low] A read that fails."""
     raise RuntimeError("device unreachable")
 
 
 @governed_tool(risk_level="high", preview_param="dry_run")
 def _write(dry_run: bool = True) -> dict:
+    """[WRITE][risk=HIGH] A device write."""
     return {"written": not dry_run}
+
+
+@governed_tool(risk_level="low", egress=True)
+def _ship() -> dict:
+    """[READ][risk=low] Tagged READ, but ships data off-box."""
+    return {"sent": 1}
+
+
+@governed_tool(risk_level="low")
+def _record_case() -> dict:
+    """[WRITE][risk=low] A low-risk local state change."""
+    return {"case": 1}
+
+
+@governed_tool(risk_level="low")
+def _untagged() -> dict:
+    """No tag — like every CLI command."""
+    return {"value": 1}
 
 
 def _rows(tool: str | None = None) -> list[dict]:
@@ -153,3 +174,71 @@ def test_doctor_says_reads_are_not_recorded(monkeypatch, capsys):
     monkeypatch.setenv(audit_opt_out.OPT_OUT_ENV, "reads")
     _report_audit_opt_out()
     assert "NOT recorded" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "call",
+    [_ship, _record_case, _untagged, lambda: _write(dry_run=True)],
+    ids=["egress", "low-risk-write", "untagged", "write-preview"],
+)
+def test_only_declared_reads_can_go_unrecorded(monkeypatch, call):
+    """Review finding H2: the opt-out keyed on effective risk alone, so it also
+    silenced egress, low-risk state changes and previews of device writes."""
+    monkeypatch.setenv(audit_opt_out.OPT_OUT_ENV, "reads")
+    try:
+        call()
+    except Exception:  # noqa: BLE001 — a denied preview still writes its row
+        pass
+    tools = {r["tool"] for r in _rows()} - {audit_opt_out.MARKER_TOOL}
+    assert tools, "a non-read call went unrecorded under the read opt-out"
+
+
+def test_no_registered_egress_or_write_tool_is_eligible(full_tool_registry):
+    import inspect
+
+    for name, tool in full_tool_registry.items():
+        fn = tool.fn
+        ok = audit_opt_out.eligible(
+            risk_level=getattr(fn, "_risk_level", "low"),
+            egress=bool(getattr(fn, "_egress", False)),
+            preview_param=getattr(fn, "_preview_param", None),
+            doc=inspect.getdoc(fn),
+        )
+        if getattr(fn, "_egress", False) or getattr(fn, "_preview_param", None):
+            assert not ok, name
+    assert not audit_opt_out.eligible(
+        risk_level="low",
+        egress=True,
+        preview_param=None,
+        doc=inspect.getdoc(full_tool_registry["historian_push"].fn),
+    )
+
+
+def test_cli_commands_are_never_opted_out(monkeypatch):
+    from typer.testing import CliRunner
+
+    from iaiops.cli._root import app
+
+    monkeypatch.setenv(audit_opt_out.OPT_OUT_ENV, "reads")
+    CliRunner().invoke(app, ["protocols"])
+    recorded = [r for r in _rows() if r["tool"] != audit_opt_out.MARKER_TOOL]
+    assert recorded, "a CLI command went unrecorded under the read opt-out"
+
+
+def test_a_failed_marker_write_is_retried(monkeypatch):
+    """Review finding M3: the flag was set before the write and never cleared."""
+
+    class _Broken:
+        def __init__(self):
+            self.calls = 0
+
+        def log(self, **_kw):
+            self.calls += 1
+            return False
+
+    broken = _Broken()
+    audit_opt_out.mark_once(broken)
+    audit_opt_out.mark_once(broken)
+    assert broken.calls == 2
+    audit_opt_out.mark_once(get_engine())
+    assert len(_rows(audit_opt_out.MARKER_TOOL)) == 1
