@@ -155,10 +155,11 @@ configuration:
           name: MCP bearer token
           description: >-
             Every MCP request must carry it as 'Authorization: Bearer <token>'; the socket transport
-            refuses to start without one (at least 32 characters, e.g. openssl rand -base64 48).
-            Same reference model as the master password — never stored in this descriptor.
+            refuses to start without one (at least 32 printable ASCII characters, e.g. openssl
+            rand -base64 48). Same reference model as the master password — never stored in this
+            descriptor.
           immutable: false
-          schema: passwordSchema
+          schema: tokenSchema
   schema:
     # SelectValidationSchema — the five edition profiles.
     - name: profileSchema
@@ -186,4 +187,10 @@ configuration:
     - name: passwordSchema
       dataType: string
       minLength: 8
+      allowEmpty: false
+    # Matches the server's own rule (mcp_server/http_auth.py MIN_TOKEN_LENGTH): a WFM must not
+    # accept a token the application then refuses at start.
+    - name: tokenSchema
+      dataType: string
+      minLength: 32
       allowEmpty: false

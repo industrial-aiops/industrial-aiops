@@ -107,11 +107,48 @@ def test_a_short_token_is_refused(monkeypatch):
         load_token()
 
 
-def test_an_empty_token_is_refused_rather_than_read_as_unset(monkeypatch):
-    """`IAIOPS_MCP_TOKEN=` is someone trying to set one — not a request for no auth."""
+def test_an_empty_token_variable_counts_as_unset(monkeypatch, caplog):
+    """Compose files pass `${IAIOPS_MCP_TOKEN:-}`: empty must not block the file route.
+
+    Off loopback, unset still means "refuse to start", so this cannot open a hole.
+    """
+    import logging
+
     monkeypatch.setenv(TOKEN_ENV, "   ")
+    with caplog.at_level(logging.WARNING):
+        assert load_token() is None
+    assert TOKEN_ENV in caplog.text
     with pytest.raises(TransportError):
+        require_token_for_bind("0.0.0.0", load_token())
+
+
+def test_an_empty_token_variable_beside_a_token_file_uses_the_file(monkeypatch, tmp_path):
+    secret = tmp_path / "token"
+    secret.write_text(GOOD, encoding="utf-8")
+    secret.chmod(0o600)
+    monkeypatch.setenv(TOKEN_ENV, "")
+    monkeypatch.setenv(TOKEN_FILE_ENV, str(secret))
+    assert load_token() == GOOD
+
+
+@pytest.mark.parametrize("bad", ["é" * 40, "tab\there" + "x" * 32, "space here" + "x" * 32])
+def test_a_token_that_cannot_survive_an_http_header_is_refused(monkeypatch, bad):
+    """Headers arrive as latin-1; a non-ASCII or spaced token could never match."""
+    monkeypatch.setenv(TOKEN_ENV, bad)
+    with pytest.raises(TransportError, match="printable ASCII"):
         load_token()
+
+
+def test_a_world_readable_token_file_is_warned_about(monkeypatch, tmp_path, caplog):
+    import logging
+
+    secret = tmp_path / "token"
+    secret.write_text(GOOD, encoding="utf-8")
+    secret.chmod(0o644)
+    monkeypatch.setenv(TOKEN_FILE_ENV, str(secret))
+    with caplog.at_level(logging.WARNING):
+        assert load_token() == GOOD
+    assert "readable" in caplog.text
 
 
 # ─── the middleware ──────────────────────────────────────────────────────────
@@ -191,3 +228,89 @@ def test_a_flood_of_refusals_does_not_flood_the_audit_trail():
         client.post("/mcp")
     rows = [r for r in get_engine().query(limit=100) if r["tool"] == "mcp_http_auth"]
     assert len(rows) == 1, "one client hammering the port wrote one row per request"
+
+
+def test_a_huge_path_is_truncated_in_the_audit_row():
+    from iaiops.core.governance.audit import get_engine
+
+    _client().post("/mcp" + "A" * 5000)
+    rows = [r for r in get_engine().query(limit=50) if r["tool"] == "mcp_http_auth"]
+    assert len(rows[0]["params"]) < 600
+
+
+def test_refusals_from_many_addresses_are_capped_globally():
+    """Rotating source addresses must not buy one audit row each."""
+    from iaiops.core.governance.audit import get_engine
+    from mcp_server.http_auth import GLOBAL_ROWS_PER_WINDOW, _RefusalAudit
+
+    audit = _RefusalAudit()
+    for n in range(200):
+        audit.record(f"2001:db8::{n:x}", "/mcp")
+    rows = [r for r in get_engine().query(limit=500) if r["tool"] == "mcp_http_auth"]
+    assert len(rows) == GLOBAL_ROWS_PER_WINDOW
+    assert audit.tracked_clients() <= 1024
+
+
+# ─── host checking off loopback ──────────────────────────────────────────────
+
+
+def test_off_loopback_without_allowed_hosts_disables_the_host_check():
+    """The token is the control; a DNS-rebinding page cannot present it."""
+    from mcp_server.http_auth import transport_security_for
+
+    settings = transport_security_for("0.0.0.0", GOOD, None)
+    assert settings.enable_dns_rebinding_protection is False
+
+
+def test_off_loopback_with_allowed_hosts_checks_them():
+    from mcp_server.http_auth import transport_security_for
+
+    settings = transport_security_for("0.0.0.0", GOOD, "iaiops:*, 10.0.0.5:8000")
+    assert settings.enable_dns_rebinding_protection is True
+    assert settings.allowed_hosts == ["iaiops:*", "10.0.0.5:8000"]
+
+
+def test_loopback_keeps_the_sdk_default():
+    from mcp_server.http_auth import transport_security_for
+
+    assert transport_security_for("127.0.0.1", None, None) is None
+
+
+def test_a_token_server_answers_a_non_loopback_host_header(monkeypatch):
+    """The 421 the review found: Host: 10.0.0.5 with a correct token must get through."""
+    from mcp.server.fastmcp import FastMCP
+
+    from mcp_server.http_auth import transport_security_for
+
+    server = FastMCP(
+        "t", host="0.0.0.0", transport_security=transport_security_for("0.0.0.0", GOOD, None)
+    )
+    app = bearer_token_app(server.streamable_http_app(), GOOD)
+
+    import anyio
+    import httpx
+
+    async def _go():
+        transport = httpx.ASGITransport(app=app)
+        async with server.session_manager.run():
+            async with httpx.AsyncClient(transport=transport, base_url="http://10.0.0.5:8000") as c:
+                return await c.post(
+                    "/mcp",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "initialize",
+                        "params": {
+                            "protocolVersion": "2025-06-18",
+                            "capabilities": {},
+                            "clientInfo": {"name": "t", "version": "1"},
+                        },
+                    },
+                    headers={
+                        "Authorization": f"Bearer {GOOD}",
+                        "Accept": "application/json, text/event-stream",
+                    },
+                )
+
+    response = anyio.run(_go)
+    assert response.status_code == 200, (response.status_code, response.text[:200])

@@ -34,8 +34,11 @@ def reset_cmd(
     console.print(
         f"[red]DESTRUCTIVE:[/] removes {plan['entry_count']} item(s) under "
         f"{', '.join(plan['roots'])} — configuration, encrypted secrets, the audit "
-        "trail and its archives, undo and approval state, collected history."
+        "trail and its archives, undo and approval state, collected history. "
+        f"{len(plan['kept'])} unrecognised item(s) there are kept."
     )
+    for note in plan["notes"]:
+        console.print(f"[yellow]! {note}[/]")
     if not typer.confirm("Has the evidence you may need been exported?", default=False):
         raise typer.Abort()
     if not typer.confirm("Final confirm — remove everything now?", default=False):

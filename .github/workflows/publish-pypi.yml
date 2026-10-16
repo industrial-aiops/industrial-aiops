@@ -54,6 +54,21 @@ jobs:
             exit 1
           fi
 
+      # The PR gate (ci.yml dependency-audit) does not guard a tag cut from a
+      # commit that never went through CI. Same scan, same ignore file, here too:
+      # the CRA crosswalk (Annex I Part I(2)(a)) says a known vulnerability stops
+      # a release, and this is what makes that true.
+      - name: Dependency-vulnerability scan (blocks the release)
+        run: |
+          uv export --format requirements.txt --no-dev --all-extras \
+            --no-emit-project --no-hashes -o runtime-requirements.txt
+          ignores=()
+          while read -r id _ || [ -n "$id" ]; do
+            [ -n "$id" ] && ignores+=(--ignore-vuln "$id")
+          done < <(grep -v '^[[:space:]]*#' .github/pip-audit-ignore.txt || true)
+          uvx pip-audit -r runtime-requirements.txt --disable-pip --no-deps \
+            --progress-spinner off "${ignores[@]}"
+
       - name: Build sdist + wheel
         run: uv build
 
@@ -90,7 +105,9 @@ jobs:
   # pip install resolves the declared ranges and can differ, which the SBOM's own
   # metadata cannot say, so the release asset name says "locked".
   sbom:
-    needs: build
+    # After `upload`: an SBOM on a release whose PyPI upload failed would describe
+    # a release that does not exist.
+    needs: upload
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -108,9 +125,15 @@ jobs:
           sha256sum "$out" > "$out.sha256"
           echo "SBOM=$out" >> "$GITHUB_ENV"
 
-      # The release is created by `gh release create`, which pushes the tag that
-      # started this run, so it exists by now.
+      # The release flow is `gh release create`, which pushes the tag that started
+      # this run, so the release normally exists. A bare `git push --tags` has no
+      # release: say so instead of failing with gh's generic "release not found".
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$SBOM" "$SBOM.sha256" --clobber
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "::error::no GitHub release for $GITHUB_REF_NAME — create it with gh release create, then re-run this job to attach the SBOM"
+            exit 1
+          fi
+          gh release upload "$GITHUB_REF_NAME" "$SBOM" "$SBOM.sha256" --clobber
