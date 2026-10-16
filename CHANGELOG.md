@@ -18,26 +18,6 @@
   through retained archives, stops at a mid-run rotation, and refuses when it
   cannot place itself (see the `iaiops audit forward` entry below).
 
-### Fixed
-
-- **The shipped socket deployments refused every caller.** `IAIOPS_ALLOWLIST_IPS`
-  defaulted to `127.0.0.1/32` in the Margo package and compose file, the airgap
-  compose and the Siemens IE app, while the port is published as
-  `127.0.0.1:8000:8000`. Behind that mapping the server sees a host caller as the
-  bridge gateway, not 127.0.0.1 — verified on Docker 27.5: a correct bearer token
-  got `403`, and the server logged the caller as `172.17.0.1`. Apps on a
-  container network arrive from their own addresses, refused the same way. The
-  default is now **off** (the bearer token, mandatory off loopback, is the
-  authentication); set the allowlist to the orchestrator's address if you want
-  the second layer. The Margo descriptor's `allowlistIps` default follows.
-- The server now warns at start when a loopback-only allowlist guards a
-  non-loopback bind, naming the bridge-gateway reason.
-- **New CI step** (`scripts/socket_defaults_check.sh`, immutable-host job): runs
-  the image with `package.compose.yaml`'s own allowlist default and calls it from
-  the host through the port mapping; anything but `200` fails. It fails on the
-  old default and passes on the new one. No test had ever gone through a port
-  mapping, which is why this shipped.
-
 ### Changed — Margo descriptor migrated to v1.0.0-rc.3
 
 - **`deploy/margo/margo.yaml` was invalid against the current Margo schema.**
@@ -280,6 +260,24 @@
   cursor file, which used to restart silently from 0. A bare-id cursor from an
   older iaiops is honoured only while no rotation has happened since. Output
   gains `cursor_file`, because an id alone no longer says where the cursor is.
+
+- **The shipped socket deployments refused every caller.** `IAIOPS_ALLOWLIST_IPS`
+  defaulted to `127.0.0.1/32` in the Margo package and compose file, the airgap
+  compose and the Siemens IE app, while the port is published as
+  `127.0.0.1:8000:8000`. Behind that mapping the server sees a host caller as the
+  bridge gateway, not 127.0.0.1 — verified on Docker 27.5: a correct bearer token
+  got `403`, and the server logged the caller as `172.17.0.1`. Apps on a
+  container network arrive from their own addresses, refused the same way. The
+  default is now **off** (the bearer token, mandatory off loopback, is the
+  authentication); set the allowlist to the orchestrator's address if you want
+  the second layer. The Margo descriptor's `allowlistIps` default follows.
+- The server now warns at start when a loopback-only allowlist guards a
+  non-loopback bind, naming the bridge-gateway reason.
+- **New CI step** (`scripts/socket_defaults_check.sh`, immutable-host job): runs
+  the image with `package.compose.yaml`'s own allowlist default and calls it from
+  the host through the port mapping; anything but `200` fails. It fails on the
+  old default and passes on the new one. No test had ever gone through a port
+  mapping, which is why this shipped.
 
 ### CI
 
