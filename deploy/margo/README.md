@@ -12,7 +12,7 @@
 | File | Purpose |
 |------|---------|
 | `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. |
-| `compose.yaml` | Example hardened run for **local dev** (builds from source): `read_only`, `cap_drop: ALL`, no-new-privileges, single **IP-allowlisted** MCP port (socket transport — no OT inbound), single config/secret volume. |
+| `compose.yaml` | Example hardened run for **local dev** (builds from source): `read_only`, `cap_drop: ALL`, no-new-privileges, single **token-authenticated** MCP port (optional IP allowlist) (socket transport — no OT inbound), single config/secret volume. |
 | `package.compose.yaml` | **Deploy-ready** compose shipped inside the signed application package (as `compose.yaml`): references the published, version-pinned GHCR image (`profile` parameter selects the per-edition variant), same hardened posture, no build section. |
 | `margo.yaml` | Margo **ApplicationDescription**, built to the real **`margo.org/v1-alpha1`** schema (docs.margo.org, PR1 pre-draft): compose `deploymentProfiles` / `components` / `requiredResources` / `parameters` / `configuration`. `packageLocation`/`keyLocation` point at the signed release asset + `cosign.pub`. Remaining `待核实` = only the secret-parameter flag pending [`margo/specification#145`](https://github.com/margo/specification/issues/145). |
 | `cosign.pub` | Public verify key for the signed images and the application package (private key lives only in CI secrets — rotate by regenerating the pair + updating this file). |
@@ -54,7 +54,7 @@ IAIOPS_MCP_TRANSPORT=streamable-http   # or: sse
 IAIOPS_MCP_HOST=0.0.0.0                 # bind inside the container
 IAIOPS_MCP_PORT=8000                    # the one inbound MCP tool port (not an OT port)
 IAIOPS_MCP_TOKEN=<openssl rand -base64 48>  # REQUIRED off loopback: 'Authorization: Bearer <token>'
-IAIOPS_ALLOWLIST_IPS=10.0.0.0/24        # who may call it (403 otherwise) — set to the orchestrator
+IAIOPS_ALLOWLIST_IPS=10.0.0.0/24        # optional: who may call it (403 otherwise) — the orchestrator, never 127.0.0.1/32
 ```
 
 A socket bound to anything but loopback **refuses to start without a token** (or
@@ -71,7 +71,7 @@ the tool interface for the orchestrator/agent.
 ## Why this is a good Margo citizen (already)
 
 - **Non-root, read-only rootfs, outbound-only to OT** — the single inbound port is the token-
-  authenticated, IP-allowlisted MCP tool interface, not an OT listener.
+  authenticated MCP tool interface (optional IP allowlist), not an OT listener.
 - **Governed by construction** — audit / budget / risk-tier / undo + MOC gating wrap every tool.
 - **Air-gap friendly** — pure-Python, offline wheelhouse install, encrypted local secrets, optional
   on-box LLM brain (data never leaves the plant).

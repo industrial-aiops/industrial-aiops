@@ -11,7 +11,7 @@ services:
   iaiops:
     image: ghcr.io/industrial-aiops/iaiops:0.28.0-${IAIOPS_MCP:-factory}
     # Least-privilege posture a Margo device/host would give an OT workload (same as compose.yaml):
-    # non-root, read-only rootfs, no capabilities, one IP-allowlisted MCP port, no OT inbound.
+    # non-root, read-only rootfs, no capabilities, one token-authenticated MCP port (optional IP allowlist), no OT inbound.
     read_only: true
     tmpfs: ["/tmp"]
     cap_drop: ["ALL"]
@@ -35,8 +35,11 @@ services:
       # Optional: Host headers to accept (comma-separated host:port, '*' = any port), e.g.
       # "iaiops:*,10.0.0.5:8000". Unset = no Host check; the token is the control.
       IAIOPS_MCP_ALLOWED_HOSTS: ${IAIOPS_MCP_ALLOWED_HOSTS:-}
-      # Defense-in-depth: CIDR list allowed to call the MCP port (403 otherwise).
-      IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-127.0.0.1/32}
+      # Optional second layer under the token: CIDRs allowed to call the MCP port (403 otherwise).
+      # Default OFF. Do NOT set 127.0.0.1/32: behind the port mapping a host caller arrives as the
+      # bridge gateway (e.g. 172.17.0.1), so a loopback-only list refuses everyone (verified on
+      # Docker 27.5). Set it to the orchestrator/gateway address(es) if you set it at all.
+      IAIOPS_ALLOWLIST_IPS: ${IAIOPS_ALLOWLIST_IPS:-}
       # Secret REFERENCE model (margo/specification#145): the value never travels in the package —
       # inject from the device secret facility at deploy time.
       IAIOPS_MASTER_PASSWORD: ${IAIOPS_MASTER_PASSWORD:?set in the host secret store}

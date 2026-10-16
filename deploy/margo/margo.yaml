@@ -46,7 +46,7 @@ deploymentProfiles:
     id: iaiops-compose
     description: >-
       Single hardened, non-root container (read-only rootfs; outbound-only to the operator-configured
-      OT endpoints, with ONE bearer-token-authenticated, IP-allowlisted inbound port for the MCP
+      OT endpoints, with ONE bearer-token-authenticated inbound port (optional IP allowlist) for the MCP
       tool interface — not an OT listener).
     components:
       - name: iaiops
@@ -93,7 +93,7 @@ parameters:
       - pointer: IAIOPS_MCP_PORT
         components: [iaiops]
   allowlistIps:
-    value: 127.0.0.1/32            # who may call the MCP port (CIDR list) — set to the orchestrator
+    value: ""                      # optional CIDR list; off by default — NOT 127.0.0.1/32 (see compose)
     targets:
       - pointer: IAIOPS_ALLOWLIST_IPS
         components: [iaiops]
@@ -139,8 +139,10 @@ configuration:
         - parameter: allowlistIps
           name: MCP client IP allowlist
           description: >-
-            CIDR list allowed to call the MCP port (403 otherwise) — defense-in-depth for the
-            socket transport. Set to the orchestrator/gateway address(es).
+            Optional CIDR list allowed to call the MCP port (403 otherwise), a second layer under
+            the bearer token. Off by default. Set it to the orchestrator/gateway address(es) — never
+            to loopback only: behind the container port mapping callers arrive from the bridge
+            gateway, so a loopback-only list refuses every request.
           immutable: false
           schema: allowlistSchema
         - parameter: masterPassword

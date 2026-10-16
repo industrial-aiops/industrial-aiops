@@ -28,6 +28,7 @@ from iaiops.core.governance.allowlist import load_allowlist_env
 from mcp_server.http_auth import (
     ALLOWED_HOSTS_ENV,
     bearer_token_app,
+    is_loopback,
     load_token,
     require_token_for_bind,
     transport_security_for,
@@ -79,6 +80,26 @@ def _ip_allowlist_app(app, allowlist):
     return app
 
 
+def warn_on_unreachable_allowlist(host: str, allowlist) -> None:
+    """Warn when a loopback-only allowlist guards a non-loopback bind.
+
+    Behind a container port mapping the server sees a host caller as the bridge
+    gateway (e.g. 172.17.0.1), and a caller on a container network by its own
+    address — never 127.0.0.1. Verified on Docker 27.5: such an allowlist answers
+    403 to every legitimate request, correct token included.
+    """
+    nets = allowlist.ip_networks
+    if nets and not is_loopback(host) and all(n.is_loopback for n in nets):
+        logger.warning(
+            "IAIOPS_ALLOWLIST_IPS allows only loopback but the server binds %s: if this "
+            "runs behind a container port mapping or on a container network, callers "
+            "arrive from the bridge gateway (e.g. 172.17.0.1) or their own container "
+            "address, and every one of them will be refused. Set it to the "
+            "orchestrator's address(es), or leave it unset and rely on the bearer token.",
+            host,
+        )
+
+
 def run_server(mcp) -> None:
     """Run ``mcp`` over the env-selected transport. stdio uses FastMCP directly; HTTP/SSE runs a
     (optionally IP-allowlisted) Starlette app under uvicorn."""
@@ -111,6 +132,7 @@ def run_server(mcp) -> None:
     # Added last = outermost: a client outside the allowlist is refused before the
     # token is even looked at.
     allowlist = load_allowlist_env()
+    warn_on_unreachable_allowlist(host, allowlist)
     if allowlist.restricts_ips:
         app = _ip_allowlist_app(app, allowlist)
         logger.info("IP allowlist active (%d network(s)).", len(allowlist.ip_networks))
@@ -122,6 +144,7 @@ def run_server(mcp) -> None:
 
 
 __all__ = [
+    "warn_on_unreachable_allowlist",
     "resolve_transport",
     "run_server",
     "TransportError",
