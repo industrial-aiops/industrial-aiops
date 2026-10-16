@@ -220,7 +220,7 @@ jobs:
       - name: pip-audit (known vulnerabilities in locked dependencies)
         run: |
           ignores=()
-          while read -r id _; do
+          while read -r id _ || [ -n "$id" ]; do
             [ -n "$id" ] && ignores+=(--ignore-vuln "$id")
           done < <(grep -v '^[[:space:]]*#' .github/pip-audit-ignore.txt || true)
           uvx pip-audit -r runtime-requirements.txt --disable-pip --no-deps \

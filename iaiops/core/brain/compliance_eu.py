@@ -224,7 +224,8 @@ CRA_ITEMS: tuple[dict, ...] = (
         "Made available on the market without known exploitable vulnerabilities.",
         "product_evidence",
         "Every change scans iaiops's own source (bandit, 0 Medium+) and the locked "
-        "dependency set (pip-audit); a known vulnerability fails the build. The "
+        "dependency set (pip-audit); a known vulnerability fails the PR gate and "
+        "blocks the PyPI upload of a release. The "
         "direct dependencies' minimum versions are raised past the versions the first "
         "scan found vulnerable.",
         "The scan covers the lock, not each install: transitive dependencies are not "
