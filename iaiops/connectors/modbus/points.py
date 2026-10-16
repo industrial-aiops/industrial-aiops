@@ -26,6 +26,8 @@ same one profiles use, so a typed point and a profile channel cannot disagree.
 
 from __future__ import annotations
 
+import math
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -65,13 +67,21 @@ def _scale(text: str, ref: str) -> float:
         scale = float(text)
     except ValueError as exc:
         raise ValueError(f"Modbus point {ref!r}: scale {text!r} is not a number.") from exc
+    if not math.isfinite(scale):
+        raise ValueError(f"Modbus point {ref!r}: scale {text!r} is not a finite number.")
     if scale == 0:
         raise ValueError(f"Modbus point {ref!r}: scale 0 would turn every reading into 0.")
     return scale
 
 
+#: What ``int(ref)`` accepted as an address before typed points, in ASCII only —
+#: ``str.isdigit`` also admits "²" and "٤٠", which are not register numbers.
+_LEGACY = re.compile(r"\+?[0-9](?:_?[0-9])*")
+_DIGITS = re.compile(r"[0-9]+")
+
+
 def _address(text: str, ref: str) -> int:
-    if not text.isdigit():
+    if not _DIGITS.fullmatch(text):
         raise ValueError(f"Modbus point {ref!r}: address {text!r} is not a register number.")
     return int(text)
 
@@ -79,12 +89,12 @@ def _address(text: str, ref: str) -> int:
 def parse_point(ref: str) -> ModbusPoint:
     """Parse a Modbus ref; raise ``ValueError`` naming the grammar on any defect."""
     text = str(ref or "").strip()
-    if text.isdigit():
+    if _LEGACY.fullmatch(text):
         address = int(text)
         if address > 0xFFFF:
             raise ValueError(f"Modbus point {ref!r}: address must be 0..65535.")
         return ModbusPoint(table="holding", address=address, legacy=True)
-    body, _, scale_text = text.partition("*")
+    body, star, scale_text = text.partition("*")
     parts = body.split(":")
     if len(parts) < 2 or len(parts) > 4:
         raise ValueError(f"Modbus point ref {ref!r} is not in the grammar {GRAMMAR}.")
@@ -101,7 +111,8 @@ def parse_point(ref: str) -> ModbusPoint:
         address=layout.address,
         value_type=layout.value_type,
         order=layout.order,
-        scale=_scale(scale_text, ref) if scale_text else 1.0,
+        # `*` with nothing after it is a forgotten number, not "no scale".
+        scale=_scale(scale_text, ref) if star else 1.0,
     )
 
 
