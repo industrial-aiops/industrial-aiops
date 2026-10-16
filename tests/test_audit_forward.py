@@ -424,3 +424,32 @@ def test_legacy_int_cursor_beyond_the_live_db_refuses(tmp_path, engine):
     cursor.write_text("99", "utf-8")
     with pytest.raises(CursorLost, match="not in the live"):
         forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)
+
+
+@pytest.mark.unit
+def test_a_rotation_during_a_run_skips_nothing(tmp_path, engine, monkeypatch):
+    """Review finding: the file list was taken once; if the writer rotated while the
+    forwarder was still in an archive, the run then read the NEW live file from id
+    0 and the old live file's rows — now under an archive name — were never sent."""
+    cursor = tmp_path / "cur"
+    _seed_from(engine, 0, 2)
+    forward_audit(_FakeSink(), engine=engine, cursor_path=cursor)  # cursor at row "1"
+    _seed_from(engine, 2, 2)
+    _rotate(engine, monkeypatch, year=2030)  # archive A: 0..3
+    _seed_from(engine, 4, 2)  # live file L1: 4..5
+
+    class _RotatingSink(_FakeSink):
+        """Rotates the live file the moment the first row goes out."""
+
+        def send(self, line: str) -> None:
+            super().send(line)
+            if len(self.lines) == 1:
+                _rotate(engine, monkeypatch, year=2031)  # L1 → archive B: 4..5
+                _seed_from(engine, 6, 1)  # new live file L2: 6
+
+    first = _RotatingSink()
+    forward_audit(first, engine=engine, cursor_path=cursor)
+    second = _FakeSink()
+    forward_audit(second, engine=engine, cursor_path=cursor)
+    sent = _forwarded_params(first) + _forwarded_params(second)
+    assert sent == [2, 3, 4, 5, 6], sent

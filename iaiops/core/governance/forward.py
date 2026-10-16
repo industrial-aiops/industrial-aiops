@@ -14,7 +14,9 @@ stopped. The cursor therefore records the row itself (``id`` + ``ts`` +
 retained archives, then forwards the rest of that file and every newer one.
 When the row is in none of them — its archive aged out past retention, or the
 file was replaced — the run refuses (:class:`CursorLost`) instead of guessing
-a position, because a guess either re-sends history or leaves a hole.
+a position, because a guess either re-sends history or leaves a hole. A
+rotation *during* a run is detected by the live file's identity changing; the
+run stops short of the new file and the next run continues from the archive.
 
 This is egress of *governance metadata* the operator already owns, not a
 control-system write: it only ever reads the audit DB and sends copies out.
@@ -314,6 +316,15 @@ def write_cursor(path: Path, cursor: Cursor) -> None:
     tmp.replace(path)
 
 
+def _identity(path: Path) -> tuple[int, int] | None:
+    """Which file a path names right now (device, inode); None when absent."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_dev, st.st_ino)
+
+
 def _sources(engine: AuditEngine) -> list[Path]:
     """Every audit file still on disk, oldest first: archives, then the live DB."""
     return [*engine.archive_paths(), engine.path]
@@ -410,14 +421,24 @@ def forward_audit(
     cursor_path = cursor_path or _default_cursor_path()
     start = read_cursor(cursor_path)
     sources = _sources(engine)
+    # The live DB's identity when the file list was taken. If the writer rotates
+    # during this run, the path then names a NEW file; reading it would skip the
+    # rest of the old one (renamed to an archive this run never listed).
+    live = _identity(sources[-1])
     first = _place(engine, start, sources)
 
     sent = 0
     last = start
     last_source = sources[first]
+    rotated = False
     try:
         for index in range(first, len(sources)):
             if sent >= limit:
+                break
+            if index == len(sources) - 1 and _identity(sources[index]) != live:
+                # Stop here; the cursor (persisted below) points into a file the
+                # next run lists as an archive, and it continues from there.
+                rotated = True
                 break
             after = start.id if start is not None and index == first else 0
             rows = engine.rows_after(after, since=since, limit=limit - sent, db_path=sources[index])
@@ -437,6 +458,9 @@ def forward_audit(
         "cursor": last.id if last is not None else 0,
         # Ids restart per file, so the id alone does not say where the cursor is.
         "cursor_file": last_source.name,
+        # True when the audit DB rotated mid-run: this run stopped before the new
+        # live file and the next one picks up where it stopped. Nothing skipped.
+        "stopped_at_rotation": rotated,
     }
 
 

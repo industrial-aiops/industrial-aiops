@@ -72,10 +72,19 @@ _MECHANISMS: dict[str, dict] = {
     "audit_forward": {
         "name": "`iaiops audit forward` (SIEM)",
         "fact": "Streams new audit rows as JSON lines to a syslog (UDP) or HTTP "
-        "collector with a persisted cursor. Best-effort / at-least-once: no delivery "
-        "acknowledgement; the cursor is a row id, so rows written after a rotation "
-        "are not forwarded until ids pass the old cursor — 待核实 / open defect.",
-        "anchors": ("py:iaiops.core.governance.forward:build_sink",),
+        "collector. The cursor names the last forwarded row itself (id + ts + "
+        "row_hash), so a run after an audit-DB rotation continues through the "
+        "retained archives into the new file, oldest first; a rotation during a run "
+        "stops it short of the new file and the next run continues. Limits: "
+        "best-effort / at-least-once, no delivery acknowledgement; when the cursor "
+        "row is in no file on disk (its archive aged out — only 5 are kept — or the "
+        "file was replaced) the run refuses rather than guess a position, and rows "
+        "deleted with those archives were never forwarded.",
+        "anchors": (
+            "py:iaiops.core.governance.forward:build_sink",
+            "py:iaiops.core.governance.forward:CursorLost",
+            "py:iaiops.core.governance.forward:Cursor",
+        ),
     },
     "evidence_bundle": {
         "name": "`iaiops compliance evidence` (evidence zip)",

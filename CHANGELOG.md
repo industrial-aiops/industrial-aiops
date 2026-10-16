@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Fixed — audit forward during a rotation
+
+- **A rotation while `iaiops audit forward` was running still lost rows.** The
+  run took its file list once; if the writer rotated while the forwarder was
+  still inside an archive, the run went on to read the *new* live file from id
+  1, and the rest of the old live file — renamed to an archive this run never
+  listed — was skipped for good (`forward_follow` widened the window). The run
+  now records the live file's identity when it starts and stops short of a
+  replaced one; the next run places its cursor in the new archive and
+  continues. Output gains `stopped_at_rotation`. Reproduced first: rows 4–5 of
+  2–6 went missing before the fix.
+- The CRA/NIS2 crosswalk's `audit_forward` mechanism no longer lists the
+  rotation hole as an open defect: the cursor names the row itself, continues
+  through retained archives, stops at a mid-run rotation, and refuses when it
+  cannot place itself (see the `iaiops audit forward` entry below).
+
 ### Fixed
 
 - **The shipped socket deployments refused every caller.** `IAIOPS_ALLOWLIST_IPS`

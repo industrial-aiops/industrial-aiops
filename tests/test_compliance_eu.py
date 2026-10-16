@@ -340,6 +340,17 @@ def test_every_mcp_write_tool_defaults_to_dry_run(full_tool_registry):
         assert params["dry_run"].default is True, f"{name} does not preview by default"
 
 
+def test_the_forward_fact_no_longer_carries_the_fixed_defect():
+    """The row-id cursor that skipped rows after a rotation was fixed (#238)."""
+    fact = MECHANISMS["audit_forward"]["fact"]
+    assert "open defect" not in fact and "待核实" not in fact
+    assert "row_hash" in fact and "refuses" in fact
+    from iaiops.core.governance import forward
+
+    assert issubclass(forward.CursorLost, LookupError)
+    assert {"row_hash", "ts"} <= set(forward.Cursor.__dataclass_fields__)
+
+
 def test_audit_fail_open_is_what_the_fact_says():
     from iaiops.core.governance import decorators
 
