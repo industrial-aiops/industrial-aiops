@@ -92,7 +92,10 @@ def _finish(channel: Channel, value: float | int) -> Reading:
         value = value * channel.scale + channel.offset
     if channel.range is not None:
         low, high = channel.range
-        if not low <= value <= high:
+        # Scaling happens in binary floating point (60000 × 0.1 = 6000.000000000001),
+        # so the edge is compared with a tolerance far below any sensor's resolution.
+        slack = 1e-9 * max(1.0, abs(low), abs(high))
+        if not low - slack <= value <= high + slack:
             raise InvalidReadingError(
                 f"{channel.name}: {value} {channel.unit} is outside the sensor's range "
                 f"[{low}, {high}] — saturation or a fault, not a measurement."

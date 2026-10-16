@@ -151,6 +151,8 @@ ENDPOINT_KEYS = BlockKeys(
         "expected_slaves",
         "timeout_s",
         "stale_after_s",
+        "sensor_profile",
+        "port_profiles",
         "tags",
         "ideal_cycle_time_s",
     ),

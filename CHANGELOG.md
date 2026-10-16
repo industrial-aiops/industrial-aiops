@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+### Added — sensor layer S3: profiles bound to endpoints, IO-Link collectable (HLD §16)
+
+- **IO-Link can be collected — through a profile, and only through one.** Process
+  data used to come back as raw hex ("decode per the device's IODD") and IO-Link
+  had no point-read path. `port_profiles: {<port>: <profile.yaml>}` on a master
+  binds a profile per port; `port<N>/<channel>` refs then work in `collect` and
+  `monitor`, and in the dataflow diagnostic's point read. A port with no profile
+  is refused, never decoded with a guessed layout, and an IO-Link endpoint with
+  no `port_profiles` is reported as not collectable and says why.
+- **The device on the port is checked against the profile.** A profile drafted
+  from an IODD names the device it was written for (`match: {vendor_id,
+  device_id}`); a different sensor on that port is refused — a gap with the two
+  identities — instead of being decoded with the wrong layout. A master that does
+  not report the identity is a refusal too, not a skipped check. The check is
+  cached for 30 s per port: a sensor swapped mid-run is caught within that window.
+- **Modbus `ch:<name>`.** `sensor_profile: <profile.yaml>` on a Modbus endpoint
+  makes its channels readable by name, with the profile's sentinels and range.
+- **Profiles are validated with config.yaml.** Paths resolve next to the config
+  file; a missing file, an invalid profile, a profile for the other protocol, or
+  `port_profiles` on a Modbus endpoint fails `load_config`, naming the endpoint.
+  `collect plan|run` refuse a channel the profile does not have before starting.
+- **`iaiops sensor import-iodd <iodd.xml>`** drafts a profile from a vendor IODD:
+  identity, record-item bit layout (IODD offsets copied unchanged), UI gradient
+  and offset, `ValueRange` → engineering range, and named values *outside* that
+  range → sentinels. The draft says `verified: 待核实`, keeps IODD unit codes as
+  codes, says which fields were assumed, and lists every item it could not
+  represent. Several process-data layouts need `--process-data`; a document with
+  a DTD or entities is refused. **`iaiops sensor check <profile>`** validates one.
+- **`readiness` reports whether each point can be decoded.** Under continuous
+  collection, a new optional requirement lists bare Modbus addresses as
+  *untyped* (read as uint16), refs the endpoint cannot read with the reason, and
+  profiles still marked 待核实. A Modbus site configured with bare addresses
+  therefore now reads **degraded** rather than ready for continuous collection —
+  collection still runs; the values are just not known to be decoded right.
+- **Fixed in the decoder:** a value exactly on the range edge could be refused
+  after scaling (3 × 0.1 = 0.30000000000000004); the edge now has a tolerance far
+  below any sensor's resolution.
+
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 
 - **Typed Modbus points.** A Modbus point was always one holding register read as

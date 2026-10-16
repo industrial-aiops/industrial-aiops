@@ -115,7 +115,7 @@ opcua_session = make_session(
 
 
 def _prepare_modbus(client: Any, target: Any, **_kwargs: Any) -> None:
-    """Carry the endpoint's unit id ON the client.
+    """Carry the endpoint's unit id (and sensor profile) ON the client.
 
     A session-scoped read gets a live client and nothing else, and Modbus needs a
     unit id per request. Defaulting to 1 when it is missing would silently read a
@@ -124,6 +124,11 @@ def _prepare_modbus(client: Any, target: Any, **_kwargs: Any) -> None:
     at open time, and the reader takes it from there rather than assuming.
     """
     client.iaiops_unit_id = int(getattr(target, "unit_id", 1) or 1)
+    # Same reason for the sensor profile: `ch:<name>` refs decode through it, and
+    # a session-scoped read has no other way to reach the endpoint's config.
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
+
+    client.iaiops_sensor_profile = endpoint_profile(target)
 
 
 modbus_session = make_session(

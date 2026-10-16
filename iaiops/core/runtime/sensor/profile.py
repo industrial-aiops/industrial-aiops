@@ -117,6 +117,10 @@ class SensorProfile:
     source: str
     verified: str
     channels: tuple[Channel, ...]
+    #: IO-Link only: the device this profile was written for. When set, the
+    #: device on the port is checked before anything is decoded with it.
+    vendor_id: int | None = None
+    device_id: int | None = None
 
     def channel(self, name: str) -> Channel:
         for candidate in self.channels:
@@ -270,6 +274,21 @@ def _channel(raw: Any, protocol: str, index: int) -> Channel:
     )
 
 
+def _match(raw: Any, protocol: str, where: str) -> tuple[int | None, int | None]:
+    if raw is None:
+        return None, None
+    if protocol != "iolink":
+        raise ValueError(
+            f"{where}: match (vendor_id/device_id) is IO-Link only — a Modbus device "
+            "does not report a numeric identity to check against."
+        )
+    if not isinstance(raw, dict):
+        raise ValueError(f"{where}: match must be {{vendor_id, device_id}}.")
+    vendor = _int(raw.get("vendor_id"), "match.vendor_id", where, 0, 0xFFFF)
+    device = _int(raw.get("device_id"), "match.device_id", where, 0, 0xFFFFFF)
+    return vendor, device
+
+
 def parse_profile(raw: Any) -> SensorProfile:
     """Validate a profile mapping into frozen objects; raise ``ValueError`` on any defect."""
     if not isinstance(raw, dict):
@@ -280,6 +299,7 @@ def parse_profile(raw: Any) -> SensorProfile:
     if not isinstance(channels_raw, list) or not channels_raw:
         raise ValueError(f"{where}: needs at least one channel.")
     channels = tuple(_channel(c, protocol, i) for i, c in enumerate(channels_raw))
+    vendor_id, device_id = _match(raw.get("match"), protocol, where)
     names = [c.name for c in channels]
     duplicates = sorted({n for n in names if names.count(n) > 1})
     if duplicates:
@@ -290,6 +310,8 @@ def parse_profile(raw: Any) -> SensorProfile:
         source=_choice(raw, "source", SOURCES, where),
         verified=_choice(raw, "verified", VERIFIED, where),
         channels=channels,
+        vendor_id=vendor_id,
+        device_id=device_id,
     )
 
 

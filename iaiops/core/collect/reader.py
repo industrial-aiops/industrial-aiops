@@ -45,6 +45,11 @@ def collectable_reason(target: Any) -> str:
     protocol = str(getattr(target, "protocol", "") or "")
     if not can_collect(protocol):
         return f"protocol {protocol!r} has no point-read path in this build"
+    if protocol == "iolink" and not getattr(target, "port_profiles", ()):
+        return (
+            "no `port_profiles` — IO-Link process data is not decoded without a sensor "
+            "profile per port (`iaiops sensor import-iodd` drafts one)"
+        )
     if protocol in PUSH_PROTOCOLS:
         try:
             interval = float(getattr(target, "stale_after_s", 0) or 0)
@@ -62,14 +67,28 @@ def ref_problems(target: Any, refs: tuple[str, ...] | list[str]) -> list[str]:
     failure also drops the connection: a typo becomes a week of gaps. Only
     protocols with a ref grammar are checked; the rest are not second-guessed.
     """
-    if str(getattr(target, "protocol", "") or "") != "modbus":
-        return []
-    from iaiops.connectors.modbus.points import parse_point
+    protocol = str(getattr(target, "protocol", "") or "")
+    if protocol == "modbus":
+        from iaiops.connectors.modbus.points import check_ref
+        from iaiops.core.runtime.sensor.binding import endpoint_profile
 
+        profile = endpoint_profile(target)
+
+        def check(ref: str) -> None:
+            check_ref(ref, profile)
+
+    elif protocol == "iolink":
+        from iaiops.connectors.iolink.points import check_ref as check_iolink
+
+        def check(ref: str) -> None:
+            check_iolink(target, ref)
+
+    else:
+        return []
     problems = []
     for ref in refs:
         try:
-            parse_point(ref)
+            check(ref)
         except ValueError as exc:
             problems.append(str(exc))
     return problems

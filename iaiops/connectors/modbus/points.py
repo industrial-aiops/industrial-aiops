@@ -29,7 +29,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from iaiops.core.runtime.sensor import Channel, decode_registers, modbus_layout
+from iaiops.core.runtime.sensor import Channel, SensorProfile, decode_registers, modbus_layout
 
 _TABLES = {"hr": "holding", "ir": "input"}
 GRAMMAR = (
@@ -114,4 +114,58 @@ def read_point_value(read_words: WordReader, ref: str) -> float | int | None:
     return decode_registers(point.channel(str(ref).strip()), words).value
 
 
-__all__ = ["GRAMMAR", "ModbusPoint", "parse_point", "read_point_value"]
+#: A ref naming a channel of the endpoint's sensor profile (HLD §16.5 S3).
+CHANNEL_PREFIX = "ch:"
+
+
+def is_channel_ref(ref: str) -> bool:
+    return str(ref or "").strip().startswith(CHANNEL_PREFIX)
+
+
+def profile_channel(ref: str, profile: SensorProfile | None) -> Channel:
+    """Resolve ``ch:<name>`` through the endpoint's profile, or refuse."""
+    name = str(ref).strip()[len(CHANNEL_PREFIX) :]
+    if profile is None:
+        raise ValueError(
+            f"Modbus ref {ref!r} names a profile channel, but this endpoint has no "
+            "sensor_profile. Add `sensor_profile: <file>` to it in config.yaml, or use "
+            f"a typed point ({GRAMMAR})."
+        )
+    try:
+        return profile.channel(name)
+    except KeyError as exc:
+        raise ValueError(str(exc.args[0])) from exc
+
+
+def check_ref(ref: str, profile: SensorProfile | None) -> None:
+    """Raise ``ValueError`` if ``ref`` cannot be read on this endpoint — touches nothing."""
+    if is_channel_ref(ref):
+        profile_channel(ref, profile)
+    else:
+        parse_point(ref)
+
+
+def read_ref_value(
+    read_words: WordReader, ref: str, profile: SensorProfile | None = None
+) -> float | int | None:
+    """Read a bare, typed or profile-channel ref. Raises ``InvalidReadingError``
+    when the device sent something that is not a measurement."""
+    if not is_channel_ref(ref):
+        return read_point_value(read_words, ref)
+    channel = profile_channel(ref, profile)
+    layout = channel.layout
+    words = list(read_words(layout.table, layout.address, layout.words))
+    return decode_registers(channel, words).value
+
+
+__all__ = [
+    "CHANNEL_PREFIX",
+    "GRAMMAR",
+    "ModbusPoint",
+    "check_ref",
+    "is_channel_ref",
+    "parse_point",
+    "profile_channel",
+    "read_point_value",
+    "read_ref_value",
+]
