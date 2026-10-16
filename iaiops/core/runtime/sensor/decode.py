@@ -74,12 +74,22 @@ def _typed(raw: int, layout: ModbusLayout) -> float | int:
     return raw
 
 
-def decode_bits(channel: Channel, data: bytes) -> Reading:
-    """Decode an IO-Link channel from a process-data image."""
+def decode_bits(channel: Channel, data: bytes, expected_bits: int | None = None) -> Reading:
+    """Decode an IO-Link channel from a process-data image.
+
+    ``expected_bits`` is the profile's ``pd_bits``. Offsets count from the end of
+    the image, so an image of any other length would shift every field: refused.
+    """
     layout = channel.layout
     if not isinstance(layout, BitLayout):
         raise TypeError(f"Channel {channel.name!r} is not a bit-field channel.")
     available = len(data) * 8
+    if expected_bits is not None and available != expected_bits:
+        raise InvalidReadingError(
+            f"{channel.name}: the device sent {available} bits of process data; the profile "
+            f"was written for {expected_bits}. Another process-data layout is active — "
+            "decoding it with this profile would shift every field."
+        )
     if layout.bit_offset + layout.bit_length > available:
         raise ValueError(
             f"Channel {channel.name!r} needs bits {layout.bit_offset}.."
@@ -113,7 +123,7 @@ def _finish(channel: Channel, value: float | int) -> Reading:
             raise InvalidReadingError(f"{channel.name}: scaling gave a non-finite value ({value}).")
     if channel.range is not None:
         low, high = channel.range
-        # Scaling happens in binary floating point (60000 × 0.1 = 6000.000000000001),
+        # Scaling happens in binary floating point (3 × 0.1 = 0.30000000000000004),
         # so the edge is compared with a tolerance far below any sensor's resolution.
         slack = 1e-9 * max(1.0, abs(low), abs(high))
         if not low - slack <= value <= high + slack:

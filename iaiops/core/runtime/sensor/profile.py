@@ -122,6 +122,10 @@ class SensorProfile:
     #: device on the port is checked before anything is decoded with it.
     vendor_id: int | None = None
     device_id: int | None = None
+    #: IO-Link only: the process-data-in length the layout was written for. Bit
+    #: offsets count from the END of the image, so an image of another length
+    #: (another PD variant, same device id) shifts every field — refused.
+    pd_bits: int | None = None
 
     def channel(self, name: str) -> Channel:
         for candidate in self.channels:
@@ -136,7 +140,7 @@ class SensorProfile:
 
 def _choice(raw: dict, key: str, allowed: tuple[str, ...], where: str) -> str:
     value = raw.get(key)
-    if value not in allowed:
+    if not isinstance(value, str) or value not in allowed:
         raise ValueError(f"{where}: {key} must be one of {', '.join(allowed)}; got {value!r}.")
     return str(value)
 
@@ -169,12 +173,12 @@ def modbus_layout(
     table: str, address: Any, value_type: str, order: str | None, where: str
 ) -> ModbusLayout:
     """Validate a Modbus layout. Shared with the typed-point grammar."""
-    if table not in MODBUS_TABLES:
+    if not isinstance(table, str) or table not in MODBUS_TABLES:
         raise ValueError(
             f"{where}: table must be one of {', '.join(MODBUS_TABLES)}; got {table!r}."
         )
     address = _int(address, "address", where, 0, MAX_ADDRESS)
-    if value_type not in MODBUS_WIDTHS:
+    if not isinstance(value_type, str) or value_type not in MODBUS_WIDTHS:
         raise ValueError(
             f"{where}: type must be one of {', '.join(MODBUS_WIDTHS)}; got {value_type!r}."
         )
@@ -187,7 +191,7 @@ def modbus_layout(
                 "decodes to a plausible number. `modbus detect-byte-order` can find it."
             )
         order = DEFAULT_ORDER_16
-    if order not in MODBUS_ORDERS[width]:
+    if not isinstance(order, str) or order not in MODBUS_ORDERS[width]:
         raise ValueError(
             f"{where}: order {order!r} does not fit a {value_type}; use one of "
             f"{', '.join(MODBUS_ORDERS[width])}."
@@ -318,6 +322,17 @@ def parse_profile(raw: Any) -> SensorProfile:
         raise ValueError(f"{where}: needs at least one channel.")
     channels = tuple(_channel(c, protocol, i) for i, c in enumerate(channels_raw))
     vendor_id, device_id = _match(raw.get("match"), protocol, where)
+    pd_bits = raw.get("pd_bits")
+    if pd_bits is not None:
+        if protocol != "iolink":
+            raise ValueError(f"{where}: pd_bits is IO-Link only.")
+        pd_bits = _int(pd_bits, "pd_bits", where, 1, MAX_PD_BITS)
+        for channel in channels:
+            end = channel.layout.bit_offset + channel.layout.bit_length
+            if end > pd_bits:
+                raise ValueError(
+                    f"{where}: channel {channel.name!r} ends at bit {end}, past pd_bits {pd_bits}."
+                )
     names = [c.name for c in channels]
     duplicates = sorted({n for n in names if names.count(n) > 1})
     if duplicates:
@@ -330,6 +345,7 @@ def parse_profile(raw: Any) -> SensorProfile:
         channels=channels,
         vendor_id=vendor_id,
         device_id=device_id,
+        pd_bits=pd_bits,
     )
 
 

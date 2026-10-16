@@ -36,14 +36,18 @@ def import_iodd_cmd(
 ) -> None:
     """Draft a profile from an IODD. The draft is 待核实 until checked against a live reading."""
     from iaiops.core.governance.evidence import validate_output_path
-    from iaiops.core.runtime.sensor.iodd import import_iodd, render_draft
+    from iaiops.core.runtime.sensor.iodd import MAX_IODD_BYTES, import_iodd, render_draft
 
+    if iodd.stat().st_size > MAX_IODD_BYTES:  # before reading it into memory
+        raise ValueError(f"{iodd} is larger than {MAX_IODD_BYTES // (1024 * 1024)} MB — refused.")
     draft = import_iodd(iodd.read_text("utf-8"), process_data=process_data)
     text = render_draft(draft, source_name=iodd.name)
     if out is None:
         console.print(text, markup=False, highlight=False)
         return
     path = validate_output_path(out, suffixes=(".yaml", ".yml"))
+    if path.is_symlink():
+        raise ValueError(f"{path} is a symbolic link — write the draft to a real file path.")
     if path.exists() and not force:
         raise ValueError(f"{path} exists. Pass --force to overwrite it.")
     path.write_text(text, "utf-8")

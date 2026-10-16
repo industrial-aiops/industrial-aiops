@@ -23,13 +23,14 @@ from iaiops.core.runtime.sensor.profile import SensorProfile, load_profile_file
 #: IO-Link masters in the field have 4–16 ports; the connector sweeps up to 32.
 MAX_PORT = 32
 
-_CACHE: dict[str, tuple[int, SensorProfile]] = {}
+_CACHE: dict[str, tuple[tuple[int, int], SensorProfile]] = {}
 _LOCK = threading.Lock()
 
 
 def cached_profile(path: str) -> SensorProfile:
-    """Load a profile, reusing the parsed copy until the file's mtime changes."""
-    stamp = Path(path).stat().st_mtime_ns
+    """Load a profile, reusing the parsed copy until the file's mtime or size changes."""
+    info = Path(path).stat()
+    stamp = (info.st_mtime_ns, info.st_size)
     with _LOCK:
         hit = _CACHE.get(path)
     if hit is not None and hit[0] == stamp:
@@ -41,27 +42,36 @@ def cached_profile(path: str) -> SensorProfile:
 
 
 def parse_port_profiles(raw: Any, endpoint: str) -> tuple[tuple[int, str], ...]:
-    """``{2: tof.yaml}`` → ``((2, "tof.yaml"),)``; ports validated, order fixed."""
+    """``{2: tof.yaml}`` → ``((2, "tof.yaml"),)``; ports validated, order fixed.
+
+    A port is an integer or a string of digits — not ``3.9`` (truncated to 3) or
+    ``true`` — and may appear once: ``{2: a, "2": b}`` would bind two profiles to
+    one port with the second silently ignored.
+    """
     if raw in (None, "", {}):
         return ()
     if not isinstance(raw, dict):
         raise ValueError(f"Endpoint {endpoint!r}: port_profiles must map port → profile file.")
-    out = []
+    out: dict[int, str] = {}
     for key, value in raw.items():
-        try:
-            port = int(key)
-        except (TypeError, ValueError) as exc:
+        if isinstance(key, bool) or not (
+            isinstance(key, int)
+            or (isinstance(key, str) and key.strip().isascii() and key.strip().isdigit())
+        ):
             raise ValueError(
-                f"Endpoint {endpoint!r}: port_profiles key {key!r} is not a port."
-            ) from exc
+                f"Endpoint {endpoint!r}: port_profiles key {key!r} is not a port number."
+            )
+        port = int(key)
         if not 1 <= port <= MAX_PORT:
             raise ValueError(
                 f"Endpoint {endpoint!r}: port_profiles port {port} must be 1..{MAX_PORT}."
             )
+        if port in out:
+            raise ValueError(f"Endpoint {endpoint!r}: port {port} appears twice in port_profiles.")
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"Endpoint {endpoint!r}: port {port} needs a profile file path.")
-        out.append((port, value.strip()))
-    return tuple(sorted(out))
+        out[port] = value.strip()
+    return tuple(sorted(out.items()))
 
 
 def _resolve(path: str, base_dir: Path) -> str:
@@ -74,6 +84,10 @@ def _load_checked(path: str, endpoint: str, protocol: str) -> None:
         profile = load_profile_file(path)
     except FileNotFoundError as exc:
         raise ValueError(f"Endpoint {endpoint!r}: sensor profile {path} does not exist.") from exc
+    except OSError as exc:  # a directory, no permission, …
+        raise ValueError(
+            f"Endpoint {endpoint!r}: sensor profile {path} cannot be read: {exc}"
+        ) from exc
     except ValueError as exc:
         raise ValueError(f"Endpoint {endpoint!r}: sensor profile {path}: {exc}") from exc
     if profile.protocol != protocol:
@@ -108,17 +122,30 @@ def bind_profiles(target: Any, base_dir: Path) -> Any:
     return replace(target, sensor_profile=resolved_single, port_profiles=resolved_ports)
 
 
+def _for(target: Any, path: str) -> SensorProfile:
+    """Load a bound profile, re-checking its protocol: the file may have been
+    edited since config.yaml was loaded."""
+    profile = cached_profile(path)
+    protocol = str(getattr(target, "protocol", "") or "")
+    if protocol and profile.protocol != protocol:
+        raise ValueError(
+            f"Endpoint {getattr(target, 'name', '?')!r} is {protocol}, but sensor profile "
+            f"{path} is now a {profile.protocol} profile."
+        )
+    return profile
+
+
 def endpoint_profile(target: Any) -> SensorProfile | None:
     """The Modbus endpoint's profile, or ``None`` when it has none."""
     path = str(getattr(target, "sensor_profile", "") or "")
-    return cached_profile(path) if path else None
+    return _for(target, path) if path else None
 
 
 def port_profile(target: Any, port: int) -> SensorProfile | None:
     """The profile bound to one IO-Link port, or ``None``."""
     for bound_port, path in getattr(target, "port_profiles", ()) or ():
         if int(bound_port) == int(port):
-            return cached_profile(path)
+            return _for(target, path)
     return None
 
 

@@ -36,6 +36,26 @@
   profiles still marked 待核实. A Modbus site configured with bare addresses
   therefore now reads **degraded** rather than ready for continuous collection —
   collection still runs; the values are just not known to be decoded right.
+- **Refusals a review added before release.**
+  - The identity check is keyed on the master's resolved address, not
+    `agent_url`: two masters configured by `host:` alone used to share one cached
+    check, so a foreign sensor on the second was decoded. A failed read on a port
+    also drops that port's cached identity.
+  - Profiles carry `pd_bits` (the importer takes it from `ProcessDataIn`), and an
+    image of another length is refused. Another active process-data layout has
+    the same device id and would shift every field.
+  - The IODD importer:
+    - keeps a simple item's gradient and unit (UI subindex 0);
+    - imports `Float32T` items (they have no `bitLength`);
+    - notes named values inside the range, extra `ValueRange`s, a zero gradient,
+      and display info that matched no item, instead of dropping them.
+  - `port_profiles` refuses duplicate, fractional or boolean port keys.
+  - A directory or unreadable file as a profile, and non-string types in a
+    profile, are reported per endpoint like every other config problem.
+  - A profile edited to the other protocol is refused at read.
+  - `import-iodd` checks the file size before reading it and refuses to write
+    through a symlink.
+  - `decodable_points` says "not applicable" on a site without Modbus or IO-Link.
 - **Fixed in the decoder:** a value exactly on the range edge could be refused
   after scaling (3 × 0.1 = 0.30000000000000004); the edge now has a tolerance far
   below any sensor's resolution.

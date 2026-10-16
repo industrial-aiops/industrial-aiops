@@ -8,10 +8,19 @@ A port is decoded only when the endpoint binds a profile to it
 **Identity.** If the profile names the device it was written for
 (``match: {vendor_id, device_id}``), the device on the port is checked before
 anything is decoded: a sensor swapped for a different model would otherwise be
-decoded with the wrong layout. The check is cached per port for
-:data:`IDENTITY_TTL_S`, so a swap is caught within that window instead of costing
-two extra requests on every read. A master that will not report the identity is
-a refusal, not a skipped check.
+decoded with the wrong layout. The check (one master session reading the
+device-identity datapoints) is cached per master and port for
+:data:`IDENTITY_TTL_S`, and forgotten as soon as a read on that port fails — a
+swap goes through a disconnect, so it is usually re-checked at once and at worst
+within the window. A master that will not report the identity is a refusal, not
+a skipped check.
+
+**Process-data length.** If the profile states ``pd_bits``, an image of another
+length is refused: offsets count from the end of the image, so another active
+process-data layout (same device id) would shift every field.
+
+Not checked here: whether the master flags the process data as valid
+(PD-valid / device status) — how masters report it is 待核实.
 
 The vendorid/deviceid datapoints follow the ifm IoT-Core tree; other masters'
 encodings are 待核实 (numbers and ``"0x…"``/decimal strings are accepted).
@@ -90,11 +99,30 @@ def _as_int(value: Any) -> int | None:
     return None
 
 
+def _master(target: Any) -> str:
+    """The master's resolved base URL — two masters configured by ``host:`` alone
+    share an empty ``agent_url``, so that cannot be the key."""
+    from iaiops.connectors.iolink.transport import _iolink_base_url
+
+    return f"{getattr(target, 'name', '')}@{_iolink_base_url(target)}"
+
+
+def _identity_key(target: Any, port: int, profile: SensorProfile) -> tuple[str, int, int, int]:
+    return (_master(target), port, int(profile.vendor_id or 0), int(profile.device_id or 0))
+
+
+def _forget(target: Any, port: int) -> None:
+    master = _master(target)
+    with _lock:
+        for key in [k for k in _verified if k[0] == master and k[1] == port]:
+            del _verified[key]
+
+
 def verify_identity(target: Any, port: int, profile: SensorProfile) -> None:
     """Refuse (as a gap) when the device on ``port`` is not the profile's device."""
     if profile.vendor_id is None or profile.device_id is None:
         return
-    key = (str(getattr(target, "agent_url", "")), port, profile.vendor_id, profile.device_id)
+    key = _identity_key(target, port, profile)
     with _lock:
         checked_at = _verified.get(key)
     if checked_at is not None and _now() - checked_at < IDENTITY_TTL_S:
@@ -127,8 +155,14 @@ def read_value(target: Any, ref: str) -> float | int:
 
     port, profile, channel = port_channel(target, ref)
     verify_identity(target, port, profile)
-    data = bytes(ops.read_pdin(target, port)["bytes"])
-    return decode_bits(channel, data).value
+    try:
+        data = bytes(ops.read_pdin(target, port)["bytes"])
+        return decode_bits(channel, data, expected_bits=profile.pd_bits).value
+    except Exception:
+        # A swap goes through a disconnect: never let a cached identity outlive
+        # a failed read on that port.
+        _forget(target, port)
+        raise
 
 
 __all__ = [

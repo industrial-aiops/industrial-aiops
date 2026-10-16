@@ -43,6 +43,7 @@ def sensor_point_facts(targets: tuple[Any, ...]) -> dict[str, Any]:
     from iaiops.connectors.modbus.points import is_channel_ref, parse_point
     from iaiops.core.collect.reader import ref_problems
 
+    judged = 0
     decoded = 0
     untyped: list[str] = []
     unreadable: list[str] = []
@@ -51,6 +52,7 @@ def sensor_point_facts(targets: tuple[Any, ...]) -> dict[str, Any]:
         protocol = str(getattr(target, "protocol", ""))
         if protocol not in _JUDGED:
             continue
+        judged += 1
         name = str(getattr(target, "name", ""))
         try:
             unverified.update(p.id for p in _bound_profiles(target) if p.verified == "待核实")
@@ -67,6 +69,7 @@ def sensor_point_facts(targets: tuple[Any, ...]) -> dict[str, Any]:
             else:
                 decoded += 1
     return {
+        "judged_endpoints": judged,
         "decoded": decoded,
         "untyped": untyped,
         "unreadable": unreadable,
@@ -80,6 +83,14 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
     untyped = list(points.get("untyped") or ())
     unreadable = list(points.get("unreadable") or ())
     unverified = list(points.get("unverified_profiles") or ())
+    if not points.get("judged_endpoints"):
+        return Requirement(
+            key="decodable_points",
+            label="every Modbus / IO-Link point can be decoded",
+            met=True,
+            detail="not applicable — no Modbus or IO-Link endpoint is configured",
+            optional=True,
+        )
     parts = [f"{points.get('decoded', 0)} point(s) decode"]
     if untyped:
         parts.append(f"{len(untyped)} untyped (read as uint16): {', '.join(untyped[:5])}")

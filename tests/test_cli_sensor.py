@@ -62,3 +62,26 @@ def test_sensor_group_is_registered_and_governed():
 
     names = {group.name for group in app.registered_groups}
     assert "sensor" in names
+
+
+def test_import_iodd_refuses_to_write_through_a_symlink(cli, tmp_path):
+    target = tmp_path / "elsewhere.yaml"
+    target.write_text("keep", "utf-8")
+    link = tmp_path / "tof.yaml"
+    link.symlink_to(target)
+    result = runner.invoke(cli, ["import-iodd", str(FIXTURE), "--out", str(link), "--force"])
+    assert result.exit_code == 1 and "symbolic link" in result.output
+    assert target.read_text("utf-8") == "keep"
+
+
+def test_import_iodd_checks_the_size_before_reading(cli, tmp_path, monkeypatch):
+    import iaiops.core.runtime.sensor.iodd as iodd_mod
+
+    monkeypatch.setattr(iodd_mod, "MAX_IODD_BYTES", 10)
+
+    def _no_read(self, *args, **kwargs):
+        raise AssertionError("the file was read before its size was checked")
+
+    monkeypatch.setattr(Path, "read_text", _no_read)
+    result = runner.invoke(cli, ["import-iodd", str(FIXTURE)])
+    assert result.exit_code == 1 and "larger than" in result.output

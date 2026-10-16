@@ -47,6 +47,7 @@ def test_refs_the_endpoint_cannot_read_are_listed_with_the_reason():
 def test_other_protocols_are_not_judged():
     opcua = SimpleNamespace(name="u", protocol="opcua", tags=(_tag("ns=2;s=x"),))
     assert sensor_point_facts((opcua,)) == {
+        "judged_endpoints": 0,
         "decoded": 0,
         "untyped": [],
         "unreadable": [],
