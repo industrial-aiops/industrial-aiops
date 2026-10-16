@@ -230,14 +230,16 @@ _MECHANISMS: dict[str, dict] = {
     "reset_command": {
         "name": "`iaiops reset` (remove all data and settings)",
         "fact": "Lists, then — with --apply, a named approver and two confirmations — "
-        "removes everything iaiops wrote under its state roots: config, encrypted "
+        "removes the state iaiops itself writes under its roots: config, encrypted "
         "secrets, the audit trail and archives, undo and approval state, collected "
-        "history; the trail restarts with the reset's own row. CLI only, no MCP tool. "
-        "Limits: files are unlinked, not shredded; external historians, forwarded "
-        "audit rows and files written with --out elsewhere are not reached, and the "
-        "command says so.",
+        "history; the trail restarts with the reset's own row. Only known iaiops "
+        "names are removed; anything else in a root is listed as kept. CLI only, no "
+        "MCP tool. Limits: files are unlinked, not shredded; external historians, "
+        "forwarded audit rows and files written with --out elsewhere are not "
+        "reached; a running server keeps what it holds in memory — all stated.",
         "anchors": (
             "py:iaiops.core.runtime.reset:apply_reset",
+            "py:iaiops.core.runtime.reset:is_known_state",
             "py:iaiops.cli.reset:reset_cmd",
         ),
     },
