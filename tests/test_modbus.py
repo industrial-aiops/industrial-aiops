@@ -217,6 +217,41 @@ def test_modbus_health_summary_no_tags_returns_error(monkeypatch):
     assert "error" in out
 
 
+@pytest.mark.unit
+def test_modbus_health_summary_evaluates_a_typed_float_point(monkeypatch):
+    """A typed tag used to vanish from the summary (int(ref) failed → skipped)."""
+    hi, lo = struct.unpack(">HH", struct.pack(">f", 95.5))
+    client = _FakeModbusClient(registers=[hi, lo])
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(
+        name="plc1",
+        protocol="modbus",
+        host="127.0.0.1",
+        tags=(MonitorTag(ref="ir:0:float32:ABCD", label="force", alarm_high=90),),
+    )
+    out = ops.modbus_health_summary(target)
+    assert out["evaluated"] == 1
+    assert out["results"][0]["value"] == pytest.approx(95.5)
+    assert out["results"][0]["ref"] == "ir:0:float32:ABCD"
+    assert out["overall"] == "alarm"
+
+
+@pytest.mark.unit
+def test_modbus_health_summary_reports_an_unparseable_ref_instead_of_dropping_it(monkeypatch):
+    client = _FakeModbusClient(registers=[1])
+    monkeypatch.setattr(conn, "_build_modbus_client", lambda target: client)
+    target = TargetConfig(
+        name="plc1",
+        protocol="modbus",
+        host="127.0.0.1",
+        tags=(MonitorTag(ref="ir:0:float32", label="force"),),
+    )
+    out = ops.modbus_health_summary(target)
+    assert out["evaluated"] == 1
+    assert out["results"][0]["status"] == "unknown"
+    assert "order" in out["results"][0]["reason"]
+
+
 # ── Byte-order auto-detect (pure decode logic) ──────────────────────────────
 
 

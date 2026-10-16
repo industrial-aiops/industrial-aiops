@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+### Added — sensor layer, first two steps (HLD §16, S1 + S2)
+
+- **Typed Modbus points.** A Modbus point was always one holding register read as
+  an unsigned 16-bit word, so a float32 sensor value (two registers) was collected
+  as its first half — an ordinary-looking integer, never an error. A ref can now
+  name its table, type, word order and scale: `ir:0:float32:CDAB`,
+  `hr:12:int16*0.1`. Grammar: `<hr|ir>:<address>[:<type>[:<order>]][*<scale>]`.
+  A 32-bit type **must** state its word order (vendors differ, and a wrong guess
+  decodes to a plausible number); a bare address such as `40` keeps its exact old
+  meaning. Collection, `monitor`, the dataflow diagnostic's point read and
+  `modbus health` (and the `modbus_health_summary` tool) all use the same parser and decoder, so one ref means
+  one thing everywhere.
+- **Values that are not measurements become gaps.** A NaN or infinite float from
+  a typed point is not stored: collection records a gap and keeps the session
+  open, the per-ref read reports `good: false` with the reason.
+- **A malformed typed ref is refused before a run starts.** `collect plan` and
+  `collect run` check every Modbus ref first; inside a run, a bad ref would fail
+  on every tick and drop the held connection each time.
+- **`modbus health` no longer drops tags in silence.** A configured tag
+  whose ref was not a bare number was skipped without a word; typed points are now
+  evaluated, and a ref that cannot be parsed is listed as `unknown` with the reason.
+- **Refusals a review added before release.** `hr:12:int16*` (number forgotten)
+  is refused instead of meaning scale 1; NaN/inf scale, offset or range are
+  refused, and a value that scaling overflows is a gap; float32 values are no
+  longer rounded to 6 decimals (3.2e-9 used to read 0.0); a device answering with
+  too few registers is a gap, not a dropped session; a sentinel wider than its
+  field, or `full_scale: 0`, fails at load; bare addresses accept what `int()`
+  did in ASCII only; `collect run --resume` re-checks the saved refs; and
+  `modbus health` reports `overall: unknown` when no point could be classified.
+- **Sensor profiles (engine only).** `iaiops.core.runtime.sensor` validates a
+  profile — Modbus or IO-Link bit layouts, scale/offset, unit, range, sentinel raw
+  values, accuracy band, signal kind, plus `source` and `verified` — and decodes
+  raw words or process-data bits into a value or a refusal. Sentinels are matched
+  on the raw field before scaling; out-of-range values are refused; the accuracy
+  band travels with each reading. IO-Link bit offsets follow the IODD convention
+  (bit 0 = least significant bit of the last octet). Binding a profile to an
+  endpoint and IO-Link collection are the next steps (S3); no command reads a
+  profile yet.
+
 ### Fixed — audit forward during a rotation
 
 - **A rotation while `iaiops audit forward` was running still lost rows.** The

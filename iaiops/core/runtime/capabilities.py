@@ -271,11 +271,35 @@ def _readref_opcua(t: Any, ref: str) -> dict:
     return read_node(t, ref)
 
 
-def _readref_modbus(t: Any, ref: str) -> dict:
-    from iaiops.connectors.modbus.ops import modbus_read_holding
+def _modbus_ops_reader(t: Any):
+    """Word reader over the one-shot ops (one connection per read).
 
-    r = modbus_read_holding(t, address=int(ref), count=1)
-    return {"value": (r.get("decoded") or [None])[0], "good": True}
+    A legacy point asks for ``decode="uint16"`` exactly as before; a typed point
+    asks for the raw words and decodes them itself.
+    """
+    from iaiops.connectors.modbus.ops import modbus_read_holding, modbus_read_input
+
+    fns = {"holding": modbus_read_holding, "input": modbus_read_input}
+
+    def read(table: str, address: int, count: int) -> list[int]:
+        if count == 1 and table == "holding":
+            return list(fns[table](t, address=address, count=1).get("decoded") or [])
+        return list(
+            fns[table](t, address=address, count=count, decode="raw").get("raw_registers") or []
+        )
+
+    return read
+
+
+def _readref_modbus(t: Any, ref: str) -> dict:
+    from iaiops.connectors.modbus.points import read_point_value
+    from iaiops.core.runtime.sensor import InvalidReadingError
+
+    try:
+        return {"value": read_point_value(_modbus_ops_reader(t), ref), "good": True}
+    except InvalidReadingError as exc:
+        # The device answered; what it sent is not a measurement.
+        return {"value": None, "good": False, "reason": str(exc)}
 
 
 def _readref_s7(t: Any, ref: str) -> dict:
@@ -302,11 +326,20 @@ def _monitor_opcua(t: Any, ref: str) -> tuple[Any, str]:
     return desc.get("value"), desc.get("source_timestamp", "")
 
 
-def _monitor_modbus(t: Any, ref: str) -> tuple[Any, str]:
-    from iaiops.connectors.modbus.ops import modbus_read_holding
+def _no_reading(exc: Exception, ref: str):
+    from iaiops.core.runtime.session_factory import OTNoReadingError
 
-    r = modbus_read_holding(t, address=int(ref), count=1)
-    return (r.get("decoded") or [None])[0], ""
+    return OTNoReadingError(f"Modbus point {ref}: {exc}", protocol="modbus")
+
+
+def _monitor_modbus(t: Any, ref: str) -> tuple[Any, str]:
+    from iaiops.connectors.modbus.points import read_point_value
+    from iaiops.core.runtime.sensor import InvalidReadingError
+
+    try:
+        return read_point_value(_modbus_ops_reader(t), ref), ""
+    except InvalidReadingError as exc:
+        raise _no_reading(exc, ref) from exc
 
 
 def _session_read_mqtt(client: Any, ref: str) -> tuple[Any, str]:
@@ -350,7 +383,7 @@ def _monitor_read_mqtt(target: Any, ref: str) -> tuple[Any, str]:
 
 
 def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
-    """Read one holding register from an open pymodbus client.
+    """Read one Modbus point (legacy or typed) from an open pymodbus client.
 
     Deliberately thin: the connection lifecycle belongs to the caller, so this
     does nothing but the read. `device_id` comes off the client because the
@@ -365,10 +398,22 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
             "know which device to address. The session attaches it at open time — a "
             "client built another way must do the same rather than defaulting."
         )
-    resp = client.read_holding_registers(int(ref), count=1, device_id=int(unit))
-    if resp.isError():
-        raise OSError(f"Modbus read of {ref} failed: {resp}")
-    return (list(resp.registers) or [None])[0], ""
+    from iaiops.connectors.modbus.points import read_point_value
+    from iaiops.core.runtime.sensor import InvalidReadingError
+
+    methods = {"holding": "read_holding_registers", "input": "read_input_registers"}
+
+    def read(table: str, address: int, count: int) -> list[int]:
+        resp = getattr(client, methods[table])(address, count=count, device_id=int(unit))
+        if resp.isError():
+            raise OSError(f"Modbus read of {ref} failed: {resp}")
+        return list(resp.registers)
+
+    try:
+        return read_point_value(read, ref), ""
+    except InvalidReadingError as exc:
+        # A healthy device sent a non-measurement: a gap, not a dead session.
+        raise _no_reading(exc, ref) from exc
 
 
 def _session_read_opcua(client: Any, ref: str) -> tuple[Any, str]:

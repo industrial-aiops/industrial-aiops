@@ -55,6 +55,26 @@ def collectable_reason(target: Any) -> str:
     return ""
 
 
+def ref_problems(target: Any, refs: tuple[str, ...] | list[str]) -> list[str]:
+    """Refs this endpoint cannot even parse — checked BEFORE a run starts.
+
+    Inside a run a malformed ref fails on every tick, and on a held session each
+    failure also drops the connection: a typo becomes a week of gaps. Only
+    protocols with a ref grammar are checked; the rest are not second-guessed.
+    """
+    if str(getattr(target, "protocol", "") or "") != "modbus":
+        return []
+    from iaiops.connectors.modbus.points import parse_point
+
+    problems = []
+    for ref in refs:
+        try:
+            parse_point(ref)
+        except ValueError as exc:
+            problems.append(str(exc))
+    return problems
+
+
 def collectable_protocols() -> tuple[str, ...]:
     """Every protocol that continuous collection can currently drive."""
     from iaiops.core.runtime.capabilities import REGISTRY
@@ -105,6 +125,7 @@ def session_builder_for(protocol: str):
 
 __all__ = [
     "read_point",
+    "ref_problems",
     "can_collect",
     "collectable_protocols",
     "session_read_for",

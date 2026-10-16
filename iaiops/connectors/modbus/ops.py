@@ -11,6 +11,7 @@ words and the meaning is device-specific.
 
 from __future__ import annotations
 
+import re
 import struct
 from typing import Any
 
@@ -316,10 +317,10 @@ def modbus_health_summary(
     the wire as 65526) don't false-alarm against high bounds. Mirrors the
     OPC-UA ``health_summary`` classifier.
     """
-    addrs = _resolve_addresses(target, addresses)
-    if not addrs:
+    refs = _resolve_refs(target, addresses)
+    if not refs:
         return {
-            "error": "No addresses to evaluate. Pass addresses or add numeric "
+            "error": "No addresses to evaluate. Pass addresses or add "
             "'tags' to the endpoint's config entry.",
         }
     decode = decode if decode in ("uint16", "int16") else "uint16"
@@ -327,24 +328,16 @@ def modbus_health_summary(
     counts = {"ok": 0, "warn": 0, "alarm": 0, "unknown": 0}
     results: list[dict] = []
     with modbus_session(target) as client:
-        fn = getattr(client, fn_name)
-        for addr in addrs[:100]:
-            tag = _resolve_addr_tag(target, addr, thresholds)
-            try:
-                resp = fn(addr, count=1, device_id=target.unit_id)
-                if resp is None or (hasattr(resp, "isError") and resp.isError()):
-                    value = None
-                else:
-                    value = float(_decode_registers(list(resp.registers[:1]), decode)[0])
-            except Exception:  # noqa: BLE001 — per-address read error
-                value = None
-            status = "unknown" if value is None else tag.classify(value)
-            counts[status] += 1
-            results.append(
-                {"address": addr, "label": s(tag.label, 64), "value": value, "status": status}
-            )
+        for ref in refs[:100]:
+            entry = _health_entry(client, target, ref, fn_name, decode, thresholds)
+            counts[entry["status"]] += 1
+            results.append(entry)
     offenders = [r for r in results if r["status"] in ("warn", "alarm")]
     overall = "alarm" if counts["alarm"] else "warn" if counts["warn"] else "ok"
+    if results and counts["unknown"] == len(results):
+        # Nothing could be classified (typos, NaN, sentinels, failed reads):
+        # "ok" would report health that was never observed.
+        overall = "unknown"
     return {
         "endpoint": s(target.name, 64),
         "register_type": register_type,
@@ -357,21 +350,82 @@ def modbus_health_summary(
     }
 
 
-def _resolve_addresses(target: Any, addresses: list[int] | None) -> list[int]:
-    """Resolve addresses from the argument or numeric config tag refs."""
+def _resolve_refs(target: Any, addresses: list[int] | None) -> list[str]:
+    """Refs from the argument (bare addresses) or every configured tag.
+
+    A configured tag whose ref is not a bare number used to be skipped here in
+    silence; a typed point (``ir:0:float32:CDAB``) is now evaluated, and a ref
+    that cannot be parsed is reported as ``unknown`` with its reason.
+    """
     if addresses:
-        return [int(a) for a in addresses]
-    out: list[int] = []
-    for t in target.tags:
-        try:
-            out.append(int(t.ref))
-        except (TypeError, ValueError):
-            continue
-    return out
+        return [str(int(a)) for a in addresses]
+    return [str(t.ref).strip() for t in target.tags if str(t.ref or "").strip()]
 
 
-def _resolve_addr_tag(target: Any, address: int, overrides: dict | None):
-    """Resolve thresholds for a Modbus address from overrides or config tags."""
+def _health_value(
+    client: Any, target: Any, point: Any, ref: str, fn_name: str, decode: str
+) -> tuple[float | None, str]:
+    """Read one point for the health summary → (value, reason-if-none)."""
+    from iaiops.connectors.modbus.points import read_point_value
+    from iaiops.core.runtime.sensor import InvalidReadingError
+
+    try:
+        if point.legacy:
+            # The pre-typed path, unchanged: register_type / decode apply here.
+            resp = getattr(client, fn_name)(point.address, count=1, device_id=target.unit_id)
+            if resp is None or (hasattr(resp, "isError") and resp.isError()):
+                return None, "read failed"
+            return float(_decode_registers(list(resp.registers[:1]), decode)[0]), ""
+        methods = {"holding": "read_holding_registers", "input": "read_input_registers"}
+
+        def read(table: str, address: int, count: int) -> list[int]:
+            resp = getattr(client, methods[table])(address, count=count, device_id=target.unit_id)
+            if resp is None or (hasattr(resp, "isError") and resp.isError()):
+                raise OSError("read failed")
+            return list(resp.registers)
+
+        # A typed point carries its own table and type; register_type/decode do not apply.
+        return float(read_point_value(read, ref)), ""
+    except InvalidReadingError as exc:
+        return None, s(str(exc), 200)
+    except Exception as exc:  # noqa: BLE001 — per-point read error
+        return None, s(f"{type(exc).__name__}: {exc}", 200)
+
+
+def _health_entry(
+    client: Any, target: Any, ref: str, fn_name: str, decode: str, thresholds: dict | None
+) -> dict:
+    """Classify one ref; an unparseable ref is ``unknown`` with its reason, never dropped."""
+    from iaiops.connectors.modbus.points import parse_point
+
+    tag = _resolve_addr_tag(target, ref, thresholds)
+    legacy_key = str(int(ref)) if re.fullmatch(r"\+?[0-9_]+", ref) else ""
+    if thresholds and ref not in thresholds and legacy_key in thresholds:
+        # Overrides were keyed by str(int(ref)) before typed points ("040" → "40").
+        tag = _resolve_addr_tag(target, legacy_key, thresholds)
+    entry: dict[str, Any] = {"ref": s(ref, 64), "label": s(tag.label, 64)}
+    try:
+        point = parse_point(ref)
+    except ValueError as exc:
+        return {
+            **entry,
+            "address": None,
+            "value": None,
+            "status": "unknown",
+            "reason": s(str(exc), 200),
+        }
+    value, reason = _health_value(client, target, point, ref, fn_name, decode)
+    result = {
+        **entry,
+        "address": point.address,
+        "value": value,
+        "status": "unknown" if value is None else tag.classify(value),
+    }
+    return {**result, "reason": reason} if reason else result
+
+
+def _resolve_addr_tag(target: Any, address: int | str, overrides: dict | None):
+    """Resolve thresholds for a Modbus ref (bare address or typed) from overrides or config."""
     from iaiops.core.runtime.config import MonitorTag
 
     key = str(address)

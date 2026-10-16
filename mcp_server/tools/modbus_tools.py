@@ -138,7 +138,10 @@ def modbus_health_summary(
     """[READ][risk=low] Classify Modbus registers against warn/alarm thresholds.
 
     Mirrors the OPC-UA health_summary classifier. Returns ok/warn/alarm/unknown
-    counts plus offenders.
+    counts plus offenders; ``overall`` is ``unknown`` when no point could be
+    classified. Configured tags may be typed points (``ir:0:float32:CDAB``),
+    which carry their own table and type — register_type/decode apply only to
+    bare addresses.
 
     Args:
         endpoint: Endpoint name from config.
