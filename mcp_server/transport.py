@@ -25,7 +25,13 @@ import logging
 import os
 
 from iaiops.core.governance.allowlist import load_allowlist_env
-from mcp_server.http_auth import bearer_token_app, load_token, require_token_for_bind
+from mcp_server.http_auth import (
+    ALLOWED_HOSTS_ENV,
+    bearer_token_app,
+    load_token,
+    require_token_for_bind,
+    transport_security_for,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +92,17 @@ def run_server(mcp) -> None:
     # Before the app is built: a refused bind must not leave a half-started server.
     token = load_token()
     require_token_for_bind(host, token)
+    if token is None:
+        logger.warning(
+            "MCP over %s on loopback WITHOUT a token: any local user or process can "
+            "call the tools. Set IAIOPS_MCP_TOKEN to require one here too.",
+            transport,
+        )
     mcp.settings.host = host
     mcp.settings.port = port
+    security = transport_security_for(host, token, os.environ.get(ALLOWED_HOSTS_ENV))
+    if security is not None:
+        mcp.settings.transport_security = security
     app = mcp.sse_app() if transport == "sse" else mcp.streamable_http_app()
 
     if token is not None:

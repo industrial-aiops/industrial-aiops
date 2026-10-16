@@ -27,12 +27,27 @@
     start. A warning is what the old design did, and nobody reads warnings.
   - A refusal is logged and written to the audit trail as `mcp_http_auth`
     `denied` (CRA Annex I Part I(2)(d), "report on possible unauthorised
-    access") — one row per client per minute, so a client hammering the port
-    cannot flood the trail. The token never reaches a log or an audit row.
+    access") — one row per client per minute and at most 10 per minute in total
+    (the suppressed count rides on the next row), path truncated, written off
+    the event loop, so neither one client nor one rotating its source address
+    can flood the trail. The token never reaches a log or an audit row.
+  - Off loopback, FastMCP's DNS-rebinding Host check — which knows only
+    loopback names and answered every caller reaching a container by address
+    or service name with `421 Invalid Host header` — is replaced:
+    `IAIOPS_MCP_ALLOWED_HOSTS` lists accepted Host headers; unset, the check is
+    off and the token is the control (a rebinding page cannot present it). A
+    live test drives a 0.0.0.0-bound server with a remote Host header.
+  - Tokens must be printable ASCII (a header could not carry anything else);
+    a group/world-readable token file is warned about; an empty
+    `IAIOPS_MCP_TOKEN` counts as unset, so the shipped compose files can offer
+    both `IAIOPS_MCP_TOKEN` and `IAIOPS_MCP_TOKEN_FILE` (preferred — the value
+    then never shows in `docker inspect`). On loopback without a token a
+    warning says any local process can call the tools.
   - **Upgrade:** the Margo package and compose file, the airgap compose, the
     Siemens IE app and the IGEL unit now require `IAIOPS_MCP_TOKEN` from the
     secret store (`openssl rand -base64 48`); the Margo descriptor gains an
-    `mcpToken` secret parameter. Clients send the header. stdio is unchanged.
+    `mcpToken` secret parameter whose schema requires the same 32 characters.
+    Clients send the header. stdio is unchanged.
   - The CRA crosswalk follows: I(2)(d) moves to `product_evidence` (one shared
     token, not per-user identity — said so), I(2)(b) and (j) cite it.
 
