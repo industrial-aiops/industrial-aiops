@@ -247,12 +247,14 @@ _MECHANISMS: dict[str, dict] = {
     "dependency_audit": {
         "name": "Dependency-vulnerability scan (CI)",
         "fact": "Every change exports the locked runtime dependency set (all extras, no "
-        "dev group) and runs pip-audit on it; a known vulnerability fails the build "
-        "unless .github/pip-audit-ignore.txt lists it with a reason. Limits: it scans "
+        "dev group) and runs pip-audit on it, and the release workflow repeats the "
+        "scan before uploading to PyPI; a known vulnerability fails either unless "
+        ".github/pip-audit-ignore.txt lists it with a reason. Limits: it scans "
         "the lock, not each install (a pip install resolves declared ranges); it runs "
         "per change, not continuously against released versions.",
         "anchors": (
             "file:.github/workflows/ci.yml#uvx pip-audit -r runtime-requirements.txt",
+            "file:.github/workflows/publish-pypi.yml#uvx pip-audit -r runtime-requirements.txt",
             "file:.github/pip-audit-ignore.txt",
         ),
     },
