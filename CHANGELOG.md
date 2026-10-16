@@ -230,6 +230,20 @@
   prints that path before the first prompt and again at the end, says
   `(via $IAIOPS_CONFIG)` when it is an override, and tightens permissions only on
   its own `~/.iaiops` directory, never on a directory an override lives in.
+- **`iaiops audit forward` left a hole after every audit DB rotation.** The cursor
+  was a bare row id, and at 100 MB the rotated-in file starts its ids at 1 again:
+  rows written after a rotation were not forwarded until the new ids passed the
+  old cursor, and rows written between the last forward and the rotation were
+  never forwarded at all. That is the off-host copy `audit verify` points to as
+  the remedy for an unkeyed chain. The cursor now names the row itself (`id` +
+  `ts` + `row_hash`); each run finds it in the live file or a retained archive
+  and forwards the rest of that file and every newer one, oldest first. A first
+  run also forwards the retained archives. When the row is in no file on disk —
+  more than 5 rotations between runs, or the file was replaced — the run
+  **refuses** and says so instead of guessing a position; so does a corrupt
+  cursor file, which used to restart silently from 0. A bare-id cursor from an
+  older iaiops is honoured only while no rotation has happened since. Output
+  gains `cursor_file`, because an id alone no longer says where the cursor is.
 
 ### CI
 
