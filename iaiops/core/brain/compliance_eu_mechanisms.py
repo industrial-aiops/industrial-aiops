@@ -74,11 +74,12 @@ _MECHANISMS: dict[str, dict] = {
         "fact": "Streams new audit rows as JSON lines to a syslog (UDP) or HTTP "
         "collector. The cursor names the last forwarded row itself (id + ts + "
         "row_hash), so a run after an audit-DB rotation continues through the "
-        "retained archives into the new file, oldest first. Limits: best-effort / "
-        "at-least-once, no delivery acknowledgement; when the cursor row is in no "
-        "file on disk (more than 5 rotations between runs, or the file was replaced) "
-        "the run refuses rather than guess a position — rows deleted with those "
-        "archives were never forwarded.",
+        "retained archives into the new file, oldest first; a rotation during a run "
+        "stops it short of the new file and the next run continues. Limits: "
+        "best-effort / at-least-once, no delivery acknowledgement; when the cursor "
+        "row is in no file on disk (its archive aged out — only 5 are kept — or the "
+        "file was replaced) the run refuses rather than guess a position, and rows "
+        "deleted with those archives were never forwarded.",
         "anchors": (
             "py:iaiops.core.governance.forward:build_sink",
             "py:iaiops.core.governance.forward:CursorLost",
