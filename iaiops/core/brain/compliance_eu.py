@@ -237,17 +237,19 @@ CRA_ITEMS: tuple[dict, ...] = (
         "cra-i-1-2-b",
         "CRA Annex I Part I(2)(b)",
         "Secure by default configuration, with the possibility to reset to the original state.",
-        "partial_evidence",
+        "product_evidence",
         "Defaults: read-first, MCP device writes preview-only (dry_run=True) and "
         "approver-gated, stdio transport for a pip install; the shipped containers "
-        "serve HTTP only with a bearer token (no token, no start) and run non-root.",
-        "IAIOPS_NO_EGRESS is opt-in. There is no reset-to-original command.",
+        "serve HTTP only with a bearer token (no token, no start) and run non-root. "
+        "`iaiops reset` returns an installation to its original state.",
+        "IAIOPS_NO_EGRESS is opt-in, not the default.",
         (
             "dry_run_undo",
             "approvals_moc",
             "mcp_profiles",
             "http_bearer_auth",
             "container_hardening",
+            "reset_command",
         ),
         (_LEAST,),
     ),
@@ -401,12 +403,15 @@ CRA_ITEMS: tuple[dict, ...] = (
         "CRA Annex I Part I(2)(m)",
         "Users can securely and easily remove on a permanent basis all data and "
         "settings, and securely transfer data to other products where applicable.",
-        "partial_evidence",
-        "Individual secrets can be deleted; collected history can be pruned.",
-        "No way to remove all data and settings: that is deleting ~/.iaiops by hand. "
-        "The audit trail has no removal command (old archives are deleted only by "
-        "automatic rotation). No secure-transfer function.",
-        ("secret_store", "store_prune"),
+        "product_evidence",
+        "`iaiops reset` removes all data and settings iaiops wrote locally (config, "
+        "secrets, audit trail, history), behind preview, approval and confirmation; "
+        "single secrets and collected history can also be removed on their own.",
+        "Files are unlinked, not shredded — the audit trail and history are plaintext "
+        "SQLite, so on flash storage only full-disk encryption or a device wipe "
+        "sanitises the medium. External historians and forwarded audit rows are not "
+        "reached. No secure-transfer function.",
+        ("reset_command", "secret_store", "store_prune"),
     ),
     _item(
         "cra-i-2-1",

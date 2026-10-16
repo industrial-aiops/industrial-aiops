@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+### Added — `iaiops reset` (CRA Annex I Part I(2)(b)(m))
+
+- **`iaiops reset`** lists everything iaiops wrote under its state roots —
+  config, encrypted secrets, the audit trail and its archives, undo and approval
+  state, collected history, and an `$IAIOPS_CONFIG` file outside them — and
+  changes nothing. **`--apply`** removes it, behind a named approver (it is a
+  write: `iaiops approve reset_cmd --by <name>`) and two confirmations; the
+  audit trail restarts with the reset's own row. Failures are reported and exit
+  1, never swallowed. **Only names iaiops itself writes are removed** (a fixed
+  list, their SQLite sidecars and temp files, audit archives); anything else in
+  a root is listed as *kept*, never deleted — `IAIOPS_HOME` can point anywhere,
+  and "delete everything in the root" would wipe a project directory or a shared
+  volume on one mistyped variable. Roots are `resolve()`d; a relative
+  `IAIOPS_HOME`, `/`, the home directory or one of its parents is refused;
+  symlinks are removed, not followed; an `$IAIOPS_CONFIG` that names a directory
+  is kept. The plan says when the config directory is shared by every instance
+  on the host, and when a legacy `~/.ot-aiops` exists and is not covered.
+- It says what it does not do: files are unlinked, not shredded (on flash only
+  full-disk encryption or a device wipe sanitises the medium), and external
+  historians, forwarded audit rows and files written with `--out` elsewhere are
+  not reached, and a running server keeps what it holds in memory (stop it
+  first). **CLI only — no MCP tool**: an agent that can erase the audit
+  trail is what the trail exists to prevent (a test pins it).
+- CRA crosswalk: I(2)(b) and I(2)(m) move to `product_evidence`.
+
 ### Added — audit opt-out for reads (CRA Annex I Part I(2)(l))
 
 - **`IAIOPS_AUDIT_OPT_OUT=reads`** stops recording successful calls of tools

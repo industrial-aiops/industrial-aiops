@@ -293,7 +293,6 @@ def test_partial_evidence_rows_name_a_mechanism_and_what_is_missing():
     "ref",
     [
         "CRA Annex I Part I(2)(c)",  # publishing releases is not an update mechanism
-        "CRA Annex I Part I(2)(m)",  # no remove-all path
         "CRA Annex I Part II(2)",  # no remediation process
         "CRA Annex I Part II(7)",  # wheels unsigned
     ],
@@ -301,6 +300,20 @@ def test_partial_evidence_rows_name_a_mechanism_and_what_is_missing():
 def test_rows_missing_their_central_requirement_are_not_full_evidence(ref):
     item = next(i for i in CRA_ITEMS if i["ref"] == ref)
     assert item["coverage"] != "product_evidence", ref
+
+
+def test_the_removal_row_admits_it_does_not_shred():
+    item = next(i for i in CRA_ITEMS if i["ref"].endswith("Part I(2)(m)"))
+    assert "reset_command" in item["mechanisms"]
+    assert "not shredded" in item["gap"]
+    from iaiops.core.runtime.reset import ERASE_NOTE
+
+    assert "not shredded" in ERASE_NOTE
+
+
+def test_reset_is_not_an_mcp_tool(full_tool_registry):
+    """An agent that can erase the audit trail is what the trail exists to prevent."""
+    assert not [n for n in full_tool_registry if "reset" in n.lower()]
 
 
 def test_the_crosswalk_is_not_cited_as_evidence_for_itself():
