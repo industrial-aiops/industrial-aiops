@@ -34,6 +34,9 @@
   51st onward were credited while their seconds stayed out of run time — Performance
   went up the blinder the window was. Blind windows are now never capped;
   `blind_windows_total` gives the count.
+- **`oee measure` printed Performance 0.0% for a line with a declared cycle time
+  and no usable total count.** `produced` defaulted to 0 instead of the factor being
+  refused. It is now "not reported", with the declaration that is missing.
 
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 

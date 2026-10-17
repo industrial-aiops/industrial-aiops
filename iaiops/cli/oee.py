@@ -138,10 +138,17 @@ def oee_measure_cmd(
     totals = _count_for(TagRole.TOTAL_COUNT)
     goods = _count_for(TagRole.GOOD_COUNT)
     produced = totals["produced"] if totals else 0.0
-    perf = performance_factor(
-        produced=produced,
-        ideal_cycle_time_s=getattr(target, "ideal_cycle_time_s", None),
-        run_time_s=result.get("running_s", 0.0),
+    # No usable total count is a REFUSAL, not zero parts. Defaulting `produced` to
+    # 0 printed "Performance 0.0%" for any line with a declared cycle time and no
+    # counter — a number where there should be none.
+    perf = (
+        performance_factor(
+            produced=produced,
+            ideal_cycle_time_s=getattr(target, "ideal_cycle_time_s", None),
+            run_time_s=result.get("running_s", 0.0),
+        )
+        if totals
+        else _performance_without_a_count()
     )
     qual = quality_factor(total=produced, good=goods["produced"] if goods else None)
 
@@ -308,6 +315,20 @@ def oee_measure_cmd(
 
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
+
+
+def _performance_without_a_count() -> dict:
+    """Performance when no total count was usable: refused, never zero."""
+    return {
+        "performance": None,
+        "performance_raw": None,
+        "warning": "",
+        "note": (
+            "No usable production count, so Performance is not reported. Declare a "
+            "tag with `role: total_count` and collect it — zero parts is a "
+            "measurement, and nothing was measured."
+        ),
+    }
 
 
 def _factor_line(name: str, value: float | None, note: str, raw: float | None = None) -> str:

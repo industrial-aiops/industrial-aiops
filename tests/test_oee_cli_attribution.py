@@ -90,3 +90,17 @@ def test_the_human_output_names_who_gave_reasons(site):
     assert result.exit_code == 0, result.output
     assert "Stoppage reasons" in result.output
     assert "never put to a person" in result.output
+
+
+_CYCLE_ONLY = _CONFIG.replace("    tags:\n", "    ideal_cycle_time_s: 2.0\n    tags:\n")
+
+
+def test_performance_is_refused_not_zero_without_a_count(site):
+    """A declared cycle time with no total-count tag used to print Performance
+    0.0% — `produced` defaulted to 0 instead of the factor being refused."""
+    (site / "config.yaml").write_text(_CYCLE_ONLY)
+    out = _measure()
+    assert out["measured"]["status"] == "ok"
+    assert out["performance"]["performance"] is None
+    assert out["factors"]["performance"] is None
+    assert "total_count" in out["performance"]["note"]
