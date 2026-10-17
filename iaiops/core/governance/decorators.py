@@ -661,8 +661,11 @@ def _finalize(state: _CallState) -> None:
     pattern_armed = bool(state.pattern_match and state.pattern_match.armed)
 
     # The one opt-out the trail allows (CRA Annex I Part I(2)(l)): a successful
-    # low/medium-risk call. Never a high/critical one, never a denial or failure.
-    if audit_opt_out.skips(state.opt_out_eligible, state.risk_level, final_status):
+    # call of a declared read that is on the reviewed PURE_READS list. Never a
+    # high/critical one, never a denial or failure, never an unreviewed tool.
+    if audit_opt_out.skips(
+        state.opt_out_eligible, state.risk_level, final_status, tool=state.tool_name
+    ):
         audit_opt_out.mark_once(state.audit)
         return
 

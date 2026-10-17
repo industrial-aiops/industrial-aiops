@@ -35,14 +35,17 @@ _MECHANISMS: dict[str, dict] = {
         "name": "Audit opt-out for reads (IAIOPS_AUDIT_OPT_OUT=reads)",
         "fact": "IAIOPS_AUDIT_OPT_OUT=reads stops recording successful calls of tools "
         "that are reads by declaration — tagged [READ], low/medium risk, no write mode, "
-        "no egress. Device writes and their previews, data shipped off-box, low-risk "
-        "local state changes, denials, failures and every CLI command are always "
-        "recorded; the opt-out writes a marker row (retried until it lands), and "
-        "doctor and the evidence zip report it. Any other value keeps recording and "
+        "no egress — and on a reviewed list of pure reads (161 of 198 tools). Device "
+        "writes and their previews, data shipped off-box, low-risk local state "
+        "changes, files written to out_path, device-side subscriptions, network-wide "
+        "discovery, any tool not yet reviewed, denials, failures and every CLI "
+        "command are always recorded; the opt-out writes a marker row (retried until "
+        "it lands), and doctor and the evidence zip report it. Any other value keeps recording and "
         "warns. Limits: there is no opt-out for anything but declared reads, by design.",
         "anchors": (
             "py:iaiops.core.governance.audit_opt_out:eligible",
             "py:iaiops.core.governance.audit_opt_out:skips",
+            "py:iaiops.core.governance.audit_opt_out_reads:PURE_READS",
             "file:iaiops/core/governance/decorators.py#audit_opt_out.skips(",
         ),
     },

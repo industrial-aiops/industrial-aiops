@@ -25,6 +25,10 @@ pytestmark = pytest.mark.unit
 def _isolate(tmp_path, monkeypatch):
     monkeypatch.setenv("IAIOPS_HOME", str(tmp_path))
     monkeypatch.delenv(audit_opt_out.OPT_OUT_ENV, raising=False)
+    # The test reads below are reviewed pure reads, as every real one must be.
+    monkeypatch.setattr(
+        audit_opt_out, "PURE_READS", audit_opt_out.PURE_READS | {"_read", "_failing_read"}
+    )
     reset_engine()
     audit_opt_out.reset_for_tests()
     yield
@@ -242,3 +246,83 @@ def test_a_failed_marker_write_is_retried(monkeypatch):
     assert broken.calls == 2
     audit_opt_out.mark_once(get_engine())
     assert len(_rows(audit_opt_out.MARKER_TOOL)) == 1
+
+
+@governed_tool(risk_level="low")
+def _unreviewed_read() -> dict:
+    """[READ][risk=low] Tagged a read, but nobody put it on the reviewed list."""
+    return {"value": 1}
+
+
+def test_a_read_nobody_reviewed_is_still_recorded(monkeypatch):
+    """Pre-release audit H1: [READ] in this repo is about PLANT state, so it also
+    tags tools that write local state. The tag alone can never silence a call; a
+    tool must be on the reviewed PURE_READS list, so a new tool defaults to
+    recorded."""
+    monkeypatch.setenv(audit_opt_out.OPT_OUT_ENV, "reads")
+    _unreviewed_read()
+    assert len(_rows("_unreviewed_read")) == 1
+
+
+@pytest.mark.parametrize(
+    ("tool", "kwargs"),
+    [
+        ("baseline_record_change", {"tag": "line1.temp", "note": "setpoint 60->70C"}),
+        ("line_relation_declare", {"upstream": "press", "downstream": "oven", "by": "wei"}),
+    ],
+)
+def test_real_local_state_writers_are_recorded_under_the_opt_out(
+    monkeypatch, full_tool_registry, tool, kwargs
+):
+    """Pre-release audit H1, reproduced: both wrote their state while the trail
+    held only the opt-out marker."""
+    monkeypatch.setenv(audit_opt_out.OPT_OUT_ENV, "reads")
+    full_tool_registry[tool].fn(**kwargs)
+    assert _rows(tool), f"{tool} changed local state and left no audit row"
+
+
+#: Tools tagged [READ] that write local state, write a file, create state on a
+#: device (a subscription, however bounded) or probe a whole network segment.
+#: Listed independently of PURE_READS: none may ever be on it.
+NOT_PURE = {
+    "adopt_alias_map",
+    "alarm_rationalization_worksheet",
+    "asset_inventory",
+    "bacnet_cov_subscribe",
+    "bacnet_discover",
+    "baseline_learn",
+    "baseline_learn_contextual",
+    "baseline_record_change",
+    "compliance_evidence_bundle",
+    "compliance_report",
+    "export_data",
+    "investigation_open",
+    "learn_cause_weights",
+    "line_relation_declare",
+    "opcua_subscribe_sample",
+    "plc_program_snapshot",
+    "profinet_asset_inventory",
+    "profinet_discover",
+    "rca_corpus_from_maintenance",
+    "uns_live_audit",
+}
+
+
+def test_no_state_writer_is_on_the_pure_reads_list():
+    assert not (NOT_PURE & audit_opt_out.PURE_READS)
+
+
+def test_every_pure_read_is_a_registered_declared_read(full_tool_registry):
+    """A stale or misspelt name would be harmless, but a name that is no longer a
+    declared read must not stay listed."""
+    import inspect
+
+    for name in sorted(audit_opt_out.PURE_READS - {"_read", "_failing_read"}):
+        assert name in full_tool_registry, f"{name} is listed but not registered"
+        fn = full_tool_registry[name].fn
+        assert audit_opt_out.eligible(
+            risk_level=getattr(fn, "_risk_level", "low"),
+            egress=bool(getattr(fn, "_egress", False)),
+            preview_param=getattr(fn, "_preview_param", None),
+            doc=inspect.getdoc(fn),
+        ), f"{name} is listed but is not a declared read"

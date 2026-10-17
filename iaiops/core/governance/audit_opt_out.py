@@ -5,10 +5,15 @@ mechanism for the user". The trail is also this product's governance backbone,
 so the opt-out is deliberately narrow:
 
 * ``IAIOPS_AUDIT_OPT_OUT=reads`` — the only accepted value — stops recording
-  successful calls of tools that are **reads by declaration**: tagged ``[READ]``,
+  successful calls of tools that are **reads by declaration** — tagged ``[READ]``,
   declared low/medium risk, with no write mode (no preview parameter) and no
-  egress. Anything else is recorded, including low-risk local state changes
-  (case and investigation records, baselines), data shipped off-box
+  egress — **and** on the reviewed ``PURE_READS`` list
+  (``audit_opt_out_reads``). The tag alone is not enough: in this repo
+  ``[READ]`` is about plant state, so it also tags tools that write local
+  state. Anything else is recorded, including low-risk local state changes
+  (case and investigation records, baselines, line relations, alias maps),
+  files written to ``out_path``, device-side subscriptions, network-wide
+  discovery, any tool not yet reviewed, data shipped off-box
   (``historian_push``, stream publishing), previews of device writes, and every
   CLI command (CLI docstrings carry no tag);
 * high/critical calls (device writes) are always recorded, and still fail closed
@@ -28,6 +33,8 @@ import logging
 import os
 import threading
 from typing import Any
+
+from iaiops.core.governance.audit_opt_out_reads import PURE_READS
 
 _log = logging.getLogger("iaiops.audit")
 
@@ -84,10 +91,18 @@ def eligible(*, risk_level: str, egress: bool, preview_param: str | None, doc: s
     )
 
 
-def skips(eligible_tool: bool, risk_level: str, status: str) -> bool:
-    """Whether this finished call's audit row is opted out."""
+def skips(eligible_tool: bool, risk_level: str, status: str, *, tool: str) -> bool:
+    """Whether this finished call's audit row is opted out.
+
+    ``tool`` must be on ``PURE_READS`` (read at call time): an unreviewed tool is
+    always recorded, so forgetting to classify one costs a row, never a silent call.
+    """
     return (
-        eligible_tool and status == "ok" and risk_level not in ALWAYS_RECORDED_RISK and opted_out()
+        eligible_tool
+        and tool in PURE_READS
+        and status == "ok"
+        and risk_level not in ALWAYS_RECORDED_RISK
+        and opted_out()
     )
 
 
@@ -137,6 +152,7 @@ def status() -> dict[str, Any]:
             "egress",
             "write previews",
             "untagged or non-[READ] tools",
+            "tools not on the reviewed PURE_READS list (local state writers included)",
             "CLI commands",
         ],
     }

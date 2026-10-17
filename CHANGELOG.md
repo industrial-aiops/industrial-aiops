@@ -332,6 +332,20 @@ and companion-spec role hints in `tags export`. 198 governed tools.
   the trail always shows from when reads went unrecorded; `iaiops doctor` and
   the evidence zip's `doctor_summary.json` report it. Any other value keeps
   recording and warns — a typo must never switch the trail off.
+- **Pre-release fix: the opt-out silenced local state changes.** `[READ]` in
+  this repo describes PLANT state, so it also tagged tools that write local
+  state — `baseline_record_change`, `line_relation_declare`, `adopt_alias_map`,
+  `investigation_open`, `baseline_learn*`, `plc_program_snapshot`, and tools
+  that write an `out_path` file. 181 of 198 tools were eligible; with the
+  opt-out on, `baseline_record_change` and `line_relation_declare` wrote their
+  state and the trail held only the marker row. A tool now also has to be on a
+  reviewed list of pure reads (`audit_opt_out_reads.PURE_READS`, 161 tools);
+  anything not listed is recorded, so a new tool defaults to recorded. Also
+  left off: device-side subscriptions (BACnet COV, OPC UA subscribe — bounded,
+  but state on the device) and network-wide discovery (`bacnet_discover`,
+  `profinet_discover`, `asset_inventory`, `profinet_asset_inventory`).
+  Tools of sibling packages using this decorator are not on the list and are
+  always recorded.
 
 ### Changed — breaking for socket deployments
 
