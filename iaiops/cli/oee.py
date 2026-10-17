@@ -21,10 +21,10 @@ from pathlib import Path
 import typer
 
 from iaiops.cli._common import (
-    MAX_STORE_SAMPLES,
     _emit,
     cli_errors,
     console,
+    endpoint_tag_samples,
     humanize_seconds,
     run_state_samples,
 )
@@ -75,7 +75,6 @@ def oee_measure_cmd(
         quality_factor,
     )
     from iaiops.core.runtime.config import TagRole, load_config
-    from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
     target = load_config().get_target(endpoint)
     # Both bounds or neither. One alone leaves the other side of the period
@@ -116,8 +115,9 @@ def oee_measure_cmd(
             basis = "sample_span"
 
     window = (since, until) if since else None
-    tag, rows = run_state_samples(endpoint, db, since=since, until=until)
+    tag, rows, unlabeled = run_state_samples(endpoint, db, since=since, until=until)
     result = measure_availability(rows, tag, minor_stop_s=minor_stop_s, window=window)
+    excluded = [unlabeled]
     result["window_basis"] = basis
     if observed is not None:
         result["window_run_id"] = observed.run_id
@@ -131,22 +131,19 @@ def oee_measure_cmd(
         found = [t for t in (getattr(target, "tags", ()) or ()) if t.role == role]
         if not found:
             return None
+        counter_rows, counter_unlabeled = endpoint_tag_samples(
+            endpoint, found[0].ref, db, since=since, until=until
+        )
+        excluded.append(counter_unlabeled)
         counted = count_production(
-            _within(
-                query_samples(
-                    SampleFilter(
-                        tag=found[0].ref, since=since, until=until, limit=MAX_STORE_SAMPLES
-                    ),
-                    db_path=db,
-                ),
-                window,
-            ),
+            _within(counter_rows, window),
             blind_windows=result.get("blind_windows"),
         )
         return counted if counted["status"] == "ok" else None
 
     totals = _count_for(TagRole.TOTAL_COUNT)
     goods = _count_for(TagRole.GOOD_COUNT)
+    result = _with_unlabeled_note(result, sum(excluded))
     produced = totals["produced"] if totals else 0.0
     # No usable total count is a REFUSAL, not zero parts. Defaulting `produced` to
     # 0 printed "Performance 0.0%" for any line with a declared cycle time and no
@@ -325,6 +322,23 @@ def oee_measure_cmd(
 
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
+
+
+def _with_unlabeled_note(result: dict, excluded: int) -> dict:
+    """State how many unlabeled rows were left out — in the payload AND the note.
+
+    Leaving them out is right (nobody can say which line they came from), but a
+    stop sample left out becomes blind time, so the figure moves. The reader is
+    told by how much rather than finding out from a recount.
+    """
+    note = result.get("note", "")
+    if excluded:
+        note = (
+            f"{note} {excluded} sample(s) for these refs carry no endpoint label and "
+            "were NOT counted: refs repeat across lines, so they cannot be placed on "
+            "this one."
+        ).strip()
+    return {**result, "unlabeled_samples_excluded": excluded, "note": note}
 
 
 def _utc(bound: str | None) -> str | None:

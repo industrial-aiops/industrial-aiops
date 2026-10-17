@@ -78,13 +78,46 @@ def cli_errors(fn: Callable) -> Callable:
 MAX_STORE_SAMPLES = 200_000
 
 
+def endpoint_tag_samples(
+    endpoint: str,
+    ref: str,
+    db: Path | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> tuple[list[dict], int]:
+    """One endpoint's samples for ``ref``, and how many unlabeled rows were left out.
+
+    Scoped by endpoint as well as tag: refs are not unique across a site (Modbus
+    "40001" exists on every line), so a tag-only query measured one line over its
+    neighbour's samples. Rows stored with no endpoint label cannot be placed on a
+    line and are never counted toward this one. When they are ALL there is, that
+    is refused with the reason rather than reported as "no samples".
+    """
+    from iaiops.core.sink.sqlite_local import SampleFilter, count_unlabeled, query_samples
+
+    rows = query_samples(
+        SampleFilter(endpoint=endpoint, tag=ref, since=since, until=until, limit=MAX_STORE_SAMPLES),
+        db_path=db,
+    )
+    unlabeled = count_unlabeled(ref, since=since, until=until, db_path=db)
+    if not rows and unlabeled:
+        raise ValueError(
+            f"The store holds {unlabeled} sample(s) for ref {ref!r} with no endpoint label "
+            f"and none labeled {endpoint!r}. Refs repeat across lines, so these cannot be "
+            "assigned to this one and are not counted. Re-write them with the endpoint "
+            f"named (historian_push(..., endpoint={endpoint!r})), or collect with "
+            "`iaiops collect`, which labels every row."
+        )
+    return rows, unlabeled
+
+
 def run_state_samples(
     endpoint: str,
     db: Path | None = None,
     since: str | None = None,
     until: str | None = None,
 ):
-    """The endpoint's declared run-state tag and its collected samples.
+    """The endpoint's declared run-state tag, its samples, and the unlabeled rows left out.
 
     Shared by `oee measure` and `case open` so both agree on which tag decides
     what running means. A second copy of this would be a second place for the
@@ -95,7 +128,6 @@ def run_state_samples(
     bound is rejected before anything is read.
     """
     from iaiops.core.runtime.config import TagRole, load_config
-    from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
     target = load_config().get_target(endpoint)
     run_tags = [t for t in (getattr(target, "tags", ()) or ()) if t.role == TagRole.RUN_STATE]
@@ -106,10 +138,8 @@ def run_state_samples(
             "run `iaiops readiness` to see what else is missing."
         )
     tag = run_tags[0]
-    return tag, query_samples(
-        SampleFilter(tag=tag.ref, since=since, until=until, limit=MAX_STORE_SAMPLES),
-        db_path=db,
-    )
+    rows, unlabeled = endpoint_tag_samples(endpoint, tag.ref, db, since=since, until=until)
+    return tag, rows, unlabeled
 
 
 def get_manager(config_path: Path | None = None):
