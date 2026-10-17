@@ -317,6 +317,16 @@ and companion-spec role hints in `tags export`. 198 governed tools.
   first). **CLI only — no MCP tool**: an agent that can erase the audit
   trail is what the trail exists to prevent (a test pins it).
 - CRA crosswalk: I(2)(b) and I(2)(m) move to `product_evidence`.
+- **Pre-release fix: a second instance's reset reached the default instance.**
+  With `IAIOPS_HOME` set, the config directory (`~/.iaiops`, not moved by
+  `IAIOPS_HOME`) is also the default instance's home; the plan listed its
+  `audit.db`, audit archives and `data.db` for removal. In a root
+  `IAIOPS_HOME` does not move, only what is shared through it is removed —
+  config, secrets, `.env`, collection sessions, investigations and knowledge —
+  and everything else is listed as kept, saying whose it is.
+- **Pre-release fix: a symlinked `$IAIOPS_CONFIG` removed its target.** The
+  path was resolved before removal; now the link itself is removed and the
+  file it points to is left alone.
 
 ### Added — audit opt-out for reads (CRA Annex I Part I(2)(l))
 
