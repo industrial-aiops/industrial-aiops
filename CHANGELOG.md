@@ -553,6 +553,13 @@ and companion-spec role hints in `tags export`. 198 governed tools.
   old default and passes on the new one. No test had ever gone through a port
   mapping, which is why this shipped.
 
+- **Pre-release fix: health summaries said `ok` about points they never
+  observed.** `modbus_health_summary` reported `overall: ok` when one point was
+  in band and nine could not be read or parsed; the OPC UA `health_summary`
+  reported `ok` even when **every** read failed. With nothing in warn/alarm,
+  any unclassified point now makes the headline `unknown`; `ok` means every
+  point was observed in band. A warn or alarm still wins.
+
 ### CI
 
 - **PyPI releases publish from CI with Trusted Publishing** (`publish-pypi.yml`, on

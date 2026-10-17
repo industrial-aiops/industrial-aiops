@@ -333,11 +333,18 @@ def modbus_health_summary(
             counts[entry["status"]] += 1
             results.append(entry)
     offenders = [r for r in results if r["status"] in ("warn", "alarm")]
-    overall = "alarm" if counts["alarm"] else "warn" if counts["warn"] else "ok"
-    if results and counts["unknown"] == len(results):
-        # Nothing could be classified (typos, NaN, sentinels, failed reads):
-        # "ok" would report health that was never observed.
-        overall = "unknown"
+    # "ok" only about what was observed: with nothing in warn/alarm, any point
+    # that could not be classified (typo, NaN, sentinel, failed read) makes the
+    # headline "unknown" — unobserved is not healthy.
+    overall = (
+        "alarm"
+        if counts["alarm"]
+        else "warn"
+        if counts["warn"]
+        else "unknown"
+        if counts["unknown"]
+        else "ok"
+    )
     return {
         "endpoint": s(target.name, 64),
         "register_type": register_type,
