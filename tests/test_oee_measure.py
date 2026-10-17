@@ -504,7 +504,7 @@ class TestTheCommandPassesTheWindowOn:
 
         monkeypatch.setattr(engine, "measure_availability", _spy)
         monkeypatch.setattr(
-            oee_cli, "run_state_samples", lambda *a, **k: (RUN, series(*steady(2, 0, 600)))
+            oee_cli, "run_state_samples", lambda *a, **k: (RUN, series(*steady(2, 0, 600)), 0)
         )
 
         class _Target:

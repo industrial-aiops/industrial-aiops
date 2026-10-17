@@ -48,6 +48,26 @@
   on their own FastMCP instance (not `mcp_server._shared.mcp`) record no origin
   until they declare one: `iaiops.core.governance.origin.mcp_origin(session)` builds the
   origin from an MCP server session, and `origin_scope` declares it around the call.
+### Fixed — `oee measure` and `case open` read one endpoint, not every line sharing a ref
+
+- **Two endpoints whose tags share a ref read each other's samples.** Refs are not
+  unique across a site — Modbus `40001` exists on every line — and the run-state and
+  counter queries filtered by tag alone. On a store holding line-1 and line-2, line-1's
+  availability was measured over line-2's run state too, its part count included
+  line-2's parts, and `case open line-1` opened cases for line-2's stoppages. The
+  error pointed whichever way the neighbour did: better OR worse than measured, with
+  nothing on the page to say so. Both commands now scope every query by endpoint as
+  well as tag (`cli/_common.endpoint_tag_samples`), the same scope the store's
+  endpoint label was written for.
+- **Rows with no endpoint label are never counted toward a line.** The sink defaults
+  the label to `''` (e.g. `historian_push(sink="sqlite")` without `endpoint=`). Such a
+  row cannot be placed on a line. When those are ALL the store holds for the ref, the
+  command refuses and says how to label them; when they sit beside labeled rows they
+  are left out and counted — `unlabeled_samples_excluded` in the JSON and a sentence
+  in the availability note (`case open` prints it too). Leaving out a stop sample
+  turns that span blind, so the figure moves; the reader is told by how much.
+  New `core/sink/sqlite_local.count_unlabeled`.
+
 ### Added — which stoppages a person explained (OEE stop attribution)
 
 - **`oee measure` now says how many of the stoppages it found have a reason, and
