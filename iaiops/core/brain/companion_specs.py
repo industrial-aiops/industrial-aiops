@@ -4,9 +4,9 @@ D16 forbids inferring a tag's role from its NAME: a ``GoodPartsCounter`` that
 counts something else is ordinary, and a wrong production counter yields a
 plausible OEE, which is worse than an error. A companion specification is a
 different kind of evidence. When a server instantiates
-``PackMLExecuteStateMachineType`` from ``http://opcfoundation.org/UA/PackML/``,
+``MachineryItemState_StateMachineType`` from ``http://opcfoundation.org/UA/Machinery/``,
 the device itself is stating, in a published standard, which node carries its
-execute state and what each number means. That is the device's declaration, not
+state and what each number means. That is the device's declaration, not
 our guess.
 
 It is still only a SUGGESTION. A vendor can instantiate a type and wire it to
@@ -38,6 +38,7 @@ Sources (checked 2026-10-17 on reference.opcfoundation.org):
   ProdConsumedCount ``PackMLCountDataType[]``, StopReason ``PackMLAlarmDataType``
   (§6.3.4); PackMLMachineStateMachineType Running = 18 (§6.3.7);
   PackMLExecuteStateMachineType Execute = 6, Idle = 4, Held = 11 … (§6.3.8).
+  PackML is RECOGNISED but not suggested — see :data:`SUBSTATE_TYPES`.
 * OPC 40001-1 Machinery v1.04 — namespace ``http://opcfoundation.org/UA/Machinery/``
   (§20.1); MachineryItemState_StateMachineType NotAvailable 0, OutOfService 1,
   NotExecuting 2, Executing 3 (§12.2, Table 31).
@@ -93,22 +94,6 @@ class RecognisedChild:
 
 STATE_RULES: tuple[StateRule, ...] = (
     StateRule(
-        spec_id="packml",
-        spec="OPC 30050 PackML v1.01",
-        namespace_uri=PACKML_NS,
-        type_name="PackMLExecuteStateMachineType",
-        running_when=(6,),
-        source="§6.3.8 PackMLExecuteStateMachineType: Execute = 6",
-        caveats=(
-            "Execute is the producing sub-state of Running (MachineState Running = 18 "
-            "also covers Idle 4, Held 11, Suspended 5 …); running_when 6 counts only "
-            "Execute as producing.",
-            "待核实: what ExecuteState/CurrentState/Number reads while MachineState is "
-            "NOT Running (Stopped / Aborted) — a server may keep the last sub-state. "
-            "Watch it through one stop on this device before trusting availability.",
-        ),
-    ),
-    StateRule(
         spec_id="machinery",
         spec="OPC 40001-1 Machinery v1.04",
         namespace_uri=MACHINERY_NS,
@@ -121,6 +106,34 @@ STATE_RULES: tuple[StateRule, ...] = (
         ),
     ),
 )
+
+#: State machines that are recognised but deliberately NOT suggested as a run
+#: state, with the reason. PackML is here, not in STATE_RULES, because of what a
+#: review of the first version found: Execute (6) lives in ExecuteState, a SUB-state
+#: machine that is only active while MachineState is Running (18, §6.3.7). Outside
+#: Running a server either keeps the last sub-state (a stopped line reads 6 —
+#: counted as production) or answers with a Bad status (Bad_StateNotActive), which
+#: the collector records as a failed read — every stopped minute becomes a blind
+#: window, and availability over KNOWN time then reads near 100%. Both errors
+#: flatter the number. One tag cannot express "MachineState = Running AND
+#: ExecuteState = Execute", and MachineState alone (Running = 18) also covers Idle,
+#: Held and Suspended. So nothing is suggested until the collector can say
+#: "inactive sub-state = not running" — refused rather than pretended.
+SUBSTATE_TYPES: dict[tuple[str, str], str] = {
+    (PACKML_NS, "PackMLExecuteStateMachineType"): (
+        "PackML ExecuteState (OPC 30050 §6.3.8, Execute = 6) is a sub-state machine, "
+        "active only while MachineState is Running (18, §6.3.7). Stopped, a server may "
+        "keep a stale 6 (stopped time counted as producing) or return Bad_StateNotActive "
+        "(stopped time becomes blind, availability over known time reads near 100%). "
+        "No single tag says 'Running AND Execute', and MachineState Running also covers "
+        "Idle / Held / Suspended — so no run_state is suggested. Declare it by hand after "
+        "watching both values through a stop."
+    ),
+    (PACKML_NS, "PackMLMachineStateMachineType"): (
+        "PackML MachineState (OPC 30050 §6.3.7): Running = 18 also covers Idle, Held and "
+        "Suspended, so it is not a producing state. No role suggested."
+    ),
+}
 
 RECOGNISED_WITHOUT_ROLE: tuple[RecognisedChild, ...] = (
     *(
@@ -217,6 +230,16 @@ def suggestion(
     }
 
 
+def one_line(text: object) -> str:
+    """Every run of whitespace — newline and CR included — folded to one space.
+
+    Evidence carries device-supplied browse names and ends up in a YAML comment
+    in the config patch. ``sanitize`` keeps ``\\n``/``\\r``, and a newline ends a
+    YAML comment: a browse name could then write a ``role:`` nobody chose.
+    """
+    return " ".join(str(text or "").split())
+
+
 def evidence_line(hint: dict) -> str:
     """One line for the sheet's read-only ``suggestion_evidence`` column."""
     caveat = " ".join(str(c) for c in hint.get("caveats", ()) if "待核实" in str(c))
@@ -225,7 +248,7 @@ def evidence_line(hint: dict) -> str:
         f"{hint.get('browse_path', '')} ({hint.get('node_id', '')}) — "
         f"{hint.get('why', '')}"
     )
-    return f"{text} {caveat}".strip()
+    return one_line(f"{text} {caveat}")
 
 
 __all__ = [
@@ -235,9 +258,11 @@ __all__ = [
     "RECOGNISED_WITHOUT_ROLE",
     "STATE_NUMBER_PATH",
     "STATE_RULES",
+    "SUBSTATE_TYPES",
     "RecognisedChild",
     "StateRule",
     "evidence_line",
+    "one_line",
     "recognised_children",
     "state_rule",
     "suggestion",

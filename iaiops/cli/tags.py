@@ -15,7 +15,7 @@ parallel store would have let `readiness` report the mapping as met while
 
 Contacts nothing — except `export --suggest` / `page --suggest`, which open one
 read-only OPC UA session per configured OPC UA endpoint to read what the device
-declares through companion specs (PackML, Machinery). Those arrive as read-only
+declares through companion specs (Machinery; PackML recognised). Those arrive as read-only
 suggestion columns with their evidence; `role` still starts empty, and a
 suggestion becomes a role only when a person writes it there (D16).
 """
@@ -36,10 +36,27 @@ tags_app = typer.Typer(
 
 
 _SUGGEST_HELP = (
-    "Read what each OPC UA endpoint DECLARES through companion specs (PackML, "
-    "Machinery) and show it as read-only suggestions with evidence. Opens one "
+    "Read what each OPC UA endpoint DECLARES through companion specs (OPC UA for "
+    "Machinery; PackML recognised only) and show it as read-only suggestions with "
+    "evidence. Opens one "
     "read-only session per OPC UA endpoint. Nothing is pre-filled into `role`."
 )
+
+
+def _canonical_ref(ref: str) -> str:
+    """A node id as asyncua prints it, so ``ns=2;i=7`` matches however it was spaced.
+
+    ``nsu=<uri>;…`` refs cannot be resolved without the server's namespace table and
+    are compared as written — an unmatched one is reported as unmatched, never as
+    "not configured".
+    """
+    text = str(ref or "").strip()
+    try:
+        from asyncua import ua
+
+        return ua.NodeId.from_string(text).to_string()
+    except Exception:  # noqa: BLE001 — unparseable refs compare as written
+        return text
 
 
 def _suggestions(config) -> dict[tuple[str, str], dict]:
@@ -48,6 +65,8 @@ def _suggestions(config) -> dict[tuple[str, str], dict]:
     An endpoint that cannot be reached is SAID, not skipped quietly: an empty
     suggestion column would otherwise read as "the device declares nothing".
     """
+    from rich.markup import escape
+
     from iaiops.connectors.opcua.companion import companion_hints
 
     hints: dict[tuple[str, str], dict] = {}
@@ -55,30 +74,39 @@ def _suggestions(config) -> dict[tuple[str, str], dict]:
         if str(getattr(target, "protocol", "")).lower() != "opcua":
             continue
         name = str(getattr(target, "name", ""))
-        configured = {str(getattr(tag, "ref", "") or "") for tag in target.tags or ()}
+        configured = {
+            _canonical_ref(str(getattr(tag, "ref", "") or "")): str(getattr(tag, "ref", "") or "")
+            for tag in target.tags or ()
+        }
         try:
             found = companion_hints(target)
         except Exception as exc:  # noqa: BLE001 — reported per endpoint, not fatal
-            console.print(f"  [yellow]![/] {name}: not examined ({type(exc).__name__}: {exc})")
+            console.print(
+                f"  [yellow]![/] {escape(name)}: not examined — no suggestions, which is "
+                f"not 'declares nothing' ({escape(f'{type(exc).__name__}: {exc}')})"
+            )
             continue
-        matched = [h for h in found["suggestions"] if h["node_id"] in configured]
-        for hint in matched:
-            hints[(name, hint["node_id"])] = hint
-        unconfigured = [h for h in found["suggestions"] if h["node_id"] not in configured]
+        unmatched = []
+        for hint in found["suggestions"]:
+            ref = configured.get(_canonical_ref(hint["node_id"]))
+            if ref is None:
+                unmatched.append(hint)
+            else:
+                hints[(name, ref)] = hint
         console.print(
-            f"  {name}: {len(found['suggestions'])} device-declared state node(s), "
-            f"{len(matched)} on configured tags; "
+            f"  {escape(name)}: {len(found['suggestions'])} device-declared state node(s), "
+            f"{len(found['suggestions']) - len(unmatched)} on configured tags; "
             f"{len(found['recognised_without_role'])} recognised with no role"
             + (
-                " [yellow](walk TRUNCATED — absence is not evidence)[/]"
+                " [yellow](walk INCOMPLETE — absence is not evidence)[/]"
                 if found["is_truncated"]
                 else ""
             )
         )
-        for hint in unconfigured[:10]:
+        for hint in unmatched[:10]:
             console.print(
-                f"    [dim]not configured: {hint['node_id']} ({hint['browse_path']}) — "
-                "add it as a tag to confirm it[/]",
+                f"    [dim]not matched to a configured ref as written: "
+                f"{escape(hint['node_id'])} ({escape(hint['browse_path'])})[/]",
                 highlight=False,
             )
     return hints

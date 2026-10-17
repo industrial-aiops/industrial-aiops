@@ -367,14 +367,16 @@ OEE 数字，比报错危险得多。
 点表语义确认那一步天然是表格交互（几十上百行要勾选/改类别），CLI 只做到"导出 CSV
 让人改完再导入"即可，不必在命令行里做交互式逐行确认。
 
-**设备自己的声明 ≠ 猜（D49）。** 设备若按 OPC UA 配套规范（PackML OPC 30050、
-OPC UA for Machinery OPC 40001-1）实例化了某个**类型定义**，那是设备在已发布标准里
-说「这个节点是我的执行状态，6 代表 Execute」—— 是声明，不是按名字推断。
+**设备自己的声明 ≠ 猜（D49）。** 设备若按 OPC UA 配套规范（OPC UA for Machinery OPC 40001-1；PackML OPC 30050 只识别不建议，
+见下）实例化了某个**类型定义**，那是设备在已发布标准里
+说「这个节点是我的机器状态，3 代表 Executing」—— 是声明，不是按名字推断。
 `tags export --suggest` 把它作为**只读建议列 + 依据**（规范、节点、类型、为何）放进点表；
 `role` 列仍然空着，人把建议抄进 `role` 并以 `--by` 署名 `apply` 之后才算数，
 `apply` 记下这一行的依据是 `companion_spec` / `manual_over_suggestion` / `manual`。
 只按**类型**匹配、只建议**与语言无关**的 `CurrentState/Number`；名字长得像
-（PackTags 的 `Status/StateCurrent`）不匹配。D16 不变：确认永远是人的事。
+（PackTags 的 `Status/StateCurrent`）不匹配。PackML 的 Execute 在**子状态机**里，
+停机时要么停在旧值 6、要么返回 Bad —— 两种都会把可用率说好，所以只识别、不建议。
+D16 不变：确认永远是人的事。
 
 ### 10.2 `iaiops readiness` = 成熟度命令
 

@@ -30,6 +30,8 @@ from iaiops.core.runtime.tag_sheet import (
     validate_rows,
 )
 
+HOSTILE_NAME = 'Line1\n    role: good_count\n  - ref: "ns=2;i=9"\r    # '
+
 
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -71,15 +73,16 @@ def companion_server():
     admin_type = base_obj.add_object_type(packml, "PackMLAdminObjectType")
     item_state_type = fsm.add_object_type(machinery, "MachineryItemState_StateMachineType")
     mode_type = fsm.add_object_type(machinery, "MachineryOperationModeStateMachineType")
-    # A vendor subtype of the PackML type: must still match, via its supertype.
-    vendor_exec = exec_type.add_object_type(vendor, "AcmeExecuteStateMachineType")
-    # Same NAME as the PackML type, wrong namespace: must NOT match.
-    impostor = fsm.add_object_type(vendor, "PackMLExecuteStateMachineType")
+    # A vendor subtype of the Machinery type: must still match, via its supertype.
+    vendor_state = item_state_type.add_object_type(vendor, "AcmeItemStateMachineType")
+    # Same NAME as the Machinery type, wrong namespace: must NOT match.
+    impostor = fsm.add_object_type(vendor, "MachineryItemState_StateMachineType")
 
     objects = srv.nodes.objects
     filler = objects.add_object(vendor, "Filler")
     base_sm = filler.add_object(vendor, "BaseStateMachine")
     machine_state = base_sm.add_object(vendor, "MachineState")
+    # PackML ExecuteState is a sub-state machine: recognised, deliberately not suggested.
     _, packml_number = _state_machine(machine_state, packml, "ExecuteState", exec_type, number=6)
     admin = filler.add_object(packml, "Admin", objecttype=admin_type.nodeid)
     processed = admin.add_variable(packml, "ProdProcessedCount", [1, 2])
@@ -93,9 +96,23 @@ def companion_server():
         press, machinery, "MachineryItemState", item_state_type, number=3, current_text="Executing"
     )
     _state_machine(press, machinery, "MachineryOperationMode", mode_type, number=3)
-    _, vendor_number = _state_machine(objects, vendor, "Capper", vendor_exec, number=4)
-    _state_machine(objects, vendor, "Labeller", exec_type)  # no Number
-    _, impostor_number = _state_machine(objects, vendor, "Fake", impostor, number=6)
+    _, vendor_number = _state_machine(objects, vendor, "Capper", vendor_state, number=3)
+    _state_machine(objects, vendor, "Labeller", item_state_type)  # no Number
+    _, impostor_number = _state_machine(objects, vendor, "Fake", impostor, number=3)
+    # A type whose BrowseName claims the Machinery namespace but whose NodeId is a vendor's.
+    spoof_type = fsm.add_object_type(
+        ua.NodeId(5000, vendor), ua.QualifiedName("MachineryItemState_StateMachineType", machinery)
+    )
+    _, spoof_number = _state_machine(objects, vendor, "Spoof", spoof_type, number=3)
+    # An OBJECT with the spec's instance name but a plain FiniteStateMachineType: a name only.
+    mixer = objects.add_object(vendor, "Mixer")
+    plain = fsm.add_object_type(vendor, "PlainStateMachineType")
+    _, decoy_number = _state_machine(mixer, vendor, "MachineryItemState", plain, number=3)
+    # A browse name that tries to write YAML through the evidence comment.
+    hostile = objects.add_object(vendor, HOSTILE_NAME)
+    _, hostile_number = _state_machine(
+        hostile, machinery, "MachineryItemState", item_state_type, number=3
+    )
 
     srv.start()
     try:
@@ -105,6 +122,9 @@ def companion_server():
             "machinery": machinery_number.nodeid.to_string(),
             "vendor": vendor_number.nodeid.to_string(),
             "impostor": impostor_number.nodeid.to_string(),
+            "decoy": decoy_number.nodeid.to_string(),
+            "spoof": spoof_number.nodeid.to_string(),
+            "hostile": hostile_number.nodeid.to_string(),
             "state_current": state_current.nodeid.to_string(),
             "processed": processed.nodeid.to_string(),
         }
@@ -126,38 +146,59 @@ def _by_node(found: dict) -> dict[str, dict]:
 
 
 @pytest.mark.integration
-def test_packml_execute_state_is_suggested_with_its_evidence(companion_server, hints):
-    hint = _by_node(hints)[companion_server["packml"]]
-    assert hint["role"] == "run_state"
-    assert hint["running_when"] == [6]
-    assert hint["spec_id"] == "packml"
+def test_machinery_item_state_is_suggested_with_its_evidence(companion_server, hints):
+    hint = _by_node(hints)[companion_server["machinery"]]
+    assert (hint["role"], hint["running_when"], hint["spec_id"]) == ("run_state", [3], "machinery")
     assert hint["basis"] == "type_definition"
-    assert hint["browse_path"].endswith("ExecuteState/CurrentState/Number")
-    assert "§6.3.8" in hint["why"] and cs.PACKML_NS in hint["why"]
-    assert any("待核实" in c for c in hint["caveats"])
-    assert hint["current_value"] == 6
+    assert hint["browse_path"].endswith("MachineryItemState/CurrentState/Number")
+    assert "§12.2" in hint["why"] and cs.MACHINERY_NS in hint["why"]
+    assert hint["current_value"] == 3
 
 
 @pytest.mark.integration
-def test_machinery_item_state_is_suggested(companion_server, hints):
-    hint = _by_node(hints)[companion_server["machinery"]]
-    assert (hint["role"], hint["running_when"], hint["spec_id"]) == ("run_state", [3], "machinery")
+def test_packml_execute_state_is_recognised_but_not_suggested(companion_server, hints):
+    """A sub-state machine reads stale or Bad outside Running — both flatter availability."""
+    assert companion_server["packml"] not in _by_node(hints)
+    (packml,) = [r for r in hints["recognised_without_role"] if r["type"].startswith("PackMLExec")]
+    assert "sub-state machine" in packml["why_no_role"]
+    assert "Bad_StateNotActive" in packml["why_no_role"]
 
 
 @pytest.mark.integration
 def test_a_vendor_subtype_matches_through_its_supertype(companion_server, hints):
     hint = _by_node(hints)[companion_server["vendor"]]
-    assert hint["instance_type"] == "AcmeExecuteStateMachineType"
-    assert "subtype of PackMLExecuteStateMachineType" in hint["why"]
+    assert hint["instance_type"] == "AcmeItemStateMachineType"
+    assert "subtype of MachineryItemState_StateMachineType" in hint["why"]
 
 
 @pytest.mark.integration
 def test_names_alone_never_match(companion_server, hints):
-    """D16: a PackTags NAME, or a same-named type in a vendor namespace, is not a declaration."""
+    """D16: a PackTags name, a same-named type in a vendor namespace, or an Object
+    carrying the spec's instance name over a plain type — none is a declaration."""
     nodes = _by_node(hints)
-    assert companion_server["state_current"] not in nodes
-    assert companion_server["impostor"] not in nodes
-    assert len(hints["suggestions"]) == 3
+    for decoy in ("state_current", "impostor", "decoy", "spoof"):
+        assert companion_server[decoy] not in nodes, decoy
+    assert set(nodes) == {companion_server[k] for k in ("machinery", "vendor", "hostile")}
+
+
+@pytest.mark.integration
+def test_a_hostile_browse_name_cannot_write_the_config_patch(companion_server, hints):
+    """Evidence reaches a YAML comment; a newline or CR there would let it write keys."""
+    import yaml
+
+    hint = _by_node(hints)[companion_server["hostile"]]
+    assert "\n" not in hint["browse_path"] and "\r" not in hint["browse_path"]
+    ref = companion_server["hostile"]
+    config = _Config(
+        [_target("opc.tcp://x", tags=(MonitorTag(ref=ref), MonitorTag(ref="ns=2;i=9")))]
+    )
+    rows = [dict(r) for r in sheet_rows(config, {("line1", ref): hint})]
+    rows[0].update(role="run_state", running_when="3")
+    # Even a sheet whose evidence cell a person (or anything) edited to carry newlines:
+    forged = dict(rows[0], suggestion_evidence="x\n    role: good_count\r  - ref: z")
+    for row in (rows[0], forged):
+        patch = yaml.safe_load(config_patch(validate_rows([row]), by="alice\n  - ref: q"))
+        assert patch == [{"ref": ref, "role": "run_state", "running_when": [3]}]
 
 
 @pytest.mark.integration
@@ -166,23 +207,22 @@ def test_declared_children_without_a_role_are_reported_not_suggested(companion_s
     assert "PackMLCountDataType[]" in recognised["ProdProcessedCount"]["why_no_role"]
     assert "case" in recognised["StopReason"]["why_no_role"]
     assert "MODE" in recognised["MachineryOperationMode"]["why_no_role"]
-    # The state machine without Number is recognised and explains why nothing is suggested.
     assert "Number" in recognised["Labeller"]["why_no_role"]
     assert companion_server["processed"] not in _by_node(hints)
 
 
 @pytest.mark.integration
 def test_the_suggested_running_value_is_what_collection_reads(companion_server, hints):
-    """The suggestion must be judged running by the SAME rule `oee measure` uses."""
-    from iaiops.connectors.opcua.ops import read_node
+    """Judged running by the SAME rule `oee measure` uses, read through the collector's path."""
+    from iaiops.core.runtime.capabilities import get_capabilities
 
-    for key in ("packml", "machinery"):
-        hint = _by_node(hints)[companion_server[key]]
-        tag = MonitorTag(
-            ref=hint["node_id"], role="run_state", running_when=tuple(hint["running_when"])
-        )
-        value = read_node(_target(companion_server["url"]), hint["node_id"])["value"]
-        assert tag.is_running(value), (key, value)
+    target = _target(companion_server["url"])
+    hint = _by_node(hints)[companion_server["machinery"]]
+    tag = MonitorTag(
+        ref=hint["node_id"], role="run_state", running_when=tuple(hint["running_when"])
+    )
+    value, _ = get_capabilities("opcua").monitor_read(target, hint["node_id"])
+    assert tag.is_running(value), value
 
 
 @pytest.mark.integration
@@ -193,11 +233,26 @@ def test_tag_discovery_carries_companion_specs(companion_server):
 
 
 @pytest.mark.integration
-def test_a_truncated_walk_says_so(companion_server, monkeypatch):
-    monkeypatch.setattr(companion, "MAX_OBJECTS", 2)
+def test_discovery_depth_bounds_the_companion_walk(companion_server):
+    shallow = disc.tag_discovery(_target(companion_server["url"]), max_depth=1)
+    assert shallow["companion_specs"]["max_depth"] == 1
+    found = {h["node_id"] for h in shallow["companion_specs"]["suggestions"]}
+    assert companion_server["vendor"] in found  # Objects/Capper is depth 1
+    assert companion_server["machinery"] not in found  # Objects/Press/… is depth 2
+
+
+@pytest.mark.integration
+def test_a_walk_over_budget_says_so(companion_server, monkeypatch):
+    monkeypatch.setattr(companion, "MAX_NODES", 5)
     found = companion.companion_hints(_target(companion_server["url"]))
-    assert found["is_truncated"] is True
-    assert "absence is not evidence" in found["truncation_note"]
+    assert found["is_truncated"] is True and found["nodes_examined"] == 5
+    assert "absence" in found["truncation_note"] and "INCOMPLETE" in found["note"]
+
+
+@pytest.mark.unit
+def test_an_unexamined_walk_is_incomplete_not_empty():
+    out = companion.unexamined("ConnectionRefusedError: x")
+    assert out["is_truncated"] is True and out["suggestions"] == []
 
 
 # ── sheet / apply (pure) ─────────────────────────────────────────────────────
@@ -212,9 +267,9 @@ def _hint(node_id: str = "ns=2;i=7") -> dict:
     return cs.suggestion(
         cs.STATE_RULES[0],
         node_id=node_id,
-        browse_path="Filler/BaseStateMachine/MachineState/ExecuteState/CurrentState/Number",
-        instance_type="PackMLExecuteStateMachineType",
-        current_value=6,
+        browse_path="Press/MachineryItemState/CurrentState/Number",
+        instance_type="MachineryItemState_StateMachineType",
+        current_value=3,
     )
 
 
@@ -228,8 +283,8 @@ def _sheet(hint: dict | None = None) -> list[dict]:
 def test_a_suggestion_never_fills_role():
     (row,) = _sheet(_hint())
     assert row["suggested_role"] == "run_state"
-    assert row["suggested_running_when"] == "6"
-    assert "OPC 30050" in row["suggestion_evidence"]
+    assert row["suggested_running_when"] == "3"
+    assert "OPC 40001-1" in row["suggestion_evidence"]
     assert row["role"] == "" and row["running_when"] == ""
 
 
@@ -241,21 +296,21 @@ def test_an_untouched_suggested_sheet_confirms_nothing():
 @pytest.mark.unit
 def test_an_exact_acceptance_is_credited_to_the_device_declaration():
     (row,) = _sheet(_hint())
-    row.update(role="run_state", running_when="6.0")
+    row.update(role="run_state", running_when="3.0")
     (edit,) = validate_rows([row])
     assert edit.basis == BASIS_COMPANION
-    assert "OPC 30050" in edit.evidence
+    assert "OPC 40001-1" in edit.evidence
     patch = config_patch((edit,), by="alice")
-    assert "# basis: companion spec, confirmed by a person" in patch
+    assert "companion-spec suggestion columns stated" in patch
 
 
 @pytest.mark.unit
 def test_a_changed_running_value_is_the_persons_call_not_the_devices():
     (row,) = _sheet(_hint())
-    row.update(role="run_state", running_when="6 4")
+    row.update(role="run_state", running_when="3 2")
     (edit,) = validate_rows([row])
     assert edit.basis == BASIS_OVERRIDE
-    assert "OVERRIDING a device declaration" in config_patch((edit,))
+    assert "differing from the sheet's companion-spec suggestion" in config_patch((edit,))
 
 
 @pytest.mark.unit
@@ -264,7 +319,7 @@ def test_no_suggestion_or_no_evidence_is_manual():
     row.update(role="run_state", running_when="2")
     assert validate_rows([row])[0].basis == BASIS_MANUAL
     (row,) = _sheet(_hint())
-    row.update(role="run_state", running_when="6", suggestion_evidence="")
+    row.update(role="run_state", running_when="3", suggestion_evidence="")
     assert validate_rows([row])[0].basis == BASIS_MANUAL
 
 
@@ -287,7 +342,7 @@ def test_the_csv_round_trip_keeps_the_evidence(tmp_path: Path):
         writer.writerows(rows)
     with path.open(newline="", encoding="utf-8") as handle:
         (back,) = list(csv.DictReader(handle))
-    back.update(role="run_state", running_when="6")
+    back.update(role="run_state", running_when="3")
     assert validate_rows([back])[0].basis == BASIS_COMPANION
 
 
@@ -317,7 +372,7 @@ def opcua_config(tmp_path, monkeypatch, companion_server):
                 "protocol": "opcua",
                 "endpoint_url": companion_server["url"],
                 "tags": [
-                    {"ref": companion_server["packml"]},
+                    {"ref": companion_server["machinery"]},
                     {"ref": companion_server["state_current"]},
                 ],
             },
@@ -348,13 +403,13 @@ def test_export_suggest_then_apply_round_trip(opcua_config, companion_server, tm
     assert "gone: not examined" in result.output  # unreachable is SAID, not skipped
     rows = list(csv.DictReader(sheet.open(newline="", encoding="utf-8")))
     by_ref = {r["ref"]: r for r in rows}
-    assert by_ref[companion_server["packml"]]["suggested_role"] == "run_state"
+    assert by_ref[companion_server["machinery"]]["suggested_role"] == "run_state"
     assert by_ref[companion_server["state_current"]]["suggested_role"] == ""  # a name only
 
     untouched = runner.invoke(tags_app, ["apply", str(sheet), "--by", "alice"])
     assert "none confirmed" in untouched.output and "1 device suggestion" in untouched.output
 
-    row = by_ref[companion_server["packml"]]
+    row = by_ref[companion_server["machinery"]]
     row.update(role=row["suggested_role"], running_when=row["suggested_running_when"])
     with sheet.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
@@ -373,4 +428,22 @@ def test_export_suggest_then_apply_round_trip(opcua_config, companion_server, tm
     config["targets"][0]["tags"][0].update(entry)
     opcua_config.write_text(yaml.safe_dump(config), encoding="utf-8")
     (tag,) = [t for t in load_config().targets[0].tags if t.role]
-    assert tag.is_running(6) and not tag.is_running(4)
+    assert tag.is_running(3) and not tag.is_running(2)
+
+
+@pytest.mark.unit
+def test_one_tag_given_two_meanings_is_refused():
+    (row,) = _sheet(_hint())
+    a = dict(row, role="run_state", running_when="3")
+    b = dict(row, role="good_count", running_when="")
+    with pytest.raises(ValueError, match="differently on two rows"):
+        validate_rows([a, b])
+    assert len(validate_rows([a, dict(a)])) == 2  # the same statement twice is not a conflict
+
+
+@pytest.mark.unit
+def test_configured_refs_match_however_they_are_spaced():
+    from iaiops.cli.tags import _canonical_ref
+
+    assert _canonical_ref("  ns=2;i=7 ") == "ns=2;i=7"
+    assert _canonical_ref("nsu=http://x/;i=7") == _canonical_ref("nsu=http://x/;i=7")

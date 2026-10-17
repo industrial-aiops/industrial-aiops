@@ -235,14 +235,14 @@ def tag_discovery(
     --suggest`; nothing here declares a role (D16). Same session as the tag walk,
     so discovery costs the server one session slot, not two.
     """
-    from iaiops.connectors.opcua.companion import walk_companion
+    from iaiops.connectors.opcua.companion import unexamined, walk_companion
 
     with opcua_session(target) as client:
         tags = _discover_on(client, root, max_depth, include_standard)
         try:
-            companion = walk_companion(client, root=root)
+            companion = walk_companion(client, root=root, max_depth=max_depth)
         except Exception as exc:  # noqa: BLE001 — the tag model stands without it
-            companion = {"error": s(f"{type(exc).__name__}: {exc}", 200)}
+            companion = unexamined(f"{type(exc).__name__}: {exc}")
     model = build_tag_model(tags)
     model["companion_specs"] = companion
     model["endpoint"] = s(getattr(target, "name", ""), 64)

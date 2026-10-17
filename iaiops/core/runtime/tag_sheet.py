@@ -205,11 +205,11 @@ def config_patch(edits: tuple[TagEdit, ...], by: str = "") -> str:
         return ""
     lines: list[str] = []
     if by:
-        lines.append(f"# tag semantics confirmed by {s(str(by).strip(), MAX_NAME)}")
+        lines.append(f"# tag semantics confirmed by {s(' '.join(str(by).split()), MAX_NAME)}")
     lines.append("# Merge into the matching `tags:` entries in config.yaml.")
     lines.append("# `basis:` comments say what each role rested on; they are not config keys.")
     for endpoint in dict.fromkeys(e.endpoint for e in edits):
-        lines.append(f"# --- {endpoint} ---")
+        lines.append(f"# --- {' '.join(str(endpoint).split())} ---")
         for edit in (e for e in edits if e.endpoint == endpoint):
             # Quoted via json.dumps (YAML 1.2 is a JSON superset), because a
             # Modbus ref like 40001 re-parses as an INT otherwise and then no
@@ -280,8 +280,12 @@ def _basis(row: dict[str, Any], role: str, running: tuple[str, ...]) -> tuple[st
     call, and crediting it to the spec would put words in the device's mouth.
     A suggestion without its evidence text is treated as no suggestion.
     """
+    from iaiops.core.brain.companion_specs import one_line
+
     suggested = str(row.get("suggested_role", "") or "").strip().lower()
-    evidence = s(str(row.get("suggestion_evidence", "") or "").strip(), MAX_EVIDENCE)
+    # Folded to one line: this text is written into a YAML comment in the patch,
+    # and a newline would end the comment and let the sheet write config keys.
+    evidence = s(one_line(row.get("suggestion_evidence", "")), MAX_EVIDENCE)
     if not suggested or not evidence:
         return BASIS_MANUAL, ""
     suggested_running = _numeric_set(
@@ -303,14 +307,34 @@ def _numeric_set(values: Any) -> frozenset[str]:
 
 
 def _basis_comment(edit: TagEdit) -> str:
+    """One line, always: a newline here would end the comment and write YAML."""
+    from iaiops.core.brain.companion_specs import one_line
+
+    evidence = one_line(edit.evidence)
     if edit.basis == BASIS_COMPANION:
-        return f"companion spec, confirmed by a person — {edit.evidence}"
+        return (
+            "set as the sheet's companion-spec suggestion columns stated (not re-read "
+            f"from the device) — {evidence}"
+        )
     if edit.basis == BASIS_OVERRIDE:
-        return f"manual, OVERRIDING a device declaration — {edit.evidence}"
+        return f"manual, differing from the sheet's companion-spec suggestion — {evidence}"
     return "manual"
 
 
 def _refuse_double_claims(edits: list[TagEdit]) -> None:
+    rows: dict[tuple[str, str], TagEdit] = {}
+    for edit in edits:
+        earlier = rows.get((edit.endpoint, edit.ref))
+        same = earlier is not None and (earlier.role, earlier.running_when) == (
+            edit.role,
+            edit.running_when,
+        )
+        if earlier is not None and not same:
+            raise ValueError(
+                f"{edit.ref!r} on {edit.endpoint!r} is filled in differently on two rows. "
+                "One tag has one meaning; keep the row you mean and blank the other."
+            )
+        rows[(edit.endpoint, edit.ref)] = edit
     seen: dict[str, str] = {}
     for edit in edits:
         if edit.role in seen and seen[edit.role] != edit.ref:

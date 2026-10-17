@@ -137,7 +137,7 @@ _JS = """
 (function () {
   function quote(v) {
     var t = String(v == null ? '' : v);
-    return /[",\\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+    return /[",\\r\\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
   }
   function build() {
     var out = [SHEET.columns.join(',')];

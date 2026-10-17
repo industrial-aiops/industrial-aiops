@@ -226,7 +226,7 @@ def opcua_discover_tags(
         companion_specs:{suggestions:[{node_id, browse_path, spec, type, role,
         running_when, why, caveats}], recognised_without_role, is_truncated}}.
         companion_specs are what the device DECLARES through OPC UA companion
-        specs (PackML / Machinery), matched by type definition — SUGGESTIONS a
+        specs (Machinery; PackML recognised only), matched by type definition — SUGGESTIONS a
         person confirms with `iaiops tags apply`. Never write them into config
         as declared roles yourself (D16).
     """
