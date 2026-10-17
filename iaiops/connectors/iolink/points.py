@@ -38,7 +38,11 @@ from iaiops.core.runtime.sensor.binding import MAX_PORT, port_profile
 from iaiops.core.runtime.session_factory import OTNoReadingError
 
 GRAMMAR = "port<N>/<channel>, e.g. port2/distance"
-IDENTITY_TTL_S = 30.0
+#: Short on purpose. A swap through a disconnect is caught at once (a failed
+#: read forgets the identity); this window only covers one without — measured on
+#: the lab LAN, where 30 s let a 14 s swap be stored whole as the real sensor.
+#: Cost: two datapoint reads per port every 5 s.
+IDENTITY_TTL_S = 5.0
 
 _REF = re.compile(r"^port(\d+)/(\S+)$")
 _verified: dict[tuple[str, int, int, int], float] = {}

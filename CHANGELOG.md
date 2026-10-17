@@ -16,7 +16,9 @@
   device_id}`); a different sensor on that port is refused — a gap with the two
   identities — instead of being decoded with the wrong layout. A master that does
   not report the identity is a refusal too, not a skipped check. The check is
-  cached for 30 s per port: a sensor swapped mid-run is caught within that window.
+  cached for 5 s per master and port and dropped on any failed read: a swap
+  through a disconnect is caught at once, one without within 5 s. (It was 30 s
+  until a lab run on a real LAN stored a 14 s swap whole as the real sensor.)
 - **Modbus `ch:<name>`.** `sensor_profile: <profile.yaml>` on a Modbus endpoint
   makes its channels readable by name, with the profile's sentinels and range.
 - **Profiles are validated with config.yaml.** Paths resolve next to the config

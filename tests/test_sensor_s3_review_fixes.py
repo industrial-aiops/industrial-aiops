@@ -266,3 +266,15 @@ def test_a_profile_edited_to_another_protocol_is_refused_at_read(monkeypatch):
     modbus = SimpleNamespace(name="cell", protocol="modbus", sensor_profile="force.yaml")
     with pytest.raises(ValueError, match="now a iolink profile"):
         endpoint_profile(modbus)
+
+
+def test_lab_a_swap_without_a_disconnect_is_caught_within_seconds():
+    """Found on the lab LAN (2026-10-17), not by any unit test.
+
+    A sentinel read forgot the cached identity, the very next read re-verified
+    it, and a sensor swapped 13 s later (no disconnect in between) was decoded
+    for its whole 14 s with the 30 s cache — 14 s of a foreign device stored as
+    the real one. A swap WITH a disconnect is caught by forget-on-failure; the
+    window only matters for one without, so it must be short.
+    """
+    assert iolink_points.IDENTITY_TTL_S <= 5.0
