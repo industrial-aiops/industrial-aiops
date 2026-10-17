@@ -118,6 +118,45 @@
   by the measurement. Bounds are now put on UTC before querying, and counter rows
   are clipped to the window by parsed instant. Case joins compare onsets as
   instants (`…Z` and `…+00:00` match).
+### Added — companion-spec role suggestions (OPC UA for Machinery; PackML recognised)
+
+- **`iaiops tags export --suggest` (and `tags page --suggest`) show what a device
+  DECLARES about itself.** For each configured OPC UA endpoint, one read-only
+  session walks the address space and matches **type definitions** from OPC UA
+  companion specifications. Suggested today: `MachineryItemState_StateMachineType`
+  (OPC 40001-1 §12.2, Executing = 3), vendor subtypes included, read from the
+  language-independent `CurrentState/Number`. A match pre-fills read-only
+  `suggested_role` / `suggested_running_when` / `suggestion_evidence` columns —
+  spec, node id, type, browse path and why. **`role` still starts empty**: an
+  untouched sheet confirms nothing, and a suggestion becomes a role only when a
+  person copies it into `role` and runs `tags apply --by` (D16, new D49).
+- **PackML is recognised but NOT suggested.** Execute (6) lives in
+  `ExecuteState`, a sub-state machine active only while `MachineState` is
+  Running (18). Outside Running a server keeps a stale 6 (stopped time counted as
+  producing) or answers `Bad_StateNotActive` (stopped time becomes blind and
+  availability over known time reads near 100%) — both flatter the number, and
+  no single tag says "Running AND Execute". Reported with that reason, as are
+  `ProdProcessedCount` / `ProdDefectiveCount` (`PackMLCountDataType[]` — one tag
+  holds one number), `StopReason` (reasons come from people), Machinery
+  operation *mode*, and any state machine without `Number`.
+- **Names never match.** A PackTags-style `Status/StateCurrent` (ISA-TR88 naming —
+  OPC 30050 does not define that node), a same-named type in a vendor namespace,
+  a type whose BrowseName and NodeId namespaces disagree, or an Object carrying
+  the spec's instance name over a plain type gets no suggestion.
+- **`tags apply` records what each role rested on** — `basis: companion_spec`
+  only when the person set exactly what the sheet's suggestion columns stated;
+  `manual_over_suggestion` when they chose otherwise; `manual` otherwise. The
+  basis rides in the patch as a comment and in `TagEdit.as_dict()`. It is the
+  sheet's text: `apply` contacts nothing and does not re-check it.
+- **Device text cannot write config.** Evidence, endpoint and `--by` are folded
+  to one line before they reach the patch's YAML comments (a browse name with a
+  newline previously could have ended the comment and written a `role:`).
+- **One tag filled in differently on two rows is refused** (it was accepted, and
+  the patch then carried both).
+- `opcua_discover_tags` / `iaiops opcua discover` results carry the same
+  `companion_specs` block (same session, same `max_depth`, a node budget, standard
+  envelope; an incomplete walk says absence is not evidence). No new tool; `tags`
+  still has no MCP tool, by design.
 
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 
