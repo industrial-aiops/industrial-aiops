@@ -25,6 +25,7 @@ import pytest
 from iaiops.core.brain.oee_attribution import (
     AWAITING_PERSON,
     NO_CASE,
+    ONSET_BEFORE_WINDOW,
     PERSON_CONFIRMED,
     PERSON_DISMISSED,
     attribute_stops,
@@ -229,3 +230,75 @@ class TestBlindWindowsAreNeverTruncated:
         spans = [(i * 40, i * 40 + 20, 2) for i in range(60)]
         m = measure_availability(series(spans), RUN, max_stop_windows=1)
         assert len(m["blind_windows"]) == 59
+
+
+class TestTheJoinIsExact:
+    """Review finding: the case id drops sub-second precision and sanitizes the
+    endpoint, so an id-only join credited one confirmation to several stops."""
+
+    def _jittered(self):
+        # 0.3s cadence; a 0.3s micro-stop at 13:00:00.0, a long stop at 13:00:00.6.
+        base = 13 * 3600
+        rows = []
+        t = 0.0
+        while t < 2000:
+            if 30.0 <= t < 30.3:
+                v = 0
+            elif 30.6 <= t < 630.6:
+                v = 0
+            else:
+                v = 2
+            sec = base + t
+            h, rem = divmod(int(sec), 3600)
+            frac = f"{sec - int(sec):.1f}"[1:]
+            rows.append(
+                {"ts": f"2026-08-01T{h:02d}:{rem // 60:02d}:{rem % 60:02d}{frac}+00:00", "value": v}
+            )
+            t = round(t + 0.3, 1)
+        return rows
+
+    def test_two_stops_in_one_second_are_not_both_credited(self, tmp_path):
+        m = measured(self._jittered(), max_stop_windows=None)
+        assert m["stops"] == 2
+        long = max(m["stop_windows"], key=lambda w: w["duration_s"])
+        short = min(m["stop_windows"], key=lambda w: w["duration_s"])
+        assert case_id(EP, long["onset"]) == case_id(EP, short["onset"])  # the trap
+        opened = open_case(SITE, EP, long["onset"], base_dir=tmp_path)
+        confirm_case(SITE, opened.incident_id, "mechanical_fault", by="li", base_dir=tmp_path)
+        out = attribute_stops(m, EP, cases=list_cases(SITE, base_dir=tmp_path))
+        assert out["classes"][PERSON_CONFIRMED]["count"] == 1
+        assert out["classes"][NO_CASE]["count"] == 1
+
+    def test_an_endpoint_that_sanitizes_to_the_same_id_explains_nothing_here(self, tmp_path):
+        m = measured()
+        onset = onsets(m)[600.0]
+        assert case_id("line_1", onset) == case_id("line-1", onset)  # the trap
+        other = open_case(SITE, "line_1", onset, base_dir=tmp_path)
+        confirm_case(SITE, other.incident_id, "mechanical_fault", by="li", base_dir=tmp_path)
+        out = attribute_stops(m, "line-1", cases=list_cases(SITE, base_dir=tmp_path))
+        assert out["classes"][PERSON_CONFIRMED]["count"] == 0
+
+
+class TestAStopAlreadyInProgressAtTheWindowStart:
+    """Review finding: its onset in a narrower window is the first sample, not the
+    onset its case was opened under — calling it "never put to a person" is a
+    false statement about people."""
+
+    def test_it_is_its_own_class_not_no_case(self, tmp_path):
+        rows = series([(0, 100, 2), (100, 900, 0), (900, 2000, 2)])
+        whole = measured(rows)
+        opened = open_case(SITE, EP, whole["stop_windows"][0]["onset"], base_dir=tmp_path)
+        confirm_case(SITE, opened.incident_id, "mechanical_fault", by="li", base_dir=tmp_path)
+        narrow = measured(rows, window=(ts(500), ts(1999)))
+        assert narrow["stop_windows"][0]["open_at_start"] is True
+        out = attribute_stops(narrow, EP, cases=list_cases(SITE, base_dir=tmp_path))
+        assert out["classes"][NO_CASE]["count"] == 0
+        assert out["classes"][ONSET_BEFORE_WINDOW]["count"] == 1
+
+    def test_a_stop_that_starts_inside_is_not_flagged(self):
+        assert all(not w["open_at_start"] for w in measured()["stop_windows"])
+
+
+def test_the_cases_read_are_counted_so_a_wrong_site_is_visible():
+    out = attribute_stops(measured(), EP, cases=[])
+    assert out["cases_read"] == 0

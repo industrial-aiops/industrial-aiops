@@ -334,6 +334,9 @@ def measure_availability(
                 "onset": onset.isoformat(),
                 "duration_s": round(duration, 1),
                 "minor": duration <= minor_stop_s,
+                # Already stopped at the first sample: the real onset is earlier and
+                # unseen, so this onset is not the one a case was opened under.
+                "open_at_start": onset == rows[0][0],
             }
             for duration, onset in sorted(stops, key=lambda s: s[0], reverse=True)[
                 :max_stop_windows

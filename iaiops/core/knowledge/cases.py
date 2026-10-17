@@ -81,6 +81,10 @@ class Case:
     #: one answered before these fields existed: unknown, never back-filled.
     answered_by: str = ""
     answered_at: str = ""
+    #: The endpoint the stoppage was on. The case id sanitizes it ("line_1" and
+    #: "line-1" give the same id), so a join that must not credit one line's
+    #: answer to another compares this. Empty on cases opened before it existed.
+    endpoint: str = ""
 
     def __post_init__(self) -> None:
         if self.capture and self.capture not in CAPTURE_MODES:
@@ -142,6 +146,7 @@ class Case:
                 # round-trips byte-for-byte rather than gaining two empty keys.
                 **({"answered_by": self.answered_by} if self.answered_by else {}),
                 **({"answered_at": self.answered_at} if self.answered_at else {}),
+                **({"endpoint": self.endpoint} if self.endpoint else {}),
             },
             source=SUGGESTED,
             note=self.note,

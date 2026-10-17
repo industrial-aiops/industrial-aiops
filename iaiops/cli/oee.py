@@ -28,6 +28,7 @@ from iaiops.cli._common import (
     humanize_seconds,
     run_state_samples,
 )
+from iaiops.cli.case import DEFAULT_SITE  # one default for both commands
 
 oee_app = typer.Typer(help="OEE measured from collected history.")
 
@@ -55,7 +56,7 @@ def oee_measure_cmd(
         "", "--note", help="A caveat rendered near the top of the report, before the figure."
     ),
     case_site: str = typer.Option(
-        "default",
+        DEFAULT_SITE,
         "--case-site",
         help="Knowledge-base site whose `iaiops case` answers explain the stoppages.",
     ),
@@ -389,11 +390,14 @@ def _print_attribution(attribution: dict) -> None:
         ("person_dismissed", "dismissed by a person (not an incident)"),
         ("awaiting_person", "case opened, nobody has answered"),
         ("no_case", "never put to a person"),
+        ("onset_before_window", "already stopped when the window opened"),
     ):
         bucket = classes[key]
         console.print(
             f"  {bucket['count']:>5}  {humanize_seconds(bucket['duration_s']):>7}  {label}"
         )
+    if not attribution.get("cases_read"):
+        console.print("  [yellow]No cases were read for this site — check --case-site.[/]")
     if attribution.get("not_examined"):
         console.print(
             f"  [yellow]{attribution['not_examined']:>5}  "

@@ -10,7 +10,15 @@
   and nothing joined the two — a window reported N stoppages and a reader could not
   tell how many had any reason at all. Each stoppage now lands in exactly one class:
   **cause confirmed by a person**, **dismissed by a person**, **case opened but
-  unanswered**, or **never put to a person**. `reasons_from_signal` is always 0.
+  unanswered**, **never put to a person**, or **already stopped when the window
+  opened** (its real onset is outside the window, so whether anyone explained it
+  cannot be decided from inside). `reasons_from_signal` is always 0.
+- **The join is exact.** A case id drops sub-second precision and sanitizes the
+  endpoint (`line_1` and `line-1` collide), so a case counts only when its recorded
+  onset equals the stoppage's and its recorded endpoint is this one — an id-only
+  join credited one answer to two stoppages a fraction of a second apart. Cases now
+  record their `endpoint`; older ones match on id and onset and are marked
+  `endpoint_recorded: false`.
   New `--case-site` names the knowledge-base site to read answers from
   (`core/brain/oee_attribution.attribute_stops`, PURE).
 - **A case that only carries audit-trail actions is not an explained stoppage.**
@@ -33,7 +41,8 @@
   was blind. Over a long window with more than fifty outages, parts made during the
   51st onward were credited while their seconds stayed out of run time — Performance
   went up the blinder the window was. Blind windows are now never capped;
-  `blind_windows_total` gives the count.
+  `blind_windows_total` gives the count. Production counting now bisects sorted, merged
+  blind windows, so thousands of them do not make counting quadratic.
 - **`oee measure` printed Performance 0.0% for a line with a declared cycle time
   and no usable total count.** `produced` defaulted to 0 instead of the factor being
   refused. It is now "not reported", with the declaration that is missing.

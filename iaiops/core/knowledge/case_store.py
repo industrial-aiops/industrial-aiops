@@ -80,6 +80,7 @@ def _cases_from(kb: KnowledgeBase) -> list[Case]:
                 note=fact.note,
                 answered_by=str(value.get("answered_by", "")),
                 answered_at=str(value.get("answered_at", "")),
+                endpoint=str(value.get("endpoint", "")),
             )
         )
     return out
@@ -131,6 +132,7 @@ def open_case(
         capture=case.capture,
         fix_actions=case.fix_actions,
         note=case.note,
+        endpoint=str(endpoint),
     )
     return _store(site, case, base_dir)
 
@@ -196,6 +198,7 @@ def confirm_case(
         label=cause,
         capture=CONFIRMED if anchored else OVERRIDE,
         fix_actions=case.fix_actions,
+        endpoint=case.endpoint,
         answered_by=who,
         answered_at=_now(),
         note=(
@@ -226,6 +229,7 @@ def dismiss_case(site: str, incident_id: str, by: str, base_dir: Path | None = N
         label="",
         capture="",
         fix_actions=case.fix_actions,
+        endpoint=case.endpoint,
         answered_by=str(by).strip(),
         answered_at=_now(),
         note=f"dismissed by {str(by).strip()} — not an incident; kept as a negative example",

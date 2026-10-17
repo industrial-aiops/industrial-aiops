@@ -17,8 +17,15 @@ stopped time that has a reason. Every way of getting that wrong raises it.
   ``measure_availability`` hands back a capped list (longest first). The rest
   are counted as NOT examined, separately, so the classes can neither absorb
   them nor quietly lose them.
-* **The join key is the case id, recomputed.** A case for another endpoint, or
-  for an onset that does not match a measured stoppage, explains nothing here.
+* **The join is exact.** The case id is the lookup key, but it drops sub-second
+  precision and sanitizes the endpoint ("line_1" and "line-1" collide), so a
+  case is matched only when its recorded onset equals the stoppage's onset AND
+  its recorded endpoint is this one. An id-only join once credited one person's
+  answer to two stoppages a fraction of a second apart.
+* **A stoppage already under way when the window opens** has, inside the
+  window, an onset that is only the first sample — not the onset its case was
+  opened under. Calling it "never put to a person" would be a false statement
+  about people, so it is its own class.
 
 [PURE] No I/O. The caller supplies the measurement and the site's cases.
 """
@@ -39,16 +46,34 @@ PERSON_DISMISSED = "person_dismissed"
 AWAITING_PERSON = "awaiting_person"
 #: Never put to a person: no case exists for this stoppage.
 NO_CASE = "no_case"
+#: Already stopped when the measured period began; its real onset is outside the
+#: window, so whether a person explained it cannot be decided from inside it.
+ONSET_BEFORE_WINDOW = "onset_before_window"
 
-ATTRIBUTIONS = (PERSON_CONFIRMED, PERSON_DISMISSED, AWAITING_PERSON, NO_CASE)
+ATTRIBUTIONS = (PERSON_CONFIRMED, PERSON_DISMISSED, AWAITING_PERSON, NO_CASE, ONSET_BEFORE_WINDOW)
 
 #: What detected the stoppages, stated in the result so nobody reads "classified".
 DETECTED_BY = "run_state signal (declared running_when) — detects a stop and its duration only"
 
 
-def _classify(case: Any) -> str:
+def _match(window: dict, endpoint: str, by_id: dict) -> Any:
+    """The case opened for exactly this stoppage on exactly this endpoint, or None.
+
+    A case opened before cases recorded their endpoint matches on id and onset
+    alone; its row says so (``endpoint_recorded: False``).
+    """
+    case = by_id.get(case_id(endpoint, window["onset"]))
+    if case is None or str(getattr(case, "when", "")) != str(window["onset"]):
+        return None
+    recorded = str(getattr(case, "endpoint", "") or "")
+    if recorded and recorded != endpoint:
+        return None
+    return case
+
+
+def _classify(case: Any, window: dict) -> str:
     if case is None:
-        return NO_CASE
+        return ONSET_BEFORE_WINDOW if window.get("open_at_start") else NO_CASE
     if getattr(case, "label", ""):
         return PERSON_CONFIRMED
     if getattr(case, "answered", False):
@@ -57,7 +82,7 @@ def _classify(case: Any) -> str:
 
 
 def _window_row(window: dict, case: Any, endpoint: str) -> dict:
-    attribution = _classify(case)
+    attribution = _classify(case, window)
     answered = attribution in (PERSON_CONFIRMED, PERSON_DISMISSED)
     return {
         "onset": window["onset"],
@@ -69,6 +94,7 @@ def _window_row(window: dict, case: Any, endpoint: str) -> dict:
         "capture": str(getattr(case, "capture", "")) if attribution == PERSON_CONFIRMED else "",
         "answered_by": str(getattr(case, "answered_by", "")) if answered else "",
         "answered_at": str(getattr(case, "answered_at", "")) if answered else "",
+        "endpoint_recorded": bool(getattr(case, "endpoint", "")) if case is not None else None,
     }
 
 
@@ -82,8 +108,8 @@ def attribute_stops(measured: Any, endpoint: str, cases: Any = ()) -> dict:
 
     Returns per-class ``{count, duration_s}``, the per-stoppage rows, and
     ``not_examined`` / ``not_examined_s`` for the stoppages beyond the list.
-    The classes plus ``not_examined`` always sum to ``stops``, and their seconds
-    to ``stopped_s``.
+    The classes plus ``not_examined`` always sum to ``stops``; their seconds sum
+    to ``stopped_s`` to within the 0.1s rounding of each stoppage.
     """
     if not isinstance(measured, dict) or measured.get("status") != "ok":
         status = measured.get("status", "invalid") if isinstance(measured, dict) else "invalid"
@@ -98,7 +124,7 @@ def attribute_stops(measured: Any, endpoint: str, cases: Any = ()) -> dict:
 
     by_id = {c.incident_id: c for c in (cases or ()) if getattr(c, "incident_id", "")}
     windows = list(measured.get("stop_windows") or ())
-    rows = [_window_row(w, by_id.get(case_id(endpoint, w["onset"])), endpoint) for w in windows]
+    rows = [_window_row(w, _match(w, endpoint, by_id), endpoint) for w in windows]
 
     classes = {name: {"count": 0, "duration_s": 0.0} for name in ATTRIBUTIONS}
     for row in rows:
@@ -120,6 +146,9 @@ def attribute_stops(measured: Any, endpoint: str, cases: Any = ()) -> dict:
         "reasons_from_signal": 0,
         "stops": stops,
         "examined": len(rows),
+        # How many cases were read at all — zero with stoppages present usually
+        # means the wrong knowledge-base site, and every stop then reads "no case".
+        "cases_read": len(by_id),
         "not_examined": not_examined,
         "not_examined_s": not_examined_s if not_examined else 0.0,
         # The standard bounded-return envelope: `windows` is the examined list,
@@ -140,7 +169,9 @@ def attribute_stops(measured: Any, endpoint: str, cases: Any = ()) -> dict:
             f"{explained} have a cause a person confirmed; "
             f"{classes[PERSON_DISMISSED]['count']} a person dismissed as not an incident; "
             f"{classes[AWAITING_PERSON]['count']} have a case nobody has answered; "
-            f"{classes[NO_CASE]['count']} were never put to a person."
+            f"{classes[NO_CASE]['count']} were never put to a person; "
+            f"{classes[ONSET_BEFORE_WINDOW]['count']} were already under way when the "
+            "window opened, so whether anyone explained them is not decidable here."
             + (
                 f" {not_examined} shorter stoppage(s) beyond the examined list were NOT "
                 "examined and are in no class."
@@ -156,6 +187,7 @@ __all__ = [
     "AWAITING_PERSON",
     "DETECTED_BY",
     "NO_CASE",
+    "ONSET_BEFORE_WINDOW",
     "PERSON_CONFIRMED",
     "PERSON_DISMISSED",
     "attribute_stops",
