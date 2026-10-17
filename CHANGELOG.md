@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### Added — a sensor entry: one install, one menu, one skill (HLD §17.2 E2)
+
+- **`pip install iaiops[sensor]`** pulls the Modbus, IO-Link and MQTT/Sparkplug
+  dependencies at once, and **`IAIOPS_MCP=sensor`** / **`iaiops-mcp-sensor`** starts
+  a server with those protocols, the brain and three new read-only tools. The
+  sensor layer stays in core — it spans protocols, so it is not a package (D50).
+- **`sensor_import_iodd`** drafts a profile from an IODD and returns the text —
+  it writes nothing. **`sensor_profile_check`** validates a profile file.
+  **`sensor_read_channel`** (and CLI **`iaiops sensor read <endpoint> <ref>`**, the
+  same engine) reads one point once and reports `reachable` and `decodable`
+  separately: a timeout is `reachable=false, decodable=null`, never "cannot
+  decode"; a ref the endpoint cannot read is refused before anything is
+  contacted; only a good read carries value, unit, accuracy band and the
+  profile's verification level; a bare Modbus address says `untyped`.
+- **Binding a profile into config.yaml is not a tool** (D51): the tools stop at
+  check, draft and read once; a person adds the lines.
+- **Skill `iaiops-sensor`** — the "connect a sensor" path step by step, with its
+  support matrix; routed from the router skill. 201 governed tools.
+- Verified on the lab LAN: good reads with unit and band, a 0xFFFF sentinel
+  reported as not decodable, an unprofiled port refused without contact, an
+  unreachable device reported as `reachable=false, decodable=null`.
+
 ### Added — the unit travels with the value (HLD §17.5, D56)
 
 - **Collected samples now carry their unit.** The store's `unit` column was

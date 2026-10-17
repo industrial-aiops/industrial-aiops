@@ -23,6 +23,7 @@ from iaiops.core.runtime.sensor.profile import (
     load_profile_file,
     modbus_layout,
     parse_profile,
+    profile_summary,
 )
 
 __all__ = [
@@ -39,4 +40,5 @@ __all__ = [
     "load_profile_file",
     "modbus_layout",
     "parse_profile",
+    "profile_summary",
 ]

@@ -1,0 +1,108 @@
+"""Sensor MCP tools (READ-ONLY) — edition module (HLD §17.2).
+
+An EDITION module (see ``EDITION_MODULES`` in ``mcp_server.profiles``): loads with
+``IAIOPS_MCP=sensor``, not on a bare protocol and not in the always-on brain.
+
+Three steps of "connect a sensor", each read-only:
+
+* ``sensor_import_iodd`` drafts a profile from a vendor IODD and RETURNS the text
+  — it writes nothing, so a person saves and reviews it;
+* ``sensor_profile_check`` validates a profile file and lists its channels;
+* ``sensor_read_channel`` reads one point once and reports reachable / decodable
+  separately, with unit, accuracy band and the profile's verification level.
+
+Binding a profile into config.yaml is deliberately NOT a tool (D51): config.yaml
+is the one source of truth and which sensor sits on which port is a site fact.
+The same engines back the CLI (``iaiops sensor import-iodd | check | read``).
+"""
+
+from pathlib import Path
+from typing import Optional
+
+from iaiops.core.governance import governed_tool
+from mcp_server._shared import _target, mcp, tool_errors
+
+
+def _local_file(path: str, suffixes: tuple[str, ...]) -> Path:
+    candidate = Path(path).expanduser()
+    if candidate.suffix.lower() not in suffixes:
+        raise ValueError(f"Expected a {'/'.join(suffixes)} file, got {path!r}.")
+    if not candidate.is_file():
+        raise ValueError(f"{path!r} is not a readable file.")
+    return candidate
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def sensor_import_iodd(path: str, process_data: Optional[str] = None) -> dict:
+    """[READ][risk=low] Draft a sensor profile from a vendor IODD file. Writes nothing.
+
+    The draft is marked ``verified: 待核实``: IODD unit codes are kept as codes,
+    signal kinds are assumed (and say so), and every item that could not be
+    represented is listed in ``notes``. Save the draft, replace the unit codes
+    with real units, check one live reading, then bind it under ``port_profiles``
+    in config.yaml yourself — this tool never edits config.
+
+    Args:
+        path: Local path to the device's IODD (.xml).
+        process_data: ProcessData id, required when the IODD declares several.
+
+    Returns dict: {draft (YAML text), profile_id, device_name, notes[]}.
+    """
+    from iaiops.core.runtime.sensor.iodd import MAX_IODD_BYTES, import_iodd, render_draft
+
+    source = _local_file(path, (".xml",))
+    if source.stat().st_size > MAX_IODD_BYTES:
+        raise ValueError(f"{path!r} is larger than {MAX_IODD_BYTES // (1024 * 1024)} MB.")
+    draft = import_iodd(source.read_text("utf-8"), process_data=process_data)
+    return {
+        "draft": render_draft(draft, source_name=source.name),
+        "profile_id": draft.profile["id"],
+        "device_name": draft.device_name,
+        "notes": list(draft.notes),
+    }
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def sensor_profile_check(path: str) -> dict:
+    """[READ][risk=low] Validate a sensor profile file and list its channels.
+
+    Args:
+        path: Local path to a profile (.yaml / .yml).
+
+    Returns dict: {id, protocol, source, verified, match, pd_bits,
+        channels:[{channel, layout, unit, signal, range, sentinels, band}]}.
+        An invalid profile returns {error} naming the field.
+    """
+    from iaiops.core.runtime.sensor import load_profile_file, profile_summary
+
+    return profile_summary(load_profile_file(_local_file(path, (".yaml", ".yml"))))
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def sensor_read_channel(ref: str, endpoint: Optional[str] = None) -> dict:
+    """[READ][risk=low] Read one sensor point once and say how far it got.
+
+    Levels are reported separately and never upgraded: ``reachable`` (did the
+    device answer — None when nothing was contacted) and ``decodable`` (did the
+    answer decode into a measurement — None when the device never answered).
+    Only when both are true are value, unit, accuracy band and the profile's
+    verification level returned. A ref the endpoint cannot read is refused
+    before contacting anything. Nothing is stored.
+
+    Args:
+        ref: ``ch:<name>`` (Modbus profile channel), ``port<N>/<channel>``
+            (IO-Link), or a typed Modbus point such as ``ir:0:float32:CDAB``.
+        endpoint: Endpoint name from config (default endpoint if omitted).
+
+    Returns dict: {endpoint, ref, contacted, levels:{reachable, decodable},
+        value?, unit?, band?, verified?, profile?, untyped?, reason?}.
+    """
+    from iaiops.core.runtime.sensor import probe
+
+    return probe.read_channel(_target(endpoint), ref)

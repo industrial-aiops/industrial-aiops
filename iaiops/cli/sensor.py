@@ -66,40 +66,11 @@ def check_cmd(
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Validate a profile and show its channels. Exit 1 with the reason if it is invalid."""
-    from iaiops.core.runtime.sensor import BitLayout, load_profile_file
+    from iaiops.core.runtime.sensor import load_profile_file, profile_summary
 
     loaded = load_profile_file(profile)
-    rows = []
-    for channel in loaded.channels:
-        layout = channel.layout
-        where = (
-            f"bits {layout.bit_offset}+{layout.bit_length} {layout.value_type}"
-            if isinstance(layout, BitLayout)
-            else f"{layout.table}[{layout.address}] {layout.value_type} {layout.order}"
-        )
-        rows.append(
-            {
-                "channel": channel.name,
-                "layout": where,
-                "unit": channel.unit,
-                "signal": channel.signal,
-                "range": list(channel.range) if channel.range else None,
-                "sentinels": len(channel.invalid),
-                "band": channel.accuracy.band if channel.accuracy else None,
-            }
-        )
-    summary = {
-        "id": loaded.id,
-        "protocol": loaded.protocol,
-        "source": loaded.source,
-        "verified": loaded.verified,
-        "match": (
-            {"vendor_id": loaded.vendor_id, "device_id": loaded.device_id}
-            if loaded.vendor_id is not None
-            else None
-        ),
-        "channels": rows,
-    }
+    summary = profile_summary(loaded)
+    rows = summary["channels"]
     if as_json:
         _emit(summary)
         return
@@ -116,5 +87,40 @@ def check_cmd(
         )
 
 
+@cli_errors
+def read_cmd(
+    endpoint: str = typer.Argument(..., help="Configured endpoint name."),
+    ref: str = typer.Argument(..., help="ch:<name>, port<N>/<channel>, or a typed Modbus point."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Read one point once: reachable / decodable / value + unit + band + verification."""
+    from iaiops.core.runtime.connection import ConnectionManager
+    from iaiops.core.runtime.sensor import probe
+
+    out = probe.read_channel(ConnectionManager.from_config().target(endpoint), ref)
+    if as_json:
+        _emit(out)
+        return
+    levels = out.get("levels", {})
+    console.print(
+        f"[bold]{endpoint}[/] {ref}: reachable={levels.get('reachable')} "
+        f"decodable={levels.get('decodable')}",
+        highlight=False,
+    )
+    if levels.get("decodable"):
+        band = f" ±{out['band']}" if out.get("band") is not None else ""
+        console.print(
+            f"  {out.get('value')} {out.get('unit') or '(no unit)'}{band} — profile "
+            f"{out.get('profile') or '(none)'}, verified {out.get('verified') or '-'}",
+            markup=False,
+            highlight=False,
+        )
+        if out.get("untyped"):
+            console.print("  [yellow]untyped:[/] read as uint16 — give it a type (ir:/hr:…).")
+    else:
+        console.print(f"  {out.get('reason', '')}", markup=False, highlight=False)
+
+
 sensor_app.command("import-iodd")(import_iodd_cmd)
 sensor_app.command("check")(check_cmd)
+sensor_app.command("read")(read_cmd)
