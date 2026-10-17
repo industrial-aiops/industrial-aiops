@@ -292,11 +292,13 @@ def _modbus_ops_reader(t: Any):
 
 
 def _readref_modbus(t: Any, ref: str) -> dict:
-    from iaiops.connectors.modbus.points import read_point_value
+    from iaiops.connectors.modbus.points import read_ref_value
     from iaiops.core.runtime.sensor import InvalidReadingError
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
 
     try:
-        return {"value": read_point_value(_modbus_ops_reader(t), ref), "good": True}
+        value = read_ref_value(_modbus_ops_reader(t), ref, endpoint_profile(t))
+        return {"value": value, "good": True}
     except InvalidReadingError as exc:
         # The device answered; what it sent is not a measurement.
         return {"value": None, "good": False, "reason": str(exc)}
@@ -326,6 +328,33 @@ def _monitor_opcua(t: Any, ref: str) -> tuple[Any, str]:
     return desc.get("value"), desc.get("source_timestamp", "")
 
 
+def _readref_iolink(t: Any, ref: str) -> dict:
+    from iaiops.connectors.iolink.points import read_value
+    from iaiops.core.runtime.sensor import InvalidReadingError
+
+    try:
+        return {"value": read_value(t, ref), "good": True}
+    except InvalidReadingError as exc:
+        return {"value": None, "good": False, "reason": str(exc)}
+
+
+def _monitor_iolink(t: Any, ref: str) -> tuple[Any, str]:
+    """Decode one IO-Link point through the port's profile (HLD §16 S3).
+
+    IO-Link reads are stateless HTTP to the master, so collection gains nothing
+    from a held session; it reads through here, where the target — and so the
+    port's profile — is at hand.
+    """
+    from iaiops.connectors.iolink.points import read_value
+    from iaiops.core.runtime.sensor import InvalidReadingError
+    from iaiops.core.runtime.session_factory import OTNoReadingError
+
+    try:
+        return read_value(t, ref), ""
+    except InvalidReadingError as exc:
+        raise OTNoReadingError(f"IO-Link point {ref}: {exc}", protocol="iolink") from exc
+
+
 def _no_reading(exc: Exception, ref: str):
     from iaiops.core.runtime.session_factory import OTNoReadingError
 
@@ -333,11 +362,12 @@ def _no_reading(exc: Exception, ref: str):
 
 
 def _monitor_modbus(t: Any, ref: str) -> tuple[Any, str]:
-    from iaiops.connectors.modbus.points import read_point_value
+    from iaiops.connectors.modbus.points import read_ref_value
     from iaiops.core.runtime.sensor import InvalidReadingError
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
 
     try:
-        return read_point_value(_modbus_ops_reader(t), ref), ""
+        return read_ref_value(_modbus_ops_reader(t), ref, endpoint_profile(t)), ""
     except InvalidReadingError as exc:
         raise _no_reading(exc, ref) from exc
 
@@ -398,7 +428,7 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
             "know which device to address. The session attaches it at open time — a "
             "client built another way must do the same rather than defaulting."
         )
-    from iaiops.connectors.modbus.points import read_point_value
+    from iaiops.connectors.modbus.points import read_ref_value
     from iaiops.core.runtime.sensor import InvalidReadingError
 
     methods = {"holding": "read_holding_registers", "input": "read_input_registers"}
@@ -409,8 +439,10 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
             raise OSError(f"Modbus read of {ref} failed: {resp}")
         return list(resp.registers)
 
+    # The session attached the endpoint's profile at open time, like the unit id.
+    profile = getattr(client, "iaiops_sensor_profile", None)
     try:
-        return read_point_value(read, ref), ""
+        return read_ref_value(read, ref, profile), ""
     except InvalidReadingError as exc:
         # A healthy device sent a non-measurement: a gap, not a dead session.
         raise _no_reading(exc, ref) from exc
@@ -617,6 +649,8 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
     "iolink": _caps(
         _where_http_agent,
         doctor_probe=_probe_iolink,
+        read_ref=_readref_iolink,
+        monitor_read=_monitor_iolink,
         session_builder=_session("iolink_session"),
     ),
     "secsgem": _caps(

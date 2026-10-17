@@ -48,6 +48,7 @@ from iaiops.core.runtime.secretstore import (
     get_secret,
     has_store,
 )
+from iaiops.core.runtime.sensor.binding import bind_profiles, parse_port_profiles
 
 CONFIG_DIR = Path.home() / ".iaiops"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
@@ -404,6 +405,12 @@ class TargetConfig:
     #: product later reports. Same discipline as `running_when` on a run_state
     #: tag. 0 means unset, and the MQTT tap refuses rather than picking a number.
     stale_after_s: float = 0.0
+    #: Modbus only: the sensor profile that decodes `ch:<name>` refs (HLD §16).
+    #: Resolved to an absolute path, and validated, when config.yaml is loaded.
+    sensor_profile: str = ""
+    #: IO-Link only: port → sensor profile; `port<N>/<channel>` refs decode
+    #: through it. A port with no profile is not decoded at all (D44).
+    port_profiles: tuple[tuple[int, str], ...] = ()
     tags: tuple[MonitorTag, ...] = ()
     #: Design cycle time for the product this line runs — a product SPEC rather
     #: than something the machine reports, which is why it is a line value and
@@ -835,7 +842,9 @@ def load_config(config_path: Path | None = None) -> AppConfig:
     problems: list[ValueError] = []
     for entry in entries:
         try:
-            targets.append(_parse_target(entry))
+            # Sensor profiles resolve next to config.yaml and are validated here,
+            # so a broken one fails at load — not as a week of gaps.
+            targets.append(bind_profiles(_parse_target(entry), path.parent))
         except ValueError as exc:
             problems.append(exc)
 
@@ -983,6 +992,8 @@ def _parse_target(d: dict) -> TargetConfig:
         expected_slaves=int(d.get("expected_slaves", 0) or 0),
         timeout_s=_parse_timeout_s(d),
         stale_after_s=float(d.get("stale_after_s", 0) or 0),
+        sensor_profile=str(d.get("sensor_profile", "") or "").strip(),
+        port_profiles=parse_port_profiles(d.get("port_profiles"), str(named)),
         tags=parse_tags(d.get("tags", []), endpoint=str(d.get("name", ""))),
         ideal_cycle_time_s=_opt_float(d.get("ideal_cycle_time_s")),
     )

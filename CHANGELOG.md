@@ -1,5 +1,67 @@
 # Changelog
 
+## Unreleased
+
+### Added — sensor layer S3: profiles bound to endpoints, IO-Link collectable (HLD §16)
+
+- **IO-Link can be collected — through a profile, and only through one.** Process
+  data used to come back as raw hex ("decode per the device's IODD") and IO-Link
+  had no point-read path. `port_profiles: {<port>: <profile.yaml>}` on a master
+  binds a profile per port; `port<N>/<channel>` refs then work in `collect` and
+  `monitor`, and in the dataflow diagnostic's point read. A port with no profile
+  is refused, never decoded with a guessed layout, and an IO-Link endpoint with
+  no `port_profiles` is reported as not collectable and says why.
+- **The device on the port is checked against the profile.** A profile drafted
+  from an IODD names the device it was written for (`match: {vendor_id,
+  device_id}`); a different sensor on that port is refused — a gap with the two
+  identities — instead of being decoded with the wrong layout. A master that does
+  not report the identity is a refusal too, not a skipped check. The check is
+  cached for 5 s per master and port and dropped on any failed read: a swap
+  through a disconnect is caught at once, one without within 5 s. (It was 30 s
+  until a lab run on a real LAN stored a 14 s swap whole as the real sensor.)
+- **Modbus `ch:<name>`.** `sensor_profile: <profile.yaml>` on a Modbus endpoint
+  makes its channels readable by name, with the profile's sentinels and range.
+- **Profiles are validated with config.yaml.** Paths resolve next to the config
+  file; a missing file, an invalid profile, a profile for the other protocol, or
+  `port_profiles` on a Modbus endpoint fails `load_config`, naming the endpoint.
+  `collect plan|run` refuse a channel the profile does not have before starting.
+- **`iaiops sensor import-iodd <iodd.xml>`** drafts a profile from a vendor IODD:
+  identity, record-item bit layout (IODD offsets copied unchanged), UI gradient
+  and offset, `ValueRange` → engineering range, and named values *outside* that
+  range → sentinels. The draft says `verified: 待核实`, keeps IODD unit codes as
+  codes, says which fields were assumed, and lists every item it could not
+  represent. Several process-data layouts need `--process-data`; a document with
+  a DTD or entities is refused. **`iaiops sensor check <profile>`** validates one.
+- **`readiness` reports whether each point can be decoded.** Under continuous
+  collection, a new optional requirement lists bare Modbus addresses as
+  *untyped* (read as uint16), refs the endpoint cannot read with the reason, and
+  profiles still marked 待核实. A Modbus site configured with bare addresses
+  therefore now reads **degraded** rather than ready for continuous collection —
+  collection still runs; the values are just not known to be decoded right.
+- **Refusals a review added before release.**
+  - The identity check is keyed on the master's resolved address, not
+    `agent_url`: two masters configured by `host:` alone used to share one cached
+    check, so a foreign sensor on the second was decoded. A failed read on a port
+    also drops that port's cached identity.
+  - Profiles carry `pd_bits` (the importer takes it from `ProcessDataIn`), and an
+    image of another length is refused. Another active process-data layout has
+    the same device id and would shift every field.
+  - The IODD importer:
+    - keeps a simple item's gradient and unit (UI subindex 0);
+    - imports `Float32T` items (they have no `bitLength`);
+    - notes named values inside the range, extra `ValueRange`s, a zero gradient,
+      and display info that matched no item, instead of dropping them.
+  - `port_profiles` refuses duplicate, fractional or boolean port keys.
+  - A directory or unreadable file as a profile, and non-string types in a
+    profile, are reported per endpoint like every other config problem.
+  - A profile edited to the other protocol is refused at read.
+  - `import-iodd` checks the file size before reading it and refuses to write
+    through a symlink.
+  - `decodable_points` says "not applicable" on a site without Modbus or IO-Link.
+- **Fixed in the decoder:** a value exactly on the range edge could be refused
+  after scaling (3 × 0.1 = 0.30000000000000004); the edge now has a tolerance far
+  below any sensor's resolution.
+
 ## 0.29.0 — 2026-10-17
 
 The audit trail now says which front-end started each call; OEE can say who

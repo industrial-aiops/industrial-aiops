@@ -407,9 +407,16 @@ class TestCollectabilityIsAProtocolFactNotAConfigMistake:
     someone to fix a config file over a property of the protocol."""
 
     def test_a_collectable_protocol_satisfies_it(self, tmp_path):
-        cfg = FakeConfig(targets=(FakeTarget("line1", "modbus", ({"ref": "40001"},)),))
+        # A TYPED point: a bare address is untyped and degrades collection
+        # (HLD §16, D48), which is a decoding fact, not a collectability one.
+        cfg = FakeConfig(targets=(FakeTarget("line1", "modbus", ({"ref": "hr:1:uint16"},)),))
         report = assess(config=cfg, db_path=store_with(tmp_path))
         assert cap(report, "continuous_collection").status == READY
+
+    def test_a_bare_modbus_address_degrades_it_as_untyped(self, tmp_path):
+        cfg = FakeConfig(targets=(FakeTarget("line1", "modbus", ({"ref": "40001"},)),))
+        report = assess(config=cfg, db_path=store_with(tmp_path))
+        assert cap(report, "continuous_collection").status == DEGRADED
 
     def test_a_stream_shaped_protocol_blocks_it(self, tmp_path):
         cfg = FakeConfig(targets=(FakeTarget("tool1", "secsgem", ({"ref": "x"},)),))

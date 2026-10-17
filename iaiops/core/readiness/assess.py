@@ -78,6 +78,7 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
     )
     monitored = sum(len(getattr(t, "tags", ()) or ()) for t in targets)
     from iaiops.core.collect.reader import collectable_reason
+    from iaiops.core.readiness.sensors import sensor_point_facts
 
     blocked = {str(getattr(t, "name", "")): collectable_reason(t) for t in targets}
     collectable = [name for name, why in blocked.items() if not why]
@@ -117,6 +118,7 @@ def gather_facts(config: Any = None, db_path: Any = None) -> dict[str, Any]:
             None,
         ),
         "monitored_tags": monitored,
+        "sensor_points": sensor_point_facts(targets),
         "retention_raw_days": getattr(config, "retention_raw_days", None) if config else None,
         "historian": bool(historian),
         "historian_reader": str(getattr(historian, "reader", "")) if historian else "",
@@ -383,6 +385,8 @@ def _ideal_cycle_req(facts: dict[str, Any]) -> Requirement:
 
 def assess(config: Any = None, db_path: Any = None) -> ReadinessReport:
     """Report what this site can run today, and what each gap is waiting for."""
+    from iaiops.core.readiness.sensors import decodable_points_req
+
     facts = gather_facts(config, db_path)
 
     capabilities = (
@@ -419,6 +423,7 @@ def assess(config: Any = None, db_path: Any = None) -> ReadinessReport:
                 _endpoints_req(facts),
                 _collectable_req(facts),
                 _monitored_tags_req(facts),
+                decodable_points_req(facts),
             ),
         ),
         Capability(

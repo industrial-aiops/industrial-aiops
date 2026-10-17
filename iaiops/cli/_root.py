@@ -45,6 +45,7 @@ from iaiops.cli.reset import reset_cmd
 from iaiops.cli.s7 import s7_app
 from iaiops.cli.scan import scan_app
 from iaiops.cli.secret import secret_app
+from iaiops.cli.sensor import sensor_app
 from iaiops.cli.store import store_app
 from iaiops.cli.tags import tags_app
 from iaiops.cli.verify import verify_app
@@ -126,6 +127,7 @@ app.add_typer(relations_app, name="relations")
 app.add_typer(knowledge_app, name="knowledge")
 app.add_typer(onboard_app, name="onboard")
 app.add_typer(tags_app, name="tags")
+app.add_typer(sensor_app, name="sensor")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
 app.add_typer(meter_app, name="meter")

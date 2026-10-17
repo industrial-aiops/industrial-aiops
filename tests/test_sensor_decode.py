@@ -172,3 +172,12 @@ def test_a_modbus_channel_cannot_be_decoded_as_bits_and_vice_versa():
     bits = _channel({"bit_offset": 0, "bit_length": 16, "type": "uint"})
     with pytest.raises(TypeError):
         decode_registers(bits, [0])
+
+
+@pytest.mark.unit
+def test_a_value_exactly_on_the_range_edge_survives_float_scaling():
+    """3 × 0.1 is 0.30000000000000004 in binary floating point — still in range."""
+    ch = _channel({"table": "input", "address": 0, "type": "uint16"}, scale=0.1, range=[0, 0.3])
+    assert decode_registers(ch, [3]).value == pytest.approx(0.3)
+    with pytest.raises(InvalidReadingError):
+        decode_registers(ch, [4])

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hand-written test fixture in the IODD 1.1 shape. Not a vendor file. -->
+<IODevice xmlns="http://www.io-link.com/IODD/2010/10" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ProfileBody>
+    <DeviceIdentity vendorId="888" vendorName="Example Sensors" deviceId="4660">
+      <DeviceName textId="TN_DeviceName"/>
+    </DeviceIdentity>
+    <DeviceFunction>
+      <DatatypeCollection>
+        <Datatype id="DT_Distance" xsi:type="UIntegerT" bitLength="16">
+          <SingleValue value="65535"><Name textId="TN_NoTarget"/></SingleValue>
+          <SingleValue value="1000"><Name textId="TN_Hundred"/></SingleValue>
+          <ValueRange lowerValue="500" upperValue="60000"/>
+        </Datatype>
+      </DatatypeCollection>
+      <ProcessDataCollection>
+        <ProcessData id="PD">
+          <ProcessDataIn id="PD_In" bitLength="32">
+            <Datatype xsi:type="RecordT" bitLength="32">
+              <RecordItem subindex="1" bitOffset="16">
+                <DatatypeRef datatypeId="DT_Distance"/>
+                <Name textId="TN_Distance"/>
+              </RecordItem>
+              <RecordItem subindex="2" bitOffset="8">
+                <SimpleDatatype xsi:type="IntegerT" bitLength="8">
+                  <SingleValue value="-128"><Name textId="TN_TempFault"/></SingleValue>
+                  <ValueRange lowerValue="-40" upperValue="85"/>
+                </SimpleDatatype>
+                <Name textId="TN_Temperature"/>
+              </RecordItem>
+              <RecordItem subindex="3" bitOffset="0">
+                <SimpleDatatype xsi:type="BooleanT"/>
+                <Name textId="TN_Switch"/>
+              </RecordItem>
+              <RecordItem subindex="4" bitOffset="1">
+                <SimpleDatatype xsi:type="StringT" fixedLength="1" encoding="UTF-8"/>
+                <Name textId="TN_Label"/>
+              </RecordItem>
+            </Datatype>
+            <Name textId="TN_PDIn"/>
+          </ProcessDataIn>
+        </ProcessData>
+      </ProcessDataCollection>
+    </DeviceFunction>
+    <UserInterface>
+      <ProcessDataRefCollection>
+        <ProcessDataRef processDataId="PD_In">
+          <ProcessDataRecordItemInfo subindex="1" gradient="0.1" offset="0" unitCode="1013" displayFormat="Dec.1"/>
+        </ProcessDataRef>
+      </ProcessDataRefCollection>
+    </UserInterface>
+  </ProfileBody>
+  <ExternalTextCollection>
+    <PrimaryLanguage xml:lang="en">
+      <Text id="TN_DeviceName" value="Distance sensor"/>
+      <Text id="TN_Distance" value="Distance"/>
+      <Text id="TN_Temperature" value="Device temperature"/>
+      <Text id="TN_Switch" value="Switching signal 1"/>
+      <Text id="TN_Label" value="Label"/>
+      <Text id="TN_NoTarget" value="No target"/>
+      <Text id="TN_Hundred" value="Hundred"/>
+      <Text id="TN_TempFault" value="Temperature sensor fault"/>
+      <Text id="TN_PDIn" value="Process data in"/>
+    </PrimaryLanguage>
+  </ExternalTextCollection>
+</IODevice>
