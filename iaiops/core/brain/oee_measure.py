@@ -149,6 +149,7 @@ def measure_availability(
     run_state_tag: MonitorTag,
     minor_stop_s: float = DEFAULT_MINOR_STOP_S,
     window: tuple[Any, Any] | None = None,
+    max_stop_windows: int | None = MAX_STOP_WINDOWS,
 ) -> dict:
     """[PURE] Availability from a run-state series, honest about blind windows.
 
@@ -168,6 +169,14 @@ def measure_availability(
     samples to a window WITHOUT this would let anyone raise their coverage by
     narrowing the question to the minutes that happen to have data, and report
     "100% coverage" of a shift they observed two hours of.
+
+    ``max_stop_windows`` caps only the LIST of stoppages handed back (longest
+    first; ``None`` returns every one). The ``stops`` count is always the full
+    count, so a reader can tell how many were left off. Blind windows are never
+    capped: production counting skips increments that span them, and a list
+    that stopped at the fiftieth would let the parts made during every later
+    outage back into Performance — more of them the longer and blinder the
+    window, which is the flattering direction.
     """
     if run_state_tag.role != TagRole.RUN_STATE:
         raise ValueError(
@@ -176,6 +185,8 @@ def measure_availability(
             "means running comes from the config rather than from a guess."
         )
 
+    if max_stop_windows is not None and max_stop_windows < 0:
+        raise ValueError(f"max_stop_windows must be >= 0 or None, not {max_stop_windows}.")
     rows = _rows(samples, run_state_tag)
     asked = _window(window)
     if asked is not None:
@@ -309,8 +320,9 @@ def measure_availability(
                 "end": b.isoformat(),
                 "duration_s": round((b - a).total_seconds(), 1),
             }
-            for a, b in blind[:MAX_STOP_WINDOWS]
+            for a, b in blind
         ],
+        "blind_windows_total": len(blind),
         "stops": len(stops),
         "minor_stops": len(minor),
         "minor_stop_s": round(sum(minor), 1),
@@ -324,7 +336,7 @@ def measure_availability(
                 "minor": duration <= minor_stop_s,
             }
             for duration, onset in sorted(stops, key=lambda s: s[0], reverse=True)[
-                :MAX_STOP_WINDOWS
+                :max_stop_windows
             ]
         ],
     }

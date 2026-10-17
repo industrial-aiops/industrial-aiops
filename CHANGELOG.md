@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+### Added — which stoppages a person explained (OEE stop attribution)
+
+- **`oee measure` now says how many of the stoppages it found have a reason, and
+  whose.** The run-state tag finds a stop and times it; it never says why. The only
+  reasons this product holds are the ones a person gave with `iaiops case confirm`,
+  and nothing joined the two — a window reported N stoppages and a reader could not
+  tell how many had any reason at all. Each stoppage now lands in exactly one class:
+  **cause confirmed by a person**, **dismissed by a person**, **case opened but
+  unanswered**, or **never put to a person**. `reasons_from_signal` is always 0.
+  New `--case-site` names the knowledge-base site to read answers from
+  (`core/brain/oee_attribution.attribute_stops`, PURE).
+- **A case that only carries audit-trail actions is not an explained stoppage.**
+  `case open` marks such a case `inferred`; it stays "awaiting a person".
+  Counting it as explained would raise the explained share without anyone having
+  explained anything.
+- **Stoppages beyond the returned list are counted as NOT examined**, in no class,
+  with the standard truncation envelope. `measure_availability` takes
+  `max_stop_windows` (default 50; `None` = every stoppage); the `stops` count was
+  always the full count.
+- **`case confirm` / `case dismiss` record who and when as fields**
+  (`answered_by`, `answered_at`), not only inside the note. A case answered before
+  this reads back with both empty — unknown, never back-filled.
+  `case_store.case_id` is public: it is the join key.
+
+### Fixed — production counted through outages past the fiftieth
+
+- **`measure_availability` published only the first 50 blind windows**, and that
+  list is what production counting uses to skip increments made while the collector
+  was blind. Over a long window with more than fifty outages, parts made during the
+  51st onward were credited while their seconds stayed out of run time — Performance
+  went up the blinder the window was. Blind windows are now never capped;
+  `blind_windows_total` gives the count.
+
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 
 - **Typed Modbus points.** A Modbus point was always one holding register read as

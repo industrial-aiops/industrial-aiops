@@ -54,6 +54,11 @@ def oee_measure_cmd(
     note: str = typer.Option(
         "", "--note", help="A caveat rendered near the top of the report, before the figure."
     ),
+    case_site: str = typer.Option(
+        "default",
+        "--case-site",
+        help="Knowledge-base site whose `iaiops case` answers explain the stoppages.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Measure availability from collected history; optionally compare it.
@@ -152,8 +157,17 @@ def oee_measure_cmd(
         result, totals, goods, getattr(target, "ideal_cycle_time_s", None)
     )
 
+    # Which stoppages a PERSON gave a reason for. The run-state tag finds a stop
+    # and times it; it never says why, so the share with a reason is only what
+    # `case confirm` recorded — never what a case's audit-trail actions suggest.
+    from iaiops.core.brain.oee_attribution import attribute_stops
+    from iaiops.core.knowledge.case_store import list_cases
+
+    attribution = attribute_stops(result, endpoint, list_cases(case_site))
+
     payload = {
         "measured": result,
+        "stop_attribution": attribution,
         "comparison": comparison,
         "production": totals,
         "performance": perf,
@@ -290,6 +304,7 @@ def oee_measure_cmd(
         )
 
     _print_losses(losses)
+    _print_attribution(attribution)
 
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
@@ -338,6 +353,32 @@ def _print_losses(losses: dict) -> None:
             "speed loss below is an artefact of the declaration, not of the line.[/]"
         )
     console.print(f"  [dim]{losses['note']}[/]")
+
+
+def _print_attribution(attribution: dict) -> None:
+    """How many stoppages have a reason, and whose — never one from the signal."""
+    if attribution.get("status") != "ok" or not attribution.get("stops"):
+        return
+    classes = attribution["classes"]
+    console.print(
+        "\n[bold]Stoppage reasons[/] — the run-state signal times a stop, never explains it"
+    )
+    for key, label in (
+        ("person_confirmed", "cause confirmed by a person"),
+        ("person_dismissed", "dismissed by a person (not an incident)"),
+        ("awaiting_person", "case opened, nobody has answered"),
+        ("no_case", "never put to a person"),
+    ):
+        bucket = classes[key]
+        console.print(
+            f"  {bucket['count']:>5}  {humanize_seconds(bucket['duration_s']):>7}  {label}"
+        )
+    if attribution.get("not_examined"):
+        console.print(
+            f"  [yellow]{attribution['not_examined']:>5}  "
+            f"{humanize_seconds(attribution['not_examined_s']):>7}  shorter stops NOT "
+            "examined — in no class above[/]"
+        )
 
 
 oee_app.command("measure")(oee_measure_cmd)
