@@ -45,8 +45,9 @@ ENV PATH="/opt/venv/bin:$PATH" \
     # A Margo/edge deployment fronts it as a SOCKET instead — set these three (see compose.yaml):
     #   IAIOPS_MCP_TRANSPORT=streamable-http  IAIOPS_MCP_HOST=0.0.0.0  IAIOPS_MCP_PORT=8000
     # (socket is what the Margo app-package WG recommends — one container port, no protocol glue;
-    #  app-package-definition-wg, 2026-07-13. See docs/MARGO-ALIGNMENT.md appendix B.) Guard a
-    #  non-loopback bind with IAIOPS_ALLOWLIST_IPS or a front gateway.
+    #  app-package-definition-wg, 2026-07-13. See docs/MARGO-ALIGNMENT.md appendix B.) A
+    #  non-loopback bind REQUIRES IAIOPS_MCP_TOKEN / IAIOPS_MCP_TOKEN_FILE (it refuses to start
+    #  without one); IAIOPS_ALLOWLIST_IPS is an optional second layer.
     IAIOPS_MCP_TRANSPORT=stdio \
     IAIOPS_MCP_HOST=127.0.0.1 \
     IAIOPS_MCP_PORT=8000 \

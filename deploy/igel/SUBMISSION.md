@@ -32,6 +32,8 @@ Python container workload. Identity throughout: **wei `<zhouwei008@gmail.com>`**
   headless under the container runtime; no attached stdio client needed.
 - **State volume**: `/home/iaiops/.iaiops` (config + encrypted secrets + audit/undo store).
 - **Secrets**: injected at deploy time from the device secret facility into `IAIOPS_MASTER_PASSWORD`
+  and `IAIOPS_MCP_TOKEN` (required since 0.29.0, >= 32 chars: the socket refuses to start off loopback
+  without it; clients send `Authorization: Bearer <token>`)
   (reference model — the value never travels in any descriptor). All OT credentials resolve on-device
   from the encrypted store by name.
 - Reference manifests: [`../margo/package.compose.yaml`](../margo/package.compose.yaml) (compose) and
@@ -41,7 +43,7 @@ Python container workload. Identity throughout: **wei `<zhouwei008@gmail.com>`**
 
 | Question | Answer |
 |---|---|
-| Inbound network exposure? | One loopback-bound MCP tool port (8000). No inbound OT ports. |
+| Inbound network exposure? | One loopback-bound MCP tool port (8000), bearer-token authenticated. No inbound OT ports. |
 | Outbound? | Only to the OT endpoints the operator configures (OPC-UA/Modbus/… hosts). |
 | Runs as root? | No — uid 10001, read-only rootfs, all caps dropped. |
 | Writes to OT devices? | Read-first. The few write tools are OFF by default and gated (dry-run + one-shot approval token + undo capture + hash-chained audit). |

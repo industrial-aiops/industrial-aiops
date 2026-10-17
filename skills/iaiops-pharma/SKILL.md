@@ -173,7 +173,7 @@ description: >-
 | 没有 OSIsoft / AVEVA PI 连接器 | 药厂历史库十有八九是 PI，「tap 架在 historian 旁边」这句话在现场落不了地 | ❌ 未做；接入路径有商业/许可门槛，**待核实** |
 | S7comm 无真机验证 | 灌装线/冻干机以西门子为主 | ⚠️ `pyS7` 已接入，真机 **待核实**（且 S7 不在本 edition 的默认 profile 里，需显式加 `s7`） |
 | BACnet live HVAC / COV / 写路径 | 只读采集没问题，写与 COV 订阅未在真实 BMS 上验证 | ⚠️ **待核实** |
-| 没有 GxP 对照（Annex 11 / Part 11 / Annex 22） | 现有的是《工控网络安全防护指南》/ 等保 2.0 / IEC 62443 | ❌ 未做 |
+| GxP 对照只覆盖 Annex 11 / Part 11（`compliance_frameworks` 的 `gxp` 列，自 0.27.0） | Annex 22（AI）未做；对照是产品自评，不是验证 | ⚠️ 部分 |
 | LIMS / QMS / MES | **不做**，且是有意的：它们走 REST/DB 不走现场协议，且一碰就进 Part 11 电子记录范围 | ⛔ 超出范围 |
 
 ## 支持版本矩阵（内部 HLD §8，设计文档不随本仓发布；`待核实` 不得当既成事实）

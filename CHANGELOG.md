@@ -22,9 +22,10 @@ and companion-spec role hints in `tags export`. 198 governed tools.
     `allowlistIps` now defaults to empty (off). WFMs on a pre-rc.3 Margo
     preview cannot read the new descriptor (`apiVersion: v1`, no `kind`,
     `deviceConstraints`, OCI `repository` + `revision`).
-  - **airgap compose** (`deploy/airgap`) — set `IAIOPS_MCP_TOKEN_FILE` to a
-    mounted secret (preferred; the value never shows in `docker inspect`) or
-    `IAIOPS_MCP_TOKEN` in the environment before `docker compose up`. The
+  - **airgap compose** (`deploy/airgap`) — export `IAIOPS_MCP_TOKEN` before
+    `docker compose up`, or add a read-only mount for a token file and point
+    `IAIOPS_MCP_TOKEN_FILE` at it (the value then never shows in `docker
+    inspect`; the shipped compose mounts no secret path, so this needs an edit). The
     `IAIOPS_ALLOWLIST_IPS` default is now empty (off), as in the Margo package.
   - **Siemens Industrial Edge** — provide `IAIOPS_MCP_TOKEN` /
     `IAIOPS_MCP_TOKEN_FILE` in the app configuration; the
@@ -36,8 +37,8 @@ and companion-spec role hints in `tags export`. 198 governed tools.
     answered `421`; set `IAIOPS_MCP_ALLOWED_HOSTS` if you want a Host check back.
 - **The audit chain changes one way.** 0.29 rows carry `origin` fields in their
   hash. An **older** iaiops running `audit verify` on an `audit.db` that holds
-  0.29 rows reports `row_hash mismatch (row fields modified)` for each of them —
-  it is not tampering, it is a reader that does not know the new fields. 0.29
+  0.29 rows reports `ok: false` with `row_hash mismatch (row fields modified)` at
+  the first 0.29 row and stops there — it is not tampering, it is a reader that does not know the new fields. 0.29
   verifies older rows unchanged. **Upgrade every process that shares one
   `IAIOPS_HOME` at the same time** — CLI, MCP servers, and any
   `iaiops-energy` image mounting the same volume — and do not roll one back

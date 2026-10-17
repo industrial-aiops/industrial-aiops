@@ -68,11 +68,11 @@ not patched; upgrade to the latest release.
   a **dependency-vulnerability scan** of the locked dependency set (pip-audit
   against the PyPI advisory database); a known vulnerability fails the build
   unless it is listed, with a reason, in `.github/pip-audit-ignore.txt`.
-- From the next release on, each release attaches a **CycloneDX SBOM** of the
-  locked, tested dependency set as a release asset (no release has carried one
-  yet).
+- From 0.29.0 on, each release attaches a **CycloneDX SBOM** of the locked,
+  tested dependency set as a release asset (0.29.0 is the first; until its
+  release is published with that asset, no release has carried one).
 - PyPI uploads move to Trusted Publishing (no long-lived token) with
-  attestations, starting with the next release; container images and the Margo
+  attestations, starting with 0.29.0; container images and the Margo
   package are cosign-signed (public key `deploy/margo/cosign.pub`).
 - The release workflow repeats the dependency-vulnerability scan before it
   uploads to PyPI, so a tag cut from a commit that never passed CI cannot ship a

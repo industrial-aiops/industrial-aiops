@@ -74,6 +74,9 @@ comes from the cited verdict underneath. Set a longer `timeout_s` on slow CPUs.
 - the OT side stays strictly **outbound** to the endpoints in `config.yaml`.
 
 ```bash
+# Required since 0.29.0: the socket refuses to start off loopback without a bearer token
+# (>= 32 chars). Clients send 'Authorization: Bearer <token>'.
+export IAIOPS_MCP_TOKEN="$(openssl rand -base64 48)"
 docker compose -f deploy/airgap/compose.yaml up
 # Then, from your MCP client, narrate a verdict via the on-box model:
 #   rca_narrate(verdict=<downtime_root_cause output>, base_url="http://ollama:11434", model="qwen3:8b")
@@ -93,7 +96,8 @@ pass in `docs/ROADMAP.md`.
 
 ## 6. Verifying zero egress — don't trust, check
 
-1. **Audit chain** — every governed tool call is recorded (`iaiops audit …`); the record includes
+1. **Audit chain** — every governed tool call is recorded (`iaiops audit …`) unless `IAIOPS_AUDIT_OPT_OUT=reads`
+   is set (then successful declared reads are not; egress tools always are); the record includes
    the target endpoint. Anything talking to a non-OT address shows up here first.
 2. **Network posture** — on the container route, the LLM network is `internal: true` (kernel-level:
    no gateway); iaiops publishes exactly one loopback MCP port. Host firewall: default-deny egress,

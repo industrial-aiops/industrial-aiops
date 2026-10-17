@@ -49,8 +49,8 @@ cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.29
 #    Managed-Container config surface — the feature is evolving; confirm against current IGEL docs).
 ```
 - Hardening (`read_only`, `cap_drop: ALL`, no inbound ports) carries over from `deploy/margo/compose.yaml`.
-- `待核实`: MCP transport under a Managed Container (stdio vs socket/HTTP) — the same open question as
-  the Margo app-package (`docs/MARGO-ALIGNMENT.md` appendix B).
+- MCP transport: socket (`streamable-http`, bearer-token authenticated since 0.29.0), as in the Margo
+  app-package (`docs/MARGO-ALIGNMENT.md` appendix B). `待核实` only on a real IGEL OS 12 box.
 
 ### Route 2 — native IGEL App via App Creator Portal (`igelpkg` recipe)
 For a native signed App Portal entry that launches the container on the endpoint. Skeleton in
