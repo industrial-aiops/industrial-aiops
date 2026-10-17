@@ -491,7 +491,7 @@ deliberately sequenced *after* the one above. Two are real gaps rather than poli
   current-state observation — and it is the reason a pure-app front-end and an agent
   front-end are the same engine, not two products.
 
-## Status — 2026-08-02 (historical; current release is `iaiops 0.28.0`)
+## Status — 2026-08-02 (historical; current release is `iaiops 0.29.0`)
 
 Latest published: base **`iaiops 0.21.1`**, energy **`iaiops-energy 0.1.11`** — PyPI +
 GitHub Release (with the signed Margo package) + MCP registry + SkillHub ×10 + 5 signed
@@ -884,7 +884,7 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   no API token needs to exist at all, and the old one can be deleted rather than rotated.
   The release then needs no local upload: `gh release create --target main vX.Y.Z` tags,
   and PyPI → images → registry follow in CI.
-- ✅ Published all channels: **iaiops 0.21.1** + **iaiops-energy 0.1.11** — PyPI, GitHub
+- ✅ (as of 2026-08-02) Published all channels: **iaiops 0.21.1** + **iaiops-energy 0.1.11** — PyPI, GitHub
   Releases (with the signed Margo package), the MCP registry
   (`io.github.industrial-aiops/iaiops` + `…/iaiops-energy`, auto-published from CI via
   OIDC on tag), SkillHub ×10, and 5 signed profile images. Glama needs no per-release

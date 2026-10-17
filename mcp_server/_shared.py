@@ -14,7 +14,7 @@ import functools
 import logging
 import os
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Optional
 
@@ -23,6 +23,7 @@ from mcp.types import Icon, ToolAnnotations
 
 from iaiops import __version__
 from iaiops.core.governance import sanitize
+from iaiops.core.governance.origin import mcp_origin, origin_scope
 from iaiops.core.runtime.config import load_config
 from iaiops.core.runtime.connection import ConnectionManager, OTConnectionError
 from mcp_server.hints import hints_for
@@ -132,6 +133,27 @@ class _GovernedFastMCP(FastMCP):
             )(fn)
 
         return decorator
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> Sequence[Any] | dict[str, Any]:
+        """Every ``tools/call`` runs inside an MCP call-origin scope.
+
+        This is the MCP boundary: the governed tool the call reaches records
+        ``origin="mcp"``, the client's self-reported ``clientInfo`` and an id for
+        this client connection on its audit row.
+        """
+        with origin_scope(_mcp_origin(self)):
+            return await super().call_tool(name, arguments)
+
+
+def _mcp_origin(server: FastMCP) -> Any:
+    """The origin of the current ``tools/call`` (see ``origin.mcp_origin``)."""
+    try:
+        session = server._mcp_server.request_context.session
+    except LookupError:
+        session = None
+    return mcp_origin(session)
 
 
 mcp = _GovernedFastMCP(

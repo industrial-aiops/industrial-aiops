@@ -256,3 +256,67 @@ def test_a_failed_fresh_trail_is_reported(homes, monkeypatch):
 
 def test_the_erase_note_says_to_stop_running_servers():
     assert "Stop any running" in reset_mod.ERASE_NOTE
+
+
+def test_a_second_instance_never_removes_the_default_instances_trail(homes):
+    """Pre-release audit H2, reproduced: with IAIOPS_HOME set, the config root is
+    still ~/.iaiops — which is ALSO the default instance's home, holding its audit
+    trail, archives and history. Resetting the second instance listed them all for
+    removal. In a root IAIOPS_HOME does not move, only what is shared through it
+    (config, secrets, sessions, investigations, knowledge) may go."""
+    home, cfg = homes
+    default_state = [
+        cfg / "audit.db",
+        cfg / "audit.20260101-000000.db",
+        cfg / "data.db",
+        cfg / "undo.db",
+        cfg / "baselines.json",
+    ]
+    for path in default_state:
+        path.write_text("the default instance's")
+    (cfg / "approvals").mkdir()
+    (cfg / "sessions").mkdir()
+
+    plan = reset_mod.plan_reset()
+    removing = {Path(e["path"]) for e in plan["entries"]}
+    kept = {Path(e["path"]): e.get("reason", "") for e in plan["kept"]}
+    for path in [*default_state, cfg / "approvals"]:
+        assert path not in removing, f"{path.name} belongs to the default instance"
+        assert "IAIOPS_HOME" in kept[path], f"{path.name} kept without saying why"
+    assert {cfg / "config.yaml", cfg / "secrets.enc", cfg / "sessions"} <= removing
+
+    reset_mod.apply_reset(plan)
+    assert all(p.exists() for p in default_state)
+    assert not (cfg / "secrets.enc").exists()
+
+
+def test_without_iaiops_home_the_single_root_is_reset_in_full(tmp_path, monkeypatch):
+    """The narrowing applies only to a root IAIOPS_HOME does not move: an
+    unconfigured install has one root, and its own trail goes with it."""
+    root = tmp_path / ".iaiops"
+    root.mkdir()
+    (root / "audit.db").write_text("x")
+    (root / "data.db").write_text("x")
+    monkeypatch.setenv("IAIOPS_HOME", str(root))
+    _point_config_roots(monkeypatch, root)
+    monkeypatch.delenv("IAIOPS_CONFIG", raising=False)
+    removing = {Path(e["path"]) for e in reset_mod.plan_reset()["entries"]}
+    assert {root / "audit.db", root / "data.db"} <= removing
+
+
+def test_a_symlinked_iaiops_config_removes_the_link_not_its_target(homes, tmp_path, monkeypatch):
+    """Pre-release audit M: the override was resolve()d before removal, so the
+    link's TARGET — a shared plant file of any name — was unlinked."""
+    target = tmp_path / "srv" / "plant.yaml"
+    target.parent.mkdir()
+    target.write_text("endpoints: []\n")
+    link = tmp_path / "etc" / "config.yaml"
+    link.parent.mkdir()
+    link.symlink_to(target)
+    monkeypatch.setenv("IAIOPS_CONFIG", str(link))
+
+    plan = reset_mod.plan_reset()
+    paths = {Path(e["path"]) for e in plan["entries"]}
+    assert link in paths and target not in paths
+    reset_mod.apply_reset(plan)
+    assert target.exists() and not link.is_symlink()

@@ -60,6 +60,215 @@
   after scaling (3 × 0.1 = 0.30000000000000004); the edge now has a tolerance far
   below any sensor's resolution.
 
+## 0.29.0 — 2026-10-17
+
+The audit trail now says which front-end started each call; OEE can say who
+explained a stoppage and reads one endpoint at a time; the HTTP/SSE transports
+authenticate; and the CRA asks — vulnerability handling, an SBOM, an audit
+opt-out for reads, `iaiops reset` — are answered in the product rather than in a
+crosswalk row marked `gap`. Also: UK half-hourly meter analytics, NIS2/CRA
+crosswalks, Margo rc.3 + OCI packages, the first two steps of the sensor layer,
+and companion-spec role hints in `tags export`. 198 governed tools.
+
+### Upgrade notes — read before upgrading
+
+- **BREAKING for socket deployments (HTTP / SSE MCP transports).** A server bound
+  to anything but loopback **does not start** without `IAIOPS_MCP_TOKEN` (or
+  `IAIOPS_MCP_TOKEN_FILE`), at least 32 printable-ASCII characters; every client
+  must then send `Authorization: Bearer <token>`. Generate one with
+  `openssl rand -base64 48`. stdio (the default for a pip install) is unchanged.
+  What each packaged deployment must change:
+  - **Margo** — supply the new `mcpToken` secret parameter in the deployment;
+    `allowlistIps` now defaults to empty (off). WFMs on a pre-rc.3 Margo
+    preview cannot read the new descriptor (`apiVersion: v1`, no `kind`,
+    `deviceConstraints`, OCI `repository` + `revision`).
+  - **airgap compose** (`deploy/airgap`) — export `IAIOPS_MCP_TOKEN` before
+    `docker compose up`, or add a read-only mount for a token file and point
+    `IAIOPS_MCP_TOKEN_FILE` at it (the value then never shows in `docker
+    inspect`; the shipped compose mounts no secret path, so this needs an edit). The
+    `IAIOPS_ALLOWLIST_IPS` default is now empty (off), as in the Margo package.
+  - **Siemens Industrial Edge** — provide `IAIOPS_MCP_TOKEN` /
+    `IAIOPS_MCP_TOKEN_FILE` in the app configuration; the
+    `IAIOPS_ALLOWLIST_IPS=127.0.0.1/32` default is gone (it refused every
+    caller behind the port mapping).
+  - **IGEL** — `/etc/iaiops/env` (0600) or the device secret facility must
+    provide `IAIOPS_MCP_TOKEN`; the unit passes it to the container.
+  - Callers reaching the server by a non-loopback Host name are no longer
+    answered `421`; set `IAIOPS_MCP_ALLOWED_HOSTS` if you want a Host check back.
+- **The audit chain changes one way.** 0.29 rows carry `origin` fields in their
+  hash. An **older** iaiops running `audit verify` on an `audit.db` that holds
+  0.29 rows reports `ok: false` with `row_hash mismatch (row fields modified)` at
+  the first 0.29 row and stops there — it is not tampering, it is a reader that does not know the new fields. 0.29
+  verifies older rows unchanged. **Upgrade every process that shares one
+  `IAIOPS_HOME` at the same time** — CLI, MCP servers, and any
+  `iaiops-energy` image mounting the same volume — and do not roll one back
+  alone. `audit verify` in 0.29 also fails an old row whose field contains the
+  `\x1f` control character (only possible in an approver or rationale string).
+- **Audit-forward cursor format changed.** The cursor now names the row
+  (`id` + `ts` + `row_hash`). A bare-id cursor from an older iaiops is honoured
+  only while no rotation has happened since; otherwise the first forward
+  **refuses** and says so rather than guessing. Do not point an older iaiops at
+  the new cursor file.
+- **Raised dependency floors** (security fixes): `cryptography>=50.0.0`,
+  `mcp[cli]>=1.30`, and the `export` extra's `pyarrow>=23.0.1,<24`. An
+  environment that pins any of these lower will not resolve.
+
+### Added — every audit row says which front-end started the call
+
+- **Before this, a row could not tell an agent from the CLI.** Both front-ends
+  wrote `skill="iaiops"`, and the `agent` column is a guess from environment
+  variables: a person at the CLI in a shell with `CLAUDE_CODE` set read as
+  "claude", and an MCP server launched without those variables read as "unknown".
+  Four new columns, each set where the call enters, never guessed:
+  - `origin` — `mcp` (an MCP `tools/call`) or `cli` (an `iaiops` command). `cli`
+    names a front-end, not a person: an agent driving a shell reaches the CLI too.
+  - `origin_client` — the MCP client's **self-reported** `clientInfo`
+    (`name/version`, sanitized, capped at 128 characters). Nothing verifies it.
+    CLI rows say `iaiops-cli`.
+  - `origin_session` — one opaque id per MCP client connection, or per `iaiops`
+    process, so the calls of one session can be grouped.
+  - `write_mode` — `preview` or `apply` for a tool with a preview flag (MCP
+    `dry_run`, CLI `--apply`), empty otherwise. A write preview and a read both
+    audit at `low`; this is what tells them apart. A denied apply still says `apply`.
+- **Empty means unknown.** Rows written before this release, and calls that
+  enter through neither front-end (library code calling a tool directly, or a
+  governed call made from a thread a tool started itself — the origin does not
+  cross a raw `threading.Thread`), have an empty `origin`. Read that as unknown, never as human or agent. The `agent`
+  column is unchanged and stays a guess.
+- **Old trails keep verifying.** The new fields join the hash chain only when
+  non-empty, so every existing row hashes exactly as before and `iaiops audit
+  verify` passes on an upgraded `audit.db`. A non-empty value is covered: blanking
+  or rewriting it breaks the chain. One thing does not go back: once rows carry an
+  origin, an **older** iaiops reading the same `audit.db` reports them as modified,
+  because it does not hash the new fields. Do not share one `IAIOPS_HOME` between
+  this version and an older one.
+- **Field boundaries cannot be moved.** The writer now strips the hash separator
+  (`\x1f`) from every stored field, and `iaiops audit verify` fails a row whose
+  field contains one: otherwise a value could be slid into the end of the
+  previous field (`origin=mcp` appended to `approver_source`, `origin` blanked)
+  without changing the hash. Old rows only fail this if an approver or rationale
+  string ever contained that control character.
+- Non-string values (`0`, `None`) passed to `AuditEngine.log` for the new fields
+  are stored as text, so the row still verifies instead of reading as modified.
+- The oversized-row fallback in `iaiops audit forward` keeps `origin`,
+  `origin_session` and `write_mode` in its minimal envelope.
+- **Not covered:** a call FastMCP refuses before the tool runs (unknown tool name,
+  invalid arguments) leaves no row, as before; a tool withheld by
+  `IAIOPS_NO_EGRESS` cannot be called, so there is nothing to record; refused HTTP
+  requests (`mcp_http_auth`) are not tool calls and carry no origin. Servers built
+  on their own FastMCP instance (not `mcp_server._shared.mcp`) record no origin
+  until they declare one: `iaiops.core.governance.origin.mcp_origin(session)` builds the
+  origin from an MCP server session, and `origin_scope` declares it around the call.
+### Fixed — `oee measure` and `case open` read one endpoint, not every line sharing a ref
+
+- **Two endpoints whose tags share a ref read each other's samples.** Refs are not
+  unique across a site — Modbus `40001` exists on every line — and the run-state and
+  counter queries filtered by tag alone. On a store holding line-1 and line-2, line-1's
+  availability was measured over line-2's run state too, its part count included
+  line-2's parts, and `case open line-1` opened cases for line-2's stoppages. The
+  error pointed whichever way the neighbour did: better OR worse than measured, with
+  nothing on the page to say so. Both commands now scope every query by endpoint as
+  well as tag (`cli/_common.endpoint_tag_samples`), the same scope the store's
+  endpoint label was written for.
+- **Rows with no endpoint label are never counted toward a line.** The sink defaults
+  the label to `''` (e.g. `historian_push(sink="sqlite")` without `endpoint=`). Such a
+  row cannot be placed on a line. When those are ALL the store holds for the ref, the
+  command refuses and says how to label them; when they sit beside labeled rows they
+  are left out and counted — `unlabeled_samples_excluded` in the JSON and a sentence
+  in the availability note (`case open` prints it too). Leaving out a stop sample
+  turns that span blind, so the figure moves; the reader is told by how much.
+  New `core/sink/sqlite_local.count_unlabeled`.
+
+### Added — which stoppages a person explained (OEE stop attribution)
+
+- **`oee measure` now says how many of the stoppages it found have a reason, and
+  whose.** The run-state tag finds a stop and times it; it never says why. The only
+  reasons this product holds are the ones a person gave with `iaiops case confirm`,
+  and nothing joined the two — a window reported N stoppages and a reader could not
+  tell how many had any reason at all. Each stoppage now lands in exactly one class:
+  **cause confirmed by a person**, **dismissed by a person**, **case opened but
+  unanswered**, **never put to a person**, or **already stopped when the window
+  opened** (its real onset is outside the window, so whether anyone explained it
+  cannot be decided from inside). `reasons_from_signal` is always 0.
+- **The join is exact.** A case id drops sub-second precision and sanitizes the
+  endpoint (`line_1` and `line-1` collide), so a case counts only when its recorded
+  onset equals the stoppage's and its recorded endpoint is this one — an id-only
+  join credited one answer to two stoppages a fraction of a second apart. Cases now
+  record their `endpoint`; older ones match on id and onset and are marked
+  `endpoint_recorded: false`.
+  New `--case-site` names the knowledge-base site to read answers from
+  (`core/brain/oee_attribution.attribute_stops`, PURE).
+- **A case that only carries audit-trail actions is not an explained stoppage.**
+  `case open` marks such a case `inferred`; it stays "awaiting a person".
+  Counting it as explained would raise the explained share without anyone having
+  explained anything.
+- **Stoppages beyond the returned list are counted as NOT examined**, in no class,
+  with the standard truncation envelope. `measure_availability` takes
+  `max_stop_windows` (default 50; `None` = every stoppage); the `stops` count was
+  always the full count.
+- **`case confirm` / `case dismiss` record who and when as fields**
+  (`answered_by`, `answered_at`), not only inside the note. A case answered before
+  this reads back with both empty — unknown, never back-filled.
+  `case_store.case_id` is public: it is the join key.
+
+### Fixed — production counted through outages past the fiftieth
+
+- **`measure_availability` published only the first 50 blind windows**, and that
+  list is what production counting uses to skip increments made while the collector
+  was blind. Over a long window with more than fifty outages, parts made during the
+  51st onward were credited while their seconds stayed out of run time — Performance
+  went up the blinder the window was. Blind windows are now never capped;
+  `blind_windows_total` gives the count. Production counting now bisects sorted, merged
+  blind windows, so thousands of them do not make counting quadratic.
+- **`oee measure` printed Performance 0.0% for a line with a declared cycle time
+  and no usable total count.** `produced` defaulted to 0 instead of the factor being
+  refused. It is now "not reported", with the declaration that is missing.
+- **`oee measure --since/--until` with a non-UTC offset measured the wrong rows.**
+  The store compares stamps as text; a `+08:00` window against stamps stored
+  `+00:00` selected rows eight hours late, and the counter series is not re-filtered
+  by the measurement. Bounds are now put on UTC before querying, and counter rows
+  are clipped to the window by parsed instant. Case joins compare onsets as
+  instants (`…Z` and `…+00:00` match).
+### Added — companion-spec role suggestions (OPC UA for Machinery; PackML recognised)
+
+- **`iaiops tags export --suggest` (and `tags page --suggest`) show what a device
+  DECLARES about itself.** For each configured OPC UA endpoint, one read-only
+  session walks the address space and matches **type definitions** from OPC UA
+  companion specifications. Suggested today: `MachineryItemState_StateMachineType`
+  (OPC 40001-1 §12.2, Executing = 3), vendor subtypes included, read from the
+  language-independent `CurrentState/Number`. A match pre-fills read-only
+  `suggested_role` / `suggested_running_when` / `suggestion_evidence` columns —
+  spec, node id, type, browse path and why. **`role` still starts empty**: an
+  untouched sheet confirms nothing, and a suggestion becomes a role only when a
+  person copies it into `role` and runs `tags apply --by` (D16, new D49).
+- **PackML is recognised but NOT suggested.** Execute (6) lives in
+  `ExecuteState`, a sub-state machine active only while `MachineState` is
+  Running (18). Outside Running a server keeps a stale 6 (stopped time counted as
+  producing) or answers `Bad_StateNotActive` (stopped time becomes blind and
+  availability over known time reads near 100%) — both flatter the number, and
+  no single tag says "Running AND Execute". Reported with that reason, as are
+  `ProdProcessedCount` / `ProdDefectiveCount` (`PackMLCountDataType[]` — one tag
+  holds one number), `StopReason` (reasons come from people), Machinery
+  operation *mode*, and any state machine without `Number`.
+- **Names never match.** A PackTags-style `Status/StateCurrent` (ISA-TR88 naming —
+  OPC 30050 does not define that node), a same-named type in a vendor namespace,
+  a type whose BrowseName and NodeId namespaces disagree, or an Object carrying
+  the spec's instance name over a plain type gets no suggestion.
+- **`tags apply` records what each role rested on** — `basis: companion_spec`
+  only when the person set exactly what the sheet's suggestion columns stated;
+  `manual_over_suggestion` when they chose otherwise; `manual` otherwise. The
+  basis rides in the patch as a comment and in `TagEdit.as_dict()`. It is the
+  sheet's text: `apply` contacts nothing and does not re-check it.
+- **Device text cannot write config.** Evidence, endpoint and `--by` are folded
+  to one line before they reach the patch's YAML comments (a browse name with a
+  newline previously could have ended the comment and written a `role:`).
+- **One tag filled in differently on two rows is refused** (it was accepted, and
+  the patch then carried both).
+- `opcua_discover_tags` / `iaiops opcua discover` results carry the same
+  `companion_specs` block (same session, same `max_depth`, a node budget, standard
+  envelope; an incomplete walk says absence is not evidence). No new tool; `tags`
+  still has no MCP tool, by design.
+
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 
 - **Typed Modbus points.** A Modbus point was always one holding register read as
@@ -168,6 +377,16 @@
   first). **CLI only — no MCP tool**: an agent that can erase the audit
   trail is what the trail exists to prevent (a test pins it).
 - CRA crosswalk: I(2)(b) and I(2)(m) move to `product_evidence`.
+- **Pre-release fix: a second instance's reset reached the default instance.**
+  With `IAIOPS_HOME` set, the config directory (`~/.iaiops`, not moved by
+  `IAIOPS_HOME`) is also the default instance's home; the plan listed its
+  `audit.db`, audit archives and `data.db` for removal. In a root
+  `IAIOPS_HOME` does not move, only what is shared through it is removed —
+  config, secrets, `.env`, collection sessions, investigations and knowledge —
+  and everything else is listed as kept, saying whose it is.
+- **Pre-release fix: a symlinked `$IAIOPS_CONFIG` removed its target.** The
+  path was resolved before removal; now the link itself is removed and the
+  file it points to is left alone.
 
 ### Added — audit opt-out for reads (CRA Annex I Part I(2)(l))
 
@@ -183,6 +402,20 @@
   the trail always shows from when reads went unrecorded; `iaiops doctor` and
   the evidence zip's `doctor_summary.json` report it. Any other value keeps
   recording and warns — a typo must never switch the trail off.
+- **Pre-release fix: the opt-out silenced local state changes.** `[READ]` in
+  this repo describes PLANT state, so it also tagged tools that write local
+  state — `baseline_record_change`, `line_relation_declare`, `adopt_alias_map`,
+  `investigation_open`, `baseline_learn*`, `plc_program_snapshot`, and tools
+  that write an `out_path` file. 181 of 198 tools were eligible; with the
+  opt-out on, `baseline_record_change` and `line_relation_declare` wrote their
+  state and the trail held only the marker row. A tool now also has to be on a
+  reviewed list of pure reads (`audit_opt_out_reads.PURE_READS`, 161 tools);
+  anything not listed is recorded, so a new tool defaults to recorded. Also
+  left off: device-side subscriptions (BACnet COV, OPC UA subscribe — bounded,
+  but state on the device) and network-wide discovery (`bacnet_discover`,
+  `profinet_discover`, `asset_inventory`, `profinet_asset_inventory`).
+  Tools of sibling packages using this decorator are not on the list and are
+  always recorded.
 
 ### Changed — breaking for socket deployments
 
@@ -294,8 +527,11 @@
     such row names what is left), `partial_evidence` (they touch it but the
     central requirement is missing, e.g. CRA Part II(1) without an SBOM), `gap`,
     or `organisational` (product provides no evidence: NIS2 (a)(b)(c)(d)(g), CRA
-    Part I(1)). The honest headline: 2 of 10 NIS2 items and 3 of 22 CRA items are
-    `product_evidence`. Organisational rows cite
+    Part I(1)). The honest headline when the crosswalk landed: 2 of 10 NIS2
+    items and 3 of 22 CRA items were `product_evidence`; the rest of this release
+    (SBOM, `SECURITY.md`, CVE gate, bearer token, audit opt-out, `iaiops reset`)
+    moves CRA to 11 of 22, with 9 partial, 1 organisational and 1 gap (I(2)(h));
+    NIS2 stays at 2 of 10 with (j) a gap. Organisational rows cite
     no mechanism and no pillar, so the enterprise report cannot print runtime
     evidence under a measure the product never touches.
   - Every cited mechanism lives in one registry with code anchors
@@ -309,7 +545,8 @@
     ceilings are off by default; a pip install speaks stdio but the Margo
     package defaults to streamable-http on 0.0.0.0; the plaintext `.env`
     credential fallback is still honoured; PyPI wheels are unsigned.
-  - It says the unflattering parts a CRA reader looks for first: no SBOM, no
+  - As first written it said the unflattering parts a CRA reader looks for
+    first (several are closed later in this release — see above): no SBOM, no
     coordinated vulnerability disclosure policy or security contact, no
     security advisories, no audit opt-out (I(2)(l) asks for one), no
     multi-factor authentication (NIS2 (j)), no authentication of MCP callers,
@@ -375,6 +612,13 @@
   the host through the port mapping; anything but `200` fails. It fails on the
   old default and passes on the new one. No test had ever gone through a port
   mapping, which is why this shipped.
+
+- **Pre-release fix: health summaries said `ok` about points they never
+  observed.** `modbus_health_summary` reported `overall: ok` when one point was
+  in band and nine could not be read or parsed; the OPC UA `health_summary`
+  reported `ok` even when **every** read failed. With nothing in warn/alarm,
+  any unclassified point now makes the headline `unknown`; `ok` means every
+  point was observed in band. A warn or alarm still wins.
 
 ### CI
 

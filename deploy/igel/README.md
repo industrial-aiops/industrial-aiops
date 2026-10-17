@@ -43,14 +43,14 @@ and it sidesteps the debian/ubuntu-only dependency constraint** (deps live insid
 
 ```bash
 # 1. Pull the PUBLISHED, cosign-signed neutral image (no local build needed) + verify it
-podman pull ghcr.io/industrial-aiops/iaiops:0.28.0-factory
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.28.0-factory
+podman pull ghcr.io/industrial-aiops/iaiops:0.29.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.29.0-factory
 # 2. In IGEL: connect the OCI registry + deploy the container via UMS / App Portal (待核实: exact
 #    Managed-Container config surface — the feature is evolving; confirm against current IGEL docs).
 ```
 - Hardening (`read_only`, `cap_drop: ALL`, no inbound ports) carries over from `deploy/margo/compose.yaml`.
-- `待核实`: MCP transport under a Managed Container (stdio vs socket/HTTP) — the same open question as
-  the Margo app-package (`docs/MARGO-ALIGNMENT.md` appendix B).
+- MCP transport: socket (`streamable-http`, bearer-token authenticated since 0.29.0), as in the Margo
+  app-package (`docs/MARGO-ALIGNMENT.md` appendix B). `待核实` only on a real IGEL OS 12 box.
 
 ### Route 2 — native IGEL App via App Creator Portal (`igelpkg` recipe)
 For a native signed App Portal entry that launches the container on the endpoint. Skeleton in
@@ -67,7 +67,7 @@ runs the neutral image via the container runtime.
 
 | Path | Purpose |
 |------|---------|
-| `app.json` | App metadata — `version` (SemVer 0.28.0), `public_version` absent (submission rule), `rw_partition`, `prefer_btrfs`. |
+| `app.json` | App metadata — `version` (SemVer 0.29.0), `public_version` absent (submission rule), `rw_partition`, `prefer_btrfs`. |
 | `igel/thirdparty.json` | Binaries the app uses (container runtime). Submission requirement. |
 | `igel/install.sh` | Enables the systemd service (`enable_system_service iaiops.service`). |
 | `input/all/etc/systemd/system/iaiops.service` | systemd unit that runs the neutral image via the container runtime. `待核实`: run mode for an MCP stdio workload. |

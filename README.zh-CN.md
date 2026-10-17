@@ -7,7 +7,7 @@
 **让 AI 说清楚产线为什么停了 —— 而且每句结论都带证据引用。**
 
 一个厂商中立、**读优先**的现场数据 tap。它讲 **14 种现场协议**，把跨协议的证据在时间上对齐，
-交给智能体的是**带引用的裁决**，不是猜测。每次调用都留审计；读取路径绝不回连。
+交给智能体的是**带引用的裁决**，不是猜测。每次调用都留审计（运维方设 `IAIOPS_AUDIT_OPT_OUT=reads` 时，成功的声明式读取不记）；读取路径绝不回连。
 
 ```bash
 pip install "iaiops[opcua]"      # 按现场装，或 [all]
@@ -18,9 +18,9 @@ iaiops doctor                    # 先自检，再谈信任
 也可以直接跑容器 —— **cosign 签名**、**非 root**。它以 stdio 讲 MCP，所以要保持 stdin 打开，并挂一个卷存审计库：
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.28.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.29.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.28.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.29.0-factory
 ```
 
 要加固部署或离线部署（只读根文件系统、`cap_drop: ALL`、no-new-privileges、可选端侧 LLM），
@@ -36,7 +36,7 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 | **想明白** | 停机根因 copilot（旗舰;四级结论 + 假设账本 + 时序排除）、**从采集历史实测的 OEE**(可用率/性能/质量 + 六大损失,可出自包含 HTML 报告)、报警洪泛分析（ISA-18.2）、数据流断点定位、数据可信度打分、资产台账、老 PLC 程序讲解（ST/AWL/L5X） |
 | **查得完** | `investigate` 八步证据闭环 —— 定义事件 → 取证 → 归一校验 → 压缩排序 → 关联时间线 → 验假设 → 知识校验 → 结论闭环;每一步走不通时说清是**你**没给还是**产品**给不了 · `tags` 点表语义确认(导出表 / 静态页 / 产出 config 补丁) |
 | **越用越准** | `case` 事故案例闭环 —— 标签从审计轨迹自动来,确认只需一次点选,学出本站自己的原因权重 |
-| **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎 |
+| **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎（唯一例外由运维方开：`IAIOPS_AUDIT_OPT_OUT=reads` 不记成功的声明式读取；写/预览/外发/拒绝/失败/CLI 始终记录） |
 | **归你自己** | 无遥测、不回连。有六个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`uns_publish`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这六个一并摘除，形成离线姿态 |
 
 本包内含**十个行业版**：fab · factory · process · building · water · warehouse · clinical ·
@@ -585,7 +585,9 @@ iaiops opcua discover -e line1
 
 ## 安全与治理
 
-- **读优先**:**198 个受治理工具 = 185 只读 + 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
+- **带认证的 socket**:走 HTTP/SSE(`IAIOPS_MCP_TRANSPORT=streamable-http|sse`)时,设了 `IAIOPS_MCP_TOKEN`(或 `IAIOPS_MCP_TOKEN_FILE`,至少 32 字符)后每个请求都必须带 `Authorization: Bearer <token>`;**绑定到回环以外的地址而没有 token,服务拒绝启动**(0.29.0 起,破坏性变更)。随包的容器(Margo、airgap、Siemens IE、IGEL)因此都要从密钥设施注入 token;`IAIOPS_ALLOWLIST_IPS` 是可选的第二层,默认关闭(容器端口映射后面不要只设回环:调用方显示为网桥网关地址)。一个共享 token,不是按人身份;自身不带 TLS。
+- **审计行记来源**:`iaiops-mcp` 与 `iaiops` CLI 写的审计行记录调用从哪个前端进来(`origin`:`mcp` 或 `cli`;为空 = 未知,绝不当成人或 agent——包括该字段出现前写的行,以及没声明来源的 server)、MCP 客户端**自报**的名字、每会话一个 id,以及带预览开关的工具这次是 `preview` 还是 `apply`。这些字段进哈希链:**旧版 iaiops 校验含 0.29 行的 audit.db 会报 `row_hash mismatch`**,共享一个 `IAIOPS_HOME` 的进程要一起升级。
+- **读优先**:**198 个受治理工具 = 181 只读 + 4 个不改设备但会把数据发出去(`stream_publish`、`stream_publish_event`、`uns_publish`、`rca_narrate`)+ 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。

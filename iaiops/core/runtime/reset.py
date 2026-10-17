@@ -51,6 +51,13 @@ KNOWN_DIRS = frozenset(
         "aliases",
     }
 )
+#: What iaiops writes into the config directory whatever IAIOPS_HOME says — the
+#: only names shared by every instance on the host. In a root IAIOPS_HOME does
+#: not move, nothing else is this instance's: that directory is also the default
+#: instance's home, holding ITS audit trail and history.
+SHARED_ROOT_NAMES = frozenset(
+    {"config.yaml", "secrets.enc", ".env", "sessions", "investigations", "knowledge"}
+)
 _SIDECARS = ("-wal", "-shm", "-journal", ".tmp")
 _AUDIT_ARCHIVE = re.compile(r"^audit\.\d{8}-\d{6}\.db(-wal|-shm|-journal)?$")
 
@@ -116,14 +123,33 @@ def _entry(path: Path) -> dict[str, Any]:
     return {"path": str(path), "kind": kind}
 
 
-def _scan(roots: list[Path]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _is_shared_name(name: str) -> bool:
+    if name in SHARED_ROOT_NAMES:
+        return True
+    return any(name.endswith(s) and name[: -len(s)] in SHARED_ROOT_NAMES for s in _SIDECARS)
+
+
+def _scan(roots: list[Path], home_root: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     remove: list[dict[str, Any]] = []
     kept: list[dict[str, Any]] = []
     for root in roots:
         if not root.is_dir():
             continue
+        shared = root != home_root
         for child in sorted(root.iterdir()):
-            (remove if is_known_state(child.name) else kept).append(_entry(child))
+            if not is_known_state(child.name):
+                kept.append(_entry(child))
+            elif shared and not _is_shared_name(child.name):
+                kept.append(
+                    {
+                        **_entry(child),
+                        "reason": "belongs to the iaiops instance whose home is this "
+                        "directory, not to this IAIOPS_HOME — reset it with IAIOPS_HOME "
+                        "unset (or set to this directory)",
+                    }
+                )
+            else:
+                remove.append(_entry(child))
     return remove, kept
 
 
@@ -132,9 +158,16 @@ def _override(roots: list[Path], kept: list[dict[str, Any]]) -> list[dict[str, A
     raw = os.environ.get("IAIOPS_CONFIG")
     if not raw:
         return []
-    path = Path(raw).expanduser().resolve()
-    if not path.exists() or any(r == path or r in path.parents for r in roots):
+    # Resolve the parent only: a symlinked override is removed as the link, never
+    # followed to a target that may be a shared file of any name.
+    given = Path(raw).expanduser()
+    path = given.parent.resolve() / given.name
+    if not (path.exists() or path.is_symlink()):
         return []
+    if any(r == path or r in path.parents for r in roots):
+        return []
+    if path.is_symlink():
+        return [_entry(path)]
     if path.is_dir():
         kept.append({**_entry(path), "reason": "IAIOPS_CONFIG names a directory"})
         return []
@@ -149,9 +182,11 @@ def _notes(roots: list[Path]) -> list[str]:
     shared = [r for r in roots if r != home_root]
     if shared:
         notes.append(
-            f"{', '.join(map(str, shared))} is not moved by IAIOPS_HOME: config and "
-            "secrets there are shared by every iaiops instance on this host, and this "
-            "reset removes them for all of them."
+            f"{', '.join(map(str, shared))} is not moved by IAIOPS_HOME: the config, "
+            "secrets, collection sessions, investigations and knowledge there are "
+            "shared by every iaiops instance on this host, and this reset removes them "
+            "for all of them. Any other iaiops state there belongs to the default "
+            "instance and is kept."
         )
     legacy = Path("~/.ot-aiops").expanduser()
     if legacy.is_dir() and legacy.resolve() not in roots:
@@ -173,7 +208,9 @@ def plan_reset() -> dict[str, Any]:
     roots = _roots()
     for root in roots:
         _refuse_unsafe_root(root)
-    entries, kept = _scan(roots)
+    from iaiops.core.governance.paths import ops_home
+
+    entries, kept = _scan(roots, ops_home().expanduser().resolve())
     entries = entries + _override(roots, kept)
     return {
         "roots": [str(r) for r in roots],

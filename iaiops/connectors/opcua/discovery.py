@@ -150,19 +150,22 @@ def discover_tags(
     ``include_standard=False`` (default) skips OPC-UA namespace-0 infrastructure
     (the Server diagnostics subtree) so only real process tags are returned.
     """
+    with opcua_session(target) as client:
+        return _discover_on(client, root, max_depth, include_standard)
+
+
+def _discover_on(client: Any, root: str, max_depth: int, include_standard: bool) -> list[dict]:
     depth = max(1, min(int(max_depth), MAX_DISCOVERY_DEPTH))
     out: list[dict] = []
-    with opcua_session(target) as client:
-        root_node = client.get_node(root)
-        _walk_tags(
-            root_node,
-            path=(),
-            depth=1,
-            max_depth=depth,
-            out=out,
-            include_standard=include_standard,
-            visited=set(),
-        )
+    _walk_tags(
+        client.get_node(root),
+        path=(),
+        depth=1,
+        max_depth=depth,
+        out=out,
+        include_standard=include_standard,
+        visited=set(),
+    )
     return out
 
 
@@ -224,9 +227,24 @@ def _class_breakdown(items: list[dict]) -> dict:
 def tag_discovery(
     target: Any, root: str = OBJECTS_NODE, max_depth: int = 6, include_standard: bool = False
 ) -> dict:
-    """[READ] Discover OPC-UA tags and return the full asset/semantic model."""
-    tags = discover_tags(target, root=root, max_depth=max_depth, include_standard=include_standard)
+    """[READ] Discover OPC-UA tags and return the full asset/semantic model.
+
+    ``companion_specs`` carries what the device DECLARES through OPC UA companion
+    specifications (PackML, Machinery) — role suggestions with their evidence,
+    matched by type definition. They are suggestions for `iaiops tags export
+    --suggest`; nothing here declares a role (D16). Same session as the tag walk,
+    so discovery costs the server one session slot, not two.
+    """
+    from iaiops.connectors.opcua.companion import unexamined, walk_companion
+
+    with opcua_session(target) as client:
+        tags = _discover_on(client, root, max_depth, include_standard)
+        try:
+            companion = walk_companion(client, root=root, max_depth=max_depth)
+        except Exception as exc:  # noqa: BLE001 — the tag model stands without it
+            companion = unexamined(f"{type(exc).__name__}: {exc}")
     model = build_tag_model(tags)
+    model["companion_specs"] = companion
     model["endpoint"] = s(getattr(target, "name", ""), 64)
     model["root"] = s(root, 64)
     return model

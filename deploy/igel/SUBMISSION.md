@@ -16,15 +16,15 @@ Python container workload. Identity throughout: **wei `<zhouwei008@gmail.com>`**
 | Tagline | Governed, vendor-neutral OT read tap + cross-protocol RCA, as MCP tools |
 | Category | Industrial / IoT / Edge diagnostics |
 | Vendor | Industrial-AIOps (independent) |
-| Version | 0.28.0 (SemVer; `public_version` absent until IGEL assigns one) |
+| Version | 0.29.0 (SemVer; `public_version` absent until IGEL assigns one) |
 | License | MIT (core); optional proprietary `iaiops-enterprise` layer |
 | Homepage | https://github.com/industrial-aiops/industrial-aiops |
-| Container image | `ghcr.io/industrial-aiops/iaiops:0.28.0-<profile>` (public GHCR, multi-arch amd64/arm64) |
+| Container image | `ghcr.io/industrial-aiops/iaiops:0.29.0-<profile>` (public GHCR, multi-arch amd64/arm64) |
 | Image signature | cosign-signed; verify key `deploy/margo/cosign.pub` |
 
 ## 2. Deployment (Managed Container)
 
-- **Image**: `ghcr.io/industrial-aiops/iaiops:0.28.0-factory` (or `fab`/`process`/`building`/`water`).
+- **Image**: `ghcr.io/industrial-aiops/iaiops:0.29.0-factory` (or `fab`/`process`/`building`/`water`).
 - **Runtime posture**: non-root (uid 10001), read-only rootfs, `cap_drop: ALL`, no-new-privileges,
   one loopback-published MCP port (8000). No inbound OT listeners — the OT side is strictly
   **outbound** to the operator-configured endpoints.
@@ -32,6 +32,8 @@ Python container workload. Identity throughout: **wei `<zhouwei008@gmail.com>`**
   headless under the container runtime; no attached stdio client needed.
 - **State volume**: `/home/iaiops/.iaiops` (config + encrypted secrets + audit/undo store).
 - **Secrets**: injected at deploy time from the device secret facility into `IAIOPS_MASTER_PASSWORD`
+  and `IAIOPS_MCP_TOKEN` (required since 0.29.0, >= 32 chars: the socket refuses to start off loopback
+  without it; clients send `Authorization: Bearer <token>`)
   (reference model — the value never travels in any descriptor). All OT credentials resolve on-device
   from the encrypted store by name.
 - Reference manifests: [`../margo/package.compose.yaml`](../margo/package.compose.yaml) (compose) and
@@ -41,7 +43,7 @@ Python container workload. Identity throughout: **wei `<zhouwei008@gmail.com>`**
 
 | Question | Answer |
 |---|---|
-| Inbound network exposure? | One loopback-bound MCP tool port (8000). No inbound OT ports. |
+| Inbound network exposure? | One loopback-bound MCP tool port (8000), bearer-token authenticated. No inbound OT ports. |
 | Outbound? | Only to the OT endpoints the operator configures (OPC-UA/Modbus/… hosts). |
 | Runs as root? | No — uid 10001, read-only rootfs, all caps dropped. |
 | Writes to OT devices? | Read-first. The few write tools are OFF by default and gated (dry-run + one-shot approval token + undo capture + hash-chained audit). |

@@ -118,7 +118,7 @@ def case_open_cmd(
     from iaiops.core.governance.audit import get_engine
     from iaiops.core.knowledge.case_store import list_cases, open_case
 
-    tag, samples = run_state_samples(endpoint, db)
+    tag, samples, unlabeled = run_state_samples(endpoint, db)
     measured = measure_availability(samples, tag, minor_stop_s=min_stop_s)
     if measured["status"] not in ("ok", "insufficient_coverage"):
         console.print(f"\n[yellow]No cases opened ({measured['status']}).[/]")
@@ -158,6 +158,7 @@ def case_open_cmd(
                 "opened": [c.as_fact().as_dict() for c, _ in opened],
                 "already_answered": kept,
                 "min_stop_s": min_stop_s,
+                "unlabeled_samples_excluded": unlabeled,
             }
         )
         return
@@ -178,6 +179,13 @@ def case_open_cmd(
         "the OEE figure is for, not what a person can still remember. "
         "Answer with `iaiops case confirm <id> --cause <cause> --by <you>`.[/]"
     )
+    if unlabeled:
+        # Left out, not hidden: a stop recorded only in those rows opens no case.
+        console.print(
+            f"[yellow]{unlabeled} sample(s) for ref {tag.ref} carry no endpoint label and "
+            "were not read — refs repeat across lines, so they cannot be placed on "
+            f"{endpoint}.[/]"
+        )
 
 
 @cli_errors
