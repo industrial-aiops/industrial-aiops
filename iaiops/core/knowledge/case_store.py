@@ -28,6 +28,7 @@ being written down.
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -43,10 +44,23 @@ from iaiops.core.knowledge.store import load, save
 _ID_SAFE = re.compile(r"[^A-Za-z0-9]+")
 
 
-def _case_id(endpoint: str, when: str) -> str:
-    """Stable and readable: two stoppages a second apart stay distinguishable."""
+def _now() -> str:
+    """When an answer was recorded — the wall clock of the machine recording it."""
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def case_id(endpoint: str, when: str) -> str:
+    """The id a stoppage at ``when`` on ``endpoint`` is opened under.
+
+    Stable and readable: two stoppages a second apart stay distinguishable. Public
+    because it is also the JOIN key — stop attribution finds a measured stoppage's
+    case by recomputing this, so the two cannot drift apart.
+    """
     stamp = _ID_SAFE.sub("", str(when))[:15]
     return f"{_ID_SAFE.sub('-', str(endpoint)).strip('-')}-{stamp}"
+
+
+_case_id = case_id
 
 
 def _cases_from(kb: KnowledgeBase) -> list[Case]:
@@ -64,6 +78,9 @@ def _cases_from(kb: KnowledgeBase) -> list[Case]:
                 capture=str(value.get("capture", "")),
                 fix_actions=tuple(dict(a) for a in (value.get("fix_actions") or ())),
                 note=fact.note,
+                answered_by=str(value.get("answered_by", "")),
+                answered_at=str(value.get("answered_at", "")),
+                endpoint=str(value.get("endpoint", "")),
             )
         )
     return out
@@ -115,6 +132,7 @@ def open_case(
         capture=case.capture,
         fix_actions=case.fix_actions,
         note=case.note,
+        endpoint=str(endpoint),
     )
     return _store(site, case, base_dir)
 
@@ -172,6 +190,7 @@ def confirm_case(
 
     case = _find(site, incident_id, base_dir)
     anchored = cause in case.ranked
+    who = str(by).strip()
     updated = Case(
         incident_id=case.incident_id,
         when=case.when,
@@ -179,8 +198,11 @@ def confirm_case(
         label=cause,
         capture=CONFIRMED if anchored else OVERRIDE,
         fix_actions=case.fix_actions,
+        endpoint=case.endpoint,
+        answered_by=who,
+        answered_at=_now(),
         note=(
-            f"confirmed by {str(by).strip()} — "
+            f"confirmed by {who} — "
             + (
                 "chosen from the ranking we offered, so this label is ANCHORED"
                 if anchored
@@ -207,9 +229,12 @@ def dismiss_case(site: str, incident_id: str, by: str, base_dir: Path | None = N
         label="",
         capture="",
         fix_actions=case.fix_actions,
+        endpoint=case.endpoint,
+        answered_by=str(by).strip(),
+        answered_at=_now(),
         note=f"dismissed by {str(by).strip()} — not an incident; kept as a negative example",
     )
     return _store(site, updated, base_dir)
 
 
-__all__ = ["open_case", "list_cases", "confirm_case", "dismiss_case"]
+__all__ = ["case_id", "open_case", "list_cases", "confirm_case", "dismiss_case"]

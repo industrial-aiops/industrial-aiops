@@ -76,6 +76,15 @@ class Case:
     #: Governed actions taken after the incident, straight from the audit log.
     fix_actions: tuple[dict[str, Any], ...] = ()
     note: str = field(default="")
+    #: Who confirmed or dismissed it, and when — as fields, so a report can carry
+    #: them without parsing the note. Empty on a case nobody has answered, and on
+    #: one answered before these fields existed: unknown, never back-filled.
+    answered_by: str = ""
+    answered_at: str = ""
+    #: The endpoint the stoppage was on. The case id sanitizes it ("line_1" and
+    #: "line-1" give the same id), so a join that must not credit one line's
+    #: answer to another compares this. Empty on cases opened before it existed.
+    endpoint: str = ""
 
     def __post_init__(self) -> None:
         if self.capture and self.capture not in CAPTURE_MODES:
@@ -133,6 +142,11 @@ class Case:
                 "capture": self.capture,
                 "ranked": list(self.ranked),
                 "fix_actions": [dict(a) for a in self.fix_actions],
+                # Only when known, so a case answered before these fields existed
+                # round-trips byte-for-byte rather than gaining two empty keys.
+                **({"answered_by": self.answered_by} if self.answered_by else {}),
+                **({"answered_at": self.answered_at} if self.answered_at else {}),
+                **({"endpoint": self.endpoint} if self.endpoint else {}),
             },
             source=SUGGESTED,
             note=self.note,

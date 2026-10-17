@@ -23,10 +23,15 @@ source of truth; this only fixes the ergonomics of editing it.
 
 The refusals, in order of how much damage each would do:
 
-1. **It never suggests a role.** Inferring one from a tag NAME is the most
+1. **It never infers a role.** Inferring one from a tag NAME is the most
    tempting inference here and the one D16 forbids: a wrong production counter
    yields a plausible OEE, which is worse than an error. A plant with a
-   ``GoodPartsCounter`` that counts something else is ordinary.
+   ``GoodPartsCounter`` that counts something else is ordinary. What it CAN
+   relay is what the device itself declares through an OPC UA companion spec
+   (``iaiops.core.brain.companion_specs`` — matched by type definition, never by
+   name). That arrives in read-only ``suggested_*`` columns with its evidence;
+   ``role`` still starts empty, so an untouched sheet confirms nothing, and a
+   suggestion only becomes a role when a person writes it into ``role``.
 2. **``run_state`` without ``running_when`` is refused.** Assuming "anything
    non-zero means running" counts idle and fault as production — the trap
    ``MonitorTag`` already refuses, refused here too so the sheet cannot emit a
@@ -55,9 +60,36 @@ MAX_ROWS = 5000
 #: The header is a contract with whatever the site opens the file in. ``role`` and
 #: ``running_when`` are the columns a person edits; ``declared_role`` is read-only
 #: context.
-SHEET_COLUMNS = ("endpoint", "ref", "label", "declared_role", "role", "running_when")
+SHEET_COLUMNS = (
+    "endpoint",
+    "ref",
+    "label",
+    "declared_role",
+    "suggested_role",
+    "suggested_running_when",
+    "suggestion_evidence",
+    "role",
+    "running_when",
+)
 
-__all__ = ["SHEET_COLUMNS", "TagEdit", "sheet_rows", "validate_rows", "config_patch"]
+#: How a confirmed row came to be. ``companion_spec`` means the person set
+#: exactly what the device declared; ``manual_over_suggestion`` means a person
+#: was shown a declaration and chose something else — both are a person's call.
+BASIS_MANUAL = "manual"
+BASIS_COMPANION = "companion_spec"
+BASIS_OVERRIDE = "manual_over_suggestion"
+MAX_EVIDENCE = 600
+
+__all__ = [
+    "BASIS_COMPANION",
+    "BASIS_MANUAL",
+    "BASIS_OVERRIDE",
+    "SHEET_COLUMNS",
+    "TagEdit",
+    "config_patch",
+    "sheet_rows",
+    "validate_rows",
+]
 
 
 @dataclass(frozen=True)
@@ -68,6 +100,11 @@ class TagEdit:
     ref: str
     role: str
     running_when: tuple[str, ...] = ()
+    #: What the person had in front of them — see ``BASIS_*``. The evidence is
+    #: the text the SHEET carried; ``apply`` contacts nothing, so it is not
+    #: re-checked against the device here.
+    basis: str = BASIS_MANUAL
+    evidence: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +112,8 @@ class TagEdit:
             "ref": self.ref,
             "role": self.role,
             "running_when": list(self.running_when),
+            "basis": self.basis,
+            "evidence": self.evidence,
         }
 
 
@@ -87,8 +126,15 @@ def _attr(tag: Any, name: str) -> str:
     return str(value or "")
 
 
-def sheet_rows(config: Any) -> tuple[dict[str, str], ...]:
+def sheet_rows(
+    config: Any, hints: dict[tuple[str, str], dict[str, Any]] | None = None
+) -> tuple[dict[str, str], ...]:
     """One row per monitored tag, with the ``role`` column deliberately EMPTY.
+
+    ``hints`` maps ``(endpoint, ref)`` to a companion-spec suggestion (see
+    ``iaiops.connectors.opcua.companion``). It fills the read-only
+    ``suggested_*`` columns only — never ``role``: a suggestion pre-filled into
+    the editable cell would make an untouched sheet confirm it.
 
     ``declared_role`` shows what config.yaml already says, so the reader can see
     it without it being pre-filled: copying it into ``role`` would make
@@ -96,16 +142,24 @@ def sheet_rows(config: Any) -> tuple[dict[str, str], ...]:
     as a confirmation. The same holds for ``running_when`` — everything already
     declared is read-only context here, everything editable starts empty.
     """
+    from iaiops.core.brain.companion_specs import evidence_line
+
     rows: list[dict[str, str]] = []
     for target in getattr(config, "targets", ()) or ():
         endpoint = str(getattr(target, "name", ""))
         for tag in getattr(target, "tags", ()) or ():
+            hint = (hints or {}).get((endpoint, _attr(tag, "ref"))) or {}
             rows.append(
                 {
                     "endpoint": endpoint,
                     "ref": _attr(tag, "ref"),
                     "label": _attr(tag, "label"),
                     "declared_role": _attr(tag, "role"),
+                    "suggested_role": str(hint.get("role", "") or ""),
+                    "suggested_running_when": " ".join(
+                        str(v) for v in hint.get("running_when", ()) or ()
+                    ),
+                    "suggestion_evidence": s(evidence_line(hint), MAX_EVIDENCE) if hint else "",
                     "role": "",
                     # Empty for the same reason `role` is, and — found by looking
                     # at the rendered page — for consistency with it. Echoing the
@@ -151,16 +205,18 @@ def config_patch(edits: tuple[TagEdit, ...], by: str = "") -> str:
         return ""
     lines: list[str] = []
     if by:
-        lines.append(f"# tag semantics confirmed by {s(str(by).strip(), MAX_NAME)}")
+        lines.append(f"# tag semantics confirmed by {s(' '.join(str(by).split()), MAX_NAME)}")
     lines.append("# Merge into the matching `tags:` entries in config.yaml.")
+    lines.append("# `basis:` comments say what each role rested on; they are not config keys.")
     for endpoint in dict.fromkeys(e.endpoint for e in edits):
-        lines.append(f"# --- {endpoint} ---")
+        lines.append(f"# --- {' '.join(str(endpoint).split())} ---")
         for edit in (e for e in edits if e.endpoint == endpoint):
             # Quoted via json.dumps (YAML 1.2 is a JSON superset), because a
             # Modbus ref like 40001 re-parses as an INT otherwise and then no
             # longer matches the string ref it is supposed to annotate. Found by
             # running the round trip, not by any assertion about the text.
             lines.append(f"  - ref: {json.dumps(edit.ref)}")
+            lines.append(f"    # basis: {_basis_comment(edit)}")
             lines.append(f"    role: {edit.role}")
             if edit.running_when:
                 values = ", ".join(str(v) for v in edit.running_when)
@@ -205,10 +261,80 @@ def _edit(row: dict[str, Any], role: str, known: dict[str, set[str]] | None, rol
         raise ValueError(
             f"`running_when` only means something on a run_state tag; {ref!r} is {role}."
         )
-    return TagEdit(endpoint=endpoint, ref=ref, role=role, running_when=running)
+    basis, evidence = _basis(row, role, running)
+    return TagEdit(
+        endpoint=endpoint,
+        ref=ref,
+        role=role,
+        running_when=running,
+        basis=basis,
+        evidence=evidence,
+    )
+
+
+def _basis(row: dict[str, Any], role: str, running: tuple[str, ...]) -> tuple[str, str]:
+    """Whether this confirmed row is exactly what the device declared.
+
+    Only an EXACT match — same role, same running values — is ``companion_spec``.
+    A person who kept the role but changed the running value made their own
+    call, and crediting it to the spec would put words in the device's mouth.
+    A suggestion without its evidence text is treated as no suggestion.
+    """
+    from iaiops.core.brain.companion_specs import one_line
+
+    suggested = str(row.get("suggested_role", "") or "").strip().lower()
+    # Folded to one line: this text is written into a YAML comment in the patch,
+    # and a newline would end the comment and let the sheet write config keys.
+    evidence = s(one_line(row.get("suggestion_evidence", "")), MAX_EVIDENCE)
+    if not suggested or not evidence:
+        return BASIS_MANUAL, ""
+    suggested_running = _numeric_set(
+        str(row.get("suggested_running_when", "") or "").replace(",", " ").split()
+    )
+    if suggested == role and suggested_running == _numeric_set(running):
+        return BASIS_COMPANION, evidence
+    return BASIS_OVERRIDE, evidence
+
+
+def _numeric_set(values: Any) -> frozenset[str]:
+    out = set()
+    for v in values:
+        try:
+            out.add(repr(float(v)))
+        except ValueError:
+            out.add(str(v).strip().upper())
+    return frozenset(out)
+
+
+def _basis_comment(edit: TagEdit) -> str:
+    """One line, always: a newline here would end the comment and write YAML."""
+    from iaiops.core.brain.companion_specs import one_line
+
+    evidence = one_line(edit.evidence)
+    if edit.basis == BASIS_COMPANION:
+        return (
+            "set as the sheet's companion-spec suggestion columns stated (not re-read "
+            f"from the device) — {evidence}"
+        )
+    if edit.basis == BASIS_OVERRIDE:
+        return f"manual, differing from the sheet's companion-spec suggestion — {evidence}"
+    return "manual"
 
 
 def _refuse_double_claims(edits: list[TagEdit]) -> None:
+    rows: dict[tuple[str, str], TagEdit] = {}
+    for edit in edits:
+        earlier = rows.get((edit.endpoint, edit.ref))
+        same = earlier is not None and (earlier.role, earlier.running_when) == (
+            edit.role,
+            edit.running_when,
+        )
+        if earlier is not None and not same:
+            raise ValueError(
+                f"{edit.ref!r} on {edit.endpoint!r} is filled in differently on two rows. "
+                "One tag has one meaning; keep the row you mean and blank the other."
+            )
+        rows[(edit.endpoint, edit.ref)] = edit
     seen: dict[str, str] = {}
     for edit in edits:
         if edit.role in seen and seen[edit.role] != edit.ref:

@@ -13,7 +13,11 @@ source of truth. `oee measure` reads roles off the config tag objects, so a
 parallel store would have let `readiness` report the mapping as met while
 `oee measure` still could not run.
 
-Contacts nothing.
+Contacts nothing — except `export --suggest` / `page --suggest`, which open one
+read-only OPC UA session per configured OPC UA endpoint to read what the device
+declares through companion specs (Machinery; PackML recognised). Those arrive as read-only
+suggestion columns with their evidence; `role` still starts empty, and a
+suggestion becomes a role only when a person writes it there (D16).
 """
 
 from __future__ import annotations
@@ -31,9 +35,87 @@ tags_app = typer.Typer(
 )
 
 
+_SUGGEST_HELP = (
+    "Read what each OPC UA endpoint DECLARES through companion specs (OPC UA for "
+    "Machinery; PackML recognised only) and show it as read-only suggestions with "
+    "evidence. Opens one "
+    "read-only session per OPC UA endpoint. Nothing is pre-filled into `role`."
+)
+
+
+def _canonical_ref(ref: str) -> str:
+    """A node id as asyncua prints it, so ``ns=2;i=7`` matches however it was spaced.
+
+    ``nsu=<uri>;…`` refs cannot be resolved without the server's namespace table and
+    are compared as written — an unmatched one is reported as unmatched, never as
+    "not configured".
+    """
+    text = str(ref or "").strip()
+    try:
+        from asyncua import ua
+
+        return ua.NodeId.from_string(text).to_string()
+    except Exception:  # noqa: BLE001 — unparseable refs compare as written
+        return text
+
+
+def _suggestions(config) -> dict[tuple[str, str], dict]:
+    """``(endpoint, ref) → suggestion`` for configured OPC UA tags, reported as it goes.
+
+    An endpoint that cannot be reached is SAID, not skipped quietly: an empty
+    suggestion column would otherwise read as "the device declares nothing".
+    """
+    from rich.markup import escape
+
+    from iaiops.connectors.opcua.companion import companion_hints
+
+    hints: dict[tuple[str, str], dict] = {}
+    for target in getattr(config, "targets", ()) or ():
+        if str(getattr(target, "protocol", "")).lower() != "opcua":
+            continue
+        name = str(getattr(target, "name", ""))
+        configured = {
+            _canonical_ref(str(getattr(tag, "ref", "") or "")): str(getattr(tag, "ref", "") or "")
+            for tag in target.tags or ()
+        }
+        try:
+            found = companion_hints(target)
+        except Exception as exc:  # noqa: BLE001 — reported per endpoint, not fatal
+            console.print(
+                f"  [yellow]![/] {escape(name)}: not examined — no suggestions, which is "
+                f"not 'declares nothing' ({escape(f'{type(exc).__name__}: {exc}')})"
+            )
+            continue
+        unmatched = []
+        for hint in found["suggestions"]:
+            ref = configured.get(_canonical_ref(hint["node_id"]))
+            if ref is None:
+                unmatched.append(hint)
+            else:
+                hints[(name, ref)] = hint
+        console.print(
+            f"  {escape(name)}: {len(found['suggestions'])} device-declared state node(s), "
+            f"{len(found['suggestions']) - len(unmatched)} on configured tags; "
+            f"{len(found['recognised_without_role'])} recognised with no role"
+            + (
+                " [yellow](walk INCOMPLETE — absence is not evidence)[/]"
+                if found["is_truncated"]
+                else ""
+            )
+        )
+        for hint in unmatched[:10]:
+            console.print(
+                f"    [dim]not matched to a configured ref as written: "
+                f"{escape(hint['node_id'])} ({escape(hint['browse_path'])})[/]",
+                highlight=False,
+            )
+    return hints
+
+
 @cli_errors
 def export_cmd(
     out: Path = typer.Argument(..., help="Where to write the sheet (.csv)."),
+    suggest: bool = typer.Option(False, "--suggest", help=_SUGGEST_HELP),
 ) -> None:
     """Write every monitored tag to a sheet for a person to fill in.
 
@@ -45,13 +127,20 @@ def export_cmd(
 
     Fill in `role` (one of run_state, total_count, good_count, reject_count) and,
     for run_state, `running_when` — which value means the line is producing.
+
+    With `--suggest`, OPC UA tags the device itself declares through a companion
+    spec (by type definition, never by name) carry `suggested_role`,
+    `suggested_running_when` and `suggestion_evidence`. To accept one, copy it
+    into `role` / `running_when`; `apply` records that the role rested on the
+    device's declaration.
     """
     from iaiops.core.governance.evidence import validate_output_path
     from iaiops.core.runtime.config import load_config
     from iaiops.core.runtime.tag_sheet import SHEET_COLUMNS, sheet_rows
 
     path = validate_output_path(out, suffixes=(".csv",))
-    rows = sheet_rows(load_config())
+    config = load_config()
+    rows = sheet_rows(config, _suggestions(config) if suggest else None)
     if not rows:
         raise ValueError(
             "No monitored tags to confirm. Find devices first (`iaiops scan run "
@@ -101,12 +190,34 @@ def apply_cmd(
     except Exception:  # noqa: BLE001 — an unconfigured site is a real state
         config = None
     edits = validate_rows(rows, config)
+    pending = sum(
+        1
+        for row in rows
+        if str(row.get("suggested_role") or "").strip() and not str(row.get("role") or "").strip()
+    )
     if not edits:
         console.print(
             f"\n[yellow]?[/] {len(rows)} row(s) read, none confirmed — every `role` "
-            "cell is blank.\n  [dim]A blank cell means 'no change', not 'withdraw'.[/]\n"
+            "cell is blank.\n  [dim]A blank cell means 'no change', not 'withdraw'."
+            + (
+                f"\n  {pending} device suggestion(s) were left unconfirmed — a "
+                "suggestion is not a confirmation until it is copied into `role`."
+                if pending
+                else ""
+            )
+            + "[/]\n"
         )
         return
+
+    from collections import Counter
+
+    bases = Counter(edit.basis for edit in edits)
+    console.print(
+        "\n  [dim]basis: "
+        + ", ".join(f"{count} {basis}" for basis, count in sorted(bases.items()))
+        + (f"; {pending} device suggestion(s) left unconfirmed" if pending else "")
+        + "[/]"
+    )
 
     patch = config_patch(edits, by=by)
     if out is not None:
@@ -131,6 +242,7 @@ def apply_cmd(
 def page_cmd(
     out: Path = typer.Argument(..., help="Where to write the page (.html)."),
     lang: str = typer.Option("en", "--lang", help="Page language (en, zh)."),
+    suggest: bool = typer.Option(False, "--suggest", help=_SUGGEST_HELP),
 ) -> None:
     """Write the same sheet as a page a person ticks through, then downloads.
 
@@ -150,9 +262,11 @@ def page_cmd(
     path = validate_output_path(out, suffixes=(".html", ".htm"))
     from datetime import UTC, datetime
 
+    config = load_config()
     path.write_text(
         render_tag_page(
-            load_config(),
+            config,
+            hints=_suggestions(config) if suggest else None,
             lang=lang,
             generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
         ),

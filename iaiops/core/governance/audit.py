@@ -57,7 +57,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
     risk_tier   TEXT    NOT NULL DEFAULT '',
     approver_source TEXT NOT NULL DEFAULT '',
     prev_hash   TEXT    NOT NULL DEFAULT '',
-    row_hash    TEXT    NOT NULL DEFAULT ''
+    row_hash    TEXT    NOT NULL DEFAULT '',
+    origin      TEXT    NOT NULL DEFAULT '',
+    origin_client TEXT  NOT NULL DEFAULT '',
+    origin_session TEXT NOT NULL DEFAULT '',
+    write_mode  TEXT    NOT NULL DEFAULT ''
 )
 """
 
@@ -73,11 +77,18 @@ _MIGRATIONS = (
     ("approver_source", "TEXT NOT NULL DEFAULT ''"),
     ("prev_hash", "TEXT NOT NULL DEFAULT ''"),
     ("row_hash", "TEXT NOT NULL DEFAULT ''"),
+    # Call origin (see origin.py): which front-end started the call, the MCP
+    # client's self-reported name, a per-connection/process session id, and
+    # preview/apply for tools with a preview flag. '' = unknown / not applicable.
+    ("origin", "TEXT NOT NULL DEFAULT ''"),
+    ("origin_client", "TEXT NOT NULL DEFAULT ''"),
+    ("origin_session", "TEXT NOT NULL DEFAULT ''"),
+    ("write_mode", "TEXT NOT NULL DEFAULT ''"),
 )
 
 _INSERT = """\
-INSERT INTO audit_log (ts, skill, tool, params, result, status, duration_ms, agent, workflow_id, user, risk_level, rationale, approved_by, risk_tier, approver_source, prev_hash, row_hash)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO audit_log (ts, skill, tool, params, result, status, duration_ms, agent, workflow_id, user, risk_level, rationale, approved_by, risk_tier, approver_source, origin, origin_client, origin_session, write_mode, prev_hash, row_hash)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 # Ordered fields hashed into row_hash (as stored in the row, all as text).
@@ -100,10 +111,39 @@ _HASHED_FIELDS = (
 )
 _HASH_SEP = "\x1f"
 
+# Fields added after the chain shipped. Each is hashed ONLY when non-empty, as
+# ``name=value`` after the base fields — so every row written before they existed
+# (and any new row that leaves them empty) hashes exactly as it always did, and an
+# old trail keeps verifying. A non-empty value is covered: blanking or rewriting
+# it breaks the link. Order is fixed; append new fields at the end only.
+_EXTENSION_HASHED_FIELDS = ("origin", "origin_client", "origin_session", "write_mode")
+
+
+def _text(value: Any) -> str:
+    return "" if value is None else str(value)
+
+
+def _no_separator(value: Any) -> Any:
+    """Strip the hash separator from text before it is stored.
+
+    The canonical form joins fields with ``_HASH_SEP``; a stored value containing
+    it could slide content across a field boundary (e.g. move ``origin=mcp`` into
+    the end of ``approver_source`` and blank ``origin``) without changing the
+    hash. The writer never stores it; ``verify_chain`` refuses a row that does.
+    """
+    return value.replace(_HASH_SEP, "") if isinstance(value, str) else value
+
 
 def compute_row_hash(prev_hash: str, fields: dict[str, Any]) -> str:
     """SHA-256 over prev_hash + canonical (ordered, text) row fields."""
     canon = _HASH_SEP.join(str(fields.get(name, "")) for name in _HASHED_FIELDS)
+    extensions = [
+        f"{name}={_text(fields.get(name))}"
+        for name in _EXTENSION_HASHED_FIELDS
+        if _text(fields.get(name))
+    ]
+    if extensions:
+        canon = canon + _HASH_SEP + _HASH_SEP.join(extensions)
     return hashlib.sha256((prev_hash + _HASH_SEP + canon).encode("utf-8")).hexdigest()
 
 
@@ -208,6 +248,10 @@ class AuditEngine:
         approved_by: str = "",
         risk_tier: str = "",
         approver_source: str = "",
+        origin: str = "",
+        origin_client: str = "",
+        origin_session: str = "",
+        write_mode: str = "",
     ) -> bool:
         """Write one audit record. Returns True when the row was committed.
 
@@ -219,6 +263,10 @@ class AuditEngine:
         accountability trail: *why* a change was made, *who* signed off, the
         *approval tier* the policy engine assigned (none/confirm/dual/review),
         and where the approver came from ("token" one-shot grant vs "env" var).
+
+        origin / origin_client / origin_session / write_mode say which front-end
+        started the call and whether a write was a preview or an apply (see
+        ``iaiops.core.governance.origin``). Empty means unknown / not applicable.
 
         Each row is chained to its predecessor via prev_hash/row_hash
         (SHA-256) for tamper evidence. ``BEGIN IMMEDIATE`` serializes writers
@@ -244,7 +292,12 @@ class AuditEngine:
                 "approved_by": approved_by,
                 "risk_tier": risk_tier,
                 "approver_source": approver_source,
+                "origin": _text(origin),
+                "origin_client": _text(origin_client),
+                "origin_session": _text(origin_session),
+                "write_mode": _text(write_mode),
             }
+            fields = {name: _no_separator(value) for name, value in fields.items()}
             conn = self._connect()
             try:
                 conn.execute("BEGIN IMMEDIATE")
@@ -255,7 +308,12 @@ class AuditEngine:
                 row_hash = compute_row_hash(prev_hash, fields)
                 conn.execute(
                     _INSERT,
-                    (*(fields[name] for name in _HASHED_FIELDS), prev_hash, row_hash),
+                    (
+                        *(fields[name] for name in _HASHED_FIELDS),
+                        *(fields[name] for name in _EXTENSION_HASHED_FIELDS),
+                        prev_hash,
+                        row_hash,
+                    ),
                 )
                 conn.commit()
             finally:
@@ -290,6 +348,18 @@ class AuditEngine:
             if not record.get("row_hash"):
                 unhashed += 1
                 continue
+            if any(
+                _HASH_SEP in _text(record.get(name))
+                for name in (*_HASHED_FIELDS, *_EXTENSION_HASHED_FIELDS)
+            ):
+                return {
+                    "ok": False,
+                    "checked": checked,
+                    "unhashed": unhashed,
+                    "first_broken_id": record["id"],
+                    "reason": "a field contains the hash separator (field boundaries "
+                    "are ambiguous — content may have been moved between fields)",
+                }
             if record.get("prev_hash", "") != expected_prev:
                 return {
                     "ok": False,

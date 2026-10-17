@@ -2,6 +2,162 @@
 
 ## Unreleased
 
+### Added — every audit row says which front-end started the call
+
+- **Before this, a row could not tell an agent from the CLI.** Both front-ends
+  wrote `skill="iaiops"`, and the `agent` column is a guess from environment
+  variables: a person at the CLI in a shell with `CLAUDE_CODE` set read as
+  "claude", and an MCP server launched without those variables read as "unknown".
+  Four new columns, each set where the call enters, never guessed:
+  - `origin` — `mcp` (an MCP `tools/call`) or `cli` (an `iaiops` command). `cli`
+    names a front-end, not a person: an agent driving a shell reaches the CLI too.
+  - `origin_client` — the MCP client's **self-reported** `clientInfo`
+    (`name/version`, sanitized, capped at 128 characters). Nothing verifies it.
+    CLI rows say `iaiops-cli`.
+  - `origin_session` — one opaque id per MCP client connection, or per `iaiops`
+    process, so the calls of one session can be grouped.
+  - `write_mode` — `preview` or `apply` for a tool with a preview flag (MCP
+    `dry_run`, CLI `--apply`), empty otherwise. A write preview and a read both
+    audit at `low`; this is what tells them apart. A denied apply still says `apply`.
+- **Empty means unknown.** Rows written before this release, and calls that
+  enter through neither front-end (library code calling a tool directly, or a
+  governed call made from a thread a tool started itself — the origin does not
+  cross a raw `threading.Thread`), have an empty `origin`. Read that as unknown, never as human or agent. The `agent`
+  column is unchanged and stays a guess.
+- **Old trails keep verifying.** The new fields join the hash chain only when
+  non-empty, so every existing row hashes exactly as before and `iaiops audit
+  verify` passes on an upgraded `audit.db`. A non-empty value is covered: blanking
+  or rewriting it breaks the chain. One thing does not go back: once rows carry an
+  origin, an **older** iaiops reading the same `audit.db` reports them as modified,
+  because it does not hash the new fields. Do not share one `IAIOPS_HOME` between
+  this version and an older one.
+- **Field boundaries cannot be moved.** The writer now strips the hash separator
+  (`\x1f`) from every stored field, and `iaiops audit verify` fails a row whose
+  field contains one: otherwise a value could be slid into the end of the
+  previous field (`origin=mcp` appended to `approver_source`, `origin` blanked)
+  without changing the hash. Old rows only fail this if an approver or rationale
+  string ever contained that control character.
+- Non-string values (`0`, `None`) passed to `AuditEngine.log` for the new fields
+  are stored as text, so the row still verifies instead of reading as modified.
+- The oversized-row fallback in `iaiops audit forward` keeps `origin`,
+  `origin_session` and `write_mode` in its minimal envelope.
+- **Not covered:** a call FastMCP refuses before the tool runs (unknown tool name,
+  invalid arguments) leaves no row, as before; a tool withheld by
+  `IAIOPS_NO_EGRESS` cannot be called, so there is nothing to record; refused HTTP
+  requests (`mcp_http_auth`) are not tool calls and carry no origin. Servers built
+  on their own FastMCP instance (not `mcp_server._shared.mcp`) record no origin
+  until they declare one: `iaiops.core.governance.origin.mcp_origin(session)` builds the
+  origin from an MCP server session, and `origin_scope` declares it around the call.
+### Fixed — `oee measure` and `case open` read one endpoint, not every line sharing a ref
+
+- **Two endpoints whose tags share a ref read each other's samples.** Refs are not
+  unique across a site — Modbus `40001` exists on every line — and the run-state and
+  counter queries filtered by tag alone. On a store holding line-1 and line-2, line-1's
+  availability was measured over line-2's run state too, its part count included
+  line-2's parts, and `case open line-1` opened cases for line-2's stoppages. The
+  error pointed whichever way the neighbour did: better OR worse than measured, with
+  nothing on the page to say so. Both commands now scope every query by endpoint as
+  well as tag (`cli/_common.endpoint_tag_samples`), the same scope the store's
+  endpoint label was written for.
+- **Rows with no endpoint label are never counted toward a line.** The sink defaults
+  the label to `''` (e.g. `historian_push(sink="sqlite")` without `endpoint=`). Such a
+  row cannot be placed on a line. When those are ALL the store holds for the ref, the
+  command refuses and says how to label them; when they sit beside labeled rows they
+  are left out and counted — `unlabeled_samples_excluded` in the JSON and a sentence
+  in the availability note (`case open` prints it too). Leaving out a stop sample
+  turns that span blind, so the figure moves; the reader is told by how much.
+  New `core/sink/sqlite_local.count_unlabeled`.
+
+### Added — which stoppages a person explained (OEE stop attribution)
+
+- **`oee measure` now says how many of the stoppages it found have a reason, and
+  whose.** The run-state tag finds a stop and times it; it never says why. The only
+  reasons this product holds are the ones a person gave with `iaiops case confirm`,
+  and nothing joined the two — a window reported N stoppages and a reader could not
+  tell how many had any reason at all. Each stoppage now lands in exactly one class:
+  **cause confirmed by a person**, **dismissed by a person**, **case opened but
+  unanswered**, **never put to a person**, or **already stopped when the window
+  opened** (its real onset is outside the window, so whether anyone explained it
+  cannot be decided from inside). `reasons_from_signal` is always 0.
+- **The join is exact.** A case id drops sub-second precision and sanitizes the
+  endpoint (`line_1` and `line-1` collide), so a case counts only when its recorded
+  onset equals the stoppage's and its recorded endpoint is this one — an id-only
+  join credited one answer to two stoppages a fraction of a second apart. Cases now
+  record their `endpoint`; older ones match on id and onset and are marked
+  `endpoint_recorded: false`.
+  New `--case-site` names the knowledge-base site to read answers from
+  (`core/brain/oee_attribution.attribute_stops`, PURE).
+- **A case that only carries audit-trail actions is not an explained stoppage.**
+  `case open` marks such a case `inferred`; it stays "awaiting a person".
+  Counting it as explained would raise the explained share without anyone having
+  explained anything.
+- **Stoppages beyond the returned list are counted as NOT examined**, in no class,
+  with the standard truncation envelope. `measure_availability` takes
+  `max_stop_windows` (default 50; `None` = every stoppage); the `stops` count was
+  always the full count.
+- **`case confirm` / `case dismiss` record who and when as fields**
+  (`answered_by`, `answered_at`), not only inside the note. A case answered before
+  this reads back with both empty — unknown, never back-filled.
+  `case_store.case_id` is public: it is the join key.
+
+### Fixed — production counted through outages past the fiftieth
+
+- **`measure_availability` published only the first 50 blind windows**, and that
+  list is what production counting uses to skip increments made while the collector
+  was blind. Over a long window with more than fifty outages, parts made during the
+  51st onward were credited while their seconds stayed out of run time — Performance
+  went up the blinder the window was. Blind windows are now never capped;
+  `blind_windows_total` gives the count. Production counting now bisects sorted, merged
+  blind windows, so thousands of them do not make counting quadratic.
+- **`oee measure` printed Performance 0.0% for a line with a declared cycle time
+  and no usable total count.** `produced` defaulted to 0 instead of the factor being
+  refused. It is now "not reported", with the declaration that is missing.
+- **`oee measure --since/--until` with a non-UTC offset measured the wrong rows.**
+  The store compares stamps as text; a `+08:00` window against stamps stored
+  `+00:00` selected rows eight hours late, and the counter series is not re-filtered
+  by the measurement. Bounds are now put on UTC before querying, and counter rows
+  are clipped to the window by parsed instant. Case joins compare onsets as
+  instants (`…Z` and `…+00:00` match).
+### Added — companion-spec role suggestions (OPC UA for Machinery; PackML recognised)
+
+- **`iaiops tags export --suggest` (and `tags page --suggest`) show what a device
+  DECLARES about itself.** For each configured OPC UA endpoint, one read-only
+  session walks the address space and matches **type definitions** from OPC UA
+  companion specifications. Suggested today: `MachineryItemState_StateMachineType`
+  (OPC 40001-1 §12.2, Executing = 3), vendor subtypes included, read from the
+  language-independent `CurrentState/Number`. A match pre-fills read-only
+  `suggested_role` / `suggested_running_when` / `suggestion_evidence` columns —
+  spec, node id, type, browse path and why. **`role` still starts empty**: an
+  untouched sheet confirms nothing, and a suggestion becomes a role only when a
+  person copies it into `role` and runs `tags apply --by` (D16, new D49).
+- **PackML is recognised but NOT suggested.** Execute (6) lives in
+  `ExecuteState`, a sub-state machine active only while `MachineState` is
+  Running (18). Outside Running a server keeps a stale 6 (stopped time counted as
+  producing) or answers `Bad_StateNotActive` (stopped time becomes blind and
+  availability over known time reads near 100%) — both flatter the number, and
+  no single tag says "Running AND Execute". Reported with that reason, as are
+  `ProdProcessedCount` / `ProdDefectiveCount` (`PackMLCountDataType[]` — one tag
+  holds one number), `StopReason` (reasons come from people), Machinery
+  operation *mode*, and any state machine without `Number`.
+- **Names never match.** A PackTags-style `Status/StateCurrent` (ISA-TR88 naming —
+  OPC 30050 does not define that node), a same-named type in a vendor namespace,
+  a type whose BrowseName and NodeId namespaces disagree, or an Object carrying
+  the spec's instance name over a plain type gets no suggestion.
+- **`tags apply` records what each role rested on** — `basis: companion_spec`
+  only when the person set exactly what the sheet's suggestion columns stated;
+  `manual_over_suggestion` when they chose otherwise; `manual` otherwise. The
+  basis rides in the patch as a comment and in `TagEdit.as_dict()`. It is the
+  sheet's text: `apply` contacts nothing and does not re-check it.
+- **Device text cannot write config.** Evidence, endpoint and `--by` are folded
+  to one line before they reach the patch's YAML comments (a browse name with a
+  newline previously could have ended the comment and written a `role:`).
+- **One tag filled in differently on two rows is refused** (it was accepted, and
+  the patch then carried both).
+- `opcua_discover_tags` / `iaiops opcua discover` results carry the same
+  `companion_specs` block (same session, same `max_depth`, a node budget, standard
+  envelope; an incomplete walk says absence is not evidence). No new tool; `tags`
+  still has no MCP tool, by design.
+
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 
 - **Typed Modbus points.** A Modbus point was always one holding register read as

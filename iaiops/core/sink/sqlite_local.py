@@ -267,6 +267,30 @@ def query_samples(flt: SampleFilter, db_path: Path | str | None = None) -> list[
     return [dict(zip(SAMPLE_COLUMNS, row)) for row in rows]
 
 
+def count_unlabeled(
+    tag: str,
+    since: str | None = None,
+    until: str | None = None,
+    db_path: Path | str | None = None,
+) -> int:
+    """Rows for ``tag`` in the window that carry NO endpoint label.
+
+    The sink defaults the label to ''. Such a row cannot be assigned to a line,
+    and ``SampleFilter`` cannot select it (an empty endpoint means "no filter"),
+    so the per-endpoint readers count it here to say what they left out.
+    """
+    checked = validate_filter(SampleFilter(tag=tag, since=since, until=until))
+    path = _require_store(db_path)
+    where, params = _where(checked)
+    # nosec-justification: same fixed clause list as query_samples; values bound.
+    sql = f"SELECT COUNT(*) FROM samples{where} AND endpoint = ''"  # nosec B608
+    conn = _connect(path)
+    try:
+        return int(conn.execute(sql, params).fetchone()[0])
+    finally:
+        conn.close()
+
+
 def latest_samples(db_path: Path | str | None = None, limit: int = 5_000) -> list[dict]:
     """Latest sample per (endpoint, protocol, tag). Missing store → [] (not an error)."""
     path = Path(db_path).expanduser() if db_path else local_db_path()

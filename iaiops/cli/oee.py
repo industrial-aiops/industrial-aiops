@@ -21,13 +21,14 @@ from pathlib import Path
 import typer
 
 from iaiops.cli._common import (
-    MAX_STORE_SAMPLES,
     _emit,
     cli_errors,
     console,
+    endpoint_tag_samples,
     humanize_seconds,
     run_state_samples,
 )
+from iaiops.cli.case import DEFAULT_SITE  # one default for both commands
 
 oee_app = typer.Typer(help="OEE measured from collected history.")
 
@@ -54,6 +55,11 @@ def oee_measure_cmd(
     note: str = typer.Option(
         "", "--note", help="A caveat rendered near the top of the report, before the figure."
     ),
+    case_site: str = typer.Option(
+        DEFAULT_SITE,
+        "--case-site",
+        help="Knowledge-base site whose `iaiops case` answers explain the stoppages.",
+    ),
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Measure availability from collected history; optionally compare it.
@@ -69,7 +75,6 @@ def oee_measure_cmd(
         quality_factor,
     )
     from iaiops.core.runtime.config import TagRole, load_config
-    from iaiops.core.sink.sqlite_local import SampleFilter, query_samples
 
     target = load_config().get_target(endpoint)
     # Both bounds or neither. One alone leaves the other side of the period
@@ -81,6 +86,10 @@ def oee_measure_cmd(
             "measured period undefined, so the coverage figure would describe a window "
             "nobody asked for."
         )
+    # The store compares stamps as TEXT. A window written +08:00 against stamps
+    # stored +00:00 selected rows eight hours late — so the bounds are put on the
+    # store's clock first, and counter rows are clipped by instant below.
+    since, until = _utc(since), _utc(until)
     # With no window named, measure the period the last collection run SET OUT
     # to observe — not the period samples happened to arrive in. They differ
     # exactly when collection failed, and that is the case worth reporting: a run
@@ -106,8 +115,9 @@ def oee_measure_cmd(
             basis = "sample_span"
 
     window = (since, until) if since else None
-    tag, rows = run_state_samples(endpoint, db, since=since, until=until)
+    tag, rows, unlabeled = run_state_samples(endpoint, db, since=since, until=until)
     result = measure_availability(rows, tag, minor_stop_s=minor_stop_s, window=window)
+    excluded = [unlabeled]
     result["window_basis"] = basis
     if observed is not None:
         result["window_run_id"] = observed.run_id
@@ -121,22 +131,31 @@ def oee_measure_cmd(
         found = [t for t in (getattr(target, "tags", ()) or ()) if t.role == role]
         if not found:
             return None
+        counter_rows, counter_unlabeled = endpoint_tag_samples(
+            endpoint, found[0].ref, db, since=since, until=until
+        )
+        excluded.append(counter_unlabeled)
         counted = count_production(
-            query_samples(
-                SampleFilter(tag=found[0].ref, since=since, until=until, limit=MAX_STORE_SAMPLES),
-                db_path=db,
-            ),
+            _within(counter_rows, window),
             blind_windows=result.get("blind_windows"),
         )
         return counted if counted["status"] == "ok" else None
 
     totals = _count_for(TagRole.TOTAL_COUNT)
     goods = _count_for(TagRole.GOOD_COUNT)
+    result = _with_unlabeled_note(result, sum(excluded))
     produced = totals["produced"] if totals else 0.0
-    perf = performance_factor(
-        produced=produced,
-        ideal_cycle_time_s=getattr(target, "ideal_cycle_time_s", None),
-        run_time_s=result.get("running_s", 0.0),
+    # No usable total count is a REFUSAL, not zero parts. Defaulting `produced` to
+    # 0 printed "Performance 0.0%" for any line with a declared cycle time and no
+    # counter — a number where there should be none.
+    perf = (
+        performance_factor(
+            produced=produced,
+            ideal_cycle_time_s=getattr(target, "ideal_cycle_time_s", None),
+            run_time_s=result.get("running_s", 0.0),
+        )
+        if totals
+        else _performance_without_a_count()
     )
     qual = quality_factor(total=produced, good=goods["produced"] if goods else None)
 
@@ -152,8 +171,17 @@ def oee_measure_cmd(
         result, totals, goods, getattr(target, "ideal_cycle_time_s", None)
     )
 
+    # Which stoppages a PERSON gave a reason for. The run-state tag finds a stop
+    # and times it; it never says why, so the share with a reason is only what
+    # `case confirm` recorded — never what a case's audit-trail actions suggest.
+    from iaiops.core.brain.oee_attribution import attribute_stops
+    from iaiops.core.knowledge.case_store import list_cases
+
+    attribution = attribute_stops(result, endpoint, list_cases(case_site))
+
     payload = {
         "measured": result,
+        "stop_attribution": attribution,
         "comparison": comparison,
         "production": totals,
         "performance": perf,
@@ -290,9 +318,65 @@ def oee_measure_cmd(
         )
 
     _print_losses(losses)
+    _print_attribution(attribution)
 
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
+
+
+def _with_unlabeled_note(result: dict, excluded: int) -> dict:
+    """State how many unlabeled rows were left out — in the payload AND the note.
+
+    Leaving them out is right (nobody can say which line they came from), but a
+    stop sample left out becomes blind time, so the figure moves. The reader is
+    told by how much rather than finding out from a recount.
+    """
+    note = result.get("note", "")
+    if excluded:
+        note = (
+            f"{note} {excluded} sample(s) for these refs carry no endpoint label and "
+            "were NOT counted: refs repeat across lines, so they cannot be placed on "
+            "this one."
+        ).strip()
+    return {**result, "unlabeled_samples_excluded": excluded, "note": note}
+
+
+def _utc(bound: str | None) -> str | None:
+    """An ISO bound on UTC, or the input unchanged when absent or unparseable.
+
+    Unparseable is left for ``SampleFilter`` to refuse with its own message.
+    """
+    from datetime import UTC
+
+    from iaiops.core.brain._shared import parse_ts
+
+    when = parse_ts(bound) if bound else None
+    return when.astimezone(UTC).isoformat() if when is not None else bound
+
+
+def _within(rows: list, window: tuple | None) -> list:
+    """Counter rows inside the window by INSTANT — the run-state series is
+    re-filtered by the measurement itself; a counter series is not."""
+    if window is None:
+        return rows
+    from iaiops.core.brain._shared import parse_ts
+
+    lo, hi = parse_ts(window[0]), parse_ts(window[1])
+    return [r for r in rows if (t := parse_ts(r.get("ts") or r.get("timestamp"))) and lo <= t <= hi]
+
+
+def _performance_without_a_count() -> dict:
+    """Performance when no total count was usable: refused, never zero."""
+    return {
+        "performance": None,
+        "performance_raw": None,
+        "warning": "",
+        "note": (
+            "No usable production count, so Performance is not reported. Declare a "
+            "tag with `role: total_count` and collect it — zero parts is a "
+            "measurement, and nothing was measured."
+        ),
+    }
 
 
 def _factor_line(name: str, value: float | None, note: str, raw: float | None = None) -> str:
@@ -338,6 +422,35 @@ def _print_losses(losses: dict) -> None:
             "speed loss below is an artefact of the declaration, not of the line.[/]"
         )
     console.print(f"  [dim]{losses['note']}[/]")
+
+
+def _print_attribution(attribution: dict) -> None:
+    """How many stoppages have a reason, and whose — never one from the signal."""
+    if attribution.get("status") != "ok" or not attribution.get("stops"):
+        return
+    classes = attribution["classes"]
+    console.print(
+        "\n[bold]Stoppage reasons[/] — the run-state signal times a stop, never explains it"
+    )
+    for key, label in (
+        ("person_confirmed", "cause confirmed by a person"),
+        ("person_dismissed", "dismissed by a person (not an incident)"),
+        ("awaiting_person", "case opened, nobody has answered"),
+        ("no_case", "never put to a person"),
+        ("onset_before_window", "already stopped when the window opened"),
+    ):
+        bucket = classes[key]
+        console.print(
+            f"  {bucket['count']:>5}  {humanize_seconds(bucket['duration_s']):>7}  {label}"
+        )
+    if not attribution.get("cases_read"):
+        console.print("  [yellow]No cases were read for this site — check --case-site.[/]")
+    if attribution.get("not_examined"):
+        console.print(
+            f"  [yellow]{attribution['not_examined']:>5}  "
+            f"{humanize_seconds(attribution['not_examined_s']):>7}  shorter stops NOT "
+            "examined — in no class above[/]"
+        )
 
 
 oee_app.command("measure")(oee_measure_cmd)

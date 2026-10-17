@@ -27,6 +27,7 @@ that minor stoppages are being missed.
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from datetime import datetime
 from typing import Any
 
@@ -64,20 +65,37 @@ def _gap_limit(rows: list[tuple[datetime, float]]) -> float:
 
 
 def _blind_spans(windows: Any) -> list[tuple[datetime, datetime]]:
-    """Normalize the availability path's blind windows into comparable datetimes."""
-    out: list[tuple[datetime, datetime]] = []
+    """The availability path's blind windows as sorted, DISJOINT datetime spans.
+
+    Sorted and merged so :func:`_overlaps` can bisect: a multi-month window can
+    hold thousands of them, and a linear scan per counter step made counting
+    quadratic.
+    """
+    spans: list[tuple[datetime, datetime]] = []
     for row in windows or ():
         if not isinstance(row, dict):
             continue
         start, end = parse_ts(row.get("start")), parse_ts(row.get("end"))
         if start is not None and end is not None and end > start:
-            out.append((start, end))
-    return out
+            spans.append((start, end))
+    spans.sort(key=lambda s: s[0])
+    merged: list[tuple[datetime, datetime]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
 
 
 def _overlaps(start: datetime, end: datetime, blind: list[tuple[datetime, datetime]]) -> bool:
-    """Whether [start, end] touches any window the collector could not see."""
-    return any(a < end and start < b for a, b in blind)
+    """Whether [start, end] touches any window the collector could not see.
+
+    ``blind`` is sorted and disjoint (:func:`_blind_spans`), so only the last span
+    beginning before ``end`` can overlap.
+    """
+    index = bisect_left(blind, end, key=lambda s: s[0]) - 1
+    return index >= 0 and start < blind[index][1]
 
 
 def count_production(samples: Any, blind_windows: Any = None) -> dict[str, Any]:
