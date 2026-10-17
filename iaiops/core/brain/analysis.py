@@ -87,7 +87,16 @@ def health_summary(
                 }
             )
     offenders = [r for r in results if r["status"] in ("warn", "alarm")]
-    overall = "alarm" if counts["alarm"] else "warn" if counts["warn"] else "ok"
+    # "ok" only about what was observed: a failed or non-numeric read is not health.
+    overall = (
+        "alarm"
+        if counts["alarm"]
+        else "warn"
+        if counts["warn"]
+        else "unknown"
+        if counts["unknown"]
+        else "ok"
+    )
     return {
         "endpoint": s(target.name, 64),
         "overall": overall,
