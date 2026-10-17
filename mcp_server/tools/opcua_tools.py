@@ -222,7 +222,13 @@ def opcua_discover_tags(
     Returns dict: {endpoint, root, tag_count, asset_count,
         assets:[{asset, tag_count, classes, tags:[{node_id, browse_name,
         browse_path, datatype, value, unit, writable, class, suggested_alias}]}],
-        naming_quality:{alias_collisions, cryptic_names, verdict}}.
+        naming_quality:{alias_collisions, cryptic_names, verdict},
+        companion_specs:{suggestions:[{node_id, browse_path, spec, type, role,
+        running_when, why, caveats}], recognised_without_role, is_truncated}}.
+        companion_specs are what the device DECLARES through OPC UA companion
+        specs (PackML / Machinery), matched by type definition — SUGGESTIONS a
+        person confirms with `iaiops tags apply`. Never write them into config
+        as declared roles yourself (D16).
     """
     return disc.tag_discovery(_target(endpoint), root, max_depth, include_standard)
 

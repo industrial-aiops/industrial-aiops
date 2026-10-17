@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Added — companion-spec role suggestions (PackML, OPC UA for Machinery)
+
+- **`iaiops tags export --suggest` (and `tags page --suggest`) show what a device
+  DECLARES about itself.** For each configured OPC UA endpoint, one read-only
+  session walks the address space and matches **type definitions** from OPC UA
+  companion specifications: `PackMLExecuteStateMachineType` (OPC 30050 §6.3.8,
+  Execute = 6) and `MachineryItemState_StateMachineType` (OPC 40001-1 §12.2,
+  Executing = 3), including vendor subtypes. A match pre-fills read-only
+  `suggested_role` / `suggested_running_when` / `suggestion_evidence` columns
+  — spec, node id, type, browse path and why. **`role` still starts empty**: an
+  untouched sheet confirms nothing, and a suggestion becomes a role only when a
+  person copies it into `role` and runs `tags apply --by` (D16).
+- **Names never match.** A PackTags-style `Status/StateCurrent` (ISA-TR88 naming —
+  OPC 30050 does not define that node) or a same-named type in a vendor
+  namespace is not a declaration and gets no suggestion.
+- **Only the language-independent value is suggested** — `CurrentState/Number`.
+  `CurrentState` is localised text; a state machine without `Number` is reported
+  as recognised with no suggestion, as are PackML `ProdProcessedCount` /
+  `ProdDefectiveCount` (arrays of count structures — one tag holds one number),
+  `StopReason` (reasons come from people) and Machinery operation *mode*.
+- **`tags apply` records what each role rested on.** `basis: companion_spec`
+  only when the person set exactly what the device declared;
+  `manual_over_suggestion` when they were shown a declaration and chose
+  otherwise; `manual` otherwise. The basis rides in the patch as a comment and in
+  `TagEdit.as_dict()`. The evidence is the sheet's text — `apply` contacts
+  nothing and does not re-check it against the device.
+- `opcua_discover_tags` / `iaiops opcua discover` results carry the same
+  `companion_specs` block (same session, no new tool). `tags` still has no MCP
+  tool, by design.
+- 待核实: what PackML `ExecuteState/CurrentState/Number` reads while
+  `MachineState` is not Running; stated in every PackML suggestion's caveats.
+
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 
 - **Typed Modbus points.** A Modbus point was always one holding register read as

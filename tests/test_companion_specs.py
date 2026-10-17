@@ -1,0 +1,376 @@
+"""Companion-spec role suggestions (PackML OPC 30050, Machinery OPC 40001-1).
+
+The walk runs against a REAL in-process asyncua server whose address space
+instantiates types registered under the spec namespace URIs — plus the decoys
+that must NOT match: a PackTags-style ``Status/StateCurrent`` reachable only by
+name, a state machine with no ``CurrentState/Number``, and a same-named type in a
+vendor namespace. The sheet / apply half is pure and pinned separately: a
+suggestion never fills ``role``, and only an exact acceptance is credited to the
+device's declaration.
+"""
+
+from __future__ import annotations
+
+import csv
+import socket
+from pathlib import Path
+
+import pytest
+
+from iaiops.connectors.opcua import companion
+from iaiops.connectors.opcua import discovery as disc
+from iaiops.core.brain import companion_specs as cs
+from iaiops.core.runtime.config import MonitorTag, TargetConfig
+from iaiops.core.runtime.tag_sheet import (
+    BASIS_COMPANION,
+    BASIS_MANUAL,
+    BASIS_OVERRIDE,
+    config_patch,
+    sheet_rows,
+    validate_rows,
+)
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _state_machine(parent, idx, name, type_node, number=None, current_text="Execute"):
+    """An instance of ``type_node`` with CurrentState (+ Number when given)."""
+    from asyncua import ua
+
+    obj = parent.add_object(idx, name, objecttype=type_node.nodeid)
+    # Instantiation already created the mandatory CurrentState inherited from
+    # FiniteStateMachineType — exactly one, as on a real server.
+    (current,) = [c for c in obj.get_children() if c.read_browse_name().Name == "CurrentState"]
+    current.write_value(ua.LocalizedText(current_text))
+    if number is not None:
+        prop = current.add_property(idx, "Number", ua.Variant(number, ua.VariantType.UInt32))
+        return obj, prop
+    return obj, None
+
+
+@pytest.fixture(scope="module")
+def companion_server():
+    from asyncua import ua
+    from asyncua.sync import Server
+
+    port = _free_port()
+    url = f"opc.tcp://127.0.0.1:{port}/companion"
+    srv = Server()
+    srv.set_endpoint(url)
+    packml = srv.register_namespace(cs.PACKML_NS)
+    machinery = srv.register_namespace(cs.MACHINERY_NS)
+    vendor = srv.register_namespace("http://vendor.example/line")
+
+    fsm = srv.get_node(ua.NodeId(ua.ObjectIds.FiniteStateMachineType))
+    base_obj = srv.get_node(ua.NodeId(ua.ObjectIds.BaseObjectType))
+    exec_type = fsm.add_object_type(packml, "PackMLExecuteStateMachineType")
+    admin_type = base_obj.add_object_type(packml, "PackMLAdminObjectType")
+    item_state_type = fsm.add_object_type(machinery, "MachineryItemState_StateMachineType")
+    mode_type = fsm.add_object_type(machinery, "MachineryOperationModeStateMachineType")
+    # A vendor subtype of the PackML type: must still match, via its supertype.
+    vendor_exec = exec_type.add_object_type(vendor, "AcmeExecuteStateMachineType")
+    # Same NAME as the PackML type, wrong namespace: must NOT match.
+    impostor = fsm.add_object_type(vendor, "PackMLExecuteStateMachineType")
+
+    objects = srv.nodes.objects
+    filler = objects.add_object(vendor, "Filler")
+    base_sm = filler.add_object(vendor, "BaseStateMachine")
+    machine_state = base_sm.add_object(vendor, "MachineState")
+    _, packml_number = _state_machine(machine_state, packml, "ExecuteState", exec_type, number=6)
+    admin = filler.add_object(packml, "Admin", objecttype=admin_type.nodeid)
+    processed = admin.add_variable(packml, "ProdProcessedCount", [1, 2])
+    admin.add_variable(packml, "StopReason", 0)
+    # PackTags-style name with no companion type behind it — a NAME, not a declaration.
+    status = filler.add_object(vendor, "Status")
+    state_current = status.add_variable(vendor, "StateCurrent", 6)
+
+    press = objects.add_object(vendor, "Press")
+    _, machinery_number = _state_machine(
+        press, machinery, "MachineryItemState", item_state_type, number=3, current_text="Executing"
+    )
+    _state_machine(press, machinery, "MachineryOperationMode", mode_type, number=3)
+    _, vendor_number = _state_machine(objects, vendor, "Capper", vendor_exec, number=4)
+    _state_machine(objects, vendor, "Labeller", exec_type)  # no Number
+    _, impostor_number = _state_machine(objects, vendor, "Fake", impostor, number=6)
+
+    srv.start()
+    try:
+        yield {
+            "url": url,
+            "packml": packml_number.nodeid.to_string(),
+            "machinery": machinery_number.nodeid.to_string(),
+            "vendor": vendor_number.nodeid.to_string(),
+            "impostor": impostor_number.nodeid.to_string(),
+            "state_current": state_current.nodeid.to_string(),
+            "processed": processed.nodeid.to_string(),
+        }
+    finally:
+        srv.stop()
+
+
+def _target(url: str, tags=()) -> TargetConfig:
+    return TargetConfig(name="line1", protocol="opcua", endpoint_url=url, tags=tags)
+
+
+@pytest.fixture(scope="module")
+def hints(companion_server):
+    return companion.companion_hints(_target(companion_server["url"]))
+
+
+def _by_node(found: dict) -> dict[str, dict]:
+    return {h["node_id"]: h for h in found["suggestions"]}
+
+
+@pytest.mark.integration
+def test_packml_execute_state_is_suggested_with_its_evidence(companion_server, hints):
+    hint = _by_node(hints)[companion_server["packml"]]
+    assert hint["role"] == "run_state"
+    assert hint["running_when"] == [6]
+    assert hint["spec_id"] == "packml"
+    assert hint["basis"] == "type_definition"
+    assert hint["browse_path"].endswith("ExecuteState/CurrentState/Number")
+    assert "§6.3.8" in hint["why"] and cs.PACKML_NS in hint["why"]
+    assert any("待核实" in c for c in hint["caveats"])
+    assert hint["current_value"] == 6
+
+
+@pytest.mark.integration
+def test_machinery_item_state_is_suggested(companion_server, hints):
+    hint = _by_node(hints)[companion_server["machinery"]]
+    assert (hint["role"], hint["running_when"], hint["spec_id"]) == ("run_state", [3], "machinery")
+
+
+@pytest.mark.integration
+def test_a_vendor_subtype_matches_through_its_supertype(companion_server, hints):
+    hint = _by_node(hints)[companion_server["vendor"]]
+    assert hint["instance_type"] == "AcmeExecuteStateMachineType"
+    assert "subtype of PackMLExecuteStateMachineType" in hint["why"]
+
+
+@pytest.mark.integration
+def test_names_alone_never_match(companion_server, hints):
+    """D16: a PackTags NAME, or a same-named type in a vendor namespace, is not a declaration."""
+    nodes = _by_node(hints)
+    assert companion_server["state_current"] not in nodes
+    assert companion_server["impostor"] not in nodes
+    assert len(hints["suggestions"]) == 3
+
+
+@pytest.mark.integration
+def test_declared_children_without_a_role_are_reported_not_suggested(companion_server, hints):
+    recognised = {r["browse_path"].rsplit("/", 1)[-1]: r for r in hints["recognised_without_role"]}
+    assert "PackMLCountDataType[]" in recognised["ProdProcessedCount"]["why_no_role"]
+    assert "case" in recognised["StopReason"]["why_no_role"]
+    assert "MODE" in recognised["MachineryOperationMode"]["why_no_role"]
+    # The state machine without Number is recognised and explains why nothing is suggested.
+    assert "Number" in recognised["Labeller"]["why_no_role"]
+    assert companion_server["processed"] not in _by_node(hints)
+
+
+@pytest.mark.integration
+def test_the_suggested_running_value_is_what_collection_reads(companion_server, hints):
+    """The suggestion must be judged running by the SAME rule `oee measure` uses."""
+    from iaiops.connectors.opcua.ops import read_node
+
+    for key in ("packml", "machinery"):
+        hint = _by_node(hints)[companion_server[key]]
+        tag = MonitorTag(
+            ref=hint["node_id"], role="run_state", running_when=tuple(hint["running_when"])
+        )
+        value = read_node(_target(companion_server["url"]), hint["node_id"])["value"]
+        assert tag.is_running(value), (key, value)
+
+
+@pytest.mark.integration
+def test_tag_discovery_carries_companion_specs(companion_server):
+    model = disc.tag_discovery(_target(companion_server["url"]))
+    assert len(model["companion_specs"]["suggestions"]) == 3
+    assert model["companion_specs"]["is_truncated"] is False
+
+
+@pytest.mark.integration
+def test_a_truncated_walk_says_so(companion_server, monkeypatch):
+    monkeypatch.setattr(companion, "MAX_OBJECTS", 2)
+    found = companion.companion_hints(_target(companion_server["url"]))
+    assert found["is_truncated"] is True
+    assert "absence is not evidence" in found["truncation_note"]
+
+
+# ── sheet / apply (pure) ─────────────────────────────────────────────────────
+
+
+class _Config:
+    def __init__(self, targets):
+        self.targets = targets
+
+
+def _hint(node_id: str = "ns=2;i=7") -> dict:
+    return cs.suggestion(
+        cs.STATE_RULES[0],
+        node_id=node_id,
+        browse_path="Filler/BaseStateMachine/MachineState/ExecuteState/CurrentState/Number",
+        instance_type="PackMLExecuteStateMachineType",
+        current_value=6,
+    )
+
+
+def _sheet(hint: dict | None = None) -> list[dict]:
+    config = _Config([_target("opc.tcp://x", tags=(MonitorTag(ref="ns=2;i=7"),))])
+    hints = {("line1", "ns=2;i=7"): hint} if hint else None
+    return [dict(r) for r in sheet_rows(config, hints)]
+
+
+@pytest.mark.unit
+def test_a_suggestion_never_fills_role():
+    (row,) = _sheet(_hint())
+    assert row["suggested_role"] == "run_state"
+    assert row["suggested_running_when"] == "6"
+    assert "OPC 30050" in row["suggestion_evidence"]
+    assert row["role"] == "" and row["running_when"] == ""
+
+
+@pytest.mark.unit
+def test_an_untouched_suggested_sheet_confirms_nothing():
+    assert validate_rows(_sheet(_hint())) == ()
+
+
+@pytest.mark.unit
+def test_an_exact_acceptance_is_credited_to_the_device_declaration():
+    (row,) = _sheet(_hint())
+    row.update(role="run_state", running_when="6.0")
+    (edit,) = validate_rows([row])
+    assert edit.basis == BASIS_COMPANION
+    assert "OPC 30050" in edit.evidence
+    patch = config_patch((edit,), by="alice")
+    assert "# basis: companion spec, confirmed by a person" in patch
+
+
+@pytest.mark.unit
+def test_a_changed_running_value_is_the_persons_call_not_the_devices():
+    (row,) = _sheet(_hint())
+    row.update(role="run_state", running_when="6 4")
+    (edit,) = validate_rows([row])
+    assert edit.basis == BASIS_OVERRIDE
+    assert "OVERRIDING a device declaration" in config_patch((edit,))
+
+
+@pytest.mark.unit
+def test_no_suggestion_or_no_evidence_is_manual():
+    (row,) = _sheet()
+    row.update(role="run_state", running_when="2")
+    assert validate_rows([row])[0].basis == BASIS_MANUAL
+    (row,) = _sheet(_hint())
+    row.update(role="run_state", running_when="6", suggestion_evidence="")
+    assert validate_rows([row])[0].basis == BASIS_MANUAL
+
+
+@pytest.mark.unit
+def test_a_sheet_from_before_the_suggestion_columns_still_applies():
+    old = {"endpoint": "line1", "ref": "ns=2;i=7", "role": "run_state", "running_when": "2"}
+    (edit,) = validate_rows([old])
+    assert edit.basis == BASIS_MANUAL and edit.as_dict()["evidence"] == ""
+
+
+@pytest.mark.unit
+def test_the_csv_round_trip_keeps_the_evidence(tmp_path: Path):
+    from iaiops.core.runtime.tag_sheet import SHEET_COLUMNS
+
+    rows = _sheet(_hint())
+    path = tmp_path / "sheet.csv"
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(SHEET_COLUMNS))
+        writer.writeheader()
+        writer.writerows(rows)
+    with path.open(newline="", encoding="utf-8") as handle:
+        (back,) = list(csv.DictReader(handle))
+    back.update(role="run_state", running_when="6")
+    assert validate_rows([back])[0].basis == BASIS_COMPANION
+
+
+@pytest.mark.unit
+def test_the_page_shows_the_declaration_without_selecting_it():
+    from iaiops.core.runtime.tag_page import render_tag_page
+
+    config = _Config([_target("opc.tcp://x", tags=(MonitorTag(ref="ns=2;i=7"),))])
+    page = render_tag_page(config, hints={("line1", "ns=2;i=7"): _hint()})
+    assert "Device declares" in page and 'data-accept="0"' in page
+    assert "selected>" not in page and "selected=" not in page
+
+
+# ── CLI, end to end against the real server ──────────────────────────────────
+
+
+@pytest.fixture
+def opcua_config(tmp_path, monkeypatch, companion_server):
+    import yaml
+
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = tmp_path / "config.yaml"
+    config = {
+        "targets": [
+            {
+                "name": "filler",
+                "protocol": "opcua",
+                "endpoint_url": companion_server["url"],
+                "tags": [
+                    {"ref": companion_server["packml"]},
+                    {"ref": companion_server["state_current"]},
+                ],
+            },
+            {
+                "name": "gone",
+                "protocol": "opcua",
+                "endpoint_url": f"opc.tcp://127.0.0.1:{_free_port()}/x",
+            },
+        ]
+    }
+    path.write_text(yaml.safe_dump(config), encoding="utf-8")
+    monkeypatch.setenv("IAIOPS_CONFIG", str(path))
+    return path
+
+
+@pytest.mark.integration
+def test_export_suggest_then_apply_round_trip(opcua_config, companion_server, tmp_path):
+    import yaml
+    from typer.testing import CliRunner
+
+    from iaiops.cli.tags import tags_app
+    from iaiops.core.runtime.config import load_config
+
+    runner = CliRunner()
+    sheet = tmp_path / "sheet.csv"
+    result = runner.invoke(tags_app, ["export", str(sheet), "--suggest"])
+    assert result.exit_code == 0, result.output
+    assert "gone: not examined" in result.output  # unreachable is SAID, not skipped
+    rows = list(csv.DictReader(sheet.open(newline="", encoding="utf-8")))
+    by_ref = {r["ref"]: r for r in rows}
+    assert by_ref[companion_server["packml"]]["suggested_role"] == "run_state"
+    assert by_ref[companion_server["state_current"]]["suggested_role"] == ""  # a name only
+
+    untouched = runner.invoke(tags_app, ["apply", str(sheet), "--by", "alice"])
+    assert "none confirmed" in untouched.output and "1 device suggestion" in untouched.output
+
+    row = by_ref[companion_server["packml"]]
+    row.update(role=row["suggested_role"], running_when=row["suggested_running_when"])
+    with sheet.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    patch_file = tmp_path / "patch.yaml"
+    applied = runner.invoke(
+        tags_app, ["apply", str(sheet), "--by", "alice", "--out", str(patch_file)]
+    )
+    assert applied.exit_code == 0, applied.output
+    assert "1 companion_spec" in applied.output
+    patch = yaml.safe_load(patch_file.read_text("utf-8"))
+    (entry,) = patch
+    # Merge into the real config and load it with the real loader.
+    config = yaml.safe_load(opcua_config.read_text("utf-8"))
+    config["targets"][0]["tags"][0].update(entry)
+    opcua_config.write_text(yaml.safe_dump(config), encoding="utf-8")
+    (tag,) = [t for t in load_config().targets[0].tags if t.role]
+    assert tag.is_running(6) and not tag.is_running(4)
