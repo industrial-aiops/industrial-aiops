@@ -46,6 +46,12 @@
 - **`oee measure` printed Performance 0.0% for a line with a declared cycle time
   and no usable total count.** `produced` defaulted to 0 instead of the factor being
   refused. It is now "not reported", with the declaration that is missing.
+- **`oee measure --since/--until` with a non-UTC offset measured the wrong rows.**
+  The store compares stamps as text; a `+08:00` window against stamps stored
+  `+00:00` selected rows eight hours late, and the counter series is not re-filtered
+  by the measurement. Bounds are now put on UTC before querying, and counter rows
+  are clipped to the window by parsed instant. Case joins compare onsets as
+  instants (`…Z` and `…+00:00` match).
 
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 

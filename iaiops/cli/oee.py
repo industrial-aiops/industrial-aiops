@@ -87,6 +87,10 @@ def oee_measure_cmd(
             "measured period undefined, so the coverage figure would describe a window "
             "nobody asked for."
         )
+    # The store compares stamps as TEXT. A window written +08:00 against stamps
+    # stored +00:00 selected rows eight hours late — so the bounds are put on the
+    # store's clock first, and counter rows are clipped by instant below.
+    since, until = _utc(since), _utc(until)
     # With no window named, measure the period the last collection run SET OUT
     # to observe — not the period samples happened to arrive in. They differ
     # exactly when collection failed, and that is the case worth reporting: a run
@@ -128,9 +132,14 @@ def oee_measure_cmd(
         if not found:
             return None
         counted = count_production(
-            query_samples(
-                SampleFilter(tag=found[0].ref, since=since, until=until, limit=MAX_STORE_SAMPLES),
-                db_path=db,
+            _within(
+                query_samples(
+                    SampleFilter(
+                        tag=found[0].ref, since=since, until=until, limit=MAX_STORE_SAMPLES
+                    ),
+                    db_path=db,
+                ),
+                window,
             ),
             blind_windows=result.get("blind_windows"),
         )
@@ -316,6 +325,30 @@ def oee_measure_cmd(
 
     if comparison:
         console.print(f"\n[bold]Against the reported figure[/]\n  {comparison['explanation']}")
+
+
+def _utc(bound: str | None) -> str | None:
+    """An ISO bound on UTC, or the input unchanged when absent or unparseable.
+
+    Unparseable is left for ``SampleFilter`` to refuse with its own message.
+    """
+    from datetime import UTC
+
+    from iaiops.core.brain._shared import parse_ts
+
+    when = parse_ts(bound) if bound else None
+    return when.astimezone(UTC).isoformat() if when is not None else bound
+
+
+def _within(rows: list, window: tuple | None) -> list:
+    """Counter rows inside the window by INSTANT — the run-state series is
+    re-filtered by the measurement itself; a counter series is not."""
+    if window is None:
+        return rows
+    from iaiops.core.brain._shared import parse_ts
+
+    lo, hi = parse_ts(window[0]), parse_ts(window[1])
+    return [r for r in rows if (t := parse_ts(r.get("ts") or r.get("timestamp"))) and lo <= t <= hi]
 
 
 def _performance_without_a_count() -> dict:

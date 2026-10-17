@@ -526,7 +526,16 @@ class TestTheCommandPassesTheWindowOn:
             ["line1", "--since", "2026-08-01T00:00:00Z", "--until", "2026-08-01T00:09:59Z"],
             seen,
         )
-        assert seen["window"] == ("2026-08-01T00:00:00Z", "2026-08-01T00:09:59Z")
+        # Same instants; the command now puts the bounds on UTC before the store
+        # compares them as text, so the spelling (`Z` vs `+00:00`) may change.
+        from datetime import datetime
+
+        got = tuple(datetime.fromisoformat(b.replace("Z", "+00:00")) for b in seen["window"])
+        want = tuple(
+            datetime.fromisoformat(b.replace("Z", "+00:00"))
+            for b in ("2026-08-01T00:00:00Z", "2026-08-01T00:09:59Z")
+        )
+        assert got == want
 
     def test_without_the_options_the_engine_gets_no_window(self, monkeypatch):
         seen = {}

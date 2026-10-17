@@ -34,6 +34,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from iaiops.core.brain._shared import parse_ts
 from iaiops.core.knowledge.case_store import case_id
 from iaiops.core.runtime.envelope import envelope_fields
 
@@ -56,6 +57,12 @@ ATTRIBUTIONS = (PERSON_CONFIRMED, PERSON_DISMISSED, AWAITING_PERSON, NO_CASE, ON
 DETECTED_BY = "run_state signal (declared running_when) — detects a stop and its duration only"
 
 
+def _same_instant(a: Any, b: Any) -> bool:
+    """Equal as instants, so ``…Z`` and ``…+00:00`` for one moment still match."""
+    left, right = parse_ts(a), parse_ts(b)
+    return left is not None and left == right
+
+
 def _match(window: dict, endpoint: str, by_id: dict) -> Any:
     """The case opened for exactly this stoppage on exactly this endpoint, or None.
 
@@ -63,7 +70,7 @@ def _match(window: dict, endpoint: str, by_id: dict) -> Any:
     alone; its row says so (``endpoint_recorded: False``).
     """
     case = by_id.get(case_id(endpoint, window["onset"]))
-    if case is None or str(getattr(case, "when", "")) != str(window["onset"]):
+    if case is None or not _same_instant(getattr(case, "when", ""), window["onset"]):
         return None
     recorded = str(getattr(case, "endpoint", "") or "")
     if recorded and recorded != endpoint:

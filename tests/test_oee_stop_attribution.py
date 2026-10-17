@@ -302,3 +302,13 @@ class TestAStopAlreadyInProgressAtTheWindowStart:
 def test_the_cases_read_are_counted_so_a_wrong_site_is_visible():
     out = attribute_stops(measured(), EP, cases=[])
     assert out["cases_read"] == 0
+
+
+def test_a_case_whose_onset_is_written_differently_still_matches(tmp_path):
+    m = measured()
+    onset = onsets(m)[600.0]
+    zulu = onset.replace("+00:00", "Z")
+    opened = open_case(SITE, EP, zulu, base_dir=tmp_path)
+    confirm_case(SITE, opened.incident_id, "mechanical_fault", by="li", base_dir=tmp_path)
+    out = attribute_stops(m, EP, cases=list_cases(SITE, base_dir=tmp_path))
+    assert out["classes"][PERSON_CONFIRMED]["count"] == 1

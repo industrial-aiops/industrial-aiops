@@ -104,3 +104,37 @@ def test_performance_is_refused_not_zero_without_a_count(site):
     assert out["performance"]["performance"] is None
     assert out["factors"]["performance"] is None
     assert "total_count" in out["performance"]["note"]
+
+
+_COUNTED = _CONFIG.replace("    tags:\n", "    ideal_cycle_time_s: 1.0\n    tags:\n") + (
+    '      - label: "Total"\n        ref: "40002"\n        role: total_count\n'
+)
+
+
+def test_an_offset_window_counts_the_same_parts_as_the_utc_one(site):
+    """The store compares stamps as TEXT. A +08:00 window selected counter rows
+    eight hours late, and counters are not re-filtered by the measurement — so
+    parts from after the window were credited (Performance up)."""
+    from iaiops.core.sink.sqlite_local import SQLiteLocalSink
+
+    (site / "config.yaml").write_text(_COUNTED)
+    SQLiteLocalSink(endpoint="line-1", protocol="modbus").write(
+        [
+            {
+                "metric": "40002",
+                "value": i // 2,
+                "numeric": True,
+                "timestamp": (T0 + timedelta(seconds=i)).isoformat(),
+            }
+            for i in range(0, 1000 + 9 * 3600, 2)
+        ]
+    )
+    tz = __import__("datetime").timezone(timedelta(hours=8))
+    utc = _measure("--since", T0.isoformat(), "--until", (T0 + timedelta(seconds=999)).isoformat())
+    cst = _measure(
+        "--since",
+        T0.astimezone(tz).isoformat(),
+        "--until",
+        (T0 + timedelta(seconds=999)).astimezone(tz).isoformat(),
+    )
+    assert cst["production"]["produced"] == utc["production"]["produced"]
