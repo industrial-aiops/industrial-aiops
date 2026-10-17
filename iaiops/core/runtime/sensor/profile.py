@@ -264,6 +264,21 @@ def _accuracy(raw: Any, where: str) -> Accuracy | None:
     return Accuracy(full_scale=full_scale, **parts)
 
 
+#: The local store keeps 32 characters of a unit; a longer one would be cut
+#: silently, so it is refused here instead.
+MAX_UNIT_LENGTH = 32
+
+
+def _unit(raw: dict, where: str) -> str:
+    unit = _text(raw, "unit", where)
+    if len(unit) > MAX_UNIT_LENGTH:
+        raise ValueError(
+            f"{where}: unit {unit!r} is longer than {MAX_UNIT_LENGTH} characters, which the "
+            "store would cut — put the description in the channel name, keep the unit short."
+        )
+    return unit
+
+
 def _channel(raw: Any, protocol: str, index: int) -> Channel:
     if not isinstance(raw, dict):
         raise ValueError(f"channel #{index + 1}: must be a mapping.")
@@ -285,7 +300,7 @@ def _channel(raw: Any, protocol: str, index: int) -> Channel:
     return Channel(
         name=name,
         layout=layout,
-        unit=_text(raw, "unit", where),
+        unit=_unit(raw, where),
         signal=_choice(raw, "signal", SIGNALS, where),
         scale=scale,
         offset=_number(raw.get("offset", 0.0), "offset", where),

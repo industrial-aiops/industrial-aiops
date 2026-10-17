@@ -149,3 +149,99 @@ def test_a_profile_that_cannot_be_read_leaves_the_unit_empty_and_the_run_going(
     )
     assert result.samples_written == 2
     assert {row["unit"] for row in query_samples(SampleFilter(), db)} == {""}
+
+
+# ── review fixes (#257): the unit comes from the profile that decoded the value ──
+
+PROFILE_TEXT = """id: force
+protocol: modbus
+source: manual
+verified: bench
+channels:
+  - name: fz
+    layout: {{table: input, address: 0, type: int16}}
+    unit: {unit}
+    scale: {scale}
+    signal: level
+"""
+
+
+def _write_profile(path, unit, scale):
+    import os
+
+    path.write_text(PROFILE_TEXT.format(unit=unit, scale=scale), "utf-8")
+    # A distinct mtime even within one clock tick: the cache keys on (mtime, size).
+    stamp = path.stat().st_mtime_ns + 1_000_000_000
+    os.utime(path, ns=(stamp, stamp))
+
+
+def _decoding_reader(path, edits):
+    """Reads through the REAL profile path (scale from the file), and applies
+    ``edits[i]`` to the file before the i-th read when present."""
+    from iaiops.connectors.modbus.points import profile_channel
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
+
+    calls = {"n": 0}
+
+    def read(target, ref):
+        edit = edits.get(calls["n"])
+        calls["n"] += 1
+        if edit:
+            _write_profile(path, *edit)
+        return 1500 * profile_channel(ref, endpoint_profile(target)).scale, ""
+
+    return read
+
+
+def test_a_profile_edited_mid_run_never_pairs_a_value_with_a_stale_unit(tmp_path):
+    """Review of #257: units were resolved once per run while values decoded
+    with the file as it is now — 1.5 kN stored as "1.5 N", off by 1000×."""
+    path = tmp_path / "force.yaml"
+    _write_profile(path, "N", 1)
+    target = SimpleNamespace(
+        name="cell", protocol="modbus", sensor_profile=str(path), port_profiles=()
+    )
+    db = tmp_path / "s.db"
+    run_collection(
+        CollectionPlan(endpoint="cell", tags=("ch:fz",), duration_s=3, interval_ms=1000),
+        target=target,
+        reader=_decoding_reader(path, {1: ("kN", 0.001)}),
+        db_path=db,
+        clock=_Clock(),
+    )
+    rows = [(row["value"], row["unit"]) for row in query_samples(SampleFilter(), db)]
+    assert rows[0] == (1500.0, "N")
+    assert all(unit == "kN" for value, unit in rows[1:] if value == pytest.approx(1.5))
+    assert ("1.5", "N") not in [(str(v), u) for v, u in rows]
+
+
+def test_a_profile_edited_during_a_read_is_a_gap_not_a_guess(tmp_path):
+    """Unit checked before AND after the read; if they differ the sample is not stored."""
+    path = tmp_path / "force.yaml"
+    _write_profile(path, "N", 1)
+    target = SimpleNamespace(
+        name="cell", protocol="modbus", sensor_profile=str(path), port_profiles=()
+    )
+    db = tmp_path / "s.db"
+    result = run_collection(
+        CollectionPlan(endpoint="cell", tags=("ch:fz",), duration_s=1, interval_ms=1000),
+        target=target,
+        reader=_decoding_reader(path, {0: ("kN", 0.001)}),  # edited inside the read
+        db_path=db,
+        clock=_Clock(),
+    )
+    assert result.samples_written == 0
+    assert any("profile" in g["reason"] and "changed" in g["reason"] for g in result.gaps)
+
+
+def test_unit_for_never_raises(monkeypatch):
+    def explode(path):
+        raise RecursionError("pathological yaml")
+
+    monkeypatch.setattr("iaiops.core.runtime.sensor.binding.cached_profile", explode)
+    assert unit_for(_modbus_target(), "ch:fz") == ""
+
+
+def test_a_unit_longer_than_the_store_keeps_is_refused_at_load():
+    with pytest.raises(ValueError, match="unit"):
+        _modbus_profile(unit="mm (target distance, 0.1 mm resolution)")
