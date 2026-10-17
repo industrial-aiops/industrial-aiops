@@ -1,6 +1,56 @@
 # Changelog
 
-## Unreleased
+## 0.29.0 — 2026-10-17
+
+The audit trail now says which front-end started each call; OEE can say who
+explained a stoppage and reads one endpoint at a time; the HTTP/SSE transports
+authenticate; and the CRA asks — vulnerability handling, an SBOM, an audit
+opt-out for reads, `iaiops reset` — are answered in the product rather than in a
+crosswalk row marked `gap`. Also: UK half-hourly meter analytics, NIS2/CRA
+crosswalks, Margo rc.3 + OCI packages, the first two steps of the sensor layer,
+and companion-spec role hints in `tags export`. 198 governed tools.
+
+### Upgrade notes — read before upgrading
+
+- **BREAKING for socket deployments (HTTP / SSE MCP transports).** A server bound
+  to anything but loopback **does not start** without `IAIOPS_MCP_TOKEN` (or
+  `IAIOPS_MCP_TOKEN_FILE`), at least 32 printable-ASCII characters; every client
+  must then send `Authorization: Bearer <token>`. Generate one with
+  `openssl rand -base64 48`. stdio (the default for a pip install) is unchanged.
+  What each packaged deployment must change:
+  - **Margo** — supply the new `mcpToken` secret parameter in the deployment;
+    `allowlistIps` now defaults to empty (off). WFMs on a pre-rc.3 Margo
+    preview cannot read the new descriptor (`apiVersion: v1`, no `kind`,
+    `deviceConstraints`, OCI `repository` + `revision`).
+  - **airgap compose** (`deploy/airgap`) — set `IAIOPS_MCP_TOKEN_FILE` to a
+    mounted secret (preferred; the value never shows in `docker inspect`) or
+    `IAIOPS_MCP_TOKEN` in the environment before `docker compose up`. The
+    `IAIOPS_ALLOWLIST_IPS` default is now empty (off), as in the Margo package.
+  - **Siemens Industrial Edge** — provide `IAIOPS_MCP_TOKEN` /
+    `IAIOPS_MCP_TOKEN_FILE` in the app configuration; the
+    `IAIOPS_ALLOWLIST_IPS=127.0.0.1/32` default is gone (it refused every
+    caller behind the port mapping).
+  - **IGEL** — `/etc/iaiops/env` (0600) or the device secret facility must
+    provide `IAIOPS_MCP_TOKEN`; the unit passes it to the container.
+  - Callers reaching the server by a non-loopback Host name are no longer
+    answered `421`; set `IAIOPS_MCP_ALLOWED_HOSTS` if you want a Host check back.
+- **The audit chain changes one way.** 0.29 rows carry `origin` fields in their
+  hash. An **older** iaiops running `audit verify` on an `audit.db` that holds
+  0.29 rows reports `row_hash mismatch (row fields modified)` for each of them —
+  it is not tampering, it is a reader that does not know the new fields. 0.29
+  verifies older rows unchanged. **Upgrade every process that shares one
+  `IAIOPS_HOME` at the same time** — CLI, MCP servers, and any
+  `iaiops-energy` image mounting the same volume — and do not roll one back
+  alone. `audit verify` in 0.29 also fails an old row whose field contains the
+  `\x1f` control character (only possible in an approver or rationale string).
+- **Audit-forward cursor format changed.** The cursor now names the row
+  (`id` + `ts` + `row_hash`). A bare-id cursor from an older iaiops is honoured
+  only while no rotation has happened since; otherwise the first forward
+  **refuses** and says so rather than guessing. Do not point an older iaiops at
+  the new cursor file.
+- **Raised dependency floors** (security fixes): `cryptography>=50.0.0`,
+  `mcp[cli]>=1.30`, and the `export` extra's `pyarrow>=23.0.1,<24`. An
+  environment that pins any of these lower will not resolve.
 
 ### Added — every audit row says which front-end started the call
 
@@ -392,8 +442,11 @@
     such row names what is left), `partial_evidence` (they touch it but the
     central requirement is missing, e.g. CRA Part II(1) without an SBOM), `gap`,
     or `organisational` (product provides no evidence: NIS2 (a)(b)(c)(d)(g), CRA
-    Part I(1)). The honest headline: 2 of 10 NIS2 items and 3 of 22 CRA items are
-    `product_evidence`. Organisational rows cite
+    Part I(1)). The honest headline when the crosswalk landed: 2 of 10 NIS2
+    items and 3 of 22 CRA items were `product_evidence`; the rest of this release
+    (SBOM, `SECURITY.md`, CVE gate, bearer token, audit opt-out, `iaiops reset`)
+    moves CRA to 11 of 22, with 9 partial, 1 organisational and 1 gap (I(2)(h));
+    NIS2 stays at 2 of 10 with (j) a gap. Organisational rows cite
     no mechanism and no pillar, so the enterprise report cannot print runtime
     evidence under a measure the product never touches.
   - Every cited mechanism lives in one registry with code anchors
@@ -407,7 +460,8 @@
     ceilings are off by default; a pip install speaks stdio but the Margo
     package defaults to streamable-http on 0.0.0.0; the plaintext `.env`
     credential fallback is still honoured; PyPI wheels are unsigned.
-  - It says the unflattering parts a CRA reader looks for first: no SBOM, no
+  - As first written it said the unflattering parts a CRA reader looks for
+    first (several are closed later in this release — see above): no SBOM, no
     coordinated vulnerability disclosure policy or security contact, no
     security advisories, no audit opt-out (I(2)(l) asks for one), no
     multi-factor authentication (NIS2 (j)), no authentication of MCP callers,
