@@ -220,6 +220,11 @@ def run_collection(
         session_ctx = None
         subject = None
 
+    #: ref → its unit, from the endpoint's sensor profile (D56). Static per ref,
+    #: so resolved once here rather than on every read; "" when there is none.
+    from iaiops.core.runtime.sensor.binding import unit_for
+
+    units = {ref: unit_for(target, ref) for ref in plan.tags}
     #: ref → the source timestamp last written for it (empty when the protocol
     #: states none, which means every tick is a fresh observation).
     last_written: dict[str, str] = {}
@@ -281,6 +286,7 @@ def run_collection(
                         "value": value,
                         "numeric": isinstance(value, (int, float)) and not isinstance(value, bool),
                         "timestamp": stamp,
+                        "tags": {"unit": units.get(ref, "")},
                     }
                 )
 

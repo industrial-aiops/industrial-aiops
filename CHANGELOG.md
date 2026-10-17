@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added — the unit travels with the value (HLD §17.5, D56)
+
+- **Collected samples now carry their unit.** The store's `unit` column was
+  always empty, although a sensor profile knows whether a channel is mm or N —
+  the lab LAN run of #249 showed it. A ref's unit is its profile channel's unit
+  (`ch:<name>` on Modbus, `port<N>/<channel>` on IO-Link), resolved once when a
+  run starts. A bare or typed Modbus point has no unit (it says how to decode,
+  not what it measures), other protocols are not judged, and a unit still marked
+  待核实 — an IODD unit code nobody has mapped — is stored as empty, never
+  guessed. `readiness` lists profile channels stored without a unit.
+  Verified on the lab LAN: N, mm, degC and bool land in the store.
+
 ### Added — sensor layer S3: profiles bound to endpoints, IO-Link collectable (HLD §16)
 
 - **IO-Link can be collected — through a profile, and only through one.** Process

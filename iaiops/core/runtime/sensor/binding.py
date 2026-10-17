@@ -149,6 +149,33 @@ def port_profile(target: Any, port: int) -> SensorProfile | None:
     return None
 
 
+def unit_for(target: Any, ref: str) -> str:
+    """The unit of ``ref``'s profile channel — or "" (HLD §17.5, D56).
+
+    Only a profile channel has a unit: a bare or typed Modbus point says how to
+    decode, not what it measures, and other protocols are not judged here. A unit
+    still marked 待核实 (an IODD unit code nobody has mapped) is not a unit. Any
+    failure to resolve is "", never a guess — the read path reports the failure.
+    """
+    protocol = str(getattr(target, "protocol", "") or "")
+    try:
+        if protocol == "modbus":
+            from iaiops.connectors.modbus.points import is_channel_ref, profile_channel
+
+            if not is_channel_ref(ref):
+                return ""
+            unit = profile_channel(ref, endpoint_profile(target)).unit
+        elif protocol == "iolink":
+            from iaiops.connectors.iolink.points import port_channel
+
+            unit = port_channel(target, ref)[2].unit
+        else:
+            return ""
+    except (OSError, ValueError, KeyError):
+        return ""
+    return "" if "待核实" in unit else unit
+
+
 __all__ = [
     "MAX_PORT",
     "bind_profiles",
@@ -156,4 +183,5 @@ __all__ = [
     "endpoint_profile",
     "parse_port_profiles",
     "port_profile",
+    "unit_for",
 ]
