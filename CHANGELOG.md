@@ -48,6 +48,56 @@
   on their own FastMCP instance (not `mcp_server._shared.mcp`) record no origin
   until they declare one: `iaiops.core.governance.origin.mcp_origin(session)` builds the
   origin from an MCP server session, and `origin_scope` declares it around the call.
+### Added — which stoppages a person explained (OEE stop attribution)
+
+- **`oee measure` now says how many of the stoppages it found have a reason, and
+  whose.** The run-state tag finds a stop and times it; it never says why. The only
+  reasons this product holds are the ones a person gave with `iaiops case confirm`,
+  and nothing joined the two — a window reported N stoppages and a reader could not
+  tell how many had any reason at all. Each stoppage now lands in exactly one class:
+  **cause confirmed by a person**, **dismissed by a person**, **case opened but
+  unanswered**, **never put to a person**, or **already stopped when the window
+  opened** (its real onset is outside the window, so whether anyone explained it
+  cannot be decided from inside). `reasons_from_signal` is always 0.
+- **The join is exact.** A case id drops sub-second precision and sanitizes the
+  endpoint (`line_1` and `line-1` collide), so a case counts only when its recorded
+  onset equals the stoppage's and its recorded endpoint is this one — an id-only
+  join credited one answer to two stoppages a fraction of a second apart. Cases now
+  record their `endpoint`; older ones match on id and onset and are marked
+  `endpoint_recorded: false`.
+  New `--case-site` names the knowledge-base site to read answers from
+  (`core/brain/oee_attribution.attribute_stops`, PURE).
+- **A case that only carries audit-trail actions is not an explained stoppage.**
+  `case open` marks such a case `inferred`; it stays "awaiting a person".
+  Counting it as explained would raise the explained share without anyone having
+  explained anything.
+- **Stoppages beyond the returned list are counted as NOT examined**, in no class,
+  with the standard truncation envelope. `measure_availability` takes
+  `max_stop_windows` (default 50; `None` = every stoppage); the `stops` count was
+  always the full count.
+- **`case confirm` / `case dismiss` record who and when as fields**
+  (`answered_by`, `answered_at`), not only inside the note. A case answered before
+  this reads back with both empty — unknown, never back-filled.
+  `case_store.case_id` is public: it is the join key.
+
+### Fixed — production counted through outages past the fiftieth
+
+- **`measure_availability` published only the first 50 blind windows**, and that
+  list is what production counting uses to skip increments made while the collector
+  was blind. Over a long window with more than fifty outages, parts made during the
+  51st onward were credited while their seconds stayed out of run time — Performance
+  went up the blinder the window was. Blind windows are now never capped;
+  `blind_windows_total` gives the count. Production counting now bisects sorted, merged
+  blind windows, so thousands of them do not make counting quadratic.
+- **`oee measure` printed Performance 0.0% for a line with a declared cycle time
+  and no usable total count.** `produced` defaulted to 0 instead of the factor being
+  refused. It is now "not reported", with the declaration that is missing.
+- **`oee measure --since/--until` with a non-UTC offset measured the wrong rows.**
+  The store compares stamps as text; a `+08:00` window against stamps stored
+  `+00:00` selected rows eight hours late, and the counter series is not re-filtered
+  by the measurement. Bounds are now put on UTC before querying, and counter rows
+  are clipped to the window by parsed instant. Case joins compare onsets as
+  instants (`…Z` and `…+00:00` match).
 
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 

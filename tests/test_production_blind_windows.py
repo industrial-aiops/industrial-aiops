@@ -279,3 +279,44 @@ class TestBothPathsShareTheSameBlindWindows:
         tag = MonitorTag(ref="0", role=TagRole.RUN_STATE, running_when=["2"])
         out = measure_availability(rows, tag)
         assert out["blind_windows"] and out["blind_windows"][0]["duration_s"] > 25
+
+
+def test_many_blind_windows_do_not_make_counting_quadratic():
+    """Review finding: uncapped blind windows × a linear scan per step."""
+    import time
+    from datetime import UTC, datetime, timedelta
+
+    from iaiops.core.brain.oee_production import count_production
+
+    t0 = datetime(2026, 8, 1, tzinfo=UTC)
+    rows = [{"ts": (t0 + timedelta(seconds=i)).isoformat(), "value": i} for i in range(40_000)]
+    blind = [
+        {
+            "start": (t0 + timedelta(seconds=8 * k + 0.2)).isoformat(),
+            "end": (t0 + timedelta(seconds=8 * k + 0.7)).isoformat(),
+        }
+        for k in range(5_000)
+    ]
+    began = time.perf_counter()
+    out = count_production(rows, blind_windows=blind)
+    assert time.perf_counter() - began < 1.0
+    assert out["unobserved_steps"] == 5_000
+
+
+def test_unsorted_and_overlapping_windows_are_still_honoured():
+    from datetime import UTC, datetime, timedelta
+
+    from iaiops.core.brain.oee_production import count_production
+
+    t0 = datetime(2026, 8, 1, tzinfo=UTC)
+    rows = [{"ts": (t0 + timedelta(seconds=i)).isoformat(), "value": i} for i in range(100)]
+
+    def w(a, b):
+        return {
+            "start": (t0 + timedelta(seconds=a)).isoformat(),
+            "end": (t0 + timedelta(seconds=b)).isoformat(),
+        }
+
+    out = count_production(rows, blind_windows=[w(50.5, 60.5), w(10.5, 12.5), w(11.0, 20.5)])
+    # Steps 10→11 … 20→21 (11) and 50→51 … 60→61 (11) span blind time.
+    assert out["unobserved_steps"] == 22
