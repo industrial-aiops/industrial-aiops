@@ -113,7 +113,7 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
         parts.append(f"decoded by profiles still 待核实: {', '.join(unverified[:5])}")
     if no_unit:
         parts.append(
-            f"{len(no_unit)} stored without a unit (profile unit unset or 待核实): "
+            f"{len(no_unit)} stored without a unit (profile unit still 待核实): "
             f"{', '.join(no_unit[:5])}"
         )
     return Requirement(
@@ -124,7 +124,9 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
         fix=(
             "Give each Modbus point its type — `ir:<addr>:float32:<order>`, "
             "`hr:<addr>:int16*0.1` — or bind a sensor profile and use `ch:<name>`. "
-            "IO-Link ports need a profile under port_profiles (`iaiops sensor import-iodd`)."
+            "IO-Link ports need a profile under port_profiles (`iaiops sensor import-iodd`). "
+            "A unit still marked 待核实 (an IODD unit code) is stored empty until the profile "
+            "says the real unit."
         ),
         optional=True,
     )

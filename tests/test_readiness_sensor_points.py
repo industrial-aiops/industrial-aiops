@@ -92,6 +92,7 @@ def test_unverified_profiles_are_named_even_when_met(monkeypatch):
     facts = sensor_point_facts((_modbus("cell", "ch:fz", profile="force.yaml"),))
     req = decodable_points_req({"sensor_points": facts})
     assert req.met and "force" in req.detail and "待核实" in req.detail
+    assert facts["no_unit"] == []  # a confirmed unit is not "stored without a unit"
 
 
 def test_assess_includes_it_under_continuous_collection(tmp_path):

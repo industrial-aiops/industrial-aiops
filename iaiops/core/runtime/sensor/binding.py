@@ -13,6 +13,7 @@ re-reads the file only when it changes.
 
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -22,6 +23,8 @@ from iaiops.core.runtime.sensor.profile import SensorProfile, load_profile_file
 
 #: IO-Link masters in the field have 4–16 ports; the connector sweeps up to 32.
 MAX_PORT = 32
+
+_log = logging.getLogger(__name__)
 
 _CACHE: dict[str, tuple[tuple[int, int], SensorProfile]] = {}
 _LOCK = threading.Lock()
@@ -171,7 +174,8 @@ def unit_for(target: Any, ref: str) -> str:
             unit = port_channel(target, ref)[2].unit
         else:
             return ""
-    except (OSError, ValueError, KeyError):
+    except Exception as exc:  # noqa: BLE001 — metadata must never abort a collection run
+        _log.debug("No unit for %s on %s: %s", ref, getattr(target, "name", "?"), exc)
         return ""
     return "" if "待核实" in unit else unit
 
