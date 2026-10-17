@@ -33,6 +33,7 @@ from functools import wraps
 from typing import Any
 
 from iaiops.core.governance import audit_opt_out
+from iaiops.core.governance import origin as call_origin
 from iaiops.core.governance.approvals import consume_approval
 from iaiops.core.governance.audit import detect_agent, get_engine
 from iaiops.core.governance.budget import BudgetExceeded, get_budget
@@ -86,7 +87,22 @@ def _effective_risk_level(
     """
     if preview_param is None:
         return risk_level
-    return "low" if bool(params.get(preview_param, False)) == preview_truthy else risk_level
+    return "low" if _is_preview(preview_param, preview_truthy, params) else risk_level
+
+
+def _is_preview(preview_param: str, preview_truthy: bool, params: dict[str, Any]) -> bool:
+    return bool(params.get(preview_param, False)) == preview_truthy
+
+
+def _write_mode(preview_param: str | None, preview_truthy: bool, params: dict[str, Any]) -> str:
+    """``preview`` / ``apply`` for a tool with a preview flag; ``""`` otherwise.
+
+    Recorded so a reader of the trail can tell a write preview from a read without
+    knowing which tools declare a preview flag — both audit at ``low``.
+    """
+    if preview_param is None:
+        return ""
+    return "preview" if _is_preview(preview_param, preview_truthy, params) else "apply"
 
 
 def governed_tool(
@@ -269,6 +285,8 @@ class _CallState:
         "risk_tier",
         "undo",
         "opt_out_eligible",
+        "origin",
+        "write_mode",
     )
 
     def __init__(
@@ -290,6 +308,9 @@ class _CallState:
         self.skill = _infer_skill(func)
         self.tool_name = func.__name__
         self.agent = detect_agent()
+        # Declared by the front-end at its own boundary (CLI / MCP); None when
+        # neither did — recorded as "" (unknown), never guessed.
+        self.origin = call_origin.current()
         self.start = time.time()
         self.status = "ok"
         self.result: Any = None
@@ -307,6 +328,7 @@ class _CallState:
         # write keeps the declared risk. Determined from the bound preview flag
         # (defaults applied above), so an omitted ``dry_run`` still reads True.
         self.risk_level = _effective_risk_level(risk_level, preview_param, preview_truthy, params)
+        self.write_mode = _write_mode(preview_param, preview_truthy, params)
         # Control-char scrub of param values (recursively) before they land in
         # the audit row / SIEM forward — device-sourced strings can carry
         # terminal escapes.
@@ -658,6 +680,10 @@ def _finalize(state: _CallState) -> None:
         approved_by=state.approved_by,
         risk_tier=state.risk_tier,
         approver_source=state.approver_source if state.approved_by else "",
+        origin=state.origin.kind if state.origin else "",
+        origin_client=state.origin.client if state.origin else "",
+        origin_session=state.origin.session if state.origin else "",
+        write_mode=state.write_mode,
     )
     if not written and state.risk_level in _FAIL_CLOSED_RISK:
         # The pre-check gates high-risk calls on audit health, so reaching

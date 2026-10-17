@@ -33,6 +33,7 @@ from iaiops.cli._common import console
 from iaiops.core.governance import governed_tool
 from iaiops.core.governance.budget import BudgetExceeded
 from iaiops.core.governance.decorators import PolicyDenied
+from iaiops.core.governance.origin import cli_origin, origin_scope
 
 
 def _with_denial_handling(callback: Callable, governed: Callable) -> Callable:
@@ -43,7 +44,10 @@ def _with_denial_handling(callback: Callable, governed: Callable) -> Callable:
     @functools.wraps(callback)
     def cli_governed(*args: Any, **kwargs: Any) -> Any:
         try:
-            return governed(*args, **kwargs)
+            # The CLI boundary declares itself, so the row says "cli" — a front-end,
+            # not a person (an agent driving a shell reaches the CLI too).
+            with origin_scope(cli_origin()):
+                return governed(*args, **kwargs)
         except (PolicyDenied, BudgetExceeded) as exc:
             console.print(f"[red]Denied: {exc}[/]")
             raise typer.Exit(1) from exc

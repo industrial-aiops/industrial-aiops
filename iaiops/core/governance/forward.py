@@ -202,6 +202,10 @@ def _shrink_line(line: str, budget: int) -> str:
         "ts": record.get("ts"),
         "tool": record.get("tool"),
         "status": record.get("status"),
+        # Small, and the one thing a reader needs to tell an agent's call apart.
+        "origin": record.get("origin"),
+        "origin_session": record.get("origin_session"),
+        "write_mode": record.get("write_mode"),
         "_truncated": True,
     }
     return json.dumps(minimal, ensure_ascii=False, default=str)

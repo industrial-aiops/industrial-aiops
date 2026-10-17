@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+### Added — every audit row says which front-end started the call
+
+- **Before this, a row could not tell an agent from the CLI.** Both front-ends
+  wrote `skill="iaiops"`, and the `agent` column is a guess from environment
+  variables: a person at the CLI in a shell with `CLAUDE_CODE` set read as
+  "claude", and an MCP server launched without those variables read as "unknown".
+  Four new columns, each set where the call enters, never guessed:
+  - `origin` — `mcp` (an MCP `tools/call`) or `cli` (an `iaiops` command). `cli`
+    names a front-end, not a person: an agent driving a shell reaches the CLI too.
+  - `origin_client` — the MCP client's **self-reported** `clientInfo`
+    (`name/version`, sanitized, capped at 128 characters). Nothing verifies it.
+    CLI rows say `iaiops-cli`.
+  - `origin_session` — one opaque id per MCP client connection, or per `iaiops`
+    process, so the calls of one session can be grouped.
+  - `write_mode` — `preview` or `apply` for a tool with a preview flag (MCP
+    `dry_run`, CLI `--apply`), empty otherwise. A write preview and a read both
+    audit at `low`; this is what tells them apart. A denied apply still says `apply`.
+- **Empty means unknown.** Rows written before this release, and calls that
+  enter through neither front-end (library code calling a tool directly, or a
+  governed call made from a thread a tool started itself — the origin does not
+  cross a raw `threading.Thread`), have an empty `origin`. Read that as unknown, never as human or agent. The `agent`
+  column is unchanged and stays a guess.
+- **Old trails keep verifying.** The new fields join the hash chain only when
+  non-empty, so every existing row hashes exactly as before and `iaiops audit
+  verify` passes on an upgraded `audit.db`. A non-empty value is covered: blanking
+  or rewriting it breaks the chain. One thing does not go back: once rows carry an
+  origin, an **older** iaiops reading the same `audit.db` reports them as modified,
+  because it does not hash the new fields. Do not share one `IAIOPS_HOME` between
+  this version and an older one.
+- **Field boundaries cannot be moved.** The writer now strips the hash separator
+  (`\x1f`) from every stored field, and `iaiops audit verify` fails a row whose
+  field contains one: otherwise a value could be slid into the end of the
+  previous field (`origin=mcp` appended to `approver_source`, `origin` blanked)
+  without changing the hash. Old rows only fail this if an approver or rationale
+  string ever contained that control character.
+- Non-string values (`0`, `None`) passed to `AuditEngine.log` for the new fields
+  are stored as text, so the row still verifies instead of reading as modified.
+- The oversized-row fallback in `iaiops audit forward` keeps `origin`,
+  `origin_session` and `write_mode` in its minimal envelope.
+- **Not covered:** a call FastMCP refuses before the tool runs (unknown tool name,
+  invalid arguments) leaves no row, as before; a tool withheld by
+  `IAIOPS_NO_EGRESS` cannot be called, so there is nothing to record; refused HTTP
+  requests (`mcp_http_auth`) are not tool calls and carry no origin. Servers built
+  on their own FastMCP instance (not `mcp_server._shared.mcp`) record no origin
+  until they declare one: `iaiops.core.governance.origin.mcp_origin(session)` builds the
+  origin from an MCP server session, and `origin_scope` declares it around the call.
+
 ### Added — sensor layer, first two steps (HLD §16, S1 + S2)
 
 - **Typed Modbus points.** A Modbus point was always one holding register read as
