@@ -135,6 +135,9 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     # (conveyor_vfd / agv_battery templates), WMS/WCS gateways over OPC-UA, and AMR/IoT
     # telemetry over MQTT-Sparkplug. PdM (pdm_forecast) + downtime + OEE reused as-is.
     "warehouse": ("eip", "profinet", "modbus", "opcua", "sparkplug"),
+    # Sensor edition (HLD §17): the protocols sensors arrive on, plus the sensor
+    # tools. Not an industry — a capability that spans protocols (D50).
+    "sensor": ("modbus", "iolink", "sparkplug"),
     # Clinical-facility edition (医疗设施): hospital facilities as a distinct vertical
     # from generic building management. BACnet BMS (isolation-room pressurization +
     # medical-gas safety checks), Modbus (gas alarm panels / energy meters), OPC-UA
@@ -167,6 +170,8 @@ EDITION_MODULES: dict[str, tuple[str, ...]] = {
     # Line throughput / bottleneck (Theory-of-Constraints) + sortation performance
     # are material-handling concerns — they ride the warehouse edition.
     "warehouse": ("warehouse_tools",),
+    # Profile check / IODD draft / one-shot channel read — read-only (HLD §17.2).
+    "sensor": ("sensor_tools",),
     # PID control-loop triage (oscillation / offset / saturation) is a process-
     # industry concern — it rides the process edition.
     "process": ("process_tools",),

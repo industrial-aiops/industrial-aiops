@@ -91,7 +91,9 @@ def decode_bits(channel: Channel, data: bytes, expected_bits: int | None = None)
             "decoding it with this profile would shift every field."
         )
     if layout.bit_offset + layout.bit_length > available:
-        raise ValueError(
+        # The device answered with less than the field needs: not a measurement
+        # (a gap), not a connection fault.
+        raise InvalidReadingError(
             f"Channel {channel.name!r} needs bits {layout.bit_offset}.."
             f"{layout.bit_offset + layout.bit_length - 1}; the process data has {available} bits."
         )

@@ -39,8 +39,8 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 | **管得住** | 审计 · 预算 · 风险分级 · 回滚 —— 每一次调用都过，MCP 与 CLI 两条前端走同一引擎（唯一例外由运维方开：`IAIOPS_AUDIT_OPT_OUT=reads` 不记成功的声明式读取；写/预览/外发/拒绝/失败/CLI 始终记录） |
 | **归你自己** | 无遥测、不回连。有六个工具按设计**可以**把数据发出去（`stream_publish`、`stream_publish_event`、`uns_publish`、`historian_push`、`mqtt_publish`、`rca_narrate`）—— `IAIOPS_NO_EGRESS=1` 会把这六个一并摘除，形成离线姿态 |
 
-本包内含**十个行业版**：fab · factory · process · building · water · warehouse · clinical ·
-pharma · renewables · plcnext，各自带只读的行业建议检查。变电/电力（IEC-104 · DNP3 · IEC-61850）为独立包
+本包内含**十一个 edition**：按行业的 10 个（fab · factory · process · building · water · warehouse · clinical ·
+pharma · renewables · plcnext），各自带只读的行业建议检查；外加 1 个跨协议的传感器版 sensor（接入、解码、试读传感器；`IAIOPS_MCP=sensor`）。变电/电力（IEC-104 · DNP3 · IEC-61850）为独立包
 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy)。
 
 ## 头五分钟
@@ -179,7 +179,7 @@ iaiops protocols            # 能力地图
 **协议 extras:** `opcua` · `modbus` · `s7` · `mc` · `fins`(纯标准库,不 pin 任何依赖)· `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · `bas`(BAS 监控器层 REST,复用 mtconnect HTTP pin)· `ignition`(Ignition Gateway 只读层,复用 mtconnect HTTP pin)· 另有 `tdengine` · `iotdb` · `influxdb`(时序库下沉)· `nats`(流出口)· `ollama`(本机 LLM 叙述)· `export`(Parquet 导出)· `all`(全部可 pip 装的 connector)。
 
 **Edition 捆绑**(与同名 `IAIOPS_MCP` profile 对应——按行业只装该垂直跑的协议):
-`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `pharma`(制药:bacnet+modbus+hart+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
+`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `pharma`(制药:bacnet+modbus+hart+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)· `sensor`(跨协议传感器:modbus+iolink+sparkplug)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
 
 > **信创/离线:** 纯 Python 核心 + 可选 extras 支持**离线/气隙安装**(本地 wheelhouse + `pip install --no-index`)。国产时序库下沉(TDengine/IoTDB)、合规对照见 `docs/CHINA.md`。
 
@@ -567,7 +567,7 @@ iaiops opcua discover -e line1
 - **停机分诊 copilot**(`downtime_triage`):把**报警级联 + RCA 结论 + PdM 前兆**编排成一次分诊,并核对首出报警是否与诊断出的根因一致;仅建议、引用优先(基于早期的 `alarm_cascade` 首出重建与 `pdm_forecast` 到阈时间预警)。
 - **老 PLC 可维护性**(`plc_program_visibility`):对**导出的** ST/AWL/L5X 程序做风险/可维护性读评(体量、块数、交叉引用密度、无注释段),绝不上传在线 PLC;与 `plc_program_outline/xref/section` 讲解器配套。
 - **每版工具机制**(`mcp_server/profiles.py` 的 `EDITION_MODULES`):某个 edition 可携带自己的 `@mcp.tool` 组,**仅在选中该 edition 时加载**——裸协议键与常驻脑都不加载,故各版专用工具不污染其他面、不膨胀基座。各版签名工具:仓储 `line_bottleneck`/`sortation_health`;医疗 `isolation_room_check`/`medical_gas_check`/`or_environment_check`;楼宇 `economizer_check`/`zone_comfort`;过程 `control_loop_health`/`heat_exchanger_fouling`;半导体 `spc_check`/`defect_pareto`;工厂 `changeover_analysis`;水处理 `disinfection_ct`/`water_quality_compliance`;光伏风电 `pv_performance`。
-- **Agent 技能**:仓库随附一个路由技能(`skills/iaiops`)+ **十个**按行业技能(`iaiops-fab` / `iaiops-factory` / `iaiops-process` / `iaiops-building` / `iaiops-water` / `iaiops-warehouse` / `iaiops-clinical` / `iaiops-pharma` / `iaiops-renewables` / `iaiops-plcnext`),把 agent 路由到正确的 MCP server 并说明工具面。
+- **Agent 技能**:仓库随附一个路由技能(`skills/iaiops`)+ **十一个** edition 技能(`iaiops-fab` / `iaiops-factory` / `iaiops-process` / `iaiops-building` / `iaiops-water` / `iaiops-warehouse` / `iaiops-clinical` / `iaiops-pharma` / `iaiops-renewables` / `iaiops-plcnext` / `iaiops-sensor`),把 agent 路由到正确的 MCP server 并说明工具面。
 
 ### 10. ISA-18.2 报警洪泛分析 + 合规报告(0.9 新增)
 
@@ -587,7 +587,7 @@ iaiops opcua discover -e line1
 
 - **带认证的 socket**:走 HTTP/SSE(`IAIOPS_MCP_TRANSPORT=streamable-http|sse`)时,设了 `IAIOPS_MCP_TOKEN`(或 `IAIOPS_MCP_TOKEN_FILE`,至少 32 字符)后每个请求都必须带 `Authorization: Bearer <token>`;**绑定到回环以外的地址而没有 token,服务拒绝启动**(0.29.0 起,破坏性变更)。随包的容器(Margo、airgap、Siemens IE、IGEL)因此都要从密钥设施注入 token;`IAIOPS_ALLOWLIST_IPS` 是可选的第二层,默认关闭(容器端口映射后面不要只设回环:调用方显示为网桥网关地址)。一个共享 token,不是按人身份;自身不带 TLS。
 - **审计行记来源**:`iaiops-mcp` 与 `iaiops` CLI 写的审计行记录调用从哪个前端进来(`origin`:`mcp` 或 `cli`;为空 = 未知,绝不当成人或 agent——包括该字段出现前写的行,以及没声明来源的 server)、MCP 客户端**自报**的名字、每会话一个 id,以及带预览开关的工具这次是 `preview` 还是 `apply`。这些字段进哈希链:**旧版 iaiops 校验含 0.29 行的 audit.db 会报 `row_hash mismatch`**,共享一个 `IAIOPS_HOME` 的进程要一起升级。
-- **读优先**:**198 个受治理工具 = 181 只读 + 4 个不改设备但会把数据发出去(`stream_publish`、`stream_publish_event`、`uns_publish`、`rca_narrate`)+ 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
+- **读优先**:**201 个受治理工具 = 184 只读 + 4 个不改设备但会把数据发出去(`stream_publish`、`stream_publish_event`、`uns_publish`、`rca_narrate`)+ 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。
