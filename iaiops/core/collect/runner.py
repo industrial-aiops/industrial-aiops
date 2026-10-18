@@ -161,6 +161,7 @@ def run_collection(
     should_stop: Callable[[], bool] | None = None,
     max_iterations: int | None = None,
     session_builder: Callable[[Any], Any] | None = None,
+    fresh_each_read: bool = False,
 ) -> RunResult:
     """Collect ``plan`` into the local store; return what was and was not seen.
 
@@ -171,6 +172,11 @@ def run_collection(
     With ``session_builder``, ``subject`` is a LIVE CLIENT held open for the run
     and reopened on failure; without one it is the target, and each read opens
     its own connection as before.
+
+    ``fresh_each_read`` is for a protocol whose stamp is the time a value last
+    CHANGED (OPC UA): every successful read is then written, stamped when it was
+    POLLED. Keyed on the change time, a line that ran steadily for an hour was
+    one sample followed by an hour the measurement could not see.
     """
     from iaiops.core.sink.sqlite_local import SQLiteLocalSink
 
@@ -284,6 +290,9 @@ def run_collection(
                     )
                     continue
                 tracker.success()
+                if fresh_each_read:
+                    # The poll is the observation; the change time is not when we saw it.
+                    source_ts = ""
                 stamp = source_ts or _now_iso()
                 if source_ts and last_written.get(ref) == source_ts:
                     # Same publish, polled again. Not a new observation.

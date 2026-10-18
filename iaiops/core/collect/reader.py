@@ -158,6 +158,20 @@ def session_read_for(protocol: str):
     return cap.session_read
 
 
+def polls_are_fresh(protocol: str) -> bool:
+    """True when every successful poll of ``protocol`` is a new observation.
+
+    For OPC UA the stamp a read returns is the time the value last changed, so
+    two polls of a steady line return the same stamp and BOTH are observations
+    of it. For MQTT the stamp identifies a publish, and a re-read of the
+    last-value cache is not new — that protocol keeps the repeat check.
+    """
+    from iaiops.core.runtime.capabilities import get_capabilities
+
+    cap = get_capabilities(str(protocol or ""))
+    return bool(cap and cap.timestamp_is_change_time)
+
+
 def session_builder_for(protocol: str):
     """The session opener for ``protocol``, or ``None`` when it has none."""
     from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
@@ -175,4 +189,5 @@ __all__ = [
     "collectable_protocols",
     "session_read_for",
     "session_builder_for",
+    "polls_are_fresh",
 ]

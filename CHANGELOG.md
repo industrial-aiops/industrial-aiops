@@ -57,7 +57,64 @@
   most 200 characters, `date` is YYYY-MM-DD, a blank optional field is dropped.
   An unknown id or protocol filter is a clear error; MCP results no longer carry
   the installed path (copy a profile, never bind the installed file).
+### Fixed — an OPC UA text value was stored as a Python repr
 
+- A LocalizedText value (a state machine's `CurrentState`, for one) was read,
+  shown and collected as `LocalizedText(Locale=None, Text='Idle')` — seen live
+  on the OPC Foundation reference PackML server. A text `running_when` could
+  never match it, so `oee measure` refused with `no_running_state_matched`.
+  It is now its text (`Idle`), sanitised as before; the locale is dropped,
+  because a declaration names the word the device sends. Every OPC UA read path
+  goes through the same coercion (`read_node`, collection, discovery, RCA).
+  Companion-spec suggestions are unchanged: they stay on the
+  language-independent `CurrentState/Number`.
+
+### Fixed — a steady OPC UA value was collected once, then never again
+
+- **Every Good OPC UA poll is an observation now.** The collector skipped a
+  read whose source timestamp matched the last one written — right for MQTT,
+  where the stamp identifies a publish, wrong for OPC UA, where
+  `SourceTimestamp` is when the value last *changed*. Every poll of a steady
+  state was dropped: measured, 49 polls over 6 s of a line that ran and then
+  stopped stored 2 samples while the run reported 100% coverage. Over a long
+  run it errs in the flattering direction — the states that last longest
+  (long stops among them) are the ones that turn into blind time. OPC UA reads
+  are now stamped when polled (`timestamp_is_change_time` in the capability
+  table, `run_collection(fresh_each_read=…)`); MQTT keeps its repeat check.
+- **A value the server did not observe is a gap.** With polls trusted as
+  observations, the server's own staleness flag is the guard:
+  `UncertainLastUsableValue`, `UncertainNoCommunicationLastUsableValue`,
+  `UncertainSubstituteValue` and `UncertainInitialValue` are recorded as gaps,
+  never written. Other Uncertain codes (e.g. `EngineeringUnitsExceeded`) still
+  qualify an observed value and are kept.
+
+### Fixed — an OPC UA read the server rejected was stored as an empty sample
+
+- **A Bad status is never a value.** `collect run` read OPC UA through the
+  descriptor read used for people, and took `value` off it: a node the server
+  rejected (any Bad status) was stored as an empty sample at 100% coverage, and
+  on a `run_state` tag an empty sample is "not running" — blind time measured as
+  downtime. A connection that died mid-run went the same way and was never
+  reconnected, because the transport error was swallowed. Now (session and
+  one-shot paths alike, one function: `ops.read_observation`) a Bad status is a
+  gap with the session kept, and a transport fault is a gap plus a reconnect.
+- **`Bad_StateNotActive` is the one Bad status that is an observation.** OPC
+  10000-16 §4.4.2 / §4.5.2: an inactive (sub-)state machine's CurrentState
+  carries it. It is stored as the text `BadStateNotActive`, which matches no
+  declared running state — a definite "not running" sample, not a blind window.
+
+### Changed — PackML ExecuteState is suggested, on the device's own evidence
+
+- `tags export --suggest` now suggests PackML `ExecuteState/CurrentState/Number`
+  (OPC 30050 §6.3.8, Execute = 6) as `run_state` — **only when, during the walk,
+  that Number answered `Bad_StateNotActive`**: the server showed it reports the
+  inactive sub-state on the node that is collected. Seen active (a Good 6 or 4),
+  it stays recognised-only with the reason: a server that keeps a stale 6 when
+  stopped counts stopped time as running, the spec mandates the status only on
+  CurrentState (not Number), and nothing in one read tells the two apart —
+  re-run while the machine is stopped. The suggestion carries both caveats
+  (stale-server hole, 待核实 on a production PackML server; Execute in a
+  Maintenance/Manual UnitMode also reads as running).
 ### Added — switching sensors: NPN / PNP / dry contact (HLD §17.5b E2b)
 
 - **Discrete inputs and coils are collectable.** A proximity, photoelectric,

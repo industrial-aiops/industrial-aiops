@@ -38,12 +38,18 @@ Sources (checked 2026-10-17 on reference.opcfoundation.org):
   ProdConsumedCount ``PackMLCountDataType[]``, StopReason ``PackMLAlarmDataType``
   (§6.3.4); PackMLMachineStateMachineType Running = 18 (§6.3.7);
   PackMLExecuteStateMachineType Execute = 6, Idle = 4, Held = 11 … (§6.3.8).
-  PackML is RECOGNISED but not suggested — see :data:`SUBSTATE_TYPES`.
+  ExecuteState is suggested ONLY on device evidence — see :data:`STATE_RULES`.
 * OPC 40001-1 Machinery v1.04 — namespace ``http://opcfoundation.org/UA/Machinery/``
   (§20.1); MachineryItemState_StateMachineType NotAvailable 0, OutOfService 1,
   NotExecuting 2, Executing 3 (§12.2, Table 31).
 * OPC 10000-16 §4.4.3 StateVariableType — Id mandatory; Name, Number (UInt32),
   EffectiveDisplayName optional.
+* OPC 10000-16 §4.4.2 / §4.5.2 (v1.05.04, checked 2026-10-18) — an inactive
+  (sub-)state machine's CurrentState and LastTransition "shall have a status
+  equal to Bad_StateNotActive". The spec says nothing about CurrentState's
+  Properties (Number); the OPC Foundation reference stack (UA-.NETStandard
+  ``FiniteStateMachineState.SetActive``, master 55bd944) sets the same status on
+  them, but that is one implementation, not the rule.
 
 [PURE] No I/O. The address-space walk that feeds this lives in
 ``iaiops.connectors.opcua.companion``.
@@ -62,6 +68,11 @@ STATE_NUMBER_PATH = ("CurrentState", "Number")
 #: Recorded in every suggestion so a reader can tell when the mapping was checked.
 VERIFIED_ON = "2026-10-17"
 
+#: The status an inactive state machine's CurrentState carries (OPC 10000-16
+#: §4.4.2). Same spelling as ``iaiops.connectors.opcua.ops.STATE_NOT_ACTIVE`` —
+#: the value the collector stores for it; kept here so this module stays pure.
+STATE_NOT_ACTIVE = "BadStateNotActive"
+
 
 @dataclass(frozen=True)
 class StateRule:
@@ -74,6 +85,11 @@ class StateRule:
     running_when: tuple[int, ...]
     source: str
     caveats: tuple[str, ...]
+    #: Non-empty for a SUB-state machine: the parent state it is active in.
+    #: Such a rule is suggested only when the walk SAW its Number answer
+    #: Bad_StateNotActive — see :func:`substate_refusal`.
+    active_only_in: str = ""
+    verified_on: str = VERIFIED_ON
 
 
 @dataclass(frozen=True)
@@ -105,30 +121,40 @@ STATE_RULES: tuple[StateRule, ...] = (
             "spec says nothing about whether that output is good product.",
         ),
     ),
+    StateRule(
+        spec_id="packml",
+        spec="OPC 30050 PackML v1.01",
+        namespace_uri=PACKML_NS,
+        type_name="PackMLExecuteStateMachineType",
+        running_when=(6,),
+        source="§6.3.8 PackMLExecuteStateMachineType: Execute = 6",
+        caveats=(
+            "Execute is the machine carrying out what its UnitMode asks (§6.3.8) — "
+            "Execute in a Maintenance or Manual mode reads as running too.",
+            "Suggested only because this server answered Bad_StateNotActive on "
+            "Number while ExecuteState was inactive; iaiops collects that as 'not "
+            "running'. OPC 10000-16 §4.4.2 requires the status on CurrentState, not "
+            "on Number — a server that keeps a stale 6 instead would count stopped "
+            "time as running. 待核实 on a production PackML server.",
+        ),
+        active_only_in="MachineState Running (18, §6.3.7)",
+        verified_on="2026-10-18",
+    ),
 )
 
 #: State machines that are recognised but deliberately NOT suggested as a run
-#: state, with the reason. PackML is here, not in STATE_RULES, because of what a
-#: review of the first version found: Execute (6) lives in ExecuteState, a SUB-state
-#: machine that is only active while MachineState is Running (18, §6.3.7). Outside
-#: Running a server either keeps the last sub-state (a stopped line reads 6 —
-#: counted as production) or answers with a Bad status (Bad_StateNotActive), which
-#: the collector records as a failed read — every stopped minute becomes a blind
-#: window, and availability over KNOWN time then reads near 100%. Both errors
-#: flatter the number. One tag cannot express "MachineState = Running AND
-#: ExecuteState = Execute", and MachineState alone (Running = 18) also covers Idle,
-#: Held and Suspended. So nothing is suggested until the collector can say
-#: "inactive sub-state = not running" — refused rather than pretended.
+#: state, with the reason.
+#:
+#: PackML ExecuteState is no longer here; it moved to :data:`STATE_RULES` with a
+#: condition. Execute (6) lives in ExecuteState, a SUB-state machine active only
+#: while MachineState is Running (18, §6.3.7). Outside Running a server either
+#: answers Bad_StateNotActive — which the collector now stores as a definite "not
+#: running" sample (``ops.read_observation``) — or keeps the last sub-state, and a
+#: stopped line reads 6. Nothing in one tag tells the two apart, and the second
+#: flatters availability. So it is suggested only on evidence the device itself
+#: gave: its Number answered Bad_StateNotActive during the walk. A server seen
+#: only while running is recognised, with the reason (:func:`substate_refusal`).
 SUBSTATE_TYPES: dict[tuple[str, str], str] = {
-    (PACKML_NS, "PackMLExecuteStateMachineType"): (
-        "PackML ExecuteState (OPC 30050 §6.3.8, Execute = 6) is a sub-state machine, "
-        "active only while MachineState is Running (18, §6.3.7). Stopped, a server may "
-        "keep a stale 6 (stopped time counted as producing) or return Bad_StateNotActive "
-        "(stopped time becomes blind, availability over known time reads near 100%). "
-        "No single tag says 'Running AND Execute', and MachineState Running also covers "
-        "Idle / Held / Suspended — so no run_state is suggested. Declare it by hand after "
-        "watching both values through a stop."
-    ),
     (PACKML_NS, "PackMLMachineStateMachineType"): (
         "PackML MachineState (OPC 30050 §6.3.7): Running = 18 also covers Idle, Held and "
         "Suspended, so it is not a producing state. No role suggested."
@@ -186,6 +212,29 @@ def state_rule(namespace_uri: str, type_name: str) -> StateRule | None:
     return None
 
 
+def substate_refusal(rule: StateRule, number_status: str) -> str | None:
+    """Why a SUB-state rule cannot be suggested from this read, or None if it can.
+
+    ``number_status`` is the status the walk got reading ``CurrentState/Number``
+    (``"Good"``, ``"BadStateNotActive"``, …; empty when the read raised). Only
+    ``BadStateNotActive`` proves this server reports an inactive sub-state on the
+    node the collector would read. An active machine cannot show it — a Good 6
+    or 4 says nothing about what the server does when the parent stops.
+    """
+    if not rule.active_only_in or number_status == STATE_NOT_ACTIVE:
+        return None
+    seen = number_status or "an unreadable value"
+    return (
+        f"{rule.spec} {rule.type_name} ({rule.source}) is a sub-state machine, active "
+        f"only in {rule.active_only_in}. Outside it a server either answers "
+        "Bad_StateNotActive (collected as 'not running') or keeps a stale value — "
+        "a stopped line would read as running. This walk read Number as "
+        f"{seen}, which cannot tell the two apart, so no run_state is suggested. "
+        "Re-run the suggestion while the machine is stopped: if Number then "
+        "answers Bad_StateNotActive, it is suggested with that evidence."
+    )
+
+
 def recognised_children(namespace_uri: str, type_name: str) -> tuple[RecognisedChild, ...]:
     """Children of this type that are declared but carry no iaiops role."""
     return tuple(
@@ -202,6 +251,7 @@ def suggestion(
     browse_path: str,
     instance_type: str,
     current_value: object = None,
+    observed: str = "",
 ) -> dict:
     """The suggestion record for one matched node — evidence first, role second."""
     via = (
@@ -223,10 +273,11 @@ def suggestion(
         "why": (
             f"The device instantiates {via} from {rule.namespace_uri}; its "
             f"CurrentState/Number is the state number defined in {rule.source}."
+            + (f" {observed}" if observed else "")
         ),
         "caveats": list(rule.caveats),
         "current_value": current_value,
-        "verified_on": VERIFIED_ON,
+        "verified_on": rule.verified_on,
     }
 
 
@@ -256,6 +307,7 @@ __all__ = [
     "MODE_TYPES",
     "PACKML_NS",
     "RECOGNISED_WITHOUT_ROLE",
+    "STATE_NOT_ACTIVE",
     "STATE_NUMBER_PATH",
     "STATE_RULES",
     "SUBSTATE_TYPES",
@@ -265,5 +317,6 @@ __all__ = [
     "one_line",
     "recognised_children",
     "state_rule",
+    "substate_refusal",
     "suggestion",
 ]

@@ -82,6 +82,11 @@ class ProtocolCapabilities:
     #: stays correct for one-shot CLI reads.
     session_read: MonitorReadFn | _Unsupported
     session_builder: SessionBuilder | _Unsupported
+    #: The timestamp a read returns is when the value last CHANGED (OPC UA
+    #: SourceTimestamp), not an identity of a publish (MQTT). Then a poll that
+    #: returns the same stamp is still a fresh observation, and collection must
+    #: not drop it as a repeat — doing so stored one sample per steady state.
+    timestamp_is_change_time: bool = False
 
 
 # ─── where hints (human-readable 'where' for an endpoint) ────────────────────
@@ -331,10 +336,11 @@ def _readref_mc(t: Any, ref: str) -> dict:
 
 
 def _monitor_opcua(t: Any, ref: str) -> tuple[Any, str]:
-    from iaiops.connectors.opcua.ops import read_node
+    """One-shot collection read: same outcomes as the session read, own connection."""
+    from iaiops.connectors.opcua.ops import opcua_session, read_observation
 
-    desc = read_node(t, ref)
-    return desc.get("value"), desc.get("source_timestamp", "")
+    with opcua_session(t) as client:
+        return read_observation(client, ref)
 
 
 def _readref_iolink(t: Any, ref: str) -> dict:
@@ -497,14 +503,14 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
 def _session_read_opcua(client: Any, ref: str) -> tuple[Any, str]:
     """Read one node from an open OPC-UA client.
 
-    Reuses the connector's own `_read_one`, which is already client-scoped —
-    a second implementation would be a second place for the status-code and
-    timestamp handling to drift.
+    Goes through `read_observation`, the connector's one collection read, so the
+    status-code and timestamp handling cannot drift between the two paths. Not
+    `_read_one`: that one reports failures as a descriptor, and taking ``value``
+    off it stored every rejected read as an empty sample.
     """
-    from iaiops.connectors.opcua.ops import _read_one
+    from iaiops.connectors.opcua.ops import read_observation
 
-    desc = _read_one(client, ref)
-    return desc.get("value"), desc.get("source_timestamp", "")
+    return read_observation(client, ref)
 
 
 def _session_read_s7(client: Any, ref: str) -> tuple[Any, str]:
@@ -603,6 +609,7 @@ def _caps(
     monitor_read: MonitorReadFn | _Unsupported = UNSUPPORTED,
     session_read: MonitorReadFn | _Unsupported = UNSUPPORTED,
     session_builder: SessionBuilder | _Unsupported = UNSUPPORTED,
+    timestamp_is_change_time: bool = False,
 ) -> ProtocolCapabilities:
     return ProtocolCapabilities(
         where_hint=where_hint,
@@ -613,6 +620,7 @@ def _caps(
         monitor_read=monitor_read,
         session_read=session_read,
         session_builder=session_builder,
+        timestamp_is_change_time=timestamp_is_change_time,
     )
 
 
@@ -626,6 +634,7 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         monitor_read=_monitor_opcua,
         session_read=_session_read_opcua,
         session_builder=_session("opcua_session"),
+        timestamp_is_change_time=True,
     ),
     "modbus": _caps(
         _where_default,
