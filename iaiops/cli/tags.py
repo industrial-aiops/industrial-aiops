@@ -15,7 +15,7 @@ parallel store would have let `readiness` report the mapping as met while
 
 Contacts nothing — except `export --suggest` / `page --suggest`, which open one
 read-only OPC UA session per configured OPC UA endpoint to read what the device
-declares through companion specs (Machinery; PackML recognised). Those arrive as read-only
+declares through companion specs (Machinery; PackML on device evidence). Those arrive as read-only
 suggestion columns with their evidence; `role` still starts empty, and a
 suggestion becomes a role only when a person writes it there (D16). Suggested
 rows are stamped with this site's key (`$IAIOPS_HOME/tag_suggestion.key`,
@@ -40,7 +40,7 @@ tags_app = typer.Typer(
 
 _SUGGEST_HELP = (
     "Read what each OPC UA endpoint DECLARES through companion specs (OPC UA for "
-    "Machinery; PackML recognised only) and show it as read-only suggestions with "
+    "Machinery; PackML only when seen stopped) and show it as read-only suggestions with "
     "evidence. Opens one "
     "read-only session per OPC UA endpoint. Nothing is pre-filled into `role`."
 )

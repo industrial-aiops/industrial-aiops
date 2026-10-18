@@ -331,10 +331,11 @@ def _readref_mc(t: Any, ref: str) -> dict:
 
 
 def _monitor_opcua(t: Any, ref: str) -> tuple[Any, str]:
-    from iaiops.connectors.opcua.ops import read_node
+    """One-shot collection read: same outcomes as the session read, own connection."""
+    from iaiops.connectors.opcua.ops import opcua_session, read_observation
 
-    desc = read_node(t, ref)
-    return desc.get("value"), desc.get("source_timestamp", "")
+    with opcua_session(t) as client:
+        return read_observation(client, ref)
 
 
 def _readref_iolink(t: Any, ref: str) -> dict:
@@ -458,14 +459,14 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
 def _session_read_opcua(client: Any, ref: str) -> tuple[Any, str]:
     """Read one node from an open OPC-UA client.
 
-    Reuses the connector's own `_read_one`, which is already client-scoped —
-    a second implementation would be a second place for the status-code and
-    timestamp handling to drift.
+    Goes through `read_observation`, the connector's one collection read, so the
+    status-code and timestamp handling cannot drift between the two paths. Not
+    `_read_one`: that one reports failures as a descriptor, and taking ``value``
+    off it stored every rejected read as an empty sample.
     """
-    from iaiops.connectors.opcua.ops import _read_one
+    from iaiops.connectors.opcua.ops import read_observation
 
-    desc = _read_one(client, ref)
-    return desc.get("value"), desc.get("source_timestamp", "")
+    return read_observation(client, ref)
 
 
 def _session_read_s7(client: Any, ref: str) -> tuple[Any, str]:

@@ -35,6 +35,33 @@
   An unknown id or protocol filter is a clear error; MCP results no longer carry
   the installed path (copy a profile, never bind the installed file).
 
+### Fixed — an OPC UA read the server rejected was stored as an empty sample
+
+- **A Bad status is never a value.** `collect run` read OPC UA through the
+  descriptor read used for people, and took `value` off it: a node the server
+  rejected (any Bad status) was stored as an empty sample at 100% coverage, and
+  on a `run_state` tag an empty sample is "not running" — blind time measured as
+  downtime. A connection that died mid-run went the same way and was never
+  reconnected, because the transport error was swallowed. Now (session and
+  one-shot paths alike, one function: `ops.read_observation`) a Bad status is a
+  gap with the session kept, and a transport fault is a gap plus a reconnect.
+- **`Bad_StateNotActive` is the one Bad status that is an observation.** OPC
+  10000-16 §4.4.2 / §4.5.2: an inactive (sub-)state machine's CurrentState
+  carries it. It is stored as the text `BadStateNotActive`, which matches no
+  declared running state — a definite "not running" sample, not a blind window.
+
+### Changed — PackML ExecuteState is suggested, on the device's own evidence
+
+- `tags export --suggest` now suggests PackML `ExecuteState/CurrentState/Number`
+  (OPC 30050 §6.3.8, Execute = 6) as `run_state` — **only when, during the walk,
+  that Number answered `Bad_StateNotActive`**: the server showed it reports the
+  inactive sub-state on the node that is collected. Seen active (a Good 6 or 4),
+  it stays recognised-only with the reason: a server that keeps a stale 6 when
+  stopped counts stopped time as running, the spec mandates the status only on
+  CurrentState (not Number), and nothing in one read tells the two apart —
+  re-run while the machine is stopped. The suggestion carries both caveats
+  (stale-server hole, 待核实 on a production PackML server; Execute in a
+  Maintenance/Manual UnitMode also reads as running).
 ### Added — switching sensors: NPN / PNP / dry contact (HLD §17.5b E2b)
 
 - **Discrete inputs and coils are collectable.** A proximity, photoelectric,
