@@ -44,6 +44,8 @@ description: >-
 ### 传感器（只读，edition 模块）
 - `sensor_import_iodd` — IODD → 草稿描述文本 + 「未导入」清单；不写盘、不改 config
 - `sensor_profile_check` — 校验描述，列出通道 / 布局 / 单位 / 精度带 / 核实等级
+- 上面两个只读 `$IAIOPS_HOME` 或配置目录下的文件，别处的路径不打开就拒绝 —— 把文件拷进去，或让人在 shell 里跑
+  `iaiops sensor import-iodd | check`（CLI 读任何路径）
 - `sensor_read_channel` — 读一个点一次，三级分开报告；读不了的点在联系设备之前就拒绝
 - `sensor_profile_list` / `sensor_profile_show` — 查随包的描述库（电表、光伏逆变器等，默认 `待核实`）；
   IO-Link 可按 vendor/device id 过滤 —— **只是建议**，同一设备号可能有多种过程数据布局

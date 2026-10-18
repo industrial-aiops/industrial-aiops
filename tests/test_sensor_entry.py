@@ -7,6 +7,7 @@ Every tool is read-only and governed; none writes config (D51).
 
 from __future__ import annotations
 
+import shutil
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -78,7 +79,11 @@ def test_every_sensor_tool_is_governed_and_read_only():
 def test_profile_check_tool(tmp_path):
     from mcp_server.tools.sensor_tools import sensor_import_iodd, sensor_profile_check
 
-    draft = sensor_import_iodd(str(IODD))
+    # Over MCP a file must sit under $IAIOPS_HOME (tmp_path here) — see
+    # test_sensor_mcp_path_guard.py.
+    iodd = tmp_path / IODD.name
+    shutil.copy(IODD, iodd)
+    draft = sensor_import_iodd(str(iodd))
     assert "待核实" in draft["draft"] and any("Label" in n for n in draft["notes"])
     path = tmp_path / "tof.yaml"
     path.write_text(draft["draft"], "utf-8")
@@ -90,10 +95,12 @@ def test_import_iodd_tool_writes_nothing(tmp_path, monkeypatch):
     from mcp_server.tools.sensor_tools import sensor_import_iodd
 
     monkeypatch.chdir(tmp_path)
-    sensor_import_iodd(str(IODD))
+    iodd = tmp_path / IODD.name
+    shutil.copy(IODD, iodd)
+    assert "draft" in sensor_import_iodd(str(iodd))
     # The governed call is audited (audit.db*); no profile or config is written.
     written = [p.name for p in tmp_path.iterdir() if not p.name.startswith("audit.db")]
-    assert written == []
+    assert written == [IODD.name]
 
 
 def test_tools_refuse_the_wrong_file_kind_with_a_clear_reason(tmp_path):
@@ -104,7 +111,9 @@ def test_tools_refuse_the_wrong_file_kind_with_a_clear_reason(tmp_path):
     yaml_file = tmp_path / "p.yaml"
     yaml_file.write_text("id: x\n", "utf-8")
     assert "Expected a .xml" in tools.sensor_import_iodd(str(yaml_file))["error"]
-    assert "Expected a .yaml/.yml" in tools.sensor_profile_check(str(IODD))["error"]
+    xml_file = tmp_path / IODD.name
+    shutil.copy(IODD, xml_file)
+    assert "Expected a .yaml/.yml" in tools.sensor_profile_check(str(xml_file))["error"]
 
 
 # ── the shared engine: three levels, never upgraded ──────────────────────────

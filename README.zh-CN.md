@@ -526,11 +526,16 @@ iaiops opcua discover -e line1
 
 把一块原始寄存器按所有候选字节序(AB/BA、ABCD/DCBA/BADC/CDAB)解一遍,按提示值/合理区间打分选出正确字节序——**纯逻辑、无需设备**。配套一组厂商寄存器模板(Eastron SDM630、Schneider PM5xxx 等)把寄存器块解成命名工程量。
 
+### 4b. 传感层:类型化点位 + IO-Link 采集 + 描述库(HLD §16 / §17)
+
+- **采集用的类型化点位**(HLD §16):采集 / 监视的 ref 可以写明表、类型、字序和缩放 —— `ir:0:float32:CDAB`、`hr:12:int16*0.1`(语法 `<hr|ir>:<addr>[:<type>[:<order>]][*<scale>]`;32 位类型必须写明字序)。端点上配了 `sensor_profile: <文件>` 时,`ch:<名>` 读该描述里的一个通道(哨兵值 → 盲区,声明的量程强制生效)。裸地址保持原义(一个保持寄存器,uint16),`readiness` 把它报为**未类型化**。DI 模块上的开关量传感器(NPN / PNP / 干接点)读作 `di:<addr>:<high|low>`(FC02)或 `co:<addr>:<high|low>`(FC01):有效电平必须写明(常闭开关动作时读 0),值 1 = 已动作;把开关量点声明为产量计数时,`readiness` 报 `count_source` 缺口(轮询会漏掉短脉冲)—— 只检查 Modbus ref,PLC 位尚未检查。随包的**描述库**(`iaiops sensor list | show`,MCP `sensor_profile_list | show`)收录常见电表和光伏逆变器的社区寄存器表,每条都由同一设备的 Modbus 模板派生,并带着该模板的注意事项 —— 每条都是 `待核实`;CI 逐通道、双向核对每条与其模板。用法:复制一份(`show <id> --out <文件>`),对照设备自己的显示核一个读数,再绑定这份副本。
+- **IO-Link 采集**(HLD §16):`port_profiles: {<端口>: <profile.yaml>}` 给每个端口绑定一份传感器描述;之后 `port<N>/<通道>` ref 可采集(`collect`、`monitor`)。没有描述的端口**不解码** —— 拒绝,绝不猜。描述带 `match: {vendor_id, device_id}` 时,解码前先核对该端口上的设备(按主站和端口缓存 5 秒,任一次读取失败即丢弃)。带 `pd_bits` 时,长度不同的过程数据映像被拒绝。`iaiops sensor import-iodd <iodd.xml>` 从厂商 IODD 起草一份描述(`verified: 待核实`,单位代码保留不映射,无法表示的项逐条列出);`iaiops sensor check` 校验一份描述。
+
 ### 5. HART-IP 过程仪表(只读)
 
 经 HART-IP 服务器/网关读现场仪表的通用变量:设备身份、主变量、动态变量 + 回路电流。**不暴露**写/设备专用命令(对在线仪表是 OT 高危)。命令编解码层对 `hart-protocol` 已验证;HART-IP 线传输 `待核实`。
 
-### 6. 行业版(楼宇 / 水处理 / 仓储 / 医疗 / 光伏风电 / PLCnext / 能源)
+### 6. 行业版(楼宇 / 水处理 / 仓储 / 医疗 / 光伏风电 / PLCnext / 传感器 / 能源)
 
 楼宇(`IAIOPS_MCP=building`):BACnet/IP 设备发现 / 对象列表 / 读属性 / 读点位(HVAC/厂务)+ 有界 COV 订阅 + TrendLog 读取;`bacnet_write_property` 为 MOC 门控高危写。水处理(`IAIOPS_MCP=water`):modbus+opcua+hart + 水行业 tag 语义(溶解氧/ORP/余氯/氨氮/TSS/跨膜压差/加药/曝气)+ 水行业 Modbus 模板。能源(变电/电力)在独立包 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy):IEC-104 / DNP3 / IEC-61850 MMS 只读监测。
 
@@ -549,6 +554,7 @@ iaiops opcua discover -e line1
 - **光伏/风电**(`IAIOPS_MCP=renewables`,modbus+opcua+sparkplug):PV 逆变器(SUN2000/Growatt 模板)+ 风机控制器 + 场站 SCADA + Sparkplug 遥测;版工具 `pv_performance`(组串性能对比)。
 - **半小时电表数据**(供应商 HH 文件;building + renewables 版):`iaiops meter check|profile` 读英国供应商的半小时用电文件(宽表:日期 + 46–50 个时段列;长表:时间戳 + kWh),报夜间基础负荷、按**声明的**营业时间算的非营业时段用电、峰值、完整日对比、负荷率、星期×时段热力图,给了电价表还按时段算钱并给出移峰的**上限**;`--report` 出自包含 HTML。MCP:`meter_hh_check`、`meter_load_profile`。空格=缺失不是 0;缺口不外推;日期只认英式日在前;无实测/估算标志时报「未知」不报「实测」。DUoS 时段因配网区域而异,不内置。尚未跑过真实供应商文件(`待核实`)。示例:`demo/metering/`。
 - **PLCnext 打包版**(`IAIOPS_MCP=plcnext`,opcua+modbus):菲尼克斯 PLCnext 虚拟化 PLC,经其内置 OPC-UA server(`opc.tcp` 4840)+ Modbus-TCP 过程数据 server,不新增 connector;route-verified,真机 `待核实`。
+- **传感器**(`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`,跨协议:modbus+iolink+sparkplug):接入、解码、试读一个传感器(见 4b);版工具 `sensor_import_iodd` + `sensor_profile_check` + `sensor_read_channel` + `sensor_profile_list` + `sensor_profile_show`,全部只读;把描述绑定进 config.yaml 仍是人的编辑。`sensor_import_iodd` / `sensor_profile_check` 只读 `$IAIOPS_HOME` 或配置目录下的文件。
 
 ### 7. 保守基线学习(0.10 新增)
 
@@ -566,7 +572,7 @@ iaiops opcua discover -e line1
 
 - **停机分诊 copilot**(`downtime_triage`):把**报警级联 + RCA 结论 + PdM 前兆**编排成一次分诊,并核对首出报警是否与诊断出的根因一致;仅建议、引用优先(基于早期的 `alarm_cascade` 首出重建与 `pdm_forecast` 到阈时间预警)。
 - **老 PLC 可维护性**(`plc_program_visibility`):对**导出的** ST/AWL/L5X 程序做风险/可维护性读评(体量、块数、交叉引用密度、无注释段),绝不上传在线 PLC;与 `plc_program_outline/xref/section` 讲解器配套。
-- **每版工具机制**(`mcp_server/profiles.py` 的 `EDITION_MODULES`):某个 edition 可携带自己的 `@mcp.tool` 组,**仅在选中该 edition 时加载**——裸协议键与常驻脑都不加载,故各版专用工具不污染其他面、不膨胀基座。各版签名工具:仓储 `line_bottleneck`/`sortation_health`;医疗 `isolation_room_check`/`medical_gas_check`/`or_environment_check`;楼宇 `economizer_check`/`zone_comfort`;过程 `control_loop_health`/`heat_exchanger_fouling`;半导体 `spc_check`/`defect_pareto`;工厂 `changeover_analysis`;水处理 `disinfection_ct`/`water_quality_compliance`;光伏风电 `pv_performance`。
+- **每版工具机制**(`mcp_server/profiles.py` 的 `EDITION_MODULES`):某个 edition 可携带自己的 `@mcp.tool` 组,**仅在选中该 edition 时加载**——裸协议键与常驻脑都不加载,故各版专用工具不污染其他面、不膨胀基座。各版签名工具:仓储 `line_bottleneck`/`sortation_health`;医疗 `isolation_room_check`/`medical_gas_check`/`or_environment_check`;楼宇 `economizer_check`/`zone_comfort`;过程 `control_loop_health`/`heat_exchanger_fouling`;半导体 `spc_check`/`defect_pareto`;工厂 `changeover_analysis`;水处理 `disinfection_ct`/`water_quality_compliance`;光伏风电 `pv_performance`;传感器(`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`)`sensor_import_iodd`/`sensor_profile_check`/`sensor_read_channel`/`sensor_profile_list`/`sensor_profile_show`。
 - **Agent 技能**:仓库随附一个路由技能(`skills/iaiops`)+ **十一个** edition 技能(`iaiops-fab` / `iaiops-factory` / `iaiops-process` / `iaiops-building` / `iaiops-water` / `iaiops-warehouse` / `iaiops-clinical` / `iaiops-pharma` / `iaiops-renewables` / `iaiops-plcnext` / `iaiops-sensor`),把 agent 路由到正确的 MCP server 并说明工具面。
 
 ### 10. ISA-18.2 报警洪泛分析 + 合规报告(0.9 新增)
