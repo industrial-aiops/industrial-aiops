@@ -58,6 +58,33 @@ def _untyped(target: Any, ref: str) -> bool:
     return not is_channel_ref(ref) and parse_point(ref).legacy
 
 
+def _switch_meaning(target: Any, ref: str) -> dict[str, Any]:
+    """For a switching ref: the active level and what the 1/0 means (HLD §17.5b)."""
+    if str(getattr(target, "protocol", "")) != "modbus":
+        return {}
+    from iaiops.connectors.modbus.points import SWITCH_TABLES, is_channel_ref, parse_point
+    from iaiops.connectors.modbus.points import profile_channel as channel_for
+    from iaiops.core.runtime.sensor import SwitchLayout
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
+
+    try:
+        if is_channel_ref(ref):
+            layout = channel_for(ref, endpoint_profile(target)).layout
+            active = layout.active if isinstance(layout, SwitchLayout) else ""
+        else:
+            point = parse_point(ref)
+            active = point.active if point.table in SWITCH_TABLES else ""
+    except Exception:  # noqa: BLE001 — metadata only
+        return {}
+    if not active:
+        return {}
+    wire = "1" if active == "high" else "0"
+    return {
+        "active": active,
+        "meaning": f"1 = actuated, 0 = not (active-{active}: a {wire} on the wire is actuated)",
+    }
+
+
 def read_channel(target: Any, ref: str) -> dict[str, Any]:
     """Read ``ref`` once on ``target``; report reachable / decodable separately."""
     from iaiops.core.collect.reader import ref_problems
@@ -132,6 +159,7 @@ def read_channel(target: Any, ref: str) -> dict[str, Any]:
         "profile": None,
         **context,
         "untyped": _untyped(target, ref),
+        **_switch_meaning(target, ref),
     }
     return {**result, "note": note} if note else result
 

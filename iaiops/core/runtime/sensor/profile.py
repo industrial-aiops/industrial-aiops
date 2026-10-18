@@ -28,6 +28,12 @@ VERIFIED = ("待核实", "bench", "field")
 SIGNALS = ("level", "counter", "event", "waveform")
 
 MODBUS_TABLES = ("holding", "input")
+#: Single-bit Modbus tables a switching sensor (NPN / PNP / dry contact) lands in
+#: through a DI module: discrete inputs (FC02) and coils (FC01) — HLD §17.5b.
+SWITCH_TABLES = ("discrete", "coil")
+ACTIVE_LEVELS = ("high", "low")
+#: A switch is a state or an event — never a counter (D45 / D61) or a waveform.
+SWITCH_SIGNALS = ("level", "event")
 #: Modbus value type → registers it spans.
 MODBUS_WIDTHS = {"uint16": 1, "int16": 1, "uint32": 2, "int32": 2, "float32": 2}
 MODBUS_ORDERS = {1: ("AB", "BA"), 2: ("ABCD", "DCBA", "BADC", "CDAB")}
@@ -40,6 +46,17 @@ MAX_ADDRESS = 0xFFFF
 BIT_TYPES = ("uint", "int", "float")
 #: IO-Link process data is at most 32 octets (IO-Link 1.1).
 MAX_PD_BITS = 32 * 8
+
+
+@dataclass(frozen=True)
+class SwitchLayout:
+    """A switching sensor's bit (HLD §17.5b). ``active`` is the level that means
+    "actuated" — required, because a normally-closed switch reads 0 when a part
+    is present (D60)."""
+
+    table: str
+    address: int
+    active: str
 
 
 @dataclass(frozen=True)
@@ -98,7 +115,7 @@ class Channel:
     """One decoded quantity."""
 
     name: str
-    layout: ModbusLayout | BitLayout
+    layout: ModbusLayout | BitLayout | SwitchLayout
     unit: str
     signal: str
     scale: float = 1.0
@@ -175,7 +192,8 @@ def modbus_layout(
     """Validate a Modbus layout. Shared with the typed-point grammar."""
     if not isinstance(table, str) or table not in MODBUS_TABLES:
         raise ValueError(
-            f"{where}: table must be one of {', '.join(MODBUS_TABLES)}; got {table!r}."
+            f"{where}: table must be one of {', '.join(MODBUS_TABLES + SWITCH_TABLES)}; "
+            f"got {table!r}."
         )
     address = _int(address, "address", where, 0, MAX_ADDRESS)
     if not isinstance(value_type, str) or value_type not in MODBUS_WIDTHS:
@@ -210,11 +228,31 @@ def _bit_layout(raw: dict, where: str) -> BitLayout:
     return BitLayout(bit_offset=offset, bit_length=length, value_type=value_type)
 
 
-def _layout(raw: Any, protocol: str, where: str) -> ModbusLayout | BitLayout:
+def switch_layout(table: str, address: Any, active: Any, where: str) -> SwitchLayout:
+    """Validate a switching-sensor bit. Shared with the ``di:`` / ``co:`` grammar."""
+    if not isinstance(active, str) or active not in ACTIVE_LEVELS:
+        raise ValueError(
+            f"{where}: a switching point needs its active level — high or low; got "
+            f"{active!r}. There is no default: a normally-closed switch reads 0 when "
+            "actuated, so a guessed level inverts present and absent."
+        )
+    address = _int(address, "address", where, 0, MAX_ADDRESS)
+    return SwitchLayout(table=table, address=address, active=active)
+
+
+def _layout(raw: Any, protocol: str, where: str) -> ModbusLayout | BitLayout | SwitchLayout:
     if not isinstance(raw, dict):
         raise ValueError(f"{where}: layout is required (a mapping).")
     if protocol == "iolink":
         return _bit_layout(raw, where)
+    table = raw.get("table")
+    if isinstance(table, str) and table.lower() in SWITCH_TABLES:
+        extra = sorted(k for k in raw if k not in ("table", "address", "active"))
+        if extra:
+            raise ValueError(f"{where}: {', '.join(extra)} do not apply to a switching bit.")
+        active = raw.get("active")
+        active = active.lower() if isinstance(active, str) else active
+        return switch_layout(table.lower(), raw.get("address"), active, where)
     return modbus_layout(
         raw.get("table"), raw.get("address"), raw.get("type"), raw.get("order"), where
     )
@@ -279,6 +317,25 @@ def _unit(raw: dict, where: str) -> str:
     return unit
 
 
+def _switch_channel(raw: dict, name: str, layout: SwitchLayout, where: str) -> Channel:
+    """A switching channel: a state or an event, no unit, no scale (HLD §17.5b)."""
+    bad = sorted(k for k in ("scale", "offset", "range", "accuracy", "invalid", "unit") if k in raw)
+    if bad:
+        raise ValueError(
+            f"{where}: {', '.join(bad)} do not apply to a switching channel — its value is "
+            "1 = actuated / 0 = not, with no unit."
+        )
+    signal = _choice(raw, "signal", SWITCH_SIGNALS, where)
+    response = raw.get("response_ms")
+    return Channel(
+        name=name,
+        layout=layout,
+        unit="",
+        signal=signal,
+        response_ms=None if response is None else _number(response, "response_ms", where),
+    )
+
+
 def _channel(raw: Any, protocol: str, index: int) -> Channel:
     if not isinstance(raw, dict):
         raise ValueError(f"channel #{index + 1}: must be a mapping.")
@@ -289,6 +346,8 @@ def _channel(raw: Any, protocol: str, index: int) -> Channel:
         raise ValueError(f"{where}: scale 0 would turn every reading into 0.")
     response = raw.get("response_ms")
     layout = _layout(raw.get("layout"), protocol, where)
+    if isinstance(layout, SwitchLayout):
+        return _switch_channel(raw, name, layout, where)
     invalid = _sentinels(raw.get("invalid"), where)
     width = layout.words * 16 if isinstance(layout, ModbusLayout) else layout.bit_length
     for sentinel in invalid:
@@ -383,11 +442,12 @@ def profile_summary(profile: SensorProfile) -> dict[str, Any]:
     rows = []
     for channel in profile.channels:
         layout = channel.layout
-        where = (
-            f"bits {layout.bit_offset}+{layout.bit_length} {layout.value_type}"
-            if isinstance(layout, BitLayout)
-            else f"{layout.table}[{layout.address}] {layout.value_type} {layout.order}"
-        )
+        if isinstance(layout, BitLayout):
+            where = f"bits {layout.bit_offset}+{layout.bit_length} {layout.value_type}"
+        elif isinstance(layout, SwitchLayout):
+            where = f"{layout.table}[{layout.address}] active-{layout.active}"
+        else:
+            where = f"{layout.table}[{layout.address}] {layout.value_type} {layout.order}"
         rows.append(
             {
                 "channel": channel.name,

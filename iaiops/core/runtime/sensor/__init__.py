@@ -12,6 +12,7 @@ from iaiops.core.runtime.sensor.decode import (
     Reading,
     decode_bits,
     decode_registers,
+    decode_switch,
 )
 from iaiops.core.runtime.sensor.profile import (
     Accuracy,
@@ -20,10 +21,12 @@ from iaiops.core.runtime.sensor.profile import (
     ModbusLayout,
     SensorProfile,
     Sentinel,
+    SwitchLayout,
     load_profile_file,
     modbus_layout,
     parse_profile,
     profile_summary,
+    switch_layout,
 )
 
 __all__ = [
@@ -35,10 +38,13 @@ __all__ = [
     "Reading",
     "SensorProfile",
     "Sentinel",
+    "SwitchLayout",
     "decode_bits",
     "decode_registers",
+    "decode_switch",
     "load_profile_file",
     "modbus_layout",
     "parse_profile",
     "profile_summary",
+    "switch_layout",
 ]
