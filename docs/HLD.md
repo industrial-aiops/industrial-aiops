@@ -373,7 +373,15 @@ OEE 数字，比报错危险得多。
 说「这个节点是我的机器状态，3 代表 Executing」—— 是声明，不是按名字推断。
 `tags export --suggest` 把它作为**只读建议列 + 依据**（规范、节点、类型、为何）放进点表；
 `role` 列仍然空着，人把建议抄进 `role` 并以 `--by` 署名 `apply` 之后才算数，
-`apply` 记下这一行的依据是 `companion_spec` / `manual_over_suggestion` / `manual`。
+`apply` 记下这一行的依据是 `companion_spec` / `companion_spec_unverified` / `manual_over_suggestion` / `manual`。
+**建议列带戳（`suggestion_stamp`）。** 建议列放在提议人手里的 CSV 里，谁都能手敲 ——
+手敲出来的「设备声明」正是最讨好的那种错。所以 `export --suggest` 对
+`endpoint|ref|suggested_role|suggested_running_when|suggestion_evidence` 做 HMAC-SHA256，
+密钥是每站点一把、首次 `--suggest` 时生成于 `$IAIOPS_HOME/tag_suggestion.key`（仅属主可读，永不进仓）。
+`apply` 验戳：戳缺失 / 对不上 / 别的站点的钥 / 本机无钥 → `companion_spec_unverified`，
+**降级、不拒收**（人的判断仍是人的判断，只是不算设备的）；`apply` 自己永不生成钥。
+戳能证明的只是「这五列出自本站点的 export」，**不能**证明设备此刻仍这么声明（`apply` 不联网），
+也不是「某个人」的签名 —— 能读 `$IAIOPS_HOME` 的人就能铸戳。删钥即轮换：未用完的表一律变 unverified。
 只按**类型**匹配、只建议**与语言无关**的 `CurrentState/Number`；名字长得像
 （PackTags 的 `Status/StateCurrent`）不匹配。PackML 的 Execute 在**子状态机**里，
 停机时要么停在旧值 6、要么返回 Bad —— 两种都会把可用率说好，所以只识别、不建议。
@@ -1134,7 +1142,7 @@ RS-485 传感器的现实前提：RS-485 只是物理层。上面跑的是 Modbu
 | D46 | 高频信号在边缘算特征，tap 采特征，不采波形 | 轮询波形得到的是随机相位上的一个点；kHz 数据也不该进 OT 网络上的常驻进程 |
 | D47 | 精度带随值传播，小于精度带的差异不构成证据 | 把测量噪声当成工艺变化，是基线和 RCA 最容易犯、也最难被人发现的错 |
 | D48 | Modbus 带类型的点（S2）**最先做**；裸地址点保持兼容但标「未声明类型」 | 今天 float32 只采到半个寄存器，是在册的讨好错值；改动最小，覆盖面最大（RS-485 传感器与电表） |
-| D49 | 配套规范**类型定义**给出的角色只作建议列（附依据），`role` 仍需人填并署名；只匹配类型、不匹配名字 | 设备的声明不是猜，但厂商会把类型挂错变量、子状态机会停在旧值 —— 见 §10.1 |
+| D49 | 配套规范**类型定义**给出的角色只作建议列（附依据），`role` 仍需人填并署名；只匹配类型、不匹配名字；建议列在导出时以站点钥加戳，验不过记 `companion_spec_unverified`（降级不拒收） | 设备的声明不是猜，但厂商会把类型挂错变量、子状态机会停在旧值；建议列在提议人手里，不加戳就是可以手敲的「设备声明」 —— 见 §10.1 |
 
 ---
 

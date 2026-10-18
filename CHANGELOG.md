@@ -144,6 +144,34 @@
   after scaling (3 × 0.1 = 0.30000000000000004); the edge now has a tolerance far
   below any sensor's resolution.
 
+### Changed — `basis: companion_spec` now has to be earned, not typed (HLD §10.1, D49)
+
+- **Suggestion columns are stamped at export.** `tags export --suggest` and
+  `tags page --suggest` write a new read-only `suggestion_stamp` column: an
+  HMAC-SHA256 over `endpoint`, `ref`, `suggested_role`, `suggested_running_when`
+  and `suggestion_evidence`, under a per-site key created on the first
+  `--suggest` at `$IAIOPS_HOME/tag_suggestion.key` (owner-only; never in a repo;
+  removed by `iaiops reset`). Until now `apply` credited a row to the device
+  whenever `role` equalled `suggested_role` — and anyone editing the CSV could
+  type that column, so a manual call could leave as "the device declared this".
+- **A row whose stamp does not verify is `companion_spec_unverified`** —
+  downgraded, never refused. That covers typed or edited suggestion columns, a
+  suggestion moved to another row, a sheet exported on another site, a sheet
+  exported before this release, and `apply` on a host with no key. `apply`
+  says how many and why, and never creates a key itself. `manual_over_suggestion`
+  rows record the stamp outcome too, and the config patch comment states it.
+- **What it does not prove**, said in the code and in HLD D49: the device is still
+  not re-read at `apply`, and the key is a site secret, not a person's — whoever
+  can read `$IAIOPS_HOME` can mint a stamp. It separates "came out of the export"
+  from "typed into the file".
+- **Upgrade notes.** `SHEET_COLUMNS` gains `suggestion_stamp` (after
+  `suggestion_evidence`). `validate_rows(rows, config, stamp_key=None)` and
+  `sheet_rows(config, hints, stamp_key=None)` take the key; **with no key passed,
+  no row is `companion_spec`** — callers that want the credit must pass
+  `suggestion_stamp.site_key()`. `TagEdit` gains `suggestion_stamp` (also in
+  `as_dict()`). Sheets exported by 0.29.0 still apply; their device matches read
+  as `companion_spec_unverified` until re-exported.
+
 ## 0.29.0 — 2026-10-17
 
 The audit trail now says which front-end started each call; OEE can say who
