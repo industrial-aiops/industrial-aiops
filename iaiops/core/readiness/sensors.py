@@ -23,7 +23,7 @@ from typing import Any
 
 from iaiops.core.readiness.model import Requirement
 
-_JUDGED = ("modbus", "iolink")
+_JUDGED = ("modbus", "iolink", "serial")
 
 
 def _bound_profiles(target: Any) -> list[Any]:
@@ -42,7 +42,7 @@ def _is_profile_ref(protocol: str, ref: str) -> bool:
     """A ref that decodes through a profile channel, so it should have a unit."""
     from iaiops.connectors.modbus.points import is_channel_ref
 
-    return protocol == "iolink" or (protocol == "modbus" and is_channel_ref(ref))
+    return protocol in ("iolink", "serial") or (protocol == "modbus" and is_channel_ref(ref))
 
 
 def sensor_point_facts(targets: tuple[Any, ...]) -> dict[str, Any]:

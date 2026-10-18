@@ -144,7 +144,7 @@
 | tag 语义分类 | 温度/压力/流量/设定值/报警/状态 + 水行业专用（溶解氧/ORP/余氯/氨氮/跨膜压差） | `core/brain/semantics.py` |
 | 跨协议资产建模 | `cross_protocol_asset_model` · `adopt_alias_map` · `diff_alias_map` | `mcp_server/tools/asset_model_tools.py` |
 | 数据质量语义 | 双时间戳 + quality + 来源；staleness / flatline / 心跳为一等公民；**绝不静默插值** | `core/brain/dataquality.py` |
-| 协议广度实证 | 14 种协议，含社区列表里完全没有的 6 种 | `iaiops/connectors/` |
+| 协议广度实证 | 15 种协议，含社区列表里完全没有的 6 种 | `iaiops/connectors/` |
 
 ### 6.2 提案要点（建议内容）
 
@@ -175,9 +175,9 @@
 > **Proposing semantic conventions as a 2026 workstream — with an existing cross-protocol model to start from**
 >
 > I maintain **Industrial-AIOps** (`iaiops`, MIT, on PyPI + the MCP Registry) — a vendor-neutral,
-> read-first OT data tap across 14 field protocols (OPC-UA, Modbus TCP/RTU, S7comm, Mitsubishi MC,
+> read-first OT data tap across 15 field protocols (OPC-UA, Modbus TCP/RTU, S7comm, Mitsubishi MC,
 > Omron FINS, EtherNet/IP, EtherCAT, PROFINET-DCP, MTConnect, MQTT/Sparkplug B, **SECS/GEM**,
-> **HART-IP**, **BACnet/IP**, **IO-Link**) plus a cross-protocol diagnostic layer.
+> **HART-IP**, **BACnet/IP**, **IO-Link**, serial ASCII instruments) plus a cross-protocol diagnostic layer.
 >
 > Looking at the roadmap issue and the July Margo presentation: semantic conventions are named as a
 > need but I can't find a workstream for them yet. I'd like to propose starting one, and I can bring

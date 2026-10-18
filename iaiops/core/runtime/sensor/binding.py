@@ -83,7 +83,7 @@ def _resolve(path: str, base_dir: Path) -> str:
     return str(candidate if candidate.is_absolute() else (base_dir / candidate).resolve())
 
 
-def _load_checked(path: str, endpoint: str, protocol: str) -> None:
+def _load_checked(path: str, endpoint: str, protocol: str) -> SensorProfile:
     try:
         profile = load_profile_file(path)
     except FileNotFoundError as exc:
@@ -99,6 +99,7 @@ def _load_checked(path: str, endpoint: str, protocol: str) -> None:
             f"Endpoint {endpoint!r} is {protocol}, but sensor profile {path} is a "
             f"{profile.protocol} profile."
         )
+    return profile
 
 
 def bind_profiles(target: Any, base_dir: Path) -> Any:
@@ -106,9 +107,9 @@ def bind_profiles(target: Any, base_dir: Path) -> Any:
     name, protocol = str(target.name), str(target.protocol)
     single = str(getattr(target, "sensor_profile", "") or "")
     ports = tuple(getattr(target, "port_profiles", ()) or ())
-    if single and protocol != "modbus":
+    if single and protocol not in ("modbus", "serial"):
         raise ValueError(
-            f"Endpoint {name!r}: sensor_profile is for a Modbus device"
+            f"Endpoint {name!r}: sensor_profile is for a Modbus or serial device"
             + (
                 "; an IO-Link master has a device per port — use port_profiles."
                 if protocol == "iolink"
@@ -122,7 +123,13 @@ def bind_profiles(target: Any, base_dir: Path) -> Any:
     resolved_single = _resolve(single, base_dir) if single else ""
     resolved_ports = tuple((port, _resolve(path, base_dir)) for port, path in ports)
     for path in ([resolved_single] if resolved_single else []) + [p for _, p in resolved_ports]:
-        _load_checked(path, name, protocol)
+        profile = _load_checked(path, name, protocol)
+        if profile.mode == "poll" and str(getattr(target, "bus", "") or "") != "dedicated":
+            raise ValueError(
+                f"Endpoint {name!r}: profile {profile.id!r} polls (sends {profile.query!r}), "
+                "but the endpoint does not declare `bus: dedicated`. A shared RS-485 bus "
+                "already has a master; a query would collide with it (D57)."
+            )
     return replace(target, sensor_profile=resolved_single, port_profiles=resolved_ports)
 
 
@@ -182,6 +189,11 @@ def unit_for(target: Any, ref: str) -> str:
             from iaiops.connectors.iolink.points import port_channel
 
             unit = port_channel(target, ref)[2].unit
+        elif protocol == "serial":
+            from iaiops.connectors.serial.ops import channel_for
+
+            # A fixed unit only: a unit taken from each line is not one series' unit.
+            unit = channel_for(target, ref).unit
         else:
             return ""
     except Exception as exc:  # noqa: BLE001 — metadata must never abort a collection run

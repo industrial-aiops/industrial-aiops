@@ -200,6 +200,15 @@ def _probe_iolink(t: Any) -> tuple[bool, str]:
     return True, f"IO-Link master={info.get('master', {}).get('productcode', '?')}"
 
 
+def _probe_serial(t: Any) -> tuple[bool, str]:
+    """Open and close the link — exclusive, sends nothing (a poll query is a read
+    the operator asks for, not something `doctor` does on its own)."""
+    from iaiops.connectors.serial.ops import SerialLink
+
+    SerialLink(t).open().close()
+    return True, "serial link opened (nothing sent)"
+
+
 def _probe_mqtt(t: Any) -> tuple[bool, str]:
     from iaiops.connectors.sparkplug.ops import mqtt_read_topic
 
@@ -377,6 +386,45 @@ def _monitor_iolink(t: Any, ref: str) -> tuple[Any, str]:
         return read_value(t, ref), ""
     except InvalidReadingError as exc:
         raise OTNoReadingError(f"IO-Link point {ref}: {exc}", protocol="iolink") from exc
+
+
+def _readref_serial(t: Any, ref: str) -> dict:
+    from iaiops.connectors.serial import ops
+    from iaiops.core.runtime.sensor import InvalidReadingError
+
+    try:
+        return {"value": ops.read_value(t, ref), "good": True}
+    except InvalidReadingError as exc:
+        return {"value": None, "good": False, "reason": str(exc)}
+
+
+def _monitor_serial(t: Any, ref: str) -> tuple[Any, str]:
+    from iaiops.connectors.serial import ops
+    from iaiops.core.runtime.sensor import InvalidReadingError
+    from iaiops.core.runtime.session_factory import OTNoReadingError
+
+    try:
+        return ops.read_value(t, ref), ""
+    except InvalidReadingError as exc:
+        raise OTNoReadingError(f"Serial point {ref}: {exc}", protocol="serial") from exc
+
+
+def _session_serial(t: Any):
+    from iaiops.connectors.serial.ops import serial_session
+
+    return serial_session(t)
+
+
+def _session_read_serial(session: Any, ref: str) -> tuple[Any, str]:
+    from iaiops.connectors.serial.ops import session_read
+
+    return session_read(session, ref)
+
+
+def _where_serial(t: Any) -> str:
+    return str(
+        getattr(t, "serial_port", "") or f"{getattr(t, 'host', '')}:{getattr(t, 'port', '')}"
+    )
 
 
 def _no_reading(exc: Exception, ref: str):
@@ -699,6 +747,15 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
     "hart": _caps(
         _where_default,
         doctor_probe=_probe_hart,
+    ),
+    # Serial ASCII instruments (HLD §17.4): decoded only through a profile.
+    "serial": _caps(
+        _where_serial,
+        doctor_probe=_probe_serial,
+        read_ref=_readref_serial,
+        monitor_read=_monitor_serial,
+        session_builder=_session_serial,
+        session_read=_session_read_serial,
     ),
     # Environmental (layer-2 / optional lib / live-segment) protocols: a doctor
     # miss is informational, not a counted failure, and they expose no generic

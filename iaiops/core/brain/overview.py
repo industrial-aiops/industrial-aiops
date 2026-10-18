@@ -148,6 +148,19 @@ PROTOCOLS: tuple[dict, ...] = (
         "mock 主站验证（tests/test_iolink.py）；真机主站 datapoint 路径 待核实。",
     },
     {
+        "protocol": "serial",
+        "status": "implemented",
+        "library": "pyserial>=3.5 (extra: serial)",
+        "transport": "RS-232 / RS-485 / RS-422 / USB serial, or raw TCP via a serial device server",
+        "auth": "none (exclusive port open; poll sends only the profile's query)",
+        "read_tools": ["serial_sniff"],
+        "write_tools": [],
+        "params": ["serial_port+baudrate | host+port", "sensor_profile", "bus", "stale_after_s"],
+        "requirements": "需要 `protocol: serial` 传感器描述（profile）解码；listen 必须写 "
+        "stale_after_s；poll 必须 `bus: dedicated`。pty + TCP 模拟器验证"
+        "（tests/test_serial_*.py）；真机型号覆盖 待核实。",
+    },
+    {
         "protocol": "mqtt",
         "status": "implemented",
         "library": "paho-mqtt",
