@@ -15,7 +15,7 @@ description: >-
 
 # iaiops-sensor — 传感器 edition（Modbus + IO-Link + MQTT/Sparkplug + 传感器工具 + 脑）
 
-启动：`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`（= modbus + iolink + sparkplug + 传感器工具 + 脑）。
+启动：`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`（= modbus + iolink + sparkplug + serial + 传感器工具 + 脑）。
 安装：`pip install iaiops[sensor]`（一次拉齐 Modbus / IO-Link / MQTT 依赖）。
 设计依据：HLD §16（连得上 / 读得懂 / 采得准）、§17（入口与描述库）。
 
@@ -53,6 +53,9 @@ description: >-
 - `modbus_detect_byte_order` — float32 / 32 位字序不确定时先探测，**描述里必须写明字序**
 - `modbus_health_summary` — 支持带类型的点（`ir:0:float32:CDAB`）；`ch:` 通道尚不支持（会返回 unknown）
 
+### 串口 ASCII（只读）
+- `serial_sniff` — 听一段时间、返回原始行（latin-1 显示每个字节）；**什么都不发**；独占打开，端口被占用就拒绝
+
 ### IO-Link（只读；主站 JSON 接口）
 - `iolink_master_info` `iolink_ports` `iolink_device_info` `iolink_read_pdin` `iolink_read_isdu` `iolink_scan`
 
@@ -71,6 +74,7 @@ description: >-
 |---|---|---|---|---|
 | Modbus RTU / TCP | `pymodbus>=3.5,<4`、`pyserial>=3.5` | Modbus Application Protocol；FC01–FC04；16/32 位与 float32 全部字序 | RS-485 / RS-232 / RS-422 / USB 串口；TCP | 进程内假客户端；实验机局域网上对**自建** Modbus 模拟器走查（验证阶梯 2b，非第三方设备；float32 CDAB、NaN、超量程） |
 | IO-Link 主站 | `requests>=2.31,<3` | IO-Link 1.1 过程数据 + IODD 位偏移约定；ifm IoT-Core JSON（`待核实`：只对模拟主站验证过；其他厂商路径同样 `待核实`） | HTTP | 进程内模拟主站；实验机局域网上对**自建**模拟主站走查（2b；哨兵、换传感器、PD 长度） |
+| 串口 ASCII | `pyserial>=3.5` | 按描述逐份 `待核实`（行尾 / 编码 / 正则 / 状态码） | RS-232 / RS-485 / RS-422 / USB 串口；串口服务器原始 TCP | pty 对（真实 pyserial 路径）+ 本机 TCP；实验机局域网上对**自建**称重模拟器走查（2b，非第三方设备） |
 | MQTT / Sparkplug | `paho-mqtt>=2.0,<3`、`protobuf>=4.25,<8` | Sparkplug B；纯 MQTT 只有陈旧判断 | TCP（TLS / 代理认证 `待核实`） | 真实代理录制回放 |
 
 真实 IO-Link 主站的身份字段编码、真实厂商 IODD 仍 `待核实`。
@@ -84,6 +88,22 @@ description: >-
 | `ir:0:float32:CDAB` / `hr:12:int16*0.1` | 带类型的 Modbus 点：表 / 地址 / 类型 / 字序 / 比例（**32 位必须写字序**） |
 | `di:3:low` / `co:0:high` | 开关量（NPN / PNP / 干接点，接在 DI 模块上）：离散输入 / 线圈 + **必填的有效电平**；值 = 1 动作 / 0 未动作。常闭开关写 `low` |
 | `40` | 裸地址：一个保持寄存器按 uint16 读 —— 兼容旧配置，readiness 标「未声明类型」 |
+
+## 串口 ASCII 仪表（称重仪表、气体分析仪、扫码枪、老式测量仪）
+
+接法：本机串口（RS-232 / RS-485 / RS-422 / USB 虚拟串口：`serial_port`、`baudrate`…）或**串口服务器**的原始 TCP
+（`host` / `port`）—— 同一份描述通用。端点 `protocol: serial` + `sensor_profile:`，点位写 `ch:<通道名>`。
+
+1. **先看原始行**：`serial_sniff`（CLI `iaiops serial sniff <endpoint>`）—— 只听、**什么都不发**、不需要描述。
+2. **写描述**：`framing`（行尾、编码）、`mode: listen`（仪表持续推送）或 `poll` + `query`（只能发这一条）；
+   通道 `layout: {pattern: <匹配整行的正则，含 value 组>}`、`status`（ok / invalid 状态码）、`unit` / `unit_from`。
+3. **规矩**：
+   - 串口**独占**打开；被别的程序占用就拒绝，**绝不抢**（现场称重软件可能正用着它）。
+   - `poll` 只发描述里写死的查询，且端点必须声明 `bus: dedicated`；`bus: shared`（RS-485 上已有主站）只能旁听。
+     **去皮 / 清零 / 校准不是读，不能写进 query。**
+   - `listen` 必须写 `stale_after_s`；超时没有新行 = 没有读数（盲区），不沿用上一条。
+   - 不稳定 / 超载状态、没有完全匹配的行、单位与声明不符 —— 一律盲区，不「尽量解析」。
+   - 采集要求通道有**固定 `unit`**：只靠每行自带单位的通道，kg 和 g 会混进同一条序列。
 
 ## 开关量传感器（NPN / PNP / 干接点）
 
@@ -99,4 +119,4 @@ description: >-
   同一 server 带的 `mqtt_publish` 是受 MOC 约束的写，见上。
 - **描述不是背书**：`待核实` 的描述只表示「照资料这样解码」，报告里一直带着这个等级。
 - **语义仍由人给**：描述只管「读得懂」，不说哪个通道是产量计数（D16 / D43）。
-- 串口 ASCII 仪表（称重仪表、气体分析仪等发文本行的设备）在 HLD §17 E4，**尚未提供**。
+- 串口 ASCII 仪表见上一节；IO-Link 开关量（SIO）模式与端口读时自动建议描述仍是后续。

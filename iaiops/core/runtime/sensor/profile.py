@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-PROTOCOLS = ("modbus", "iolink")
+PROTOCOLS = ("modbus", "iolink", "serial")
 #: Where a profile came from. It travels into reports with ``verified``.
 SOURCES = ("iodd", "datasheet", "manual", "community")
 #: How far the decoding has been checked against a real device.
@@ -124,6 +124,12 @@ class Channel:
     invalid: tuple[Sentinel, ...] = ()
     accuracy: Accuracy | None = None
     response_ms: float | None = None
+    #: Serial ASCII channels only (HLD §17.4): the pattern group holding the unit,
+    #: and the status-code group with its ok / invalid codes.
+    unit_from: str = ""
+    status_field: str = ""
+    status_ok: tuple[str, ...] = ()
+    status_invalid: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -153,6 +159,10 @@ class SensorProfile:
     provenance: tuple[tuple[str, str], ...] = ()
     #: Where the decoding came from when it is a copy, e.g. "modbus-template:<name>".
     derived_from: str = ""
+    #: Serial ASCII only: how bytes become lines, listen / poll, the one query.
+    framing: Any = None
+    mode: str = ""
+    query: str = ""
 
     def channel(self, name: str) -> Channel:
         for candidate in self.channels:
@@ -239,12 +249,14 @@ def _reject_unknown(raw: dict, allowed: tuple[str, ...], where: str) -> None:
 
 TOP_KEYS = (
     "id", "protocol", "source", "verified", "channels", "match", "pd_bits",
-    "description", "caveat", "provenance", "derived_from",
+    "description", "caveat", "provenance", "derived_from", "framing", "mode", "query",
 )  # fmt: skip
 CHANNEL_KEYS = (
     "name", "layout", "unit", "signal", "scale", "offset", "range", "invalid",
-    "accuracy", "response_ms",
+    "accuracy", "response_ms", "unit_from", "status",
 )  # fmt: skip
+#: Keys only a serial ASCII channel may carry.
+SERIAL_CHANNEL_KEYS = ("unit_from", "status")
 
 
 def _bit_layout(raw: dict, where: str) -> BitLayout:
@@ -276,6 +288,10 @@ def _layout(raw: Any, protocol: str, where: str) -> ModbusLayout | BitLayout | S
         raise ValueError(f"{where}: layout is required (a mapping).")
     if protocol == "iolink":
         return _bit_layout(raw, where)
+    if protocol == "serial":
+        from iaiops.core.runtime.sensor.serial_profile import ascii_layout
+
+        return ascii_layout(raw, where)
     table = raw.get("table")
     if isinstance(table, str) and table.lower() in SWITCH_TABLES:
         extra = sorted(k for k in raw if k not in ("table", "address", "active"))
@@ -370,6 +386,28 @@ def _switch_channel(raw: dict, name: str, layout: SwitchLayout, where: str) -> C
     )
 
 
+def _serial_channel(raw: dict, name: str, layout: Any, scale: float, where: str) -> Channel:
+    """A serial ASCII channel: pattern-decoded text; raw-value sentinels do not apply."""
+    from iaiops.core.runtime.sensor.serial_profile import channel_fields
+
+    if "invalid" in raw:
+        raise ValueError(
+            f"{where}: invalid (raw sentinels) does not apply to text — use status codes."
+        )
+    response = raw.get("response_ms")
+    return Channel(
+        name=name,
+        layout=layout,
+        signal=_choice(raw, "signal", SIGNALS, where),
+        scale=scale,
+        offset=_number(raw.get("offset", 0.0), "offset", where),
+        range=_range(raw.get("range"), where),
+        accuracy=_accuracy(raw.get("accuracy"), where),
+        response_ms=None if response is None else _number(response, "response_ms", where),
+        **channel_fields(raw, layout, where),
+    )
+
+
 def _channel(raw: Any, protocol: str, index: int) -> Channel:
     if not isinstance(raw, dict):
         raise ValueError(f"channel #{index + 1}: must be a mapping.")
@@ -383,6 +421,11 @@ def _channel(raw: Any, protocol: str, index: int) -> Channel:
     layout = _layout(raw.get("layout"), protocol, where)
     if isinstance(layout, SwitchLayout):
         return _switch_channel(raw, name, layout, where)
+    if protocol == "serial":
+        return _serial_channel(raw, name, layout, scale, where)
+    misplaced = sorted(k for k in SERIAL_CHANNEL_KEYS if k in raw)
+    if misplaced:
+        raise ValueError(f"{where}: {', '.join(misplaced)} only apply to serial ASCII channels.")
     invalid = _sentinels(raw.get("invalid"), where)
     width = layout.words * 16 if isinstance(layout, ModbusLayout) else layout.bit_length
     for sentinel in invalid:
@@ -486,6 +529,19 @@ def _verified_evidence(raw: dict, where: str) -> tuple[tuple[str, str], ...]:
     return evidence
 
 
+def _serial_terms(raw: dict, protocol: str, where: str) -> tuple[Any, str, str]:
+    """framing / mode / query: required shape on serial, refused elsewhere."""
+    present = sorted(k for k in ("framing", "mode", "query") if k in raw)
+    if protocol != "serial":
+        if present:
+            raise ValueError(f"{where}: {', '.join(present)} only apply to serial profiles.")
+        return None, "", ""
+    from iaiops.core.runtime.sensor.serial_profile import framing, mode_and_query
+
+    mode, query = mode_and_query(raw, where)
+    return framing(raw.get("framing"), where), mode, query
+
+
 def parse_profile(raw: Any) -> SensorProfile:
     """Validate a profile mapping into frozen objects; raise ``ValueError`` on any defect."""
     if not isinstance(raw, dict):
@@ -509,6 +565,7 @@ def parse_profile(raw: Any) -> SensorProfile:
                 raise ValueError(
                     f"{where}: channel {channel.name!r} ends at bit {end}, past pd_bits {pd_bits}."
                 )
+    framing, mode, query = _serial_terms(raw, protocol, where)
     names = [c.name for c in channels]
     duplicates = sorted({n for n in names if names.count(n) > 1})
     if duplicates:
@@ -526,6 +583,9 @@ def parse_profile(raw: Any) -> SensorProfile:
         caveat=str(raw.get("caveat") or "").strip(),
         provenance=_verified_evidence(raw, where),
         derived_from=str(raw.get("derived_from") or "").strip(),
+        framing=framing,
+        mode=mode,
+        query=query,
     )
 
 

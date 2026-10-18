@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Added — serial ASCII instruments: a `serial` connector (HLD §17.4 E4, D53–D58)
+
+- **Scales, gas analysers, barcode readers, legacy meters** that send a text line
+  per reading — over RS-232 / RS-485 / RS-422 / USB serial (`pyserial`) or a serial
+  device server's raw TCP — are a new protocol, `serial`. Decoding is a profile
+  (`protocol: serial`): `framing`, `mode: listen | poll`, the one `query` poll may
+  send, and per channel a regex matching the WHOLE line with a `value` group,
+  status codes and the unit. One profile works on every wire (D58).
+- **Refuse rather than guess.** A line that does not fully match, a status code
+  that means unstable / overload or is unknown, a unit that disagrees with the
+  declared one, an over-long or undecodable line: all gaps with the reason, never
+  "parsed as best we can" (D55). Listen needs `stale_after_s`: a silent instrument
+  is no reading, never the last value.
+- **Safety.** The port is opened exclusively; a port another program holds is
+  refused, never taken (D53). Poll sends only the profile's query and needs
+  `bus: dedicated` on the endpoint — a poll profile on a `shared` or undeclared
+  bus fails at config load (D57); tare / zero / calibrate do not belong in a query
+  (D54). Collection requires a fixed unit (kg and g must not share a series).
+- **Tools.** `iaiops serial sniff` / MCP `serial_sniff` show raw lines and send
+  nothing; decoded reads through `sensor_read_channel` / `iaiops sensor read`;
+  collection with a held link. `IAIOPS_MCP=serial` and the `sensor` menu include
+  it; `pip install iaiops[serial]` (also in `iaiops[sensor]`). 204 governed tools.
+- **Found by an adversarial review before merge, all with tests.** A held listen
+  link reads continuously, so lines buffered while nobody asked are not stored as
+  fresh; the first line after open is dropped (it may be the tail of a line, so
+  `2.50` of `12.50`); poll flushes the input before sending, so a late answer to
+  the previous query is not the new reading; a value of `1_000` or a missing group
+  is refused, not passed to `float()`; an instrument that answers nothing is a
+  connection fault, not a reachable device with a gap; a serial port without
+  `baudrate` or a TCP device server without `port` is refused at config load (no
+  silent 9600 / 4840 default); a non-ASCII terminator is refused; `bus` is refused
+  on non-serial endpoints; readiness and doctor judge serial endpoints.
+
 ## 0.30.0 — 2026-10-18
 
 The sensor layer becomes usable end to end — sensor profiles bound to endpoints,

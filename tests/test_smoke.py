@@ -467,6 +467,22 @@ def test_full_tool_surface_matches_static_count(full_tool_registry):
 
 
 @pytest.mark.unit
+def test_the_readmes_state_the_registrys_protocol_count():
+    """'speaks N field protocols' is a fact too: it said 14 after serial made 15."""
+    from iaiops.core.brain.overview import protocols_supported
+
+    count = len(protocols_supported()["implemented_protocols"])
+    root = pathlib.Path(__file__).parent.parent
+    for name, pattern in (
+        ("README.md", r"\*\*(\d+) field protocols\*\*"),
+        ("README.zh-CN.md", r"\*\*(\d+) 种现场协议\*\*"),
+    ):
+        claimed = re.search(pattern, (root / name).read_text(encoding="utf-8"))
+        assert claimed, f"{name} no longer states a protocol count in the expected form"
+        assert int(claimed.group(1)) == count, f"{name} says {claimed.group(1)}; registry {count}"
+
+
+@pytest.mark.unit
 def test_every_mcp_tool_is_governed_by_harness(full_tool_registry):
     """Every registered tool callable must carry the @governed_tool marker.
 
@@ -596,6 +612,7 @@ def test_protocols_supported_lists_all():
         "bacnet",
         "hart",
         "iolink",
+        "serial",
     }
     assert set(out["roadmap_stubs"]) == set()
     assert "asset_inventory" in out["analytics"]

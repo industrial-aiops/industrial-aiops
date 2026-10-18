@@ -134,4 +134,5 @@ def test_session_supported_set_is_stable() -> None:
         "opcua",
         "s7",
         "secsgem",
+        "serial",
     ]

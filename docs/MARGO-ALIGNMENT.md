@@ -23,7 +23,7 @@ layer — so the two stack cleanly instead of competing:
 │    (any Margo-compliant orchestrator)                              │
 ├──────────────────────────────────────────────────────────────────┤
 │  Edge APPLICATION          — iaiops: governed OT read tap +         │  ← where iaiops sits
-│    14-protocol normalization + cross-protocol RCA, as MCP tools     │     (our lane)
+│    15-protocol normalization + cross-protocol RCA, as MCP tools     │     (our lane)
 │    → optional on-box LLM (air-gapped brain), data never leaves plant │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -57,7 +57,7 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
 
 - **Governed by construction** — audit / budget / risk-tier / undo + MOC gating already wrap every
   tool; a Margo host wanting a *safe* OT workload gets governance for free.
-- **Neutral** — 14 field protocols in this package, no vendor lock, MIT. Margo's whole thesis is
+- **Neutral** — 15 field protocols in this package, no vendor lock, MIT. Margo's whole thesis is
   multi-vendor neutrality.
 - **Air-gap friendly** — pure-Python core, offline wheelhouse install, encrypted local secrets,
   optional on-box LLM brain → data never leaves the plant. Fits an immutable edge host.
@@ -160,7 +160,7 @@ advances Work item §4.2. Watch the Events page for **Plug Fests** (interop test
 > **Subject:** Governed, MCP-based OT diagnostics as a Margo edge application — reference + feedback
 >
 > Hi Margo community — I maintain **Industrial-AIOps** (`iaiops`, MIT, on PyPI + the MCP Registry),
-> a vendor-neutral OT **read-first** data tap across ~14 field protocols (OPC-UA, Modbus, S7comm,
+> a vendor-neutral OT **read-first** data tap across ~15 field protocols (OPC-UA, Modbus, S7comm,
 > EtherNet/IP, PROFINET-DCP, BACnet/IP, MTConnect, MQTT-Sparkplug, HART-IP, …) plus a cross-protocol
 > RCA "brain", all exposed as **governed MCP tools** (audit / budget / risk-tier / undo + change-mgmt
 > gating on the few writes).
