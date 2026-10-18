@@ -217,7 +217,7 @@ def test_7_an_unhashable_type_is_a_profile_error():
                 "id": "x",
                 "protocol": "modbus",
                 "source": "manual",
-                "verified": "bench",
+                "verified": "待核实",
                 "channels": [
                     {
                         "name": "c",

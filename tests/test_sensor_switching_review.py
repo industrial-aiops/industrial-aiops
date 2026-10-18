@@ -30,7 +30,7 @@ def _profile(layout, **extra):
         "id": "presence",
         "protocol": "modbus",
         "source": "manual",
-        "verified": "bench",
+        "verified": "待核实",
         "channels": [{"name": "part", "layout": layout, "signal": "event", **extra}],
     }
 

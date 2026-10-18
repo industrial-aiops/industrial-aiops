@@ -24,7 +24,7 @@ def _channel(layout, **extra):
         "id": "t",
         "protocol": "iolink" if "bit_offset" in layout else "modbus",
         "source": "manual",
-        "verified": "bench",
+        "verified": "待核实",
         "channels": [{"name": "c", "layout": layout, "unit": "u", "signal": "level", **extra}],
     }
     return parse_profile(raw).channel("c")

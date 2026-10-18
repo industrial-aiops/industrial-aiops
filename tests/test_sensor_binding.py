@@ -20,7 +20,7 @@ MODBUS_PROFILE = {
     "id": "force",
     "protocol": "modbus",
     "source": "manual",
-    "verified": "bench",
+    "verified": "待核实",
     "channels": [
         {
             "name": "fz",

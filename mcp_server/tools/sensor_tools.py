@@ -114,3 +114,63 @@ def sensor_read_channel(ref: str, endpoint: Optional[str] = None) -> dict:
     from iaiops.core.runtime.sensor import probe
 
     return probe.read_channel(_target(endpoint), ref)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def sensor_profile_list(
+    protocol: Optional[str] = None,
+    vendor_id: Optional[int] = None,
+    device_id: Optional[int] = None,
+) -> dict:
+    """[READ][risk=low] List the shipped sensor profile library (HLD §17.3).
+
+    Entries are ``verified: 待核实`` unless they carry provenance evidence. For an
+    IO-Link device, pass the vendor/device id read with ``iolink_device_info`` to
+    find candidates — a match is a SUGGESTION: one device id can run several
+    process-data layouts, and binding stays a person's edit of config.yaml.
+
+    Args:
+        protocol: modbus | iolink (optional).
+        vendor_id: IO-Link vendor id (optional).
+        device_id: IO-Link device id (optional).
+
+    Returns dict: {profiles:[{id, category, protocol, verified, source,
+        description, caveat, vendor_id, device_id, derived_from, channels}]}.
+    """
+    from iaiops.core.runtime.sensor import library
+
+    entries = library.list_profiles(protocol=protocol, vendor_id=vendor_id, device_id=device_id)
+    # No install path: a profile is COPIED (sensor_profile_show → save), never bound
+    # in place — an upgrade would silently change the decoding under a config.
+    return {"profiles": [{k: v for k, v in e.items() if k != "path"} for e in entries]}
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def sensor_profile_show(profile_id: str) -> dict:
+    """[READ][risk=low] Show one library profile: summary plus its YAML text.
+
+    Writes nothing. To use it, a person saves the YAML, checks one reading
+    against the device's own display, and binds it in config.yaml.
+
+    Args:
+        profile_id: An id from ``sensor_profile_list``.
+
+    Returns dict: {summary (as sensor_profile_check), yaml, next}; {error, known}
+        for an unknown id.
+    """
+    from iaiops.core.runtime.sensor import library, profile_summary
+
+    try:
+        path, profile = library.get(profile_id)
+    except library.ProfileNotFoundError as exc:
+        return {"error": str(exc), "known": exc.known}
+    return {
+        "summary": profile_summary(profile),
+        "yaml": path.read_text("utf-8"),
+        "next": "Save this YAML to a file, check one reading against the device's display, "
+        "then bind that file (not the installed one) under sensor_profile in config.yaml.",
+    }

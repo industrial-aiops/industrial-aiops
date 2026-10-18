@@ -1,0 +1,75 @@
+# Library profile derived from the Modbus template `eastron_sdm630` — keep the two in step
+# (tests/test_sensor_library.py checks it). Copy it (`iaiops sensor show <id> --out
+# <file>`), check one reading against the device's display, then bind the copy.
+id: energy-meter-eastron-sdm630
+protocol: modbus
+source: community
+verified: 待核实
+description: Eastron SDM630 3-phase energy meter (FC04 input regs, float32 ABCD).
+caveat: 待核实 — community register map; exact addresses vary by firmware revision.
+derived_from: modbus-template:eastron_sdm630
+channels:
+- name: voltage_l1
+  layout:
+    table: input
+    address: 0
+    type: float32
+    order: ABCD
+  unit: V
+  signal: level
+- name: voltage_l2
+  layout:
+    table: input
+    address: 2
+    type: float32
+    order: ABCD
+  unit: V
+  signal: level
+- name: voltage_l3
+  layout:
+    table: input
+    address: 4
+    type: float32
+    order: ABCD
+  unit: V
+  signal: level
+- name: current_l1
+  layout:
+    table: input
+    address: 6
+    type: float32
+    order: ABCD
+  unit: A
+  signal: level
+- name: current_l2
+  layout:
+    table: input
+    address: 8
+    type: float32
+    order: ABCD
+  unit: A
+  signal: level
+- name: current_l3
+  layout:
+    table: input
+    address: 10
+    type: float32
+    order: ABCD
+  unit: A
+  signal: level
+- name: power_total
+  layout:
+    table: input
+    address: 52
+    type: float32
+    order: ABCD
+  unit: W
+  signal: level
+- name: frequency
+  layout:
+    table: input
+    address: 70
+    type: float32
+    order: ABCD
+  unit: Hz
+  signal: level

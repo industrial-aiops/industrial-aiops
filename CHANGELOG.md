@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### Added — a sensor profile library (HLD §17.3 E3, D52)
+
+- **Profiles ship with the package** under `iaiops/sensor_profiles/<category>/`:
+  three energy meters and two PV inverters to start, each derived from the Modbus
+  register-map template of the same device (`derived_from:
+  modbus-template:<name>`) and marked `verified: 待核实` like the template. Status
+  codes with no unit are left out and named in the description. Templates whose
+  own caveat says their offsets are placeholders, vendor-specific or configured
+  per project are NOT turned into entries — that would ship a guess as a profile.
+- **`iaiops sensor list | show`** and MCP **`sensor_profile_list | show`** (read-only):
+  filter by protocol or IO-Link vendor/device id — a match is a suggestion (one
+  device id can run several process-data layouts). `show --out <file>` copies an
+  entry to edit, check against the device's display and bind; nothing is bound
+  for you (D51).
+- **Profiles may carry `description`, `provenance` and `derived_from`.**
+  Provenance, when present, must name who checked, which device and what was
+  compared; a library entry above 待核实 must have it. Source vocabulary gains
+  `community` (a community register map).
+- **CI guards:** every entry loads, ids are unique, and a template-derived entry
+  matches its template address by address, type, word order, scale and unit.
+  203 governed tools.
+- **Fixed before release (adversarial review):** `iaiops sensor show <id> >
+  file.yaml` wrote YAML broken by terminal wrapping — it now prints the file byte
+  for byte. The drift guard checks both directions (no channel, range, sentinel or
+  accuracy added beyond the template) and the template caveat is a field shown by
+  `list`, `check` and the MCP summary, not only a YAML comment. **Profiles refuse
+  unknown keys** (a misspelt `derived-from:` used to skip every guard), and
+  `verified` and `provenance` must agree for every profile: bench / field needs
+  evidence, evidence on 待核实 is refused; provenance values are one line of at
+  most 200 characters, `date` is YYYY-MM-DD, a blank optional field is dropped.
+  An unknown id or protocol filter is a clear error; MCP results no longer carry
+  the installed path (copy a profile, never bind the installed file).
 ### Fixed — an OPC UA text value was stored as a Python repr
 
 - A LocalizedText value (a state machine's `CurrentState`, for one) was read,

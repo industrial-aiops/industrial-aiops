@@ -37,7 +37,7 @@ def _profile_channel(**extra):
         "id": "t",
         "protocol": "modbus",
         "source": "manual",
-        "verified": "bench",
+        "verified": "待核实",
         "channels": [
             {
                 "name": "c",

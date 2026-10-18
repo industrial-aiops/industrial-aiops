@@ -1206,8 +1206,11 @@ RS-485 传感器的现实前提：RS-485 只是物理层。上面跑的是 Modbu
   证据写在描述的 `provenance` 字段里，随 `check` 输出。
 - 进库的是**事实**（寄存器地址、位布局、比例、哨兵），不是厂商文件：**不随包分发 IODD / 规格书原件**。
   厂商名只出现在描述文件自身（品牌隔离，§16.3）。
-- IO-Link 端口读到 vendor/device id 时，`sensor_read_channel` / `iolink ports` 可以**建议**库里匹配的描述
-  （同一设备号可能有多种过程数据布局，见 #249 的 `pd_bits`）—— 只建议，不自动绑定。
+- IO-Link 端口读到 vendor/device id 时可以**建议**库里匹配的描述（同一设备号可能有多种过程数据布局，
+  见 #249 的 `pd_bits`）—— 只建议，不自动绑定。**E3 交付的是按 vendor/device id 过滤的 `list`**；
+  读端口时自动带出建议仍是后续。
+- `verified` 与 `provenance` 必须一致**对所有描述生效**（不只描述库）：bench / field 没有证据就拒绝加载，
+  `待核实` 却带证据也拒绝；描述里的未知字段一律拒绝（拼错的 `derived-from:` 不能悄悄让一份描述逃过守卫）。
 - CI 守卫：库里每一份描述都必须能被 `parse_profile` 加载、`verified` 与 `provenance` 一致。
 
 ### 17.4 通用接口与串口 ASCII 仪表（新 connector `serial`）
