@@ -107,6 +107,10 @@ def decode_bits(channel: Channel, data: bytes, expected_bits: int | None = None)
     if not isinstance(layout, BitLayout):
         raise TypeError(f"Channel {channel.name!r} is not a bit-field channel.")
     available = len(data) * 8
+    if not available:
+        # Nothing at all is "no process data" (no device, no PD yet), not another
+        # layout: calling it a description mismatch would blame the profile.
+        raise InvalidReadingError(f"{channel.name}: the device sent no process data.")
     if expected_bits is not None and available != expected_bits:
         raise DescriptionMismatchError(
             f"{channel.name}: the device sent {available} bits of process data; the profile "

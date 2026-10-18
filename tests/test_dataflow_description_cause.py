@@ -118,10 +118,46 @@ def test_another_process_data_layout_is_a_description_cause(master):
     _assert_config_headline(out, "48")
 
 
-def test_an_unreadable_identity_is_not_blamed_on_the_field(master, monkeypatch):
-    monkeypatch.setattr(iolink_ops, "device_info", lambda target, port: {"device": {}})
+def test_an_identity_in_an_unknown_encoding_is_a_description_cause(master, monkeypatch):
+    """The master answered, in an encoding the check cannot read (待核实): the
+    profile's identity requirement cannot be applied — not a field fault."""
+    monkeypatch.setattr(
+        iolink_ops,
+        "device_info",
+        lambda target, port: {"device": {"vendorid": "acme", "deviceid": "x-1"}},
+    )
     out = diagnostics.diagnose_dataflow(_iolink(), "port2/distance")
     _assert_config_headline(out, "identity")
+
+
+def test_an_unplugged_sensor_is_a_field_cause_and_rca_weighs_it(master, monkeypatch):
+    """Review: a cut cable makes the master REJECT the identity reads (503, no
+    device). That was labelled a configuration cause and dropped from RCA."""
+    monkeypatch.setattr(
+        iolink_ops,
+        "device_info",
+        lambda target, port: {
+            "device": {},
+            "unavailable": {
+                "vendorid": "IO-Link master rejected '…/vendorid/getdata' with code 503",
+                "deviceid": "IO-Link master rejected '…/deviceid/getdata' with code 503",
+            },
+        },
+    )
+    out = diagnostics.diagnose_dataflow(_iolink(), "port2/distance")
+    assert out["verdict"] == "comms_ok_bad_quality", out
+    assert "no device answered" in out["diagnosis"]
+    contributions: dict = {}
+    _score_dataflow(out, contributions)
+    assert "sensor_fault" in contributions
+
+
+def test_an_empty_process_data_image_is_not_another_layout(master):
+    """Review: 0 bits is "no process data", not "the profile was written for 32"."""
+    master["pdin"] = b""
+    out = diagnostics.diagnose_dataflow(_iolink(), "port2/distance")
+    assert out["verdict"] == "comms_ok_bad_quality", out
+    assert "no process data" in out["diagnosis"]
 
 
 def test_a_port_with_no_profile_is_a_description_cause(master):

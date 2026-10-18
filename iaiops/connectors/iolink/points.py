@@ -13,7 +13,8 @@ device-identity datapoints) is cached per master and port for
 :data:`IDENTITY_TTL_S`, and forgotten as soon as a read on that port fails — a
 swap goes through a disconnect, so it is usually re-checked at once and at worst
 within the window. A master that will not report the identity is a refusal, not
-a skipped check.
+a skipped check: rejected identity reads mean no device answered (a field
+cause); an identity in an encoding the check cannot read is a description cause.
 
 **Process-data length.** If the profile states ``pd_bits``, an image of another
 length is refused: offsets count from the end of the image, so another active
@@ -40,6 +41,7 @@ from iaiops.core.runtime.sensor import (
     Channel,
     DescriptionMismatchError,
     DescriptionUnusableError,
+    InvalidReadingError,
     SensorProfile,
     decode_bits,
 )
@@ -145,8 +147,18 @@ def verify_identity(target: Any, port: int, profile: SensorProfile) -> None:
         return
     from iaiops.connectors.iolink import ops
 
-    device = (ops.device_info(target, port) or {}).get("device") or {}
+    info = ops.device_info(target, port) or {}
+    device = info.get("device") or {}
     vendor, device_id = _as_int(device.get("vendorid")), _as_int(device.get("deviceid"))
+    rejected = sorted(k for k in ("vendorid", "deviceid") if k in (info.get("unavailable") or {}))
+    if rejected:
+        # The master REFUSED the identity reads — an empty port, a cut cable, a
+        # port out of IO-Link mode. A field cause, and RCA must be able to weigh
+        # it; calling it a configuration problem hid an unplugged sensor.
+        raise InvalidReadingError(
+            f"IO-Link port {port}: no device answered — the master rejected the identity "
+            f"read ({', '.join(rejected)}). Check the sensor and its cable. Not decoded."
+        )
     if vendor is None or device_id is None:
         raise DescriptionMismatchError(
             f"IO-Link port {port}: the master did not report a readable device identity "

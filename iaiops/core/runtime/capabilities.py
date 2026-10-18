@@ -395,7 +395,7 @@ def _readref_serial(t: Any, ref: str) -> dict:
     try:
         return {"value": ops.read_value(t, ref), "good": True}
     except InvalidReadingError as exc:
-        return {"value": None, "good": False, "reason": str(exc)}
+        return _not_good(exc)
 
 
 def _monitor_serial(t: Any, ref: str) -> tuple[Any, str]:
@@ -752,6 +752,9 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
     "serial": _caps(
         _where_serial,
         doctor_probe=_probe_serial,
+        # Open and close, send nothing — without it `diag dataflow` said
+        # "cannot connect" for a link that opened fine.
+        diagnose_connect=_probe_serial,
         read_ref=_readref_serial,
         monitor_read=_monitor_serial,
         session_builder=_session_serial,

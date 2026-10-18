@@ -47,7 +47,10 @@ or an unjudged point, look like something else.
   a `ch:` / `port<N>/` ref with no profile or no such channel, a profile file gone
   or edited to another protocol. Before, these read as "sensor, field wiring" or
   "wrong address / the point does not exist", and the real reason survived only in
-  the hop detail. RCA does not weigh the new verdict as a site cause.
+  the hop detail. RCA does not weigh the new verdict as a site cause. What is NOT a
+  description cause stays a field reading RCA can weigh: identity reads the master
+  rejects (no device answered — an unplugged sensor, a cut cable), and an empty
+  process-data image ("no process data", not "another layout").
 - **IO-Link: "process data invalid" is a gap with its reason.** An ifm IoT-Core
   master answers `pdin/getdata` with code 530 ("invalid process data", ifm AL1352
   operating instructions 80284138/03, *IoT Core: Diagnostic codes*). That was
@@ -55,6 +58,16 @@ or an unjudged point, look like something else.
   or the adr path wrong") and as "wrong address" in diagnosis. It is now a refused
   reading — a gap in collection, bad quality in diagnosis. Other masters'
   encoding (plain-REST flavor) is `待核实`; no field name is guessed.
+- **`diag dataflow` no longer says "cannot connect" for a protocol it has no probe
+  for.** IO-Link and serial had a per-ref read but no connect probe, so a healthy
+  master or an open serial link was diagnosed as "network path down" — and RCA
+  weighed that as `comms_loss`. Both now probe (IO-Link: the master identity read;
+  serial: open and close the link, send nothing, as `doctor` does). A protocol
+  with no probe at all answers `no_connect_probe_in_this_build`, which RCA does not
+  weigh. A refused reading's own reason ("no target", "invalid process data",
+  "unstable") now appears in the diagnosis and the read hop, which said `None`.
+  Serial profile refusals (no profile, no such channel) are description causes too.
+  Found on a lab LAN run with the IO-Link master simulator.
 - **Health summaries share one headline rule and say how much they saw.** Both
   `modbus_health_summary` and `opcua_health_summary` now return `coverage`
   (`complete` / `partial` / `none`) next to `overall`, so an alarm on one point
