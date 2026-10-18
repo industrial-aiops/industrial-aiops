@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+### Security
+
+- **`sensor_import_iodd` and `sensor_profile_check` read only under
+  `$IAIOPS_HOME` or the config directory.** In 0.30.0 both MCP tools opened any
+  `.xml` / `.yaml` path on the host the agent named, and a profile's validation
+  error could quote the file's values — an agent, or a prompt injected into what
+  it read, could use them to read files outside the product's own directories.
+  The path is now resolved (`~`, `..`, every symlink) and refused before the
+  file is opened unless it lies under `$IAIOPS_HOME` or the config directory
+  (`~/.iaiops`) — not the directory of an `IAIOPS_CONFIG` override, which may be
+  `/etc`, `/tmp` or the working directory, and never a root that is `/` or holds
+  the home directory. The refusal names the roots and says nothing about the
+  file — not its content, not whether it exists. A YAML syntax error in a
+  profile now reports line, column and problem without quoting the line or a
+  tag/alias name, and a non-UTF-8 file says only that (CLI too). The CLI (`iaiops sensor import-iodd | check`) still
+  reads any path the operator types. **Upgrade:** an agent workflow that passed
+  an IODD or profile from elsewhere (e.g. `~/Downloads`) must copy it under
+  `$IAIOPS_HOME` first.
+
+### Docs
+
+- README: the five `sensor_*` MCP tools in the capability matrix and the
+  `sensor` edition (`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`) in the per-edition
+  tool list. README.zh-CN: the typed-point (HLD §16), IO-Link collection and
+  sensor-library paragraphs, the serial ASCII instrument paragraph, and the
+  `sensor` edition in both edition lists; `serial_sniff` in the README matrix.
 ### Added — serial ASCII instruments: a `serial` connector (HLD §17.4 E4, D53–D58)
 
 - **Scales, gas analysers, barcode readers, legacy meters** that send a text line

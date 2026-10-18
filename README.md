@@ -287,6 +287,12 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten — each o
 | IO-Link | `iolink_read_pdin` | process-data-in (raw hex + bytes) | R | low | {hex, bytes[]} |
 | IO-Link | `iolink_read_isdu` | ISDU acyclic parameter read | R | low | {index, subindex, value} |
 | IO-Link | `iolink_scan` | master + all connected devices | R | low | {master{}, devices[]} |
+| Serial ASCII | `serial_sniff` | raw lines from a serial instrument (sends nothing) | R | low | {endpoint, seconds, lines[], note} |
+| Sensor (`IAIOPS_MCP=sensor`) | `sensor_import_iodd` | draft a profile from an IODD (`待核实`; returns text, writes nothing; reads only under `$IAIOPS_HOME` / the config directory) | R | low | {draft, profile_id, device_name, notes[]} |
+| Sensor (`IAIOPS_MCP=sensor`) | `sensor_profile_check` | validate a profile file, list its channels (reads only under `$IAIOPS_HOME` / the config directory) | R | low | {id, protocol, verified, channels:[{channel, layout, unit, signal, band}]} |
+| Sensor (`IAIOPS_MCP=sensor`) | `sensor_read_channel` | read one point once; reachable / decodable reported separately | R | low | {levels:{reachable, decodable}, value?, unit?, band?, verified?} |
+| Sensor (`IAIOPS_MCP=sensor`) | `sensor_profile_list` | list the shipped profile library (every entry `待核实` unless it carries provenance) | R | low | {profiles:[{id, protocol, verified, caveat}]} |
+| Sensor (`IAIOPS_MCP=sensor`) | `sensor_profile_show` | one library profile: summary + YAML text (writes nothing) | R | low | {summary, yaml, next} |
 | BAS (Metasys/Niagara) | `bas_point_list` | supervisory point directory | R | low | {point_count, points:[{id, name, type}]} |
 | BAS (Metasys/Niagara) | `bas_point_read` | read one supervisory point | R | low | {point, value, unit, status} |
 | BAS (Metasys/Niagara) | `bas_alarm_list` | active controller alarms | R | low | {alarm_count, alarms:[{id, priority, state}]} |
@@ -491,6 +497,7 @@ For 自主可控 / 信创 deployments — see **[docs/CHINA.md](docs/CHINA.md)**
   - **factory** — `changeover_analysis` (SMED)
   - **water** — `disinfection_ct` + `water_quality_compliance`
   - **renewables** — `pv_performance` (PV string performance)
+  - **sensor** (`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`) — `sensor_import_iodd` + `sensor_profile_check` + `sensor_read_channel` + `sensor_profile_list` + `sensor_profile_show` (connect, decode and read a sensor; binding a profile stays a person's edit of config.yaml)
 - **Agent skills** — the repo ships a router skill (`skills/iaiops`) plus **eleven** per-edition skills (`iaiops-fab` / `iaiops-factory` / `iaiops-process` / `iaiops-building` / `iaiops-water` / `iaiops-warehouse` / `iaiops-clinical` / `iaiops-pharma` / `iaiops-renewables` / `iaiops-plcnext` / `iaiops-sensor`) that route an agent to the right MCP server and document the tool surface.
 
 ### Deployment & ecosystem fit (edge-native / Margo)
@@ -533,7 +540,7 @@ Protocol extras: `opcua` · `modbus` · `s7` · `mc` · `fins` (stdlib — pins 
 > **Adapter belt** (`docs/ADAPTERS.md`): iaiops is a small neutral core (`ingress → normalize/govern/RCA → egress`) with pluggable, lazily-imported adapters — bind no store/bus/host/model, install only what a site runs. The RCA core is deterministic + cited, **not a black box** (`docs/RCA.md`); footprint is small by design (`docs/FOOTPRINT.md`).
 
 **Edition bundles** (match the same-named `IAIOPS_MCP` profiles — install the protocols a vertical runs):
-`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set: opcua + modbus + s7 + mc + fins + eip + mtconnect + sparkplug + ethercat + profinet + iolink + ignition) · `process` (opcua + modbus + hart) · `building` (bacnet + modbus + opcua + iolink + bas) · `water` (modbus + opcua + hart) · `warehouse` (仓储/物料搬运: eip + profinet + modbus + opcua + sparkplug) · `clinical` (医疗设施: bacnet + modbus + opcua) · `renewables` (光伏/风电: modbus + opcua + sparkplug — PV inverters (SUN2000/Growatt) + wind turbines + plant SCADA; device-level monitoring + PdM via baseline/RCA) · `pharma` (制药: bacnet + modbus + hart + opcua) · `plcnext` (opcua + modbus) · `sensor` (cross-protocol: modbus + iolink + sparkplug — connect and decode a sensor). The grid/substation energy bundle (IEC-104/DNP3/61850) ships in [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
+`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set: opcua + modbus + s7 + mc + fins + eip + mtconnect + sparkplug + ethercat + profinet + iolink + ignition) · `process` (opcua + modbus + hart) · `building` (bacnet + modbus + opcua + iolink + bas) · `water` (modbus + opcua + hart) · `warehouse` (仓储/物料搬运: eip + profinet + modbus + opcua + sparkplug) · `clinical` (医疗设施: bacnet + modbus + opcua) · `renewables` (光伏/风电: modbus + opcua + sparkplug — PV inverters (SUN2000/Growatt) + wind turbines + plant SCADA; device-level monitoring + PdM via baseline/RCA) · `pharma` (制药: bacnet + modbus + hart + opcua) · `plcnext` (opcua + modbus) · `sensor` (cross-protocol: modbus + iolink + sparkplug + serial — connect and decode a sensor). The grid/substation energy bundle (IEC-104/DNP3/61850) ships in [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
 
 ### Master password
 Secrets (per-endpoint passwords, MQTT credentials) are **never** stored in plaintext — they live in `~/.iaiops/secrets.enc` (Fernet + scrypt). Export `IAIOPS_MASTER_PASSWORD` so the MCP server/CLI can unlock non-interactively:
