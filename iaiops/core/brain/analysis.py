@@ -18,7 +18,7 @@ from iaiops.connectors.opcua.ops import (
     _coerce_value,
     _read_one,
 )
-from iaiops.core.brain._shared import num, s
+from iaiops.core.brain._shared import health_overall, num, s
 from iaiops.core.runtime.config import MonitorTag
 from iaiops.core.runtime.connection import opcua_session
 
@@ -88,18 +88,10 @@ def health_summary(
             )
     offenders = [r for r in results if r["status"] in ("warn", "alarm")]
     # "ok" only about what was observed: a failed or non-numeric read is not health.
-    overall = (
-        "alarm"
-        if counts["alarm"]
-        else "warn"
-        if counts["warn"]
-        else "unknown"
-        if counts["unknown"]
-        else "ok"
-    )
+    headline = health_overall(counts)
     return {
         "endpoint": s(target.name, 64),
-        "overall": overall,
+        **headline,
         "counts": counts,
         "evaluated": len(results),
         "offenders": offenders,

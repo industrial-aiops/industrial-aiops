@@ -141,9 +141,27 @@ def device_info(target: Any, port: int) -> dict:
 
 def read_pdin(target: Any, port: int) -> dict:
     """[READ] Process-data-in of one port: raw hex string + decoded byte array."""
+    from iaiops.connectors.iolink.client import IOTCORE_PD_INVALID, MasterRejectedError
+    from iaiops.core.runtime.sensor import InvalidReadingError
+
     port = _check_port(port)
+    invalid: MasterRejectedError | None = None
     with _session(target) as client:
-        raw = client.request(f"/iolinkmaster/port[{port}]/iolinkdevice/pdin/getdata")
+        try:
+            raw = client.request(f"/iolinkmaster/port[{port}]/iolinkdevice/pdin/getdata")
+        except MasterRejectedError as exc:
+            if exc.code != IOTCORE_PD_INVALID:
+                raise
+            invalid = exc
+    if invalid is not None:
+        # Raised outside the session, which would translate it into a connection
+        # failure: the master and device are there, and the master says the
+        # device's process data is not valid. A refused reading — a gap with this
+        # reason — never a value and never a wrong address.
+        raise InvalidReadingError(
+            f"IO-Link port {port}: the master flags the process data as invalid "
+            f"(code {IOTCORE_PD_INVALID}, 'invalid process data'), so nothing was decoded."
+        ) from invalid
     hex_str = str(raw).strip()
     try:
         data = bytes.fromhex(hex_str)

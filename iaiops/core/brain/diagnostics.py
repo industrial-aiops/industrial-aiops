@@ -94,6 +94,21 @@ def diagnose_dataflow(
     hops: list[dict] = []
     protocol = getattr(target, "protocol", "")
 
+    if not _has_connect_probe(protocol):
+        # A limit of this build, not a finding: "cannot connect" here sent people
+        # to check a network that was fine, and RCA weighed it as comms_loss.
+        hops.append(
+            {"hop": "connect", "protocol": s(protocol, 16), "ok": None, "detail": "no probe"}
+        )
+        return _verdict(
+            hops,
+            "no_connect_probe_in_this_build",
+            f"This build has no connectivity probe for protocol '{s(protocol, 16)}', so this "
+            "says nothing about the network or the device.",
+            "Check reachability with `iaiops doctor`, or collect from the endpoint "
+            "(`iaiops collect run <endpoint>`) where the protocol supports it.",
+        )
+
     ok, detail = _probe_connect(target)
     hops.append({"hop": "connect", "protocol": s(protocol, 16), "ok": ok, "detail": s(detail, 200)})
     if not ok:
@@ -129,12 +144,15 @@ def _score_read_hops(
     """Probe read(ref) + freshness hops; return an early verdict or None if OK."""
     read_desc = _read_ref(target, ref)
     readable = "error" not in read_desc
+    # The device's own reason for a refused reading ("no target", "invalid
+    # process data") is the finding; the value is None then and says nothing.
+    reason = s(str(read_desc.get("error") or read_desc.get("reason") or ""), 240)
     hops.append(
         {
             "hop": "read_tag",
             "ref": s(ref, 96),
             "ok": readable,
-            "detail": s(str(read_desc.get("error", read_desc.get("value", ""))), 160),
+            "detail": s(reason or str(read_desc.get("value", "")), 160),
         }
     )
     if read_desc.get("unsupported"):
@@ -146,6 +164,19 @@ def _score_read_hops(
             "values to a subscription rather than answering per-ref reads.",
             "Collect it instead (`iaiops collect run <endpoint>`), or list what the "
             "endpoint carries (`iaiops mqtt browse` / `iaiops mqtt live-schema`).",
+        )
+    if read_desc.get("description_cause"):
+        # Before "unreadable" and "bad quality": both blame the site, and the
+        # device may be healthy — the description it is read with does not fit.
+        return _verdict(
+            hops,
+            "comms_ok_description_mismatch",
+            "Connected, but the point's sensor description (profile) does not fit what "
+            f"is on the device, so nothing was decoded — a configuration cause, not a "
+            f"field fault: {reason}",
+            "Fix the configuration, not the field: check that the profile bound to this "
+            "point is the one for the sensor actually fitted (`iaiops sensor check`), "
+            "or that the sensor fitted is the one the profile names.",
         )
     if not readable:
         return _verdict(
@@ -162,7 +193,8 @@ def _score_read_hops(
             hops,
             "comms_ok_bad_quality",
             "Connected and read, but the value's quality/status is BAD — a "
-            "sensor, field wiring, or source-side fault.",
+            "sensor, field wiring, or source-side fault."
+            + (f" The device said: {reason}" if reason else ""),
             "Inspect the field device / sensor and the source system feeding "
             "this tag; the comms path itself is healthy.",
         )
@@ -214,6 +246,13 @@ def _verdict(hops: list[dict], verdict: str, diagnosis: str, action: str) -> dic
     }
 
 
+def _has_connect_probe(protocol: str) -> bool:
+    from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
+
+    cap = get_capabilities(protocol)
+    return bool(cap) and cap.diagnose_connect is not UNSUPPORTED
+
+
 def _probe_connect(target: Any) -> tuple[bool, str]:
     """Lightweight per-protocol connectivity probe; returns (ok, detail).
 
@@ -262,10 +301,13 @@ def _read_ref(target: Any, ref: str) -> dict:
             "error": f"No per-ref read for protocol '{protocol}'.",
             "unsupported": True,
         }
+    from iaiops.core.runtime.sensor import is_description_cause
+
     try:
         return reader(target, ref)
     except Exception as exc:  # noqa: BLE001 — a read failure is a per-ref status
-        return {"error": s(str(exc), 200)}
+        out = {"error": s(str(exc), 200)}
+        return {**out, "description_cause": True} if is_description_cause(exc) else out
 
 
 def _check_freshness(timestamp: Any, threshold_s: int) -> dict:

@@ -27,6 +27,29 @@ class InvalidReadingError(ValueError):
     """The device answered, and what it sent is not a measurement."""
 
 
+class DescriptionMismatchError(InvalidReadingError):
+    """The device answered, and its answer contradicts the sensor's description.
+
+    Another device identity on the port, another process-data length: the device
+    may be perfectly healthy — the description (or which sensor is fitted) is
+    what is wrong. Still a gap, never a value; but diagnosis must name the
+    configuration, not send someone to the field (#249 follow-up 2).
+    """
+
+
+class DescriptionUnusableError(ValueError):
+    """The point's sensor description cannot be applied at all — touches no device.
+
+    No profile bound, no such channel, a profile file that is gone or was edited
+    to another protocol. A configuration cause, not a wrong address on the device.
+    """
+
+
+def is_description_cause(exc: BaseException) -> bool:
+    """True when ``exc`` says the sensor description, not the site, is the cause."""
+    return isinstance(exc, (DescriptionMismatchError, DescriptionUnusableError))
+
+
 @dataclass(frozen=True)
 class Reading:
     """A decoded value with its unit and the accuracy band it was measured with."""
@@ -85,7 +108,7 @@ def decode_bits(channel: Channel, data: bytes, expected_bits: int | None = None)
         raise TypeError(f"Channel {channel.name!r} is not a bit-field channel.")
     available = len(data) * 8
     if expected_bits is not None and available != expected_bits:
-        raise InvalidReadingError(
+        raise DescriptionMismatchError(
             f"{channel.name}: the device sent {available} bits of process data; the profile "
             f"was written for {expected_bits}. Another process-data layout is active — "
             "decoding it with this profile would shift every field."

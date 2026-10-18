@@ -53,6 +53,28 @@ def num(value: Any) -> float | None:
     return out if math.isfinite(out) else None
 
 
+def health_overall(counts: dict[str, int]) -> dict[str, str]:
+    """The one headline rule for every health summary → ``{overall, coverage}``.
+
+    ``overall`` is the worst thing OBSERVED, and never ``ok`` while any point
+    could not be judged: unobserved is not healthy. ``coverage`` says how much
+    was judged at all — ``complete``, ``partial`` or ``none`` — so an alarm on
+    one point does not read as the only problem when the other reads failed.
+    """
+    unknown = int(counts.get("unknown", 0))
+    judged = sum(int(counts.get(k, 0)) for k in ("ok", "warn", "alarm"))
+    if counts.get("alarm"):
+        overall = "alarm"
+    elif counts.get("warn"):
+        overall = "warn"
+    elif unknown or not judged:
+        overall = "unknown"
+    else:
+        overall = "ok"
+    coverage = "none" if not judged else "partial" if unknown else "complete"
+    return {"overall": overall, "coverage": coverage}
+
+
 def parse_ts(value: Any) -> datetime | None:
     """Parse an ISO-8601 timestamp (tolerant of a trailing Z), else None.
 

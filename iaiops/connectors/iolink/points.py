@@ -19,8 +19,11 @@ a skipped check.
 length is refused: offsets count from the end of the image, so another active
 process-data layout (same device id) would shift every field.
 
-Not checked here: whether the master flags the process data as valid
-(PD-valid / device status) — how masters report it is 待核实.
+**Process-data validity.** An ifm IoT-Core master answers ``pdin/getdata`` with
+code 530 ("invalid process data") when the device's PD is not valid; that is a
+refused reading — a gap with its reason — not a value (``ops.read_pdin``). How
+other masters (the plain-REST flavor) flag invalid PD is 待核实: nothing is
+guessed, and a reply that is not a hex string is refused as before.
 
 The vendorid/deviceid datapoints follow the ifm IoT-Core tree; other masters'
 encodings are 待核实 (numbers and ``"0x…"``/decimal strings are accepted).
@@ -33,9 +36,14 @@ import threading
 import time
 from typing import Any
 
-from iaiops.core.runtime.sensor import Channel, SensorProfile, decode_bits
+from iaiops.core.runtime.sensor import (
+    Channel,
+    DescriptionMismatchError,
+    DescriptionUnusableError,
+    SensorProfile,
+    decode_bits,
+)
 from iaiops.core.runtime.sensor.binding import MAX_PORT, port_profile
-from iaiops.core.runtime.session_factory import OTNoReadingError
 
 GRAMMAR = "port<N>/<channel>, e.g. port2/distance"
 #: Short on purpose. A swap through a disconnect is caught at once (a failed
@@ -74,7 +82,7 @@ def port_channel(target: Any, ref: str) -> tuple[int, SensorProfile, Channel]:
     port, name = parse_ref(ref)
     profile = port_profile(target, port)
     if profile is None:
-        raise ValueError(
+        raise DescriptionUnusableError(
             f"IO-Link ref {ref!r}: port {port} has no sensor profile, so its process "
             "data is not decoded (a guessed layout gives a plausible wrong number). Add "
             f"it under port_profiles in config.yaml — `iaiops sensor import-iodd` drafts one."
@@ -82,7 +90,7 @@ def port_channel(target: Any, ref: str) -> tuple[int, SensorProfile, Channel]:
     try:
         return port, profile, profile.channel(name)
     except KeyError as exc:
-        raise ValueError(str(exc.args[0])) from exc
+        raise DescriptionUnusableError(str(exc.args[0])) from exc
 
 
 def check_ref(target: Any, ref: str) -> None:
@@ -123,7 +131,11 @@ def _forget(target: Any, port: int) -> None:
 
 
 def verify_identity(target: Any, port: int, profile: SensorProfile) -> None:
-    """Refuse (as a gap) when the device on ``port`` is not the profile's device."""
+    """Refuse (as a gap) when the device on ``port`` is not the profile's device.
+
+    :class:`DescriptionMismatchError` — an ``InvalidReadingError``, so every read
+    path records a gap — because the device may be healthy: what is wrong is
+    which description it is being read with."""
     if profile.vendor_id is None or profile.device_id is None:
         return
     key = _identity_key(target, port, profile)
@@ -136,18 +148,16 @@ def verify_identity(target: Any, port: int, profile: SensorProfile) -> None:
     device = (ops.device_info(target, port) or {}).get("device") or {}
     vendor, device_id = _as_int(device.get("vendorid")), _as_int(device.get("deviceid"))
     if vendor is None or device_id is None:
-        raise OTNoReadingError(
+        raise DescriptionMismatchError(
             f"IO-Link port {port}: the master did not report a readable device identity "
             f"({device.get('vendorid')!r}/{device.get('deviceid')!r}), so it cannot be checked "
-            f"against profile {profile.id!r}. Not decoded.",
-            protocol="iolink",
+            f"against profile {profile.id!r}. Not decoded."
         )
     if (vendor, device_id) != (profile.vendor_id, profile.device_id):
-        raise OTNoReadingError(
+        raise DescriptionMismatchError(
             f"IO-Link port {port} has vendor {vendor} device {device_id}; profile "
             f"{profile.id!r} is for vendor {profile.vendor_id} device {profile.device_id}. "
-            "A different sensor is on this port — not decoded with the wrong layout.",
-            protocol="iolink",
+            "A different sensor is on this port — not decoded with the wrong layout."
         )
     with _lock:
         _verified[key] = _now()

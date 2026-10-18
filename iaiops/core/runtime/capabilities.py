@@ -315,7 +315,7 @@ def _readref_modbus(t: Any, ref: str) -> dict:
         return {"value": value, "good": True}
     except InvalidReadingError as exc:
         # The device answered; what it sent is not a measurement.
-        return {"value": None, "good": False, "reason": str(exc)}
+        return _not_good(exc)
 
 
 def _readref_s7(t: Any, ref: str) -> dict:
@@ -350,7 +350,16 @@ def _readref_iolink(t: Any, ref: str) -> dict:
     try:
         return {"value": read_value(t, ref), "good": True}
     except InvalidReadingError as exc:
-        return {"value": None, "good": False, "reason": str(exc)}
+        return _not_good(exc)
+
+
+def _not_good(exc: Exception) -> dict:
+    """A read the device answered with a non-measurement; marked when the sensor
+    description, not the field, is the cause (#249 follow-up 2)."""
+    from iaiops.core.runtime.sensor import is_description_cause
+
+    out: dict = {"value": None, "good": False, "reason": str(exc)}
+    return {**out, "description_cause": True} if is_description_cause(exc) else out
 
 
 def _monitor_iolink(t: Any, ref: str) -> tuple[Any, str]:
@@ -675,6 +684,9 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
     "iolink": _caps(
         _where_http_agent,
         doctor_probe=_probe_iolink,
+        # Without it, `diag dataflow` answered "cannot connect — network down"
+        # for every healthy master (found on the lab LAN run).
+        diagnose_connect=_probe_iolink,
         read_ref=_readref_iolink,
         monitor_read=_monitor_iolink,
         session_builder=_session("iolink_session"),
