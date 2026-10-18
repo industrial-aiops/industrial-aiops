@@ -28,7 +28,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from iaiops.connectors.serial.frames import LineFramer, decode_line
-from iaiops.core.runtime.sensor import InvalidReadingError
+from iaiops.core.runtime.sensor import DescriptionUnusableError, InvalidReadingError
 from iaiops.core.runtime.session_factory import OTConnectionError, OTNoReadingError
 
 CHANNEL_PREFIX = "ch:"
@@ -57,7 +57,7 @@ def _profile(target: Any) -> Any:
 
     profile = binding.endpoint_profile(target)
     if profile is None:
-        raise ValueError(
+        raise DescriptionUnusableError(
             f"Serial endpoint {getattr(target, 'name', '?')!r} has no sensor_profile — a serial "
             "line is not decoded without one (`iaiops serial sniff` shows the raw lines to "
             "write it from)."
@@ -73,7 +73,8 @@ def channel_for(target: Any, ref: str) -> Any:
     try:
         return _profile(target).channel(text[len(CHANNEL_PREFIX) :])
     except KeyError as exc:
-        raise ValueError(str(exc.args[0])) from exc
+        # The description has no such channel: configuration, not the instrument.
+        raise DescriptionUnusableError(str(exc.args[0])) from exc
 
 
 def _check_terms(target: Any, profile: Any) -> None:

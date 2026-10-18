@@ -41,8 +41,13 @@ def diagnose_dataflow(
         flatline_eps: Spread at/below which a series counts as flatline.
 
     Returns dict: {verdict ('cannot_connect'|'comms_ok_value_unreadable'|
-        'comms_ok_bad_quality'|'comms_ok_value_stale'|'comms_ok_flatline'|
-        'healthy'), diagnosis, recommended_action, hops:[{hop, ok, detail}]}.
+        'comms_ok_description_mismatch'|'comms_ok_bad_quality'|
+        'comms_ok_value_stale'|'comms_ok_flatline'|'no_per_ref_read_in_this_build'|
+        'no_connect_probe_in_this_build'|'healthy'), diagnosis,
+        recommended_action, hops:[{hop, ok, detail}]}.
+        'comms_ok_description_mismatch' means the sensor profile does not fit the
+        device (wrong sensor fitted, other process-data layout, no profile): fix
+        the configuration, not the field.
 
     Example: diagnose_dataflow(endpoint="line1", ref="ns=2;i=5", freshness_threshold_s=30).
     """

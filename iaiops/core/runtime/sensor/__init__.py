@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from iaiops.core.runtime.sensor import library
 from iaiops.core.runtime.sensor.decode import (
+    DescriptionMismatchError,
+    DescriptionUnusableError,
     InvalidReadingError,
     Reading,
     decode_bits,
     decode_registers,
     decode_switch,
+    is_description_cause,
 )
 from iaiops.core.runtime.sensor.profile import (
     Accuracy,
@@ -35,6 +38,8 @@ __all__ = [
     "Accuracy",
     "BitLayout",
     "Channel",
+    "DescriptionMismatchError",
+    "DescriptionUnusableError",
     "InvalidReadingError",
     "ModbusLayout",
     "Reading",
@@ -44,6 +49,7 @@ __all__ = [
     "decode_bits",
     "decode_registers",
     "decode_switch",
+    "is_description_cause",
     "load_profile_file",
     "modbus_layout",
     "parse_profile",

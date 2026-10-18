@@ -32,6 +32,18 @@ FLAVORS = (FLAVOR_IOTCORE, FLAVOR_REST)
 MAX_RESPONSE_BYTES = 262_144
 _CHUNK_BYTES = 8192
 _IOTCORE_OK = 200
+#: ifm IoT-Core diagnostic code 530, "The requested data is invalid — Invalid
+#: process data" (ifm AL1352 operating instructions 80284138/03, 10/2020, "IoT
+#: Core: Diagnostic codes"). Other masters' encoding of PD-invalid is 待核实.
+IOTCORE_PD_INVALID = 530
+
+
+class MasterRejectedError(ValueError):
+    """The master answered a datapoint read with a non-OK IoT-Core code."""
+
+    def __init__(self, message: str, code: Any) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def _requests():  # -> module
@@ -97,10 +109,11 @@ def _extract_value(payload: Any, adr: str) -> Any:
     if isinstance(payload, dict) and "code" in payload:
         code = payload.get("code")
         if code != _IOTCORE_OK:
-            raise ValueError(
+            raise MasterRejectedError(
                 f"IO-Link master rejected '{adr}' with code {code!r} "
                 f"(expected {_IOTCORE_OK}). The port may be empty, the datapoint "
-                f"unsupported on this master, or the adr path wrong."
+                f"unsupported on this master, or the adr path wrong.",
+                code,
             )
         payload = payload.get("data")
     if isinstance(payload, dict):
@@ -149,6 +162,8 @@ __all__ = [
     "FLAVOR_IOTCORE",
     "FLAVOR_REST",
     "FLAVORS",
+    "IOTCORE_PD_INVALID",
     "IoLinkClient",
     "MAX_RESPONSE_BYTES",
+    "MasterRejectedError",
 ]

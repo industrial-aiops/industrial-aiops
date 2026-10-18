@@ -25,7 +25,6 @@ import iaiops.connectors.iolink.ops as iolink_ops
 from iaiops.connectors.iolink import points as iolink_points
 from iaiops.core.runtime.sensor import InvalidReadingError, decode_bits, parse_profile
 from iaiops.core.runtime.sensor.iodd import import_iodd
-from iaiops.core.runtime.session_factory import OTNoReadingError
 
 pytestmark = pytest.mark.unit
 
@@ -84,7 +83,9 @@ def test_1_masters_configured_by_host_do_not_share_an_identity_check(monkeypatch
         )
 
     iolink_points.read_value(master("10.0.0.1"), "port2/d")
-    with pytest.raises(OTNoReadingError, match="999"):
+    # A refused reading (every read path records it as a gap); since #249's
+    # follow-ups it is typed as a description mismatch, not a site fault.
+    with pytest.raises(InvalidReadingError, match="999"):
         iolink_points.read_value(master("10.0.0.2"), "port2/d")
 
 

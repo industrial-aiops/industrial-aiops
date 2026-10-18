@@ -243,8 +243,10 @@ def opcua_health_summary(
 ) -> dict:
     """[READ][risk=low] Classify OPC-UA tag node-ids against warn/alarm thresholds.
 
-    Returns ok/warn/alarm/unknown counts plus the offending tags. Thresholds
-    come from config tags, or per-ref overrides in ``thresholds``.
+    Returns ok/warn/alarm/unknown counts plus the offending tags; ``overall``
+    is never ``ok`` while any tag could not be judged, and ``coverage``
+    (complete|partial|none) says how many were. Thresholds come from config
+    tags, or per-ref overrides in ``thresholds``.
 
     Args:
         endpoint: Endpoint name from config.

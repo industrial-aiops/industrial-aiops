@@ -39,6 +39,7 @@ from dataclasses import dataclass
 
 from iaiops.core.runtime.sensor import (
     Channel,
+    DescriptionUnusableError,
     SensorProfile,
     SwitchLayout,
     decode_registers,
@@ -195,7 +196,7 @@ def profile_channel(ref: str, profile: SensorProfile | None) -> Channel:
     """Resolve ``ch:<name>`` through the endpoint's profile, or refuse."""
     name = str(ref).strip()[len(CHANNEL_PREFIX) :]
     if profile is None:
-        raise ValueError(
+        raise DescriptionUnusableError(
             f"Modbus ref {ref!r} names a profile channel, but this endpoint has no "
             "sensor_profile. Add `sensor_profile: <file>` to it in config.yaml, or use "
             f"a typed point ({GRAMMAR})."
@@ -203,7 +204,7 @@ def profile_channel(ref: str, profile: SensorProfile | None) -> Channel:
     try:
         return profile.channel(name)
     except KeyError as exc:
-        raise ValueError(str(exc.args[0])) from exc
+        raise DescriptionUnusableError(str(exc.args[0])) from exc
 
 
 def check_ref(ref: str, profile: SensorProfile | None) -> None:

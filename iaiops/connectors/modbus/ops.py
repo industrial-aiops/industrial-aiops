@@ -16,7 +16,7 @@ import struct
 from typing import Any
 
 from iaiops.connectors.modbus import byteorder, templates
-from iaiops.core.brain._shared import s
+from iaiops.core.brain._shared import health_overall, s
 from iaiops.core.runtime.connection import OTProtocolError, modbus_session
 
 MAX_COUNT = 125  # Modbus protocol max registers per read
@@ -333,23 +333,15 @@ def modbus_health_summary(
             counts[entry["status"]] += 1
             results.append(entry)
     offenders = [r for r in results if r["status"] in ("warn", "alarm")]
-    # "ok" only about what was observed: with nothing in warn/alarm, any point
-    # that could not be classified (typo, NaN, sentinel, failed read) makes the
-    # headline "unknown" — unobserved is not healthy.
-    overall = (
-        "alarm"
-        if counts["alarm"]
-        else "warn"
-        if counts["warn"]
-        else "unknown"
-        if counts["unknown"]
-        else "ok"
-    )
+    # "ok" only about what was observed: any point that could not be classified
+    # (typo, NaN, sentinel, failed read) keeps the headline off "ok", and
+    # `coverage` says so even when a real alarm wins the headline.
+    headline = health_overall(counts)
     return {
         "endpoint": s(target.name, 64),
         "register_type": register_type,
         "decode": decode,
-        "overall": overall,
+        **headline,
         "counts": counts,
         "evaluated": len(results),
         "offenders": offenders,
@@ -369,43 +361,65 @@ def _resolve_refs(target: Any, addresses: list[int] | None) -> list[str]:
     return [str(t.ref).strip() for t in target.tags if str(t.ref or "").strip()]
 
 
+def _health_words(client: Any, target: Any):
+    """A word reader over the summary's open client — the same shape every typed read uses."""
+    from iaiops.connectors.modbus.points import CLIENT_METHODS, response_words
+
+    def read(table: str, address: int, count: int) -> list[int]:
+        method = getattr(client, CLIENT_METHODS[table])
+        resp = method(address, count=count, device_id=target.unit_id)
+        if resp is None or (hasattr(resp, "isError") and resp.isError()):
+            raise OSError("read failed")
+        return response_words(table, resp, count)
+
+    return read
+
+
 def _health_value(
     client: Any, target: Any, point: Any, ref: str, fn_name: str, decode: str
 ) -> tuple[float | None, str]:
-    """Read one point for the health summary → (value, reason-if-none)."""
-    from iaiops.connectors.modbus.points import read_point_value
+    """Read one point for the health summary → (value, reason-if-none).
+
+    ``point`` is a parsed bare/typed point, or ``None`` for a ``ch:`` profile
+    channel, which decodes through the endpoint's profile as resolved now — the
+    same profile collection and one-shot reads use.
+    """
+    from iaiops.connectors.modbus.points import read_ref_value
     from iaiops.core.runtime.sensor import InvalidReadingError
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
 
     try:
-        if point.legacy:
+        if point is not None and point.legacy:
             # The pre-typed path, unchanged: register_type / decode apply here.
             resp = getattr(client, fn_name)(point.address, count=1, device_id=target.unit_id)
             if resp is None or (hasattr(resp, "isError") and resp.isError()):
                 return None, "read failed"
             return float(_decode_registers(list(resp.registers[:1]), decode)[0]), ""
-        from iaiops.connectors.modbus.points import CLIENT_METHODS, response_words
-
-        def read(table: str, address: int, count: int) -> list[int]:
-            method = getattr(client, CLIENT_METHODS[table])
-            resp = method(address, count=count, device_id=target.unit_id)
-            if resp is None or (hasattr(resp, "isError") and resp.isError()):
-                raise OSError("read failed")
-            return response_words(table, resp, count)
-
-        # A typed point carries its own table and type; register_type/decode do not apply.
-        return float(read_point_value(read, ref)), ""
+        # A typed point or a profile channel carries its own table and type;
+        # register_type/decode do not apply.
+        profile = endpoint_profile(target) if point is None else None
+        return float(read_ref_value(_health_words(client, target), ref, profile)), ""
     except InvalidReadingError as exc:
         return None, s(str(exc), 200)
     except Exception as exc:  # noqa: BLE001 — per-point read error
         return None, s(f"{type(exc).__name__}: {exc}", 200)
 
 
+def _health_address(target: Any, ref: str) -> tuple[Any, int | None]:
+    """``(parsed point or None for a profile channel, address)``; raises ``ValueError``."""
+    from iaiops.connectors.modbus.points import is_channel_ref, parse_point, profile_channel
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
+
+    if is_channel_ref(ref):
+        return None, profile_channel(ref, endpoint_profile(target)).layout.address
+    point = parse_point(ref)
+    return point, point.address
+
+
 def _health_entry(
     client: Any, target: Any, ref: str, fn_name: str, decode: str, thresholds: dict | None
 ) -> dict:
     """Classify one ref; an unparseable ref is ``unknown`` with its reason, never dropped."""
-    from iaiops.connectors.modbus.points import parse_point
-
     tag = _resolve_addr_tag(target, ref, thresholds)
     legacy_key = str(int(ref)) if re.fullmatch(r"\+?[0-9_]+", ref) else ""
     if thresholds and ref not in thresholds and legacy_key in thresholds:
@@ -413,7 +427,7 @@ def _health_entry(
         tag = _resolve_addr_tag(target, legacy_key, thresholds)
     entry: dict[str, Any] = {"ref": s(ref, 64), "label": s(tag.label, 64)}
     try:
-        point = parse_point(ref)
+        point, address = _health_address(target, ref)
     except ValueError as exc:
         return {
             **entry,
@@ -425,7 +439,7 @@ def _health_entry(
     value, reason = _health_value(client, target, point, ref, fn_name, decode)
     result = {
         **entry,
-        "address": point.address,
+        "address": address,
         "value": value,
         "status": "unknown" if value is None else tag.classify(value),
     }

@@ -61,6 +61,56 @@
   silent 9600 / 4840 default); a non-ASCII terminator is refused; `bus` is refused
   on non-serial endpoints; readiness and doctor judge serial endpoints.
 
+### Sensor layer: the follow-ups #249 left open
+
+All four point the same way when left alone — they made a configuration problem,
+or an unjudged point, look like something else.
+
+- **A wrong sensor description is no longer diagnosed as a field fault.**
+  `diagnose_dataflow` has a new verdict, `comms_ok_description_mismatch`: a
+  different sensor on the IO-Link port (identity ≠ the profile's), a master that
+  will not report the identity the profile requires, another process-data length,
+  a `ch:` / `port<N>/` ref with no profile or no such channel, a profile file gone
+  or edited to another protocol. Before, these read as "sensor, field wiring" or
+  "wrong address / the point does not exist", and the real reason survived only in
+  the hop detail. RCA does not weigh the new verdict as a site cause. What is NOT a
+  description cause stays a field reading RCA can weigh: identity reads the master
+  rejects (no device answered — an unplugged sensor, a cut cable), and an empty
+  process-data image ("no process data", not "another layout").
+- **IO-Link: "process data invalid" is a gap with its reason.** An ifm IoT-Core
+  master answers `pdin/getdata` with code 530 ("invalid process data", ifm AL1352
+  operating instructions 80284138/03, *IoT Core: Diagnostic codes*). That was
+  reported as a **connection failure** in collection ("the port may be empty …
+  or the adr path wrong") and as "wrong address" in diagnosis. It is now a refused
+  reading — a gap in collection, bad quality in diagnosis. Other masters'
+  encoding (plain-REST flavor) is `待核实`; no field name is guessed.
+- **`diag dataflow` no longer says "cannot connect" for a protocol it has no probe
+  for.** IO-Link and serial had a per-ref read but no connect probe, so a healthy
+  master or an open serial link was diagnosed as "network path down" — and RCA
+  weighed that as `comms_loss`. Both now probe (IO-Link: the master identity read;
+  serial: open and close the link, send nothing, as `doctor` does). A protocol
+  with no probe at all answers `no_connect_probe_in_this_build`, which RCA does not
+  weigh. A refused reading's own reason ("no target", "invalid process data",
+  "unstable") now appears in the diagnosis and the read hop, which said `None`.
+  Serial profile refusals (no profile, no such channel) are description causes too.
+  Found on a lab LAN run with the IO-Link master simulator.
+- **Health summaries share one headline rule and say how much they saw.** Both
+  `modbus_health_summary` and `opcua_health_summary` now return `coverage`
+  (`complete` / `partial` / `none`) next to `overall`, so an alarm on one point
+  with nine unread points no longer reads as the only problem. `overall` was
+  already never `ok` with an unjudged point (0.29.0); the rule now lives in one
+  place (`brain._shared.health_overall`).
+- **`modbus_health_summary` judges `ch:<name>` profile channels.** They were sent
+  through the typed-point parser, which refuses them, so every profile channel
+  came back `unknown`. They now decode through the endpoint's profile as it is at
+  read time, like collection.
+- **Verified, unchanged:** every read path (Modbus collection session, monitor,
+  one-shot, health summary; IO-Link monitor and one-shot; RCA via
+  `diagnose_dataflow`) resolves the profile at read time, and `collect run`
+  stores the unit for Modbus `ch:` and IO-Link port channels. New tests drive the
+  exact `collect run` wiring (held Modbus session, IO-Link `read_point`) over fake
+  transports with real profile files, including a mid-run profile edit.
+
 ## 0.30.0 — 2026-10-18
 
 The sensor layer becomes usable end to end — sensor profiles bound to endpoints,

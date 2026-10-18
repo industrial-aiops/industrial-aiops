@@ -19,6 +19,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from iaiops.core.runtime.sensor.decode import DescriptionUnusableError
 from iaiops.core.runtime.sensor.profile import SensorProfile, load_profile_file
 
 #: IO-Link masters in the field have 4–16 ports; the connector sweeps up to 32.
@@ -134,12 +135,21 @@ def bind_profiles(target: Any, base_dir: Path) -> Any:
 
 def _for(target: Any, path: str) -> SensorProfile:
     """Load a bound profile, re-checking its protocol: the file may have been
-    edited since config.yaml was loaded."""
-    profile = cached_profile(path)
+    edited since config.yaml was loaded.
+
+    Every failure here is :class:`DescriptionUnusableError`: the description is
+    what cannot be used, which diagnosis must not read as a fault on the device."""
+    name = getattr(target, "name", "?")
+    try:
+        profile = cached_profile(path)
+    except (OSError, ValueError) as exc:
+        raise DescriptionUnusableError(
+            f"Endpoint {name!r}: sensor profile {path} cannot be read now: {exc}"
+        ) from exc
     protocol = str(getattr(target, "protocol", "") or "")
     if protocol and profile.protocol != protocol:
-        raise ValueError(
-            f"Endpoint {getattr(target, 'name', '?')!r} is {protocol}, but sensor profile "
+        raise DescriptionUnusableError(
+            f"Endpoint {name!r} is {protocol}, but sensor profile "
             f"{path} is now a {profile.protocol} profile."
         )
     return profile

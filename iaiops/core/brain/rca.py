@@ -629,6 +629,10 @@ def _score_dataflow(dataflow: dict | None, contributions: dict[str, list[dict]])
     # `no_per_ref_read_in_this_build` is deliberately absent: it is a limit of
     # this build, and weighing it would diagnose comms_loss on a healthy site that
     # was publishing every second. Reproduced on the lab broker.
+    # `no_connect_probe_in_this_build` likewise. `comms_ok_description_mismatch`
+    # is absent for the same reason: a profile
+    # that does not fit the sensor says nothing about why the line stopped, and
+    # weighing it as sensor_fault would send someone to fix healthy wiring.
     mapping = {
         "cannot_connect": ("comms_loss", W_DATAFLOW_CANNOT_CONNECT),
         "comms_ok_value_unreadable": ("comms_loss", W_DATAFLOW_BAD_QUALITY),

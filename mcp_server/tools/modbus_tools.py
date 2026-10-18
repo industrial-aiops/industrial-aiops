@@ -140,9 +140,12 @@ def modbus_health_summary(
     Mirrors the OPC-UA health_summary classifier. Returns ok/warn/alarm/unknown
     counts plus offenders; ``overall`` is ``unknown`` when nothing is in
     warn/alarm and any point could not be classified (``ok`` means every point
-    was observed in band). Configured tags may be typed points (``ir:0:float32:CDAB``),
-    which carry their own table and type — register_type/decode apply only to
-    bare addresses.
+    was observed in band), and ``coverage`` (complete|partial|none) says how many
+    points were judged at all — an alarm with ``coverage: partial`` is not the
+    only problem. Configured tags may be typed points (``ir:0:float32:CDAB``) or
+    profile channels (``ch:<name>``, decoded through the endpoint's
+    sensor_profile), which carry their own table and type — register_type/decode
+    apply only to bare addresses.
 
     Args:
         endpoint: Endpoint name from config.
