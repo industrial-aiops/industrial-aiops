@@ -23,7 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 #: Protocols whose points this probe judges (the rest have no profile layer).
-SENSOR_PROTOCOLS = ("modbus", "iolink")
+SENSOR_PROTOCOLS = ("modbus", "iolink", "serial")
 
 
 def _profile_context(target: Any, ref: str) -> dict[str, Any]:
@@ -38,6 +38,11 @@ def _profile_context(target: Any, ref: str) -> dict[str, Any]:
             return {}
         profile = endpoint_profile(target)
         channel = profile_channel(ref, profile)
+    elif protocol == "serial":
+        from iaiops.connectors.serial.ops import channel_for
+
+        profile = endpoint_profile(target)
+        channel = channel_for(target, ref)
     else:
         from iaiops.connectors.iolink.points import parse_ref
 

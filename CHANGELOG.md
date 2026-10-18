@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+### Added — serial ASCII instruments: a `serial` connector (HLD §17.4 E4, D53–D58)
+
+- **Scales, gas analysers, barcode readers, legacy meters** that send a text line
+  per reading — over RS-232 / RS-485 / RS-422 / USB serial (`pyserial`) or a serial
+  device server's raw TCP — are a new protocol, `serial`. Decoding is a profile
+  (`protocol: serial`): `framing`, `mode: listen | poll`, the one `query` poll may
+  send, and per channel a regex matching the WHOLE line with a `value` group,
+  status codes and the unit. One profile works on every wire (D58).
+- **Refuse rather than guess.** A line that does not fully match, a status code
+  that means unstable / overload or is unknown, a unit that disagrees with the
+  declared one, an over-long or undecodable line: all gaps with the reason, never
+  "parsed as best we can" (D55). Listen needs `stale_after_s`: a silent instrument
+  is no reading, never the last value.
+- **Safety.** The port is opened exclusively; a port another program holds is
+  refused, never taken (D53). Poll sends only the profile's query and needs
+  `bus: dedicated` on the endpoint — a poll profile on a `shared` or undeclared
+  bus fails at config load (D57); tare / zero / calibrate do not belong in a query
+  (D54). Collection requires a fixed unit (kg and g must not share a series).
+- **Tools.** `iaiops serial sniff` / MCP `serial_sniff` show raw lines and send
+  nothing; decoded reads through `sensor_read_channel` / `iaiops sensor read`;
+  collection with a held link. `IAIOPS_MCP=serial` and the `sensor` menu include
+  it; `pip install iaiops[serial]` (also in `iaiops[sensor]`). 204 governed tools.
+
 ### Added — a sensor profile library (HLD §17.3 E3, D52)
 
 - **Profiles ship with the package** under `iaiops/sensor_profiles/<category>/`:

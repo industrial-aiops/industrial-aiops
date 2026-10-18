@@ -44,6 +44,7 @@ PROTOCOL_MODULES = {
     "hart": "hart_tools",
     "fins": "fins_tools",
     "iolink": "iolink_tools",
+    "serial": "serial_tools",
 }
 
 # Always registered, even under IAIOPS_MCP_NO_BRAIN: the self-description /
@@ -137,7 +138,7 @@ NAMED_PROFILES: dict[str, tuple[str, ...]] = {
     "warehouse": ("eip", "profinet", "modbus", "opcua", "sparkplug"),
     # Sensor edition (HLD §17): the protocols sensors arrive on, plus the sensor
     # tools. Not an industry — a capability that spans protocols (D50).
-    "sensor": ("modbus", "iolink", "sparkplug"),
+    "sensor": ("modbus", "iolink", "sparkplug", "serial"),
     # Clinical-facility edition (医疗设施): hospital facilities as a distinct vertical
     # from generic building management. BACnet BMS (isolation-room pressurization +
     # medical-gas safety checks), Modbus (gas alarm panels / energy meters), OPC-UA

@@ -89,6 +89,8 @@ SUPPORTED_PROTOCOLS = (
     "fins",
     # IO-Link master JSON integration (read-only sensor-level visibility).
     "iolink",
+    # Serial ASCII instruments (scales, analysers, legacy meters) — HLD §17.4.
+    "serial",
 )
 
 DEFAULT_MODBUS_PORT = 502
@@ -411,6 +413,9 @@ class TargetConfig:
     #: IO-Link only: port → sensor profile; `port<N>/<channel>` refs decode
     #: through it. A port with no profile is not decoded at all (D44).
     port_profiles: tuple[tuple[int, str], ...] = ()
+    #: Serial only: `shared` (the RS-485 bus already has a master — listen only)
+    #: or `dedicated` (polling allowed). No default: it cannot be detected (D57).
+    bus: str = ""
     tags: tuple[MonitorTag, ...] = ()
     #: Design cycle time for the product this line runs — a product SPEC rather
     #: than something the machine reports, which is why it is a line value and
@@ -941,6 +946,18 @@ def _parse_historian(raw: object) -> HistorianConfig | None:
     )
 
 
+def _parse_bus(raw: Any, endpoint: str) -> str:
+    if raw in (None, ""):
+        return ""
+    value = str(raw).strip().lower()
+    if value not in ("shared", "dedicated"):
+        raise ValueError(
+            f"Endpoint {endpoint!r}: bus must be shared (the bus already has a master — "
+            f"listen only) or dedicated; got {raw!r}."
+        )
+    return value
+
+
 def _parse_target(d: dict) -> TargetConfig:
     """Build one immutable TargetConfig from a raw config dict."""
     # The label is built defensively: an entry that is not a mapping at all
@@ -994,6 +1011,7 @@ def _parse_target(d: dict) -> TargetConfig:
         stale_after_s=float(d.get("stale_after_s", 0) or 0),
         sensor_profile=str(d.get("sensor_profile", "") or "").strip(),
         port_profiles=parse_port_profiles(d.get("port_profiles"), str(named)),
+        bus=_parse_bus(d.get("bus"), str(named)),
         tags=parse_tags(d.get("tags", []), endpoint=str(d.get("name", ""))),
         ideal_cycle_time_s=_opt_float(d.get("ideal_cycle_time_s")),
     )
