@@ -22,6 +22,7 @@ does not decode is a gap with its reason (``InvalidReadingError``).
 from __future__ import annotations
 
 import socket
+import threading
 import time
 from contextlib import contextmanager
 from typing import Any
@@ -35,6 +36,17 @@ CHANNEL_PREFIX = "ch:"
 DRAIN_WAIT_S = 0.05
 MAX_SNIFF_SECONDS = 30.0
 MAX_SNIFF_LINES = 200
+#: Longest an input flush may run before a poll query (an idle device is empty
+#: within one drain; a device that never stops talking is not a poll device).
+FLUSH_LIMIT_S = 0.5
+#: A poll answer is reused for the other channels of the same collection tick
+#: rather than sending the query once per channel.
+POLL_REUSE_S = 0.25
+
+
+class SerialSilenceError(OTConnectionError):
+    """The port opened but nothing was heard — cable, port, baud rate, or a silent
+    instrument. Deliberately NOT an OTNoReadingError: the device did not answer."""
 
 
 # ── profile / ref ────────────────────────────────────────────────────────────
@@ -149,23 +161,37 @@ class SerialLink:
 
     def read(self) -> bytes:
         """Whatever arrives within one short drain (possibly nothing)."""
-        if self._port is not None:
-            return bytes(self._port.read(4096))
         try:
+            if self._port is not None:
+                return bytes(self._port.read(4096))
             data = self._sock.recv(4096) if self._sock else b""
         except TimeoutError:
             return b""
+        except OSError as exc:  # includes pyserial's SerialException on unplug
+            raise OTConnectionError(f"Serial link lost: {exc}", protocol="serial") from exc
         if data == b"" and self._sock is not None:
             raise OTConnectionError(
                 "The serial device server closed the connection.", protocol="serial"
             )
         return data
 
-    def write(self, data: bytes) -> None:
+    def flush_input(self) -> None:
+        """Discard everything already received (a reply to an earlier query, or
+        lines that waited in a buffer) — bounded, for an idle poll device."""
         if self._port is not None:
-            self._port.write(data)
-        elif self._sock is not None:
-            self._sock.sendall(data)
+            self._port.reset_input_buffer()
+        deadline = time.monotonic() + FLUSH_LIMIT_S
+        while time.monotonic() < deadline and self.read():
+            pass
+
+    def write(self, data: bytes) -> None:
+        try:
+            if self._port is not None:
+                self._port.write(data)
+            elif self._sock is not None:
+                self._sock.sendall(data)
+        except OSError as exc:
+            raise OTConnectionError(f"Serial link lost: {exc}", protocol="serial") from exc
 
     def close(self) -> None:
         for closer in (self._port, self._sock):
@@ -180,9 +206,11 @@ class SerialLink:
 # ── one-shot read ────────────────────────────────────────────────────────────
 
 
-def _framer(profile: Any) -> LineFramer:
+def _framer(profile: Any, synced: bool = True) -> LineFramer:
     f = profile.framing
-    return LineFramer(terminator=f.terminator, encoding=f.encoding, max_line=f.max_line)
+    return LineFramer(
+        terminator=f.terminator, encoding=f.encoding, max_line=f.max_line, synced=synced
+    )
 
 
 def _decode(channel: Any, line: str | None, reason: str) -> Any:
@@ -191,39 +219,45 @@ def _decode(channel: Any, line: str | None, reason: str) -> Any:
     return decode_line(channel, line)
 
 
+def _first_line(link: Any, framer: LineFramer, window: float) -> tuple[str | None, str] | None:
+    deadline = time.monotonic() + window
+    while time.monotonic() < deadline:
+        lines = framer.feed(link.read())
+        if lines:
+            return lines[0]
+    return None
+
+
 def read_value(target: Any, ref: str) -> float | int:
-    """Read one point once. Listen: the latest line within ``stale_after_s``; poll:
-    the answer to the profile's query within ``timeout_s``."""
+    """Read one point once, from a line framed AFTER this read started.
+
+    Listen: the first complete line after opening (the partial line the open landed
+    in is dropped) within ``stale_after_s``. Poll: input flushed, the profile's query
+    sent once, the first line after it within ``timeout_s``. Silence is a
+    ``SerialSilenceError`` — the device did not answer.
+    """
     channel = channel_for(target, ref)
     profile = _profile(target)
     _check_terms(target, profile)
-    window = (
-        float(target.stale_after_s)
-        if profile.mode == "listen"
-        else float(getattr(target, "timeout_s", 5) or 5)
-    )
+    listen = profile.mode == "listen"
+    window = float(target.stale_after_s) if listen else float(getattr(target, "timeout_s", 5) or 5)
     link = SerialLink(target).open()
     try:
-        framer = _framer(profile)
-        if profile.mode == "poll":
+        if listen:
+            line = _first_line(link, _framer(profile, synced=False), window)
+        else:
+            link.flush_input()
             link.write(profile.query.encode("ascii"))
-        latest: tuple[str | None, str] | None = None
-        deadline = time.monotonic() + window
-        while time.monotonic() < deadline:
-            lines = framer.feed(link.read())
-            if lines:
-                latest = lines[-1]
-                if profile.mode == "poll":
-                    break
+            line = _first_line(link, _framer(profile), window)
     finally:
         link.close()
-    if latest is None:
-        raise OTNoReadingError(
-            f"Serial {ref}: no line within {window:g} s "
-            + ("(stale_after_s)." if profile.mode == "listen" else "(timeout_s)."),
+    if line is None:
+        raise SerialSilenceError(
+            f"Serial {ref}: opened the link but heard nothing for {window:g} s — check the "
+            "cable, port, baud rate / framing, or whether the instrument is sending.",
             protocol="serial",
         )
-    return _decode(channel, *latest).value
+    return _decode(channel, *line).value
 
 
 def sniff(target: Any, seconds: float = 5.0, max_lines: int = 20) -> dict[str, Any]:
@@ -242,6 +276,7 @@ def sniff(target: Any, seconds: float = 5.0, max_lines: int = 20) -> dict[str, A
         terminator=framing.terminator if framing else "\r\n",
         encoding="latin-1",  # show every byte; decoding is the profile's job
         max_line=framing.max_line if framing else 1024,
+        synced=False,  # the partial line the open landed in is not shown
     )
     link = SerialLink(target).open()
     lines: list[str] = []
@@ -264,69 +299,126 @@ def sniff(target: Any, seconds: float = 5.0, max_lines: int = 20) -> dict[str, A
 
 
 class SerialSession:
-    """One held link; each read drains new lines and keeps the latest per channel."""
+    """One held link for a collection run.
+
+    Listen: a reader thread drains the link continuously and stamps each line with
+    the moment it ARRIVED, so a read never takes a line that waited in a buffer as
+    fresh, and a burst never leaves the newest line unread. Poll: no thread — each
+    read flushes, sends the query, and takes the answer that came after it.
+    """
 
     def __init__(self, target: Any) -> None:
         self.target = target
         self.profile = _profile(target)
         _check_terms(target, self.profile)
         self.link = SerialLink(target)
-        self.framer = _framer(self.profile)
+        self.lock = threading.Lock()
         self.latest: tuple[str | None, str] | None = None
         self.latest_at = 0.0
         self.opened_at = 0.0
+        self.error: Exception | None = None
+        self.running = False
+        self.thread: threading.Thread | None = None
 
-    def drain(self) -> None:
-        for line in self.framer.feed(self.link.read()):
-            self.latest, self.latest_at = line, time.monotonic()
+    def start(self) -> None:
+        self.link.open()
+        self.opened_at = time.monotonic()
+        if self.profile.mode == "listen":
+            self.running = True
+            self.thread = threading.Thread(target=self._pump, daemon=True)
+            self.thread.start()
+
+    def _pump(self) -> None:
+        framer = _framer(self.profile, synced=False)
+        while self.running:
+            try:
+                lines = framer.feed(self.link.read())
+            except Exception as exc:  # noqa: BLE001 — surfaced to the next read
+                with self.lock:
+                    self.error = exc
+                return
+            if lines:
+                with self.lock:
+                    self.latest, self.latest_at = lines[-1], time.monotonic()
+
+    def stop(self) -> None:
+        self.running = False
+        if self.thread is not None:
+            self.thread.join(timeout=1.0)
+        self.link.close()
 
 
 @contextmanager
 def serial_session(target: Any):
     session = SerialSession(target)
-    session.link.open()
-    session.opened_at = time.monotonic()
+    session.start()
     try:
         yield session
     finally:
-        session.link.close()
+        session.stop()
+
+
+def _check_unchanged(session: SerialSession) -> None:
+    """A profile edited mid-run would decode with the old pattern under the new
+    unit: reopen instead (the runner reconnects on a connection error)."""
+    if _profile(session.target) is not session.profile:
+        raise OTConnectionError(
+            "The serial profile changed during the run — reopening with the new one.",
+            protocol="serial",
+        )
+
+
+def _listen_line(session: SerialSession, ref: str) -> tuple[str | None, str]:
+    stale = float(session.target.stale_after_s)
+    deadline = session.opened_at + stale
+    while True:
+        with session.lock:
+            error, latest, latest_at = session.error, session.latest, session.latest_at
+        if error is not None:
+            raise OTConnectionError(f"Serial link lost: {error}", protocol="serial")
+        if latest is not None or time.monotonic() >= deadline:
+            break
+        time.sleep(0.02)  # first line since the link opened: same window as any line
+    if latest is None:
+        raise OTNoReadingError(
+            f"Serial {ref}: no line within {stale:g} s since the link opened.",
+            protocol="serial",
+        )
+    age = time.monotonic() - latest_at
+    if age > stale:
+        raise OTNoReadingError(
+            f"Serial {ref}: no line for {age:.1f} s — stale (stale_after_s {stale:g}).",
+            protocol="serial",
+        )
+    return latest
+
+
+def _poll_line(session: SerialSession, ref: str) -> tuple[str | None, str]:
+    if session.latest is not None and time.monotonic() - session.latest_at <= POLL_REUSE_S:
+        return session.latest  # same tick, another channel: one query, not one per channel
+    session.link.flush_input()
+    session.link.write(session.profile.query.encode("ascii"))
+    line = _first_line(
+        session.link,
+        _framer(session.profile),
+        float(getattr(session.target, "timeout_s", 5) or 5),
+    )
+    if line is None:
+        raise OTNoReadingError(f"Serial {ref}: no answer to the query.", protocol="serial")
+    session.latest, session.latest_at = line, time.monotonic()
+    return line
 
 
 def session_read(session: SerialSession, ref: str) -> tuple[Any, str]:
     """Collection read on a held link. Stale or undecodable → no reading (a gap)."""
     channel = channel_for(session.target, ref)
-    profile = session.profile
-    if profile.mode == "poll":
-        session.link.write(profile.query.encode("ascii"))
-        deadline = time.monotonic() + float(getattr(session.target, "timeout_s", 5) or 5)
-        asked = time.monotonic()
-        while time.monotonic() < deadline and session.latest_at < asked:
-            session.drain()
-        if session.latest_at < asked:
-            raise OTNoReadingError(f"Serial {ref}: no answer to the query.", protocol="serial")
+    _check_unchanged(session)
+    if session.profile.mode == "listen":
+        line = _listen_line(session, ref)
     else:
-        stale = float(session.target.stale_after_s)
-        session.drain()
-        if session.latest is None:
-            # Nothing yet since the link opened: give the first line the same
-            # window any line gets, rather than calling a just-opened link stale.
-            deadline = session.opened_at + stale
-            while session.latest is None and time.monotonic() < deadline:
-                session.drain()
-            if session.latest is None:
-                raise OTNoReadingError(
-                    f"Serial {ref}: no line within {stale:g} s since the link opened.",
-                    protocol="serial",
-                )
-        age = time.monotonic() - session.latest_at
-        if age > stale:
-            raise OTNoReadingError(
-                f"Serial {ref}: no line for {age:.1f} s — stale (stale_after_s "
-                f"{float(session.target.stale_after_s):g}).",
-                protocol="serial",
-            )
+        line = _poll_line(session, ref)
     try:
-        return _decode(channel, *session.latest).value, ""
+        return _decode(channel, *line).value, ""
     except InvalidReadingError as exc:
         raise OTNoReadingError(f"Serial {ref}: {exc}", protocol="serial") from exc
 
@@ -334,6 +426,7 @@ def session_read(session: SerialSession, ref: str) -> tuple[Any, str]:
 __all__ = [
     "SerialLink",
     "SerialSession",
+    "SerialSilenceError",
     "channel_for",
     "read_value",
     "serial_session",

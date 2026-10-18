@@ -128,9 +128,10 @@ def test_listen_an_unstable_latest_line_is_a_gap_not_the_previous_value(pty_port
 
 
 def test_listen_a_silent_instrument_is_no_reading(pty_port):
+    """Silence on a one-shot read: the device did not answer (not 'connected')."""
     _, path = pty_port
     started = time.monotonic()
-    with pytest.raises(OTNoReadingError, match="stale_after_s"):
+    with pytest.raises(ops.SerialSilenceError, match="heard nothing"):
         ops.read_value(_target(_profile(), path=path, stale_after_s=0.3), "ch:weight")
     assert time.monotonic() - started < 2.0
 
@@ -155,7 +156,8 @@ def test_the_port_is_opened_exclusively_and_a_busy_one_refused(pty_port):
 
 def test_sniff_returns_raw_lines_and_sends_nothing(pty_port):
     controller, path = pty_port
-    _stream(controller, ["ST,GS,+0001.00kg", "garbage"])
+    # The first line after open is dropped (it may be the tail of a line).
+    _stream(controller, ["warm-up", "ST,GS,+0001.00kg", "garbage"])
     out = ops.sniff(_target(_profile(), path=path), seconds=0.5, max_lines=10)
     assert out["lines"][:2] == ["ST,GS,+0001.00kg", "garbage"]
     os.set_blocking(controller, False)
@@ -212,7 +214,7 @@ def test_session_keeps_the_link_and_reports_staleness(pty_port):
     controller, path = pty_port
     target = _target(_profile(), path=path, stale_after_s=0.4)
     with ops.serial_session(target) as session:
-        os.write(controller, b"ST,GS,+0004.00kg\r\n")
+        os.write(controller, b"warm-up\r\nST,GS,+0004.00kg\r\n")
         time.sleep(0.1)
         value, _ = ops.session_read(session, "ch:weight")
         assert value == pytest.approx(4.0)
@@ -227,7 +229,7 @@ def test_session_first_read_waits_for_the_first_line_instead_of_a_bogus_gap(pty_
     controller, path = pty_port
     target = _target(_profile(), path=path, stale_after_s=1.0)
     with ops.serial_session(target) as session:
-        _stream(controller, ["ST,GS,+0005.00kg"], delay=0.2)
+        _stream(controller, ["warm-up", "ST,GS,+0005.00kg"], delay=0.2)
         value, _ = ops.session_read(session, "ch:weight")
         assert value == pytest.approx(5.0)
 

@@ -98,11 +98,12 @@ def test_a_unit_that_disagrees_with_the_declared_one_is_refused():
         decode_line(_weight(), "ST,GS,+0012.34g")
 
 
-def test_unit_only_from_the_line():
+def test_unit_only_from_the_line_is_refused_at_load():
+    """A unit taken only from each line is not one series' unit (review of E4)."""
     channel = {**SCALE["channels"][0]}
     channel.pop("unit")
-    reading = decode_line(_profile(channels=[channel]).channel("weight"), "ST,GS,+0012.34g")
-    assert reading.unit == "g"
+    with pytest.raises(ValueError, match="fixed unit"):
+        _profile(channels=[channel])
 
 
 def test_scale_and_range_apply():

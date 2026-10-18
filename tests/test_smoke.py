@@ -596,6 +596,7 @@ def test_protocols_supported_lists_all():
         "bacnet",
         "hart",
         "iolink",
+        "serial",
     }
     assert set(out["roadmap_stubs"]) == set()
     assert "asset_inventory" in out["analytics"]

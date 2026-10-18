@@ -200,6 +200,15 @@ def _probe_iolink(t: Any) -> tuple[bool, str]:
     return True, f"IO-Link master={info.get('master', {}).get('productcode', '?')}"
 
 
+def _probe_serial(t: Any) -> tuple[bool, str]:
+    """Open and close the link — exclusive, sends nothing (a poll query is a read
+    the operator asks for, not something `doctor` does on its own)."""
+    from iaiops.connectors.serial.ops import SerialLink
+
+    SerialLink(t).open().close()
+    return True, "serial link opened (nothing sent)"
+
+
 def _probe_mqtt(t: Any) -> tuple[bool, str]:
     from iaiops.connectors.sparkplug.ops import mqtt_read_topic
 
@@ -720,6 +729,7 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
     # Serial ASCII instruments (HLD §17.4): decoded only through a profile.
     "serial": _caps(
         _where_serial,
+        doctor_probe=_probe_serial,
         read_ref=_readref_serial,
         monitor_read=_monitor_serial,
         session_builder=_session_serial,

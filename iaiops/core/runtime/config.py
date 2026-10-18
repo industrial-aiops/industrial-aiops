@@ -687,6 +687,8 @@ def _default_port(protocol: str, given: object, use_tls: bool = False) -> int:
             pass
     if protocol == "mqtt" and use_tls:
         return DEFAULT_MQTT_TLS_PORT
+    if protocol == "serial":
+        return 0  # a serial device server's port has no default (checked in _serial_terms)
     return _DEFAULT_PORTS.get(protocol, DEFAULT_OPCUA_PORT)
 
 
@@ -946,9 +948,14 @@ def _parse_historian(raw: object) -> HistorianConfig | None:
     )
 
 
-def _parse_bus(raw: Any, endpoint: str) -> str:
+def _parse_bus(raw: Any, endpoint: str, protocol: str = "serial") -> str:
     if raw in (None, ""):
         return ""
+    if protocol != "serial":
+        raise ValueError(
+            f"Endpoint {endpoint!r}: bus applies to serial endpoints only — it would protect "
+            f"nothing on a {protocol} endpoint."
+        )
     value = str(raw).strip().lower()
     if value not in ("shared", "dedicated"):
         raise ValueError(
@@ -958,6 +965,20 @@ def _parse_bus(raw: Any, endpoint: str) -> str:
     return value
 
 
+def _serial_terms(d: dict, endpoint: str) -> None:
+    """A serial endpoint states what cannot be defaulted safely: the device server's
+    TCP port, and the line's baud rate (a wrong one reads as garbage)."""
+    if d.get("protocol") != "serial":
+        return
+    if d.get("host") and not d.get("serial_port") and d.get("port") in (None, "", 0):
+        raise ValueError(f"Endpoint {endpoint!r}: a serial device server needs its TCP `port`.")
+    if (d.get("serial_port") or d.get("com_port")) and d.get("baudrate") in (None, ""):
+        raise ValueError(
+            f"Endpoint {endpoint!r}: a serial port needs its `baudrate` (often 9600) — "
+            "there is no safe default."
+        )
+
+
 def _parse_target(d: dict) -> TargetConfig:
     """Build one immutable TargetConfig from a raw config dict."""
     # The label is built defensively: an entry that is not a mapping at all
@@ -965,6 +986,7 @@ def _parse_target(d: dict) -> TargetConfig:
     # would raise before the teaching error could be built.
     named = d.get("name", "?") if isinstance(d, Mapping) else "?"
     reject_unknown_keys(ENDPOINT_KEYS, d, where=f" {str(named)!r}")
+    _serial_terms(d, str(named))
     protocol = d.get("protocol", "opcua")
     if protocol == "eip":  # normalize the accepted alias
         protocol = "ethernetip"
@@ -1011,7 +1033,7 @@ def _parse_target(d: dict) -> TargetConfig:
         stale_after_s=float(d.get("stale_after_s", 0) or 0),
         sensor_profile=str(d.get("sensor_profile", "") or "").strip(),
         port_profiles=parse_port_profiles(d.get("port_profiles"), str(named)),
-        bus=_parse_bus(d.get("bus"), str(named)),
+        bus=_parse_bus(d.get("bus"), str(named), protocol),
         tags=parse_tags(d.get("tags", []), endpoint=str(d.get("name", ""))),
         ideal_cycle_time_s=_opt_float(d.get("ideal_cycle_time_s")),
     )

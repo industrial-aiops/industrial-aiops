@@ -63,8 +63,11 @@ def channel_fields(raw: dict, layout: AsciiLayout, where: str) -> dict[str, Any]
     """unit / unit_from / status for a serial channel → Channel keyword arguments."""
     unit = raw.get("unit")
     unit_from = raw.get("unit_from")
-    if unit is None and unit_from is None:
-        raise ValueError(f"{where}: give `unit`, or `unit_from` (a pattern group), or both.")
+    if unit is None:
+        raise ValueError(
+            f"{where}: a serial channel needs a fixed unit (`unit`) — a series that mixes kg "
+            "and g is not one series. `unit_from` then only checks each line against it."
+        )
     if unit_from is not None and unit_from not in layout.groups:
         raise ValueError(f"{where}: unit_from {unit_from!r} is not a group in the pattern.")
     out: dict[str, Any] = {"unit": "", "unit_from": unit_from or ""}
@@ -108,8 +111,10 @@ def framing(raw: Any, where: str) -> Framing:
     if not isinstance(raw, dict) or set(raw) - {"terminator", "encoding", "max_line"}:
         raise ValueError(f"{where}: framing is {{terminator, encoding, max_line}}.")
     terminator = raw.get("terminator", "\r\n")
-    if not isinstance(terminator, str) or not 1 <= len(terminator) <= 4:
-        raise ValueError(f'{where}: framing terminator must be 1–4 characters, e.g. "\\r\\n".')
+    if not isinstance(terminator, str) or not 1 <= len(terminator) <= 4 or not terminator.isascii():
+        raise ValueError(
+            f'{where}: framing terminator must be 1–4 ASCII characters, e.g. "\\r\\n".'
+        )
     encoding = raw.get("encoding", "ascii")
     if encoding not in ENCODINGS:
         raise ValueError(f"{where}: framing encoding must be one of {', '.join(ENCODINGS)}.")

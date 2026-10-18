@@ -24,6 +24,16 @@
   nothing; decoded reads through `sensor_read_channel` / `iaiops sensor read`;
   collection with a held link. `IAIOPS_MCP=serial` and the `sensor` menu include
   it; `pip install iaiops[serial]` (also in `iaiops[sensor]`). 204 governed tools.
+- **Found by an adversarial review before merge, all with tests.** A held listen
+  link reads continuously, so lines buffered while nobody asked are not stored as
+  fresh; the first line after open is dropped (it may be the tail of a line, so
+  `2.50` of `12.50`); poll flushes the input before sending, so a late answer to
+  the previous query is not the new reading; a value of `1_000` or a missing group
+  is refused, not passed to `float()`; an instrument that answers nothing is a
+  connection fault, not a reachable device with a gap; a serial port without
+  `baudrate` or a TCP device server without `port` is refused at config load (no
+  silent 9600 / 4840 default); a non-ASCII terminator is refused; `bus` is refused
+  on non-serial endpoints; readiness and doctor judge serial endpoints.
 
 ### Added — a sensor profile library (HLD §17.3 E3, D52)
 

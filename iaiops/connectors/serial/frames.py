@@ -22,6 +22,9 @@ from iaiops.core.runtime.sensor.decode import _finish
 
 #: Characters of a refused line quoted back in the reason.
 SNIPPET = 48
+#: A number as an instrument writes it — no `1_000` (float() accepts that),
+#: no `nan` / `inf`, no surrounding spaces.
+_NUMBER = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
 
 
 @functools.lru_cache(maxsize=256)
@@ -36,16 +39,30 @@ def _snippet(line: str) -> str:
 class LineFramer:
     """Accumulates bytes; ``feed`` returns completed ``(line | None, reason)`` pairs."""
 
-    def __init__(self, terminator: str, encoding: str, max_line: int) -> None:
+    def __init__(self, terminator: str, encoding: str, max_line: int, synced: bool = True) -> None:
         self._terminator = terminator.encode("ascii")
         self._encoding = encoding
         self._max = max_line
         self._buffer = b""
         self._overlong = False
+        #: False right after a link opens mid-stream: everything before the first
+        #: terminator is the TAIL of a line ("2.50 kg" of "12.50 kg") and is dropped.
+        self._synced = synced
+
+    def reset(self, synced: bool = True) -> None:
+        """Forget buffered bytes (after flushing the input)."""
+        self._buffer, self._overlong, self._synced = b"", False, synced
 
     def feed(self, data: bytes) -> list[tuple[str | None, str]]:
         self._buffer += data
         out: list[tuple[str | None, str]] = []
+        if not self._synced:
+            index = self._buffer.find(self._terminator)
+            if index < 0:
+                self._buffer = self._buffer[-len(self._terminator) :]
+                return out
+            self._buffer = self._buffer[index + len(self._terminator) :]
+            self._synced = True
         while True:
             index = self._buffer.find(self._terminator)
             if index < 0:
@@ -81,12 +98,10 @@ def decode_line(channel: Channel, line: str) -> Reading:
             raise InvalidReadingError(
                 f"{channel.name}: status {code!r} is neither ok nor a known invalid code."
             )
-    try:
-        value = float(match.group("value"))
-    except ValueError as exc:
-        raise InvalidReadingError(
-            f"{channel.name}: {match.group('value')!r} is not a number."
-        ) from exc
+    text = match.group("value")
+    if text is None or not _NUMBER.fullmatch(text):
+        raise InvalidReadingError(f"{channel.name}: {text!r} is not a number.")
+    value = float(text)
     if not math.isfinite(value):
         raise InvalidReadingError(f"{channel.name}: the instrument sent {value}.")
     unit = channel.unit
