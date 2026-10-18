@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Fixed — a steady OPC UA value was collected once, then never again
+
+- **Every Good OPC UA poll is an observation now.** The collector skipped a
+  read whose source timestamp matched the last one written — right for MQTT,
+  where the stamp identifies a publish, wrong for OPC UA, where
+  `SourceTimestamp` is when the value last *changed*. Every poll of a steady
+  state was dropped: measured, 49 polls over 6 s of a line that ran and then
+  stopped stored 2 samples while the run reported 100% coverage. Over a long
+  run it errs in the flattering direction — the states that last longest
+  (long stops among them) are the ones that turn into blind time. OPC UA reads
+  are now stamped when polled (`timestamp_is_change_time` in the capability
+  table, `run_collection(fresh_each_read=…)`); MQTT keeps its repeat check.
+- **A value the server did not observe is a gap.** With polls trusted as
+  observations, the server's own staleness flag is the guard:
+  `UncertainLastUsableValue`, `UncertainNoCommunicationLastUsableValue`,
+  `UncertainSubstituteValue` and `UncertainInitialValue` are recorded as gaps,
+  never written. Other Uncertain codes (e.g. `EngineeringUnitsExceeded`) still
+  qualify an observed value and are kept.
+
 ### Fixed — an OPC UA read the server rejected was stored as an empty sample
 
 - **A Bad status is never a value.** `collect run` read OPC UA through the

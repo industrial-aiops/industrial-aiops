@@ -82,6 +82,11 @@ class ProtocolCapabilities:
     #: stays correct for one-shot CLI reads.
     session_read: MonitorReadFn | _Unsupported
     session_builder: SessionBuilder | _Unsupported
+    #: The timestamp a read returns is when the value last CHANGED (OPC UA
+    #: SourceTimestamp), not an identity of a publish (MQTT). Then a poll that
+    #: returns the same stamp is still a fresh observation, and collection must
+    #: not drop it as a repeat — doing so stored one sample per steady state.
+    timestamp_is_change_time: bool = False
 
 
 # ─── where hints (human-readable 'where' for an endpoint) ────────────────────
@@ -558,6 +563,7 @@ def _caps(
     monitor_read: MonitorReadFn | _Unsupported = UNSUPPORTED,
     session_read: MonitorReadFn | _Unsupported = UNSUPPORTED,
     session_builder: SessionBuilder | _Unsupported = UNSUPPORTED,
+    timestamp_is_change_time: bool = False,
 ) -> ProtocolCapabilities:
     return ProtocolCapabilities(
         where_hint=where_hint,
@@ -568,6 +574,7 @@ def _caps(
         monitor_read=monitor_read,
         session_read=session_read,
         session_builder=session_builder,
+        timestamp_is_change_time=timestamp_is_change_time,
     )
 
 
@@ -581,6 +588,7 @@ REGISTRY: Final[dict[str, ProtocolCapabilities]] = {
         monitor_read=_monitor_opcua,
         session_read=_session_read_opcua,
         session_builder=_session("opcua_session"),
+        timestamp_is_change_time=True,
     ),
     "modbus": _caps(
         _where_default,
