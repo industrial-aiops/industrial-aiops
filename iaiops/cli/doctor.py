@@ -15,7 +15,10 @@ def doctor_cmd(
         bool, typer.Option("--skip-probe", help="Skip connectivity probe (faster)")
     ] = False,
 ) -> None:
-    """Check config and OPC-UA / Modbus endpoint reachability."""
+    """Check config, secrets, and reachability of every configured endpoint.
+
+    Every protocol with a connectivity probe is checked; `--skip-probe` contacts nothing.
+    """
     from iaiops.doctor import run_doctor
 
     raise typer.Exit(run_doctor(skip_probe=skip_probe))
