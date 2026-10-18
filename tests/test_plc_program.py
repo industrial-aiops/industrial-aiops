@@ -123,6 +123,9 @@ L5X_SAMPLE = """\
 @pytest.fixture()
 def home(tmp_path, monkeypatch):
     monkeypatch.setenv("IAIOPS_HOME", str(tmp_path / "iaiops-home"))
+    # The exports these tests write sit beside the home, in a directory the
+    # operator has listed for the agent (MCP tools read nowhere else).
+    monkeypatch.setenv("IAIOPS_AGENT_READ_DIRS", str(tmp_path))
     return tmp_path
 
 
@@ -382,7 +385,7 @@ def test_section_tool_l5x_rungs(home, tmp_path):
 @pytest.mark.unit
 def test_tools_reject_bad_paths_as_error_dict(home, tmp_path):
     result = plc_program_outline(path=str(tmp_path / "missing.scl"))
-    assert "error" in result and "not found" in result["error"]
+    assert "error" in result and "not a readable file" in result["error"]
     result = plc_program_xref(path=str(tmp_path), symbol="X")
     assert "error" in result
 

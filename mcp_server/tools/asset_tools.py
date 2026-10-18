@@ -78,7 +78,9 @@ def device_advisory_check(
 
     Args:
         devices: [{ip?, vendor, model, firmware?}] — e.g. the `hosts` of a scan.
-        library_path: Path to the advisory file (YAML or JSON) this site mounted;
+        library_path: Path to the advisory file (.yaml/.yml/.json) this site
+            mounted, under $IAIOPS_HOME, the config directory or a directory
+            the operator lists in IAIOPS_AGENT_READ_DIRS (other paths are refused unread);
             entries are {id, vendor, model, source, affected_below|affected_from|
             affected_versions, title?}.
 
@@ -91,5 +93,7 @@ def device_advisory_check(
         "model":"S7-1500","firmware":"2.8.1"}], library_path="~/advisories.yaml").
     """
     from iaiops.core.brain.device_advisories import load_advisories, match_devices
+    from iaiops.core.governance.input_paths import agent_readable_path
 
-    return match_devices(devices, load_advisories(library_path))
+    library = agent_readable_path(library_path, suffixes=(".yaml", ".yml", ".json"))
+    return match_devices(devices, load_advisories(library))

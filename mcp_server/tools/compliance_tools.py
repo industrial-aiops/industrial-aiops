@@ -235,7 +235,9 @@ def historian_push(
         sink: 'tdengine' or 'iotdb'.
         host/port/user/password: TSDB connection params (sensible defaults per sink
             when blank/0).
-        database: Target database (TDengine db / IoTDB storage group, e.g. 'root.iaiops').
+        database: Target database (TDengine db / IoTDB storage group, e.g. 'root.iaiops');
+            for 'sqlite' a .db file under $IAIOPS_HOME, the config directory or an
+            IAIOPS_AGENT_READ_DIRS directory (empty = the iaiops store).
 
     Returns dict: {sink, received, written, skipped_non_numeric, database}.
 
@@ -250,5 +252,23 @@ def historian_push(
     if password:
         opts["password"] = password
     if database:
-        opts["database"] = database
+        opts["database"] = _sqlite_target(database) if _is_sqlite(sink) else database
     return _historian_push(points, sink, **opts)
+
+
+def _is_sqlite(sink: str) -> bool:
+    return (sink or "").strip().lower() == "sqlite"
+
+
+def _sqlite_target(database: str) -> str:
+    """For the local sink ``database`` is a FILE: confine it like any agent path.
+
+    Unconfined, ``historian_push(sink="sqlite", database=...)`` created or wrote
+    any SQLite file on the host and tightened its parent directory to 0700.
+    """
+    from iaiops.core.governance.input_paths import agent_readable_path
+
+    target = agent_readable_path(
+        database, suffixes=(".db", ".sqlite", ".sqlite3"), must_exist=False
+    )
+    return str(target)

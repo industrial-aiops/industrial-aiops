@@ -8,6 +8,10 @@ and every element carries source_file + line (rung number for ladder) so the
 explanation must cite real locations. Advisory + regex/line/xml based, not a
 full grammar; parse_errors are reported instead of raised.
 
+The file must lie under $IAIOPS_HOME, the config directory or a directory the
+operator lists in IAIOPS_AGENT_READ_DIRS: an agent's path is resolved and refused before anything
+is read (the CLI reads any path the operator types).
+
 ``plc_program_snapshot`` / ``plc_program_drift`` / ``plc_program_history`` add the
 change-control half: record the structure of the version you consider approved,
 then ask a later export whether anything moved. The local store holds block
@@ -21,6 +25,7 @@ from typing import Optional
 from iaiops.core.brain import plc_program as ops
 from iaiops.core.brain.plc_visibility import plc_visibility
 from iaiops.core.governance import governed_tool
+from iaiops.core.governance.input_paths import agent_readable_path
 from iaiops.core.runtime.envelope import envelope_fields
 from mcp_server._shared import mcp, tool_errors
 
@@ -28,6 +33,16 @@ MAX_BLOCKS = 50
 MAX_VARS_PER_BLOCK = 100
 MAX_XREF_HITS = 200
 MAX_SECTION_LINES = 200
+
+
+def _export(path: str) -> str:
+    """The agent's path, confined to the read roots before any read.
+
+    An export lives where the operator says: ``$IAIOPS_HOME``, the config directory or
+    a directory they list in ``IAIOPS_AGENT_READ_DIRS``. Without this, ``plc_program_section`` would
+    return 200 lines of any ``.txt`` on the host.
+    """
+    return str(agent_readable_path(path, suffixes=tuple(sorted(ops.ALLOWED_EXTENSIONS))))
 
 
 @mcp.tool()
@@ -45,7 +60,8 @@ def plc_program_outline(path: str) -> dict:
     Malformed sections degrade to entries in parse_errors, never a crash.
 
     Args:
-        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB).
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB),
+            under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir.
 
     Returns dict: {source_file, format, stats:{blocks, variables, call_edges,
         branches, timers_counters, comments, lines, parse_errors},
@@ -56,7 +72,7 @@ def plc_program_outline(path: str) -> dict:
 
     Example: plc_program_outline(path="~/exports/Line3_Conveyor.scl").
     """
-    outline = ops.outline_program(path)
+    outline = ops.outline_program(_export(path))
     return ops.outline_to_bounded_dict(
         outline, max_blocks=MAX_BLOCKS, max_vars_per_block=MAX_VARS_PER_BLOCK
     )
@@ -77,7 +93,8 @@ def plc_program_xref(path: str, symbol: str) -> dict:
     line is the rung number.
 
     Args:
-        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB).
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB),
+            under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir.
         symbol: Symbol / tag / absolute address to trace (word-bounded match).
 
     Returns dict: {source_file, format, symbol, hit_count,
@@ -86,8 +103,9 @@ def plc_program_xref(path: str, symbol: str) -> dict:
 
     Example: plc_program_xref(path="~/exports/OB1.awl", symbol="M10.0").
     """
-    resolved, _text, fmt = ops.load_program(path)
-    hits = ops.find_symbol(path, symbol)
+    export = _export(path)
+    resolved, _text, fmt = ops.load_program(export)
+    hits = ops.find_symbol(export, symbol)
     by_access: dict[str, int] = {}
     for hit in hits:
         by_access[hit.access] = by_access.get(hit.access, 0) + 1
@@ -126,7 +144,8 @@ def plc_program_section(path: str, block: str) -> dict:
     Unknown block names fail with the list of available blocks.
 
     Args:
-        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB).
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB),
+            under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir.
         block: Block/routine name (case-insensitive; quotes optional).
 
     Returns dict: {source_file, format, block, kind, start_line, end_line,
@@ -134,7 +153,7 @@ def plc_program_section(path: str, block: str) -> dict:
 
     Example: plc_program_section(path="~/exports/Line3.scl", block="FB_Conveyor").
     """
-    return ops.block_section(path, block, max_lines=MAX_SECTION_LINES)
+    return ops.block_section(_export(path), block, max_lines=MAX_SECTION_LINES)
 
 
 @mcp.tool()
@@ -154,7 +173,8 @@ def plc_program_visibility(path: str) -> dict:
     line (rung number for L5X ladder).
 
     Args:
-        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB).
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB),
+            under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir.
 
     Returns dict: {source_file, fmt, stats:{blocks, call_edges, line_count,
         comment_count, comment_ratio, variables, branches, timers_counters},
@@ -169,7 +189,7 @@ def plc_program_visibility(path: str) -> dict:
 
     Example: plc_program_visibility(path="~/exports/Line3_Conveyor.scl").
     """
-    return plc_visibility(ops.outline_program(path))
+    return plc_visibility(ops.outline_program(_export(path)))
 
 
 @mcp.tool()
@@ -198,7 +218,8 @@ def plc_program_snapshot(
     padded with identical rows hides the rows that are not.
 
     Args:
-        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB).
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB),
+            under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir.
         name: Program identity across exports. Defaults to the file's stem, and
             the result says which was used — the export path changes every time
             somebody opens the engineering station, the program does not.
@@ -213,7 +234,7 @@ def plc_program_snapshot(
     """
     from iaiops.core.brain import program_baseline as pb
 
-    return pb.take_snapshot(path, name=name, label=label, note=note)
+    return pb.take_snapshot(_export(path), name=name, label=label, note=note)
 
 
 @mcp.tool()
@@ -242,7 +263,7 @@ def plc_program_drift(
     job. No device is touched — this reads a file a person exported.
 
     Args:
-        path: The current exported program file to check.
+        path: The current exported program file to check (same roots as above).
         name: Tracked program name (defaults to the file's stem).
         against: Snapshot id to compare with; default is the latest.
 
@@ -257,7 +278,7 @@ def plc_program_drift(
     """
     from iaiops.core.brain import program_baseline as pb
 
-    return pb.check_drift(path, name=name, against=against)
+    return pb.check_drift(_export(path), name=name, against=against)
 
 
 @mcp.tool()

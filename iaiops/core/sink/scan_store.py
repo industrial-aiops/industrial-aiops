@@ -219,6 +219,24 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _has_scan_tables(conn: sqlite3.Connection) -> bool:
+    """Whether a store holds scans — checked, never created, on the read paths.
+
+    Reading must not write: ``_ensure_schema`` flips the journal mode to WAL and
+    adds tables, so a listing pointed at some other database (an audit store, a
+    vendor project file) used to change it. A store without the tables simply has
+    no scans.
+    """
+    names = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name IN ('scans', 'scan_hosts')"
+        )
+    }
+    return names == {"scans", "scan_hosts"}
+
+
 def _db(db_path: Path | str | None) -> Path:
     return Path(db_path).expanduser() if db_path else local_db_path()
 
@@ -306,7 +324,8 @@ def list_scans(db_path: Path | str | None = None, limit: int = 50) -> tuple[Scan
         return ()
     conn = _connect(path)
     try:
-        _ensure_schema(conn)
+        if not _has_scan_tables(conn):
+            return ()
         rows = conn.execute(
             "SELECT scan_id, site, started_at, finished_at, profile, verdict, "
             "host_count, device_count, approved_by, ticket FROM scans "
@@ -330,7 +349,8 @@ def load_scan(scan_id: str, db_path: Path | str | None = None) -> dict[str, Any]
         raise ScanNotFound(f"no scan store at {path}")
     conn = _connect(path)
     try:
-        _ensure_schema(conn)
+        if not _has_scan_tables(conn):
+            raise ScanNotFound(f"no scan {scan_id!r} in {path}")
         conn.row_factory = sqlite3.Row
         scan = conn.execute("SELECT * FROM scans WHERE scan_id = ?", (scan_id,)).fetchone()
         if scan is None:

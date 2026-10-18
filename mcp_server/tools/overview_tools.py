@@ -1,5 +1,8 @@
 """Self-description MCP tool: the protocol/capability map (read-only)."""
 
+from pathlib import Path
+from typing import Optional
+
 from iaiops.core.brain import overview
 from iaiops.core.governance import governed_tool
 from mcp_server._shared import mcp, tool_errors
@@ -61,6 +64,20 @@ def protocols_supported() -> dict:
     }
 
 
+def _store_override(db: str) -> Optional[Path]:
+    """A ``db`` override, confined to the agent's read roots; empty = the iaiops store.
+
+    The path may not exist (absence reads as an empty store), but it may not be
+    OUTSIDE the roots either: these tools open it with SQLite, which reads any
+    database it is pointed at.
+    """
+    if not db:
+        return None
+    from iaiops.core.governance.input_paths import agent_readable_path
+
+    return agent_readable_path(db, suffixes=(".db", ".sqlite", ".sqlite3"), must_exist=False)
+
+
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
@@ -89,13 +106,12 @@ def site_readiness(db: str = "") -> dict:
     supplied at all yet, the row says `not_yet_expressible` rather than implying
     somebody forgot to configure it.
 
-    `db` overrides the local store path; empty means the iaiops store.
+    `db` overrides the local store path (.db/.sqlite, under $IAIOPS_HOME, the
+    config dir or an IAIOPS_AGENT_READ_DIRS dir); empty means the iaiops store.
     """
-    from pathlib import Path
-
     from iaiops.core.readiness import assess
 
-    return assess(db_path=Path(db).expanduser() if db else None).as_dict()
+    return assess(db_path=_store_override(db)).as_dict()
 
 
 @mcp.tool()
@@ -135,11 +151,10 @@ def onboarding_status(db: str = "", track: str = "auto") -> dict:
     endpoints, and reporting otherwise to keep the sequence tidy would be a lie
     in the direction that makes this tool look more necessary.
 
-    Contacts nothing. `db` overrides the local store path; empty means the
+    Contacts nothing. `db` overrides the local store path (.db/.sqlite, under
+    $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir); empty means the
     iaiops store.
     """
-    from pathlib import Path
-
     from iaiops.core.onboard.path import assess_path, validate_track
 
     try:
@@ -148,7 +163,7 @@ def onboarding_status(db: str = "", track: str = "auto") -> dict:
         # Answered here: the generic error wrapper would append "run iaiops doctor",
         # which has nothing to do with a mistyped argument.
         return {"error": str(exc), "hint": "track is one of: auto, devices, uns."}
-    return assess_path(db_path=Path(db).expanduser() if db else None, track=wanted).as_dict()
+    return assess_path(db_path=_store_override(db), track=wanted).as_dict()
 
 
 @mcp.tool()
@@ -179,15 +194,14 @@ def onboarding_config_draft(scan_id: str = "", db: str = "") -> dict:
     production counter yields a plausible OEE, which is worse than an error
     (D16). That confirmation is a person's, via `iaiops tags export` / `apply`.
 
-    `scan_id` empty means the newest stored scan.
+    `scan_id` empty means the newest stored scan. `db` overrides the store
+    (.db/.sqlite, under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir).
     """
-    from pathlib import Path
-
     from iaiops.core.onboard import draft_from_scan
     from iaiops.core.onboard.config_state import existing_endpoints
     from iaiops.core.sink.scan_store import list_scans, load_scan
 
-    store = Path(db).expanduser() if db else None
+    store = _store_override(db)
     stored = list_scans(store, 1)
     if not stored:
         raise ValueError(

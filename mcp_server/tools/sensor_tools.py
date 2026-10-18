@@ -15,9 +15,10 @@ Binding a profile into config.yaml is deliberately NOT a tool (D51): config.yaml
 is the one source of truth and which sensor sits on which port is a site fact.
 The same engines back the CLI (``iaiops sensor import-iodd | check | read``).
 
-The two file tools read only under ``$IAIOPS_HOME`` or the config directory
-(``agent_readable_path``): the path comes from a model, so it must not reach any
-file on the host. The CLI reads whatever path the operator types.
+The two file tools read only under ``$IAIOPS_HOME``, the config directory or a
+directory the operator lists in ``IAIOPS_AGENT_READ_DIRS`` (``agent_readable_path``):
+the path comes from a model, so it must not reach any file on the host. The CLI
+reads whatever path the operator types.
 """
 
 from typing import Optional
@@ -40,8 +41,9 @@ def sensor_import_iodd(path: str, process_data: Optional[str] = None) -> dict:
     in config.yaml yourself — this tool never edits config.
 
     Args:
-        path: The device's IODD (.xml), under $IAIOPS_HOME or the config
-            directory — other paths are refused unread.
+        path: The device's IODD (.xml), under $IAIOPS_HOME, the config
+            directory or an IAIOPS_AGENT_READ_DIRS directory — other paths are
+            refused unread.
         process_data: ProcessData id, required when the IODD declares several.
 
     Returns dict: {draft (YAML text), profile_id, device_name, notes[]}.
@@ -71,8 +73,9 @@ def sensor_profile_check(path: str) -> dict:
     """[READ][risk=low] Validate a sensor profile file and list its channels.
 
     Args:
-        path: A profile (.yaml / .yml), under $IAIOPS_HOME or the config
-            directory — other paths are refused unread.
+        path: A profile (.yaml / .yml), under $IAIOPS_HOME, the config
+            directory or an IAIOPS_AGENT_READ_DIRS directory — other paths are
+            refused unread.
 
     Returns dict: {id, protocol, source, verified, match, pd_bits,
         channels:[{channel, layout, unit, signal, range, sentinels, band}]}.
