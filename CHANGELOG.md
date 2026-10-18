@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### Added — the unit travels with the value (HLD §17.5, D56)
+
+- **Collected samples now carry their unit.** The store's `unit` column was
+  always empty, although a sensor profile knows whether a channel is mm or N —
+  the lab LAN run of #249 showed it. A ref's unit is its profile channel's unit
+  (`ch:<name>` on Modbus, `port<N>/<channel>` on IO-Link), resolved once when a
+  run starts. A bare or typed Modbus point has no unit (it says how to decode,
+  not what it measures), other protocols are not judged, and a unit still marked
+  待核实 — an IODD unit code nobody has mapped — is stored as empty, never
+  guessed. `readiness` lists profile channels whose unit is still 待核实.
+  Verified on the lab LAN: N, mm, degC and bool land in the store.
+- **The unit comes from the same profile that decoded the value.** It is looked
+  up around every read, not once per run: the read path reloads a profile edited
+  mid-run, and a unit fixed at the start would have stored 1.5 kN as "1.5 N". If
+  the unit changes during a read, that sample is a gap. A unit longer than the 32
+  characters the store keeps is refused when the profile loads.
+- **Heads-up for historians:** exports and `historian push` now carry a non-empty
+  `unit` for profile channels. A sink that keys series on tags (InfluxDB writes
+  `unit` as a tag) will start a new series for the same metric (`fz` →
+  `fz,unit=N`); rows stored before this change keep an empty unit.
+
 ### Added — sensor layer S3: profiles bound to endpoints, IO-Link collectable (HLD §16)
 
 - **IO-Link can be collected — through a profile, and only through one.** Process

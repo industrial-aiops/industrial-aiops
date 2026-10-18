@@ -38,16 +38,25 @@ def _bound_profiles(target: Any) -> list[Any]:
     return profiles
 
 
+def _is_profile_ref(protocol: str, ref: str) -> bool:
+    """A ref that decodes through a profile channel, so it should have a unit."""
+    from iaiops.connectors.modbus.points import is_channel_ref
+
+    return protocol == "iolink" or (protocol == "modbus" and is_channel_ref(ref))
+
+
 def sensor_point_facts(targets: tuple[Any, ...]) -> dict[str, Any]:
     """Per-point decode status across the endpoints whose points need decoding."""
     from iaiops.connectors.modbus.points import is_channel_ref, parse_point
     from iaiops.core.collect.reader import ref_problems
+    from iaiops.core.runtime.sensor.binding import unit_for
 
     judged = 0
     decoded = 0
     untyped: list[str] = []
     unreadable: list[str] = []
     unverified: set[str] = set()
+    no_unit: list[str] = []
     for target in targets:
         protocol = str(getattr(target, "protocol", ""))
         if protocol not in _JUDGED:
@@ -68,12 +77,15 @@ def sensor_point_facts(targets: tuple[Any, ...]) -> dict[str, Any]:
                 untyped.append(f"{name}:{ref}")
             else:
                 decoded += 1
+                if _is_profile_ref(protocol, ref) and not unit_for(target, ref):
+                    no_unit.append(f"{name}:{ref}")
     return {
         "judged_endpoints": judged,
         "decoded": decoded,
         "untyped": untyped,
         "unreadable": unreadable,
         "unverified_profiles": sorted(unverified),
+        "no_unit": no_unit,
     }
 
 
@@ -83,6 +95,7 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
     untyped = list(points.get("untyped") or ())
     unreadable = list(points.get("unreadable") or ())
     unverified = list(points.get("unverified_profiles") or ())
+    no_unit = list(points.get("no_unit") or ())
     if not points.get("judged_endpoints"):
         return Requirement(
             key="decodable_points",
@@ -98,6 +111,11 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
         parts.append(f"{len(unreadable)} cannot be read: {'; '.join(unreadable[:3])}")
     if unverified:
         parts.append(f"decoded by profiles still 待核实: {', '.join(unverified[:5])}")
+    if no_unit:
+        parts.append(
+            f"{len(no_unit)} stored without a unit (profile unit still 待核实): "
+            f"{', '.join(no_unit[:5])}"
+        )
     return Requirement(
         key="decodable_points",
         label="every Modbus / IO-Link point can be decoded",
@@ -106,7 +124,9 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
         fix=(
             "Give each Modbus point its type — `ir:<addr>:float32:<order>`, "
             "`hr:<addr>:int16*0.1` — or bind a sensor profile and use `ch:<name>`. "
-            "IO-Link ports need a profile under port_profiles (`iaiops sensor import-iodd`)."
+            "IO-Link ports need a profile under port_profiles (`iaiops sensor import-iodd`). "
+            "A unit still marked 待核实 (an IODD unit code) is stored empty until the profile "
+            "says the real unit."
         ),
         optional=True,
     )
