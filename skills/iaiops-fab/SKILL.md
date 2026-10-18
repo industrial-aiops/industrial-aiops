@@ -121,3 +121,7 @@ description: >-
 |---|---|---|---|---|---|
 | SECS/GEM | `secsgem>=0.3,<1` | SECS-II(E5) · GEM(E30) · HSMS(E37/TCP)；SECS-I(E4) 待核实 | 面板/半导体设备 ↔ MES（HOST 侧） | HSMS/TCP | ✅ host+equipment 全软件自测；真机 待核实 |
 | OPC-UA | `asyncua>=2.0,<3` | OPC UA 1.0x（DA+HA+AC 子集）；FX/TSN 在路线 | 任意合规 Server | opc.tcp | ✅ mock+HDA |
+
+## 文件路径限制（0.31.0 起）
+
+MCP 里**读**主机文件的工具（`plc_program_*`、`device_advisory_check`、`db=` 覆盖等）只读 `$IAIOPS_HOME`、配置目录和运维方在 `IAIOPS_AGENT_READ_DIRS` 列出的目录；**写**文件的工具（`export_data`、`compliance_report`、`compliance_evidence_bundle`、`alarm_rationalization_worksheet`）只写 `$IAIOPS_HOME/exports` 和 `IAIOPS_AGENT_WRITE_DIRS`。超出就拒绝——把文件放进这些目录，或让运维方在 shell 里跑 `iaiops` 命令（CLI 不受限）。

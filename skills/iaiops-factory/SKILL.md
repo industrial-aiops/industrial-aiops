@@ -199,3 +199,7 @@ server，但那已由 `opcua` connector 处理，本读层**不碰 OPC-UA**。�
 | PLCnext vPLC | 复用 OPC-UA/Modbus pin | 菲尼克斯 PLCnext 内建 OPC-UA(4840)+Modbus-TCP | Phoenix Contact vPLC | opc.tcp+TCP/502 | ✅ 路由验证（`tests/test_plcnext_route.py`）；活体 待核实 |
 | Gateway MES/SCADA 读层: WebDev | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Gateway HTTP web API（WebDev 模块 JSON 端点：`/system/webdev/...` — status·tags/browse·tags/read·alarms·tags/history）；**只读**，不碰平台 OPC-UA server（由 opcua connector 覆盖）；确切 API 版本/路径 待核实 | 平台 Gateway 聚合的 provider tag / 告警 / 历史 | HTTPS + token/API-key | ✅ mock 网关（in-repo，双 flavor）；live gateway + 确切 API 版本/路径 待核实 |
 | Gateway MES/SCADA 读层: Gateway | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Gateway HTTP web API（内建状态/系统函数 REST：`/data/status`·`/data/tags`·`/data/alarms` 布局）；**只读**，JSON 建模，确切路径树 待核实 | 平台 Gateway 状态/模块/tag/告警/历史 | HTTPS + token/API-key | ✅ mock 网关（in-repo，双 flavor）；live gateway + 确切 API 版本/路径 待核实 |
+
+## 文件路径限制（0.31.0 起）
+
+MCP 里**读**主机文件的工具（`plc_program_*`、`device_advisory_check`、`db=` 覆盖等）只读 `$IAIOPS_HOME`、配置目录和运维方在 `IAIOPS_AGENT_READ_DIRS` 列出的目录；**写**文件的工具（`export_data`、`compliance_report`、`compliance_evidence_bundle`、`alarm_rationalization_worksheet`）只写 `$IAIOPS_HOME/exports` 和 `IAIOPS_AGENT_WRITE_DIRS`。超出就拒绝——把文件放进这些目录，或让运维方在 shell 里跑 `iaiops` 命令（CLI 不受限）。

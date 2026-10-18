@@ -15,10 +15,10 @@ Identity throughout: **wei `<zhouwei008@gmail.com>`**.
 | Tagline | Governed, vendor-neutral OT read tap + cross-protocol root-cause analysis |
 | Category | Industrial diagnostics / data connectivity |
 | Vendor | Industrial-AIOps (independent) |
-| Version | 0.30.0 (SemVer) |
+| Version | 0.31.0 (SemVer) |
 | License | MIT (core) |
 | Homepage | https://github.com/industrial-aiops/industrial-aiops |
-| Container image | `ghcr.io/industrial-aiops/iaiops:0.30.0-factory` — public GHCR, multi-arch amd64/arm64 |
+| Container image | `ghcr.io/industrial-aiops/iaiops:0.31.0-factory` — public GHCR, multi-arch amd64/arm64 |
 | Image signature | cosign-signed; verify key `deploy/margo/cosign.pub`, presence recorded in the Sigstore transparency log |
 | Architecture | x86-64 and arm64 (packaged separately, per platform rule) |
 
@@ -26,9 +26,9 @@ Identity throughout: **wei `<zhouwei008@gmail.com>`**.
 
 An engineer asks *why the line stopped* and gets an answer **with citations**, not a guess.
 
-iaiops reads 14 field protocols (OPC-UA, Modbus TCP/RTU, S7comm, Mitsubishi MC, Omron FINS,
+iaiops reads 15 field protocols (OPC-UA, Modbus TCP/RTU, S7comm, Mitsubishi MC, Omron FINS,
 EtherNet/IP, EtherCAT, PROFINET-DCP, BACnet/IP, HART-IP, MTConnect, IO-Link, SECS/GEM,
-MQTT/Sparkplug B), normalises them into one model, and correlates evidence **across** them:
+MQTT/Sparkplug B, serial ASCII instruments), normalises them into one model, and correlates evidence **across** them:
 downtime root cause, ISA-18.2 alarm-flood analysis, "where did the data stop" localisation, data
 trustworthiness scoring, OEE with energy baseline deviation, predictive-maintenance degradation
 bands, and a cross-protocol asset model.

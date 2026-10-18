@@ -1,6 +1,76 @@
 # Changelog
 
-## Unreleased
+## 0.31.0 — 2026-10-18
+
+Serial ASCII instruments become the 15th protocol; every MCP tool that opens a
+host file the agent names is now confined — reads to the agent's read roots,
+**writes to its own exports directory** (before this, `export_data` could replace
+the audit database); and the sensor follow-ups from #249 land (health summaries
+never say `ok` about points they could not judge, configuration causes are no
+longer reported as field faults, invalid IO-Link process data is a gap). 204
+governed tools.
+
+### Upgrade notes — read before upgrading
+
+- **MCP tools now refuse files outside the agent's roots.** Reads
+  (`plc_program_*`, `device_advisory_check`, `sensor_import_iodd` /
+  `sensor_profile_check`, the `db=` override of `site_readiness` / `onboarding_*`,
+  `historian_push(sink="sqlite")`) must lie under `$IAIOPS_HOME`, `~/.iaiops` or
+  `IAIOPS_AGENT_READ_DIRS`; writes (`export_data`, `compliance_report`,
+  `compliance_evidence_bundle`, `alarm_rationalization_worksheet`) under
+  `$IAIOPS_HOME/exports` or `IAIOPS_AGENT_WRITE_DIRS`. A call that worked in 0.30
+  with `~/exports/Line3.scl` or `out_path="/tmp/report.md"` now fails with
+  `Not opened` / `Not written`: list the directory, copy the file, or omit
+  `out_path`. The CLI is unchanged.
+- **A listed directory is silently skipped** if it is group- or world-writable,
+  owned by another user, `/`, contains the home directory — or, for write dirs,
+  overlaps `$IAIOPS_HOME` / the config directory. Linux `umask 002` makes `mkdir`
+  create 775 and container bind mounts are often owned by another uid: `chmod 700`
+  and `chown` to the server's user. The refusal lists the roots actually in use.
+- **Health summaries:** `modbus_health_summary` / `opcua_health_summary` with
+  points that could not be judged no longer report `overall: "ok"` (see the
+  sensor follow-ups below); a new `coverage` field. `ch:` profile channels are
+  now judged instead of `unknown`. Alerting on `overall == "ok"` changes.
+- **`diag dataflow` verdicts change.** Protocols without a connect probe (FINS,
+  EtherNet/IP, EtherCAT, SECS/GEM, PROFINET, BACnet, HART) answer
+  `no_connect_probe_in_this_build` instead of `cannot_connect`; a profile or
+  identity mismatch answers `comms_ok_description_mismatch`; a serial port held by
+  another program answers `link_held_by_another_program`. None of the three is
+  weighed by RCA, so expect fewer `comms_loss` candidates in `downtime_rca`.
+  Scripts matching verdict strings need updating.
+- **IO-Link: invalid process data is a gap**, not a connection failure — coverage
+  of runs spanning the upgrade is not comparable.
+- **Scan-store reads no longer create tables or switch to WAL**; a `db=` naming a
+  non-scan store reads as empty.
+- **New `serial` extra** (also pulled in by `iaiops[sensor]`) and endpoint key
+  `bus: shared | dedicated` (refused on non-serial endpoints). Poll requires
+  `bus: dedicated`, listen requires `stale_after_s`, and `baudrate` (serial) or
+  `port` (TCP) is required — each is a config-load error, not a runtime surprise.
+
+### Security — MCP output paths (pre-release audit)
+
+- **The MCP writers checked only for `..`.** `export_data(fmt="sqlite",
+  out_path="~/.iaiops/audit.db")` unlinked the audit hash-chain database at
+  risk=low (likewise `undo.db` / `data.db`), and the csv/json/md writers
+  overwrote any host file with their suffix. `export_data`, `compliance_report`,
+  `compliance_evidence_bundle` and `alarm_rationalization_worksheet` now go
+  through `agent_writable_path`: `$IAIOPS_HOME/exports` plus the private
+  directories the operator lists in **`IAIOPS_AGENT_WRITE_DIRS`** — an entry that
+  overlaps `$IAIOPS_HOME` or the config directory is ignored, so no product store
+  is ever in reach; an existing symlink at the target is refused. The default
+  export path is unchanged.
+- **`historian_push(sink="sqlite")` no longer writes into a product store.**
+  Confinement into `$IAIOPS_HOME` still admitted `database="$IAIOPS_HOME/audit.db"`,
+  where it created a `samples` table inside the audit database. It now refuses the
+  audit / undo / secrets stores by name and any existing database holding tables
+  other than `samples`. Pushing into the local sample store is unchanged.
+
+### Fixed — a serial port held by another program was diagnosed as a network fault
+
+- `diag dataflow` on a serial endpoint whose port another program holds (a
+  running `collect run`, the plant's own software) answered `cannot_connect`
+  ("likely network path down") and RCA weighed it as `comms_loss`. It now answers
+  `link_held_by_another_program` (new `OTLinkHeldError`), which RCA does not weigh.
 
 ### Security
 
@@ -59,6 +129,7 @@
   tool list. README.zh-CN: the typed-point (HLD §16), IO-Link collection and
   sensor-library paragraphs, the serial ASCII instrument paragraph, and the
   `sensor` edition in both edition lists; `serial_sniff` in the README matrix.
+
 ### Added — serial ASCII instruments: a `serial` connector (HLD §17.4 E4, D53–D58)
 
 - **Scales, gas analysers, barcode readers, legacy meters** that send a text line

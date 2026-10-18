@@ -75,8 +75,8 @@ description: >-
 | 路径 | 库 pin | 规范 / 覆盖 | 传输 | 自测 |
 |---|---|---|---|---|
 | Modbus RTU / TCP | `pymodbus>=3.5,<4`、`pyserial>=3.5` | Modbus Application Protocol；FC01–FC04；16/32 位与 float32 全部字序 | RS-485 / RS-232 / RS-422 / USB 串口；TCP | 进程内假客户端；实验机局域网上对**自建** Modbus 模拟器走查（验证阶梯 2b，非第三方设备；float32 CDAB、NaN、超量程） |
-| IO-Link 主站 | `requests>=2.31,<3` | IO-Link 1.1 过程数据 + IODD 位偏移约定；ifm IoT-Core JSON（`待核实`：只对模拟主站验证过；其他厂商路径同样 `待核实`） | HTTP | 进程内模拟主站；实验机局域网上对**自建**模拟主站走查（2b；哨兵、换传感器、PD 长度） |
-| 串口 ASCII | `pyserial>=3.5` | 按描述逐份 `待核实`（行尾 / 编码 / 正则 / 状态码） | RS-232 / RS-485 / RS-422 / USB 串口；串口服务器原始 TCP | pty 对（真实 pyserial 路径）+ 本机 TCP；实验机局域网上对**自建**称重模拟器走查（2b，非第三方设备） |
+| IO-Link 主站 | `requests>=2.31,<3` | IO-Link 1.1 过程数据 + IODD 位偏移约定；ifm IoT-Core JSON（`待核实`：只对模拟主站验证过；其他厂商路径同样 `待核实`） | HTTP | 进程内模拟主站；实验机局域网上对**自建**模拟主站走查（验证阶梯 2c：两端都是我们的；哨兵、换传感器、PD 长度） |
+| 串口 ASCII | `pyserial>=3.5` | 按描述逐份 `待核实`（行尾 / 编码 / 正则 / 状态码） | RS-232 / RS-485 / RS-422 / USB 串口；串口服务器原始 TCP | pty 对（真实 pyserial 路径）+ 本机 TCP；实验机局域网上对**自建**称重模拟器走查（验证阶梯 2c：两端都是我们的，非第三方仪表） |
 | MQTT / Sparkplug | `paho-mqtt>=2.0,<3`、`protobuf>=4.25,<8` | Sparkplug B；纯 MQTT 只有陈旧判断 | TCP（TLS / 代理认证 `待核实`） | 真实代理录制回放 |
 
 真实 IO-Link 主站的身份字段编码、真实厂商 IODD 仍 `待核实`。

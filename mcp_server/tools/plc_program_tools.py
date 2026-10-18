@@ -70,7 +70,7 @@ def plc_program_outline(path: str) -> dict:
         comment}] (≤50, blocks_truncated), call_graph:[{caller, callee,
         source_file, line}], parse_errors, citation_note}.
 
-    Example: plc_program_outline(path="~/exports/Line3_Conveyor.scl").
+    Example: plc_program_outline(path="~/.iaiops/plc/Line3_Conveyor.scl").
     """
     outline = ops.outline_program(_export(path))
     return ops.outline_to_bounded_dict(
@@ -101,7 +101,7 @@ def plc_program_xref(path: str, symbol: str) -> dict:
         hits:[{symbol, access, block, source_file, line, source_line}] (≤200),
         hits_truncated, by_access:{read, write, call, declare, reference}}.
 
-    Example: plc_program_xref(path="~/exports/OB1.awl", symbol="M10.0").
+    Example: plc_program_xref(path="~/.iaiops/plc/OB1.awl", symbol="M10.0").
     """
     export = _export(path)
     resolved, _text, fmt = ops.load_program(export)
@@ -151,7 +151,7 @@ def plc_program_section(path: str, block: str) -> dict:
     Returns dict: {source_file, format, block, kind, start_line, end_line,
         lines_returned, truncated, source, parse_errors}.
 
-    Example: plc_program_section(path="~/exports/Line3.scl", block="FB_Conveyor").
+    Example: plc_program_section(path="~/.iaiops/plc/Line3.scl", block="FB_Conveyor").
     """
     return ops.block_section(_export(path), block, max_lines=MAX_SECTION_LINES)
 
@@ -187,7 +187,7 @@ def plc_program_visibility(path: str) -> dict:
         retentive_timers, retentive_timer_count}, risk:{score (0..100), band
         ('low'|'medium'|'high'), reasons[]}, parse_errors, note}.
 
-    Example: plc_program_visibility(path="~/exports/Line3_Conveyor.scl").
+    Example: plc_program_visibility(path="~/.iaiops/plc/Line3_Conveyor.scl").
     """
     return plc_visibility(ops.outline_program(_export(path)))
 
@@ -230,7 +230,7 @@ def plc_program_snapshot(
         snapshot:{snapshot_id, taken_at, source_file, content_sha256, label, note},
         block_count, snapshot_count, previous_snapshot}.
 
-    Example: plc_program_snapshot(path="~/exports/Line3.scl", label="approved v3.2").
+    Example: plc_program_snapshot(path="~/.iaiops/plc/Line3.scl", label="approved v3.2").
     """
     from iaiops.core.brain import program_baseline as pb
 
@@ -274,7 +274,7 @@ def plc_program_drift(
         unchanged}, totals:{block_count, line_count, comment_count}, parse_errors,
         note, advisory}.
 
-    Example: plc_program_drift(path="~/exports/Line3_today.scl", name="Line3").
+    Example: plc_program_drift(path="~/.iaiops/plc/Line3_today.scl", name="Line3").
     """
     from iaiops.core.brain import program_baseline as pb
 
