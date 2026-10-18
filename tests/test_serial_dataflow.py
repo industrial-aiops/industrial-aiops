@@ -111,3 +111,28 @@ def test_the_instruments_own_status_stays_a_field_reading_with_its_reason(link, 
     out = diagnostics.diagnose_dataflow(_scale(), "ch:weight")
     assert out["verdict"] == "comms_ok_bad_quality"
     assert "unstable" in out["diagnosis"]
+
+
+class _HeldLink(_Link):
+    def open(self):
+        # What SerialLink raises when another program holds the port.
+        raise ops.port_held_error("/dev/ttyUSB0")
+
+
+def test_a_port_held_by_another_program_is_not_a_network_fault(monkeypatch):
+    """0.31.0 pre-release audit: a port held by `collect run` or the plant's own
+    software was diagnosed `cannot_connect` ("network path down") and RCA weighed
+    it as comms_loss — sending someone to check a network that was fine."""
+    monkeypatch.setattr(ops, "SerialLink", lambda target: _HeldLink(target))
+    monkeypatch.setattr("iaiops.core.runtime.sensor.binding.cached_profile", lambda path: PROFILE)
+    out = diagnostics.diagnose_dataflow(_scale(), "ch:weight")
+    assert out["verdict"] == "link_held_by_another_program", out
+    assert "network" not in out["diagnosis"].lower()
+
+
+def test_rca_does_not_weigh_a_held_link():
+    from iaiops.core.brain import rca
+
+    contributions: dict = {}
+    rca._score_dataflow({"verdict": "link_held_by_another_program"}, contributions)
+    assert contributions == {}

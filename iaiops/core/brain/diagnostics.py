@@ -109,7 +109,22 @@ def diagnose_dataflow(
             "(`iaiops collect run <endpoint>`) where the protocol supports it.",
         )
 
-    ok, detail = _probe_connect(target)
+    from iaiops.core.runtime.session_factory import OTLinkHeldError
+
+    try:
+        ok, detail = _probe_connect(target)
+    except OTLinkHeldError as exc:
+        hops.append(
+            {"hop": "connect", "protocol": s(protocol, 16), "ok": None, "detail": s(str(exc), 200)}
+        )
+        return _verdict(
+            hops,
+            "link_held_by_another_program",
+            "The link is held by another program (another collector, or the plant's own "
+            "software), so it was not taken — this says nothing about the device or the wire.",
+            "Find what holds the port (e.g. a running `iaiops collect run`, the vendor's "
+            "software) and diagnose while it is free; do not take a port the plant uses.",
+        )
     hops.append({"hop": "connect", "protocol": s(protocol, 16), "ok": ok, "detail": s(detail, 200)})
     if not ok:
         return _verdict(
@@ -266,6 +281,7 @@ def _probe_connect(target: Any) -> tuple[bool, str]:
     """
     from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
     from iaiops.core.runtime.connection import OTProtocolError
+    from iaiops.core.runtime.session_factory import OTLinkHeldError
 
     protocol = getattr(target, "protocol", "")
     cap = get_capabilities(protocol)
@@ -279,6 +295,8 @@ def _probe_connect(target: Any) -> tuple[bool, str]:
             f"Endpoint reachable and alive — it responded with a protocol-level "
             f"exception to the probe ({str(exc)[:120]})."
         )
+    except OTLinkHeldError:
+        raise  # not a connectivity status — the caller gives it its own verdict
     except Exception as exc:  # noqa: BLE001 — connectivity is a status, not a crash
         return False, str(exc)[:200]
 

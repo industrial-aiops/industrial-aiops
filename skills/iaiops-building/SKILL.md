@@ -164,3 +164,7 @@ Bearer/token 从加密 secret store 按 key 取（`secret_name`），不走明�
 | MQTT | `paho-mqtt>=2.0,<3` | MQTT 3.1.1/5（裸 MQTT + SpB） | IoT 传感器/网关/Broker | TCP/1883/8883 | ✅ |
 | BAS: Metasys OpenBlue REST | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Metasys REST API v4（`/objects`·`/alarms`·`/trendedAttributes`）；JC OpenBlue 监控控制器 | NAE/SNE/SNC 类监控控制器聚合的 BACnet 现场点 | HTTPS + Bearer token | ✅ mock 控制器（in-repo）；live 设备写/trend/告警 待核实 |
 | BAS: Niagara 4 oBIX/REST | `requests>=2.31,<3`（复用 MTConnect pin，无新 HTTP 依赖） | Niagara 4 oBIX/REST（`/obix/config`·`/obix/alarms`·`/obix/histories`）；JSON 建模，原生 oBIX-XML 待核实 | Tridium JACE / Niagara Supervisor 下的点/告警/历史 | HTTPS + Bearer token | ✅ mock 控制器（in-repo）；live 设备 + oBIX-XML 编码 待核实 |
+
+## 文件路径限制（0.31.0 起）
+
+MCP 里**读**主机文件的工具（`plc_program_*`、`device_advisory_check`、`db=` 覆盖等）只读 `$IAIOPS_HOME`、配置目录和运维方在 `IAIOPS_AGENT_READ_DIRS` 列出的目录；**写**文件的工具（`export_data`、`compliance_report`、`compliance_evidence_bundle`、`alarm_rationalization_worksheet`）只写 `$IAIOPS_HOME/exports` 和 `IAIOPS_AGENT_WRITE_DIRS`。超出就拒绝——把文件放进这些目录，或让运维方在 shell 里跑 `iaiops` 命令（CLI 不受限）。

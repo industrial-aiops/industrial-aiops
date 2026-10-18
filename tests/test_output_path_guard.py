@@ -33,7 +33,9 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOLS_DIR = REPO_ROOT / "mcp_server" / "tools"
 
 #: Names that count as routing through the shared guard.
-VALIDATORS = frozenset({"validate_output_path", "_validate_output_path"})
+VALIDATORS = frozenset(
+    {"validate_output_path", "_validate_output_path", "agent_writable_path", "_agent_writable_path"}
+)
 
 #: ``module::function`` exemptions, each needing a written justification.
 #: An exemption is a decision that should be argued for in review, and each one
@@ -158,7 +160,7 @@ def test_worksheet_still_writes_a_valid_csv(tmp_path: pathlib.Path) -> None:
     from mcp_server.tools import alarm_tools
 
     events = [{"ts": "2026-07-19T00:00:00Z", "tag": "A", "state": "ACTIVE"}]
-    target = tmp_path / "worksheet.csv"
+    target = tmp_path / "exports" / "worksheet.csv"  # the agent write root (0.31.0)
     result = alarm_tools.alarm_rationalization_worksheet(events=events, out_path=str(target))
     assert "error" not in result, result
     assert target.exists() and target.read_text(encoding="utf-8").strip()

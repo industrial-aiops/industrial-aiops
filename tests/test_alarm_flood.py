@@ -327,7 +327,7 @@ def test_worksheet_tool_inline_rows_bounded():
 @pytest.mark.unit
 def test_worksheet_tool_writes_csv(tmp_path):
     fn = _tool_fn("alarm_rationalization_worksheet")
-    dest = tmp_path / "worksheet.csv"
+    dest = tmp_path / "exports" / "worksheet.csv"  # the agent write root (0.31.0)
     out = fn(events=_burst(12, 0) + [_evt(100, "PT1")], out_path=str(dest))
     assert out["csv_path"] == str(dest)
     with dest.open(newline="", encoding="utf-8") as fh:
@@ -350,7 +350,7 @@ def test_worksheet_tool_creates_a_missing_parent_dir(tmp_path):
     answer the same input three different ways.
     """
     fn = _tool_fn("alarm_rationalization_worksheet")
-    target = tmp_path / "nope" / "w.csv"
+    target = tmp_path / "exports" / "nope" / "w.csv"  # under the agent write root
     out = fn(events=_burst(12, 0), out_path=str(target))
     assert "error" not in out, out
     assert target.exists()

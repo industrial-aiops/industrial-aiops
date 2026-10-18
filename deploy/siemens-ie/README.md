@@ -45,10 +45,10 @@ No Siemens hardware is needed. Two supporting pieces do the work:
 
 ```bash
 # 1. Verify the artifact you are about to package (do this first, every time)
-cosign verify --key ../margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.30.0-factory
+cosign verify --key ../margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.31.0-factory
 
 # 2. Pull it so IEAP can import from the local Docker engine
-docker pull ghcr.io/industrial-aiops/iaiops:0.30.0-factory
+docker pull ghcr.io/industrial-aiops/iaiops:0.31.0-factory
 
 # Required since the 0.29 release: provide IAIOPS_MCP_TOKEN (>= 32 chars, e.g. `openssl rand -base64 48`)
 #    or IAIOPS_MCP_TOKEN_FILE in the app configuration — without it the server refuses to start.

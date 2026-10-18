@@ -148,7 +148,7 @@ def test_mcp_report_truncates_beyond_bound(monkeypatch):
 def test_mcp_report_writes_out_path(tmp_path):
     from mcp_server.tools.compliance_tools import compliance_report
 
-    target = tmp_path / "report.md"
+    target = tmp_path / "exports" / "report.md"  # the agent write root (0.31.0)
     out = compliance_report(level="l2", site="mysite", out_path=str(target))
     assert out["path"] == str(target)
     assert "markdown" not in out

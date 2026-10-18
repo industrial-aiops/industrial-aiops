@@ -95,6 +95,17 @@ def _check_terms(target: Any, profile: Any) -> None:
 # ── the link ─────────────────────────────────────────────────────────────────
 
 
+def port_held_error(path: str) -> Exception:
+    """The error for a port another program holds — not a network or device fault."""
+    from iaiops.core.runtime.session_factory import OTLinkHeldError
+
+    return OTLinkHeldError(
+        f"Serial port {path} is in use by another program — not taken from it "
+        "(the plant's own software may depend on it).",
+        protocol="serial",
+    )
+
+
 class SerialLink:
     """A local serial port (exclusive) or a raw TCP socket, read in short drains."""
 
@@ -138,11 +149,7 @@ class SerialLink:
         except serial.SerialException as exc:
             text = str(exc)
             if "lock" in text.lower() or "busy" in text.lower():
-                raise OTConnectionError(
-                    f"Serial port {path} is in use by another program — not taken from it "
-                    "(the plant's own software may depend on it).",
-                    protocol="serial",
-                ) from exc
+                raise port_held_error(path) from exc
             raise OTConnectionError(
                 f"Cannot open serial port {path}: {text}", protocol="serial"
             ) from exc

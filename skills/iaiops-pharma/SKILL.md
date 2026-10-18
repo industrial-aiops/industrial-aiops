@@ -185,3 +185,7 @@ description: >-
 | Modbus-RTU | `pymodbus>=3.5,<4` + `pyserial>=3.5` | Modbus serial (RTU) | 串口从站 | RS-485/serial | ✅ socat PTY；物理 RS-485 待核实 |
 | HART-IP | `hart-protocol>=2023.6,<2025`（extra） | HART-IP（经网关） | 电导率/TOC/液位/流量变送器 | UDP/TCP 5094 | ⚠️ codec CI 自测；真机网关 待核实 |
 | OPC-UA | `asyncua>=2.0,<3` | OPC UA 1.0x（DA+HA+AC 子集） | DCS / 反应器 / SCADA | opc.tcp | ✅ 进程内 + 证书 Sign/SignAndEncrypt；第三方 server + X509 用户令牌 待核实 |
+
+## 文件路径限制（0.31.0 起）
+
+MCP 里**读**主机文件的工具（`plc_program_*`、`device_advisory_check`、`db=` 覆盖等）只读 `$IAIOPS_HOME`、配置目录和运维方在 `IAIOPS_AGENT_READ_DIRS` 列出的目录；**写**文件的工具（`export_data`、`compliance_report`、`compliance_evidence_bundle`、`alarm_rationalization_worksheet`）只写 `$IAIOPS_HOME/exports` 和 `IAIOPS_AGENT_WRITE_DIRS`。超出就拒绝——把文件放进这些目录，或让运维方在 shell 里跑 `iaiops` 命令（CLI 不受限）。

@@ -56,11 +56,11 @@ def test_export_data_bounded_preview(home):
 @pytest.mark.unit
 def test_export_data_small_result_not_truncated(home):
     _seed(home, 5)
-    result = export_data(fmt="csv", tag="tag1", out_path=str(home / "t.csv"))
+    result = export_data(fmt="csv", tag="tag1", out_path=str(home / "exports" / "t.csv"))
     assert result["rows"] == 1
     assert len(result["preview_rows"]) == 1
     assert result["preview_truncated"] is False
-    assert result["path"] == str(home / "t.csv")
+    assert result["path"] == str((home / "exports" / "t.csv").resolve())
 
 
 @pytest.mark.unit

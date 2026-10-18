@@ -147,7 +147,7 @@ def test_mcp_evidence_bundle_tool(tmp_path):
     from mcp_server.tools.compliance_tools import compliance_evidence_bundle
 
     assert getattr(compliance_evidence_bundle, "_is_governed_tool", False) is True
-    out = compliance_evidence_bundle(out_path=str(tmp_path / "mcp.zip"))
+    out = compliance_evidence_bundle(out_path=str(tmp_path / "exports" / "mcp.zip"))
     assert "error" not in out
     # The tool call itself is audited AFTER the export; the seeded 2 rows are in.
     assert out["row_count"] >= 2

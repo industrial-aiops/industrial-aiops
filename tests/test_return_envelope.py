@@ -354,7 +354,7 @@ def test_alarm_worksheet_csv_path_envelope(tmp_path) -> None:
         for i in range(5)
     ]
     out = alarm_tools.alarm_rationalization_worksheet(
-        events=events, out_path=str(tmp_path / "w.csv")
+        events=events, out_path=str(tmp_path / "exports" / "w.csv")
     )
     assert out["truncated"] is False  # legacy bool, unchanged
     assert out[IS_TRUNCATED] is False

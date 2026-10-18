@@ -53,6 +53,16 @@ class OTNoReadingError(OTConnectionError):
     """
 
 
+class OTLinkHeldError(OTConnectionError):
+    """The link is held by ANOTHER program (an exclusive serial port, a device
+    server's single TCP slot) — refused so as not to take it from the plant.
+
+    Says nothing about the network or the device, so diagnosis must not call it
+    a network fault and RCA must not weigh it as comms_loss (0.31.0 audit).
+    Subclasses :class:`OTConnectionError` so existing handlers still catch it.
+    """
+
+
 class OTProtocolError(OTConnectionError):
     """The device RESPONDED with a protocol-level exception (e.g. a Modbus
     exception response for an unmapped register).

@@ -18,9 +18,9 @@ iaiops doctor                    # 先自检，再谈信任
 也可以直接跑容器 —— **cosign 签名**、**非 root**。它以 stdio 讲 MCP，所以要保持 stdin 打开，并挂一个卷存审计库：
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.30.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.31.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.30.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.31.0-factory
 ```
 
 要加固部署或离线部署（只读根文件系统、`cap_drop: ALL`、no-new-privileges、可选端侧 LLM），
@@ -597,7 +597,8 @@ iaiops opcua discover -e line1
 - **带认证的 socket**:走 HTTP/SSE(`IAIOPS_MCP_TRANSPORT=streamable-http|sse`)时,设了 `IAIOPS_MCP_TOKEN`(或 `IAIOPS_MCP_TOKEN_FILE`,至少 32 字符)后每个请求都必须带 `Authorization: Bearer <token>`;**绑定到回环以外的地址而没有 token,服务拒绝启动**(0.29.0 起,破坏性变更)。随包的容器(Margo、airgap、Siemens IE、IGEL)因此都要从密钥设施注入 token;`IAIOPS_ALLOWLIST_IPS` 是可选的第二层,默认关闭(容器端口映射后面不要只设回环:调用方显示为网桥网关地址)。一个共享 token,不是按人身份;自身不带 TLS。
 - **审计行记来源**:`iaiops-mcp` 与 `iaiops` CLI 写的审计行记录调用从哪个前端进来(`origin`:`mcp` 或 `cli`;为空 = 未知,绝不当成人或 agent——包括该字段出现前写的行,以及没声明来源的 server)、MCP 客户端**自报**的名字、每会话一个 id,以及带预览开关的工具这次是 `preview` 还是 `apply`。这些字段进哈希链:**旧版 iaiops 校验含 0.29 行的 audit.db 会报 `row_hash mismatch`**,共享一个 `IAIOPS_HOME` 的进程要一起升级。
 - **读优先**:**204 个受治理工具 = 187 只读 + 4 个不改设备但会把数据发出去(`stream_publish`、`stream_publish_event`、`uns_publish`、`rca_narrate`)+ 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
-- **agent 只读运维方放文件的地方**:会打开 agent 所给主机文件的 13 个 MCP 工具 —— `sensor_import_iodd`、`sensor_profile_check`、6 个 `plc_program_*` 文件工具、`device_advisory_check`、`site_readiness` / `onboarding_status` / `onboarding_config_draft` 的 `db=` 覆盖,以及 `sink="sqlite"` 时的 `historian_push` —— 先解析路径(`~`、`..`、每一层符号链接),不在 `$IAIOPS_HOME`、配置目录或 `IAIOPS_AGENT_READ_DIRS` 所列目录(`os.pathsep` 分隔的绝对路径,如 `~/exports:~/advisories`;写在 server 的环境或 `~/.iaiops/.env` 里 —— 没有任何工具会写这两处)之下就**不打开**直接拒绝。相对路径、`/`、包含主目录、属于别的用户或组/其他人可写的条目一律忽略。拒绝信息不透露文件的任何内容,连是否存在都不说。CLI 照常读运维方输入的任何路径。
+- **agent 只读运维方放文件的地方**:会**读取** agent 所给主机文件的 13 个 MCP 工具 —— `sensor_import_iodd`、`sensor_profile_check`、6 个 `plc_program_*` 文件工具、`device_advisory_check`、`site_readiness` / `onboarding_status` / `onboarding_config_draft` 的 `db=` 覆盖,以及 `sink="sqlite"` 时的 `historian_push` —— 先解析路径(`~`、`..`、每一层符号链接),不在 `$IAIOPS_HOME`、配置目录或 `IAIOPS_AGENT_READ_DIRS` 所列目录(`os.pathsep` 分隔的绝对路径,如 `~/exports:~/advisories`;写在 server 的环境或 `~/.iaiops/.env` 里 —— 没有任何工具会写这两处)之下就**不打开**直接拒绝。相对路径、`/`、包含主目录、属于别的用户或组/其他人可写的条目一律忽略。拒绝信息不透露文件的任何内容,连是否存在都不说。CLI 照常读运维方输入的任何路径。
+- **agent 只往自己的导出目录写文件**:会**写入** agent 所给路径的 MCP 工具 —— `export_data`、`compliance_report`、`compliance_evidence_bundle`、`alarm_rationalization_worksheet` —— 同样先解析路径,不在 `$IAIOPS_HOME/exports` 或 `IAIOPS_AGENT_WRITE_DIRS` 所列目录之下就拒绝(规则相同;与 `$IAIOPS_HOME` 或配置目录重叠的条目一律忽略,审计、undo、采集库都够不着)。`historian_push(sink="sqlite")` 另外拒绝审计 / undo 库,以及已含 `samples` 以外表的现有数据库。0.31.0 之前这些写入只检查 `..`:`export_data(fmt="sqlite", out_path="~/.iaiops/audit.db")` 会替换掉审计库。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。
