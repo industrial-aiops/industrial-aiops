@@ -452,8 +452,18 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
             raise OSError(f"Modbus read of {ref} failed: {resp}")
         return response_words(table, resp, count)
 
-    # The session attached the endpoint's profile at open time, like the unit id.
-    profile = getattr(client, "iaiops_sensor_profile", None)
+    # Resolve the profile NOW from the target the session attached — not the copy
+    # taken at open time — so the decode uses the profile the runner takes the
+    # unit from (it re-reads it before and after this call). `cached_profile`
+    # only re-parses when the file changed. A client built without a target
+    # keeps the profile it was given.
+    target = getattr(client, "iaiops_target", None)
+    if target is not None:
+        from iaiops.core.runtime.sensor.binding import endpoint_profile
+
+        profile = endpoint_profile(target)
+    else:
+        profile = getattr(client, "iaiops_sensor_profile", None)
     try:
         return read_ref_value(read, ref, profile), ""
     except InvalidReadingError as exc:
