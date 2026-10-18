@@ -527,7 +527,7 @@ Protocol extras: `opcua` · `modbus` · `s7` · `mc` · `fins` (stdlib — pins 
 > **Adapter belt** (`docs/ADAPTERS.md`): iaiops is a small neutral core (`ingress → normalize/govern/RCA → egress`) with pluggable, lazily-imported adapters — bind no store/bus/host/model, install only what a site runs. The RCA core is deterministic + cited, **not a black box** (`docs/RCA.md`); footprint is small by design (`docs/FOOTPRINT.md`).
 
 **Edition bundles** (match the same-named `IAIOPS_MCP` profiles — install the protocols a vertical runs):
-`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set: opcua + modbus + s7 + mc + fins + eip + mtconnect + sparkplug + ethercat + profinet + iolink + ignition) · `process` (opcua + modbus + hart) · `building` (bacnet + modbus + opcua + iolink + bas) · `water` (modbus + opcua + hart) · `warehouse` (仓储/物料搬运: eip + profinet + modbus + opcua + sparkplug) · `clinical` (医疗设施: bacnet + modbus + opcua) · `renewables` (光伏/风电: modbus + opcua + sparkplug — PV inverters (SUN2000/Growatt) + wind turbines + plant SCADA; device-level monitoring + PdM via baseline/RCA) · `plcnext` (opcua + modbus). The grid/substation energy bundle (IEC-104/DNP3/61850) ships in [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
+`fab` (secsgem + opcua + s7 + modbus) · `factory` (the discrete-manufacturing set: opcua + modbus + s7 + mc + fins + eip + mtconnect + sparkplug + ethercat + profinet + iolink + ignition) · `process` (opcua + modbus + hart) · `building` (bacnet + modbus + opcua + iolink + bas) · `water` (modbus + opcua + hart) · `warehouse` (仓储/物料搬运: eip + profinet + modbus + opcua + sparkplug) · `clinical` (医疗设施: bacnet + modbus + opcua) · `renewables` (光伏/风电: modbus + opcua + sparkplug — PV inverters (SUN2000/Growatt) + wind turbines + plant SCADA; device-level monitoring + PdM via baseline/RCA) · `pharma` (制药: bacnet + modbus + hart + opcua) · `plcnext` (opcua + modbus) · `sensor` (cross-protocol: modbus + iolink + sparkplug — connect and decode a sensor). The grid/substation energy bundle (IEC-104/DNP3/61850) ships in [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy).
 
 ### Master password
 Secrets (per-endpoint passwords, MQTT credentials) are **never** stored in plaintext — they live in `~/.iaiops/secrets.enc` (Fernet + scrypt). Export `IAIOPS_MASTER_PASSWORD` so the MCP server/CLI can unlock non-interactively:
@@ -1327,7 +1327,7 @@ Scope, stated plainly — this is **not a firewall**:
   one known to be absent.
 
 Named profiles: `all` · `brain` · `fab` · `factory` · `process` · `building` ·
-`plcnext` · `water` · `renewables` · `warehouse` · `clinical`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
+`plcnext` · `water` · `renewables` · `warehouse` · `clinical` · `pharma` · `sensor`. In an MCP client (e.g. Claude Desktop) set `IAIOPS_MCP` per
 server entry — or point the entry straight at the matching `iaiops-mcp-<name>`
 script — one entry per site/line, each a lean single- or dual-protocol server.
 

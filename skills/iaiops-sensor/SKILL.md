@@ -9,7 +9,8 @@ description: >-
   mentions a sensor, sensor profile, IODD, IO-Link device, process data / pdin,
   decoding registers into engineering units, float32 word order, sentinel /
   no-target values, RS-485 or RS-232 instruments, or "接一个传感器 / 传感器描述 /
-  读不懂寄存器 / 单位". Read-only; never writes device or config.
+  读不懂寄存器 / 单位". The sensor tools are read-only and never write config; the
+  server also exposes mqtt_publish (HIGH, MOC-gated) via the MQTT/Sparkplug set.
 ---
 
 # iaiops-sensor — 传感器 edition（Modbus + IO-Link + MQTT/Sparkplug + 传感器工具 + 脑）
@@ -29,7 +30,8 @@ description: >-
 4. **绑定（只能由人做）**：Modbus 端点写 `sensor_profile: <文件>`，点位写 `ch:<通道名>`；
    IO-Link 主站写 `port_profiles: {<端口>: <文件>}`，点位写 `port<N>/<通道名>`。
    **不要替用户改 config.yaml**（D51）：把要加的几行给用户，由人贴进去。
-5. **试读一次**：`sensor_read_channel` —— 分开报告 `reachable` / `decodable`，读得懂时给出
+5. **试读一次**：`sensor_read_channel` —— 分开报告 `reachable` / `decodable`（设备回了错误码，
+   比如寄存器地址写错，算「连得上、读不懂」，不是掉线），读得懂时给出
    值、单位、精度带、描述的核实等级。`untyped: true` 表示裸地址点，按 uint16 读，提醒补类型。
 6. **看就绪度**：`site_readiness` —— 「持续采集」下列出未声明类型的点、读不了的点（含原因）、
    仍是 `待核实` 的描述、以及没有单位入库的通道。
@@ -54,6 +56,8 @@ description: >-
 ### MQTT / Sparkplug（改造用传感节点，如 ESP32）
 - `sparkplug_node_list` `sparkplug_subscribe_sample` `mqtt_read_topic` `uns_browse`
 - 采集要求端点写 `stale_after_s`（停发和读数不变在线上分不出来）
+- ⚠️ `mqtt_publish` —— 本菜单里**唯一的设备写**：`[WRITE][risk=HIGH][MOC]`，默认 dry-run，
+  需要审批；接传感器用不到它，别为「试一下」去发布
 
 ### 跨协议脑（随 server 暴露）
 - `site_readiness` `diagnose_dataflow` `data_quality_scorecard`
@@ -64,7 +68,7 @@ description: >-
 |---|---|---|---|---|
 | Modbus RTU / TCP | `pymodbus>=3.5,<4`、`pyserial>=3.5` | Modbus Application Protocol；FC03/FC04；16/32 位与 float32 全部字序 | RS-485 / RS-232 / RS-422 / USB 串口；TCP | 进程内假客户端；实验机局域网走查（float32 CDAB、NaN、超量程） |
 | IO-Link 主站 | `requests>=2.31,<3` | IO-Link 1.1 过程数据 + IODD 位偏移约定；ifm IoT-Core JSON（其他厂商路径 `待核实`） | HTTP | 进程内模拟主站；实验机局域网走查（哨兵、换传感器、PD 长度） |
-| MQTT / Sparkplug | `paho-mqtt>=2.0,<3`、`protobuf>=4.25,<8` | Sparkplug B；纯 MQTT 只有陈旧判断 | TCP / TLS | 真实代理录制回放 |
+| MQTT / Sparkplug | `paho-mqtt>=2.0,<3`、`protobuf>=4.25,<8` | Sparkplug B；纯 MQTT 只有陈旧判断 | TCP（TLS / 代理认证 `待核实`） | 真实代理录制回放 |
 
 真实 IO-Link 主站的身份字段编码、真实厂商 IODD 仍 `待核实`。
 
@@ -79,7 +83,8 @@ description: >-
 
 ## 边界
 
-- **只读**：不写设备、不做传感器配置（重新示教、改量程不在本 edition）。
+- **传感器工具只读**：不写设备、不改 config、不做传感器配置（重新示教、改量程不在本 edition）。
+  同一 server 带的 `mqtt_publish` 是受 MOC 约束的写，见上。
 - **描述不是背书**：`待核实` 的描述只表示「照资料这样解码」，报告里一直带着这个等级。
 - **语义仍由人给**：描述只管「读得懂」，不说哪个通道是产量计数（D16 / D43）。
 - 串口 ASCII 仪表（称重仪表、气体分析仪等发文本行的设备）在 HLD §17 E4，**尚未提供**。

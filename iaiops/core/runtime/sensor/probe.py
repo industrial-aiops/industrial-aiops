@@ -4,14 +4,18 @@ The engine behind ``sensor_read_channel`` (MCP) and ``iaiops sensor read`` (CLI)
 — one engine, two front-ends (HLD §3.1). The answer keeps the three levels apart
 and never reports a lower one as a higher one (D41):
 
-* ``reachable`` — did the device answer? ``None`` when nothing was contacted.
+* ``reachable`` — did the device answer? A device that answers with an ERROR
+  (a Modbus exception for a wrong address, an IO-Link master reporting another
+  device on the port) answered: reachable. ``None`` when nothing was contacted.
 * ``decodable`` — did the answer decode into a measurement? ``None`` when the
-  device never answered: a timeout says nothing about decoding.
+  device never answered or nothing was contacted: neither says anything about
+  decoding.
 * value + unit + accuracy band + the profile's verification level, only when both
   are true.
 
 A ref the endpoint cannot read (malformed, unknown channel, unprofiled port) is
-refused before anything is contacted. Nothing is stored and no config is written.
+refused before anything is contacted: both levels ``None``, ``refused: true``.
+Nothing is stored and no config is written.
 """
 
 from __future__ import annotations
@@ -59,6 +63,7 @@ def read_channel(target: Any, ref: str) -> dict[str, Any]:
     from iaiops.core.collect.reader import ref_problems
     from iaiops.core.runtime.capabilities import UNSUPPORTED, get_capabilities
     from iaiops.core.runtime.sensor.binding import unit_for
+    from iaiops.core.runtime.session_factory import OTNoReadingError, OTProtocolError
 
     name = str(getattr(target, "name", ""))
     protocol = str(getattr(target, "protocol", ""))
@@ -72,7 +77,12 @@ def read_channel(target: Any, ref: str) -> dict[str, Any]:
         }
     problems = ref_problems(target, (ref,))
     if problems:
-        return {**base, "levels": {"reachable": None, "decodable": False}, "reason": problems[0]}
+        return {
+            **base,
+            "refused": True,
+            "levels": {"reachable": None, "decodable": None},
+            "reason": problems[0],
+        }
     cap = get_capabilities(protocol)
     if not cap or cap.read_ref is UNSUPPORTED:
         return {
@@ -82,6 +92,16 @@ def read_channel(target: Any, ref: str) -> dict[str, Any]:
         }
     try:
         answer = cap.read_ref(target, ref)
+    except (OTProtocolError, OTNoReadingError) as exc:
+        # The device ANSWERED — with an error, or with something that is not a
+        # measurement. Reporting it offline sends someone to check the cable when
+        # the register address (or the sensor on the port) is what is wrong.
+        return {
+            **base,
+            "contacted": True,
+            "levels": {"reachable": True, "decodable": False},
+            "reason": f"{type(exc).__name__}: {exc}",
+        }
     except Exception as exc:  # noqa: BLE001 — the device not answering is the finding
         return {
             **base,
@@ -90,14 +110,19 @@ def read_channel(target: Any, ref: str) -> dict[str, Any]:
             "reason": f"{type(exc).__name__}: {exc}",
         }
     contacted = {**base, "contacted": True}
-    if not answer.get("good", True):
+    if not answer.get("good", True) or answer.get("value") is None:
         return {
             **contacted,
             "levels": {"reachable": True, "decodable": False},
             "value": None,
-            "reason": str(answer.get("reason", "")),
+            "reason": str(answer.get("reason") or "the device answered with no value"),
         }
-    return {
+    try:
+        context = _profile_context(target, ref)
+        note = ""
+    except Exception as exc:  # noqa: BLE001 — a good reading must not be lost to metadata
+        context, note = {}, f"profile details unavailable after the read: {exc}"
+    result = {
         **contacted,
         "levels": {"reachable": True, "decodable": True},
         "value": answer.get("value"),
@@ -105,9 +130,10 @@ def read_channel(target: Any, ref: str) -> dict[str, Any]:
         "band": None,
         "verified": None,
         "profile": None,
-        **_profile_context(target, ref),
+        **context,
         "untyped": _untyped(target, ref),
     }
+    return {**result, "note": note} if note else result
 
 
 __all__ = ["SENSOR_PROTOCOLS", "read_channel"]

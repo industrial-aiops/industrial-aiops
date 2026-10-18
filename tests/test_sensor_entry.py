@@ -168,7 +168,7 @@ def test_a_connection_failure_is_not_reachable_and_says_nothing_about_decoding(m
 def test_a_ref_the_endpoint_cannot_read_is_refused_without_contacting(monkeypatch, bound):
     _caps(monkeypatch, AssertionError("must not be contacted"))
     out = read_channel(bound, "ch:nope")
-    assert out["levels"] == {"reachable": None, "decodable": False}
+    assert out["levels"] == {"reachable": None, "decodable": None} and out["refused"] is True
     assert "nope" in out["reason"] and out["contacted"] is False
 
 

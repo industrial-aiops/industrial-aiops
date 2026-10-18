@@ -1,9 +1,11 @@
-"""``iaiops sensor`` — sensor profiles: draft one from an IODD, check one (HLD §16).
+"""``iaiops sensor`` — sensor profiles and one-shot reads (HLD §16 / §17).
 
 A profile says how a sensor's raw bytes decode. ``import-iodd`` drafts one from
 the vendor's IODD — marked ``verified: 待核实``, with units left as IODD codes
 and every item it could not represent listed. ``check`` validates a profile file
-and shows its channels. Both read local files only; neither contacts a device.
+and shows its channels. Those two read local files only. ``read`` CONTACTS the
+device: it reads one point once and reports reachable / decodable separately,
+exiting 1 unless both are true.
 
 Bind a profile in config.yaml: ``sensor_profile: <file>`` on a Modbus endpoint,
 ``port_profiles: {<port>: <file>}`` on an IO-Link master.
@@ -18,7 +20,10 @@ import typer
 from iaiops.cli._common import _emit, cli_errors, console
 
 sensor_app = typer.Typer(
-    help="Sensor profiles — draft one from an IODD, check one. Contacts nothing.",
+    help=(
+        "Sensor profiles: draft from an IODD, check (local files); "
+        "read one point (contacts the device)."
+    ),
     no_args_is_help=True,
 )
 
@@ -119,6 +124,9 @@ def read_cmd(
             console.print("  [yellow]untyped:[/] read as uint16 — give it a type (ir:/hr:…).")
     else:
         console.print(f"  {out.get('reason', '')}", markup=False, highlight=False)
+    if not (levels.get("reachable") and levels.get("decodable")):
+        # Scripts and CI must be able to tell a failed probe from a good one.
+        raise typer.Exit(1)
 
 
 sensor_app.command("import-iodd")(import_iodd_cmd)

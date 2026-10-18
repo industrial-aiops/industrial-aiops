@@ -25,6 +25,9 @@ from mcp_server._shared import _target, mcp, tool_errors
 
 def _local_file(path: str, suffixes: tuple[str, ...]) -> Path:
     candidate = Path(path).expanduser()
+    if candidate.is_symlink():
+        # A link named `x.yaml` can point anywhere; parser errors echo file content.
+        raise ValueError(f"{path!r} is a symbolic link — pass the real file.")
     if candidate.suffix.lower() not in suffixes:
         raise ValueError(f"Expected a {'/'.join(suffixes)} file, got {path!r}.")
     if not candidate.is_file():
@@ -89,8 +92,9 @@ def sensor_read_channel(ref: str, endpoint: Optional[str] = None) -> dict:
     """[READ][risk=low] Read one sensor point once and say how far it got.
 
     Levels are reported separately and never upgraded: ``reachable`` (did the
-    device answer — None when nothing was contacted) and ``decodable`` (did the
-    answer decode into a measurement — None when the device never answered).
+    device answer — a Modbus exception or an IO-Link "different device" answer
+    counts as answered; None when nothing was contacted) and ``decodable`` (did
+    the answer decode into a measurement — None when the device never answered).
     Only when both are true are value, unit, accuracy band and the profile's
     verification level returned. A ref the endpoint cannot read is refused
     before contacting anything. Nothing is stored.
@@ -100,8 +104,10 @@ def sensor_read_channel(ref: str, endpoint: Optional[str] = None) -> dict:
             (IO-Link), or a typed Modbus point such as ``ir:0:float32:CDAB``.
         endpoint: Endpoint name from config (default endpoint if omitted).
 
-    Returns dict: {endpoint, ref, contacted, levels:{reachable, decodable},
-        value?, unit?, band?, verified?, profile?, untyped?, reason?}.
+    Returns dict: {endpoint, ref, contacted, refused?, levels:{reachable,
+        decodable}, value?, unit?, band?, verified?, profile?, untyped?, note?,
+        reason?}. ``refused: true`` = the ref cannot be read on this endpoint and
+        nothing was contacted.
     """
     from iaiops.core.runtime.sensor import probe
 

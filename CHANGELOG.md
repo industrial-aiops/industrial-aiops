@@ -23,6 +23,16 @@
 - Verified on the lab LAN: good reads with unit and band, a 0xFFFF sentinel
   reported as not decodable, an unprofiled port refused without contact, an
   unreachable device reported as `reachable=false, decodable=null`.
+- **Fixed before release (adversarial review):** a device that answered with an
+  error — a Modbus exception for a wrong register address, an IO-Link master
+  reporting a different sensor on the port — was reported as unreachable; it is
+  now `reachable=true, decodable=false` with the device's answer. Short IO-Link
+  process data and an empty answer are not measurements (they were "unreachable"
+  and "decodable" respectively). A ref refused before contact reports both levels
+  as null with `refused: true`. `iaiops sensor read` exits 1 unless the point was
+  both reachable and decodable, and its help no longer says it contacts nothing.
+  The skill no longer calls the server read-only: `IAIOPS_MCP=sensor` includes
+  `mqtt_publish` (HIGH, MOC-gated). The file tools refuse symbolic links.
 
 ### Added — the unit travels with the value (HLD §17.5, D56)
 

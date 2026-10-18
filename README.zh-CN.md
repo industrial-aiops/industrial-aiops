@@ -179,7 +179,7 @@ iaiops protocols            # 能力地图
 **协议 extras:** `opcua` · `modbus` · `s7` · `mc` · `fins`(纯标准库,不 pin 任何依赖)· `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · `bas`(BAS 监控器层 REST,复用 mtconnect HTTP pin)· `ignition`(Ignition Gateway 只读层,复用 mtconnect HTTP pin)· 另有 `tdengine` · `iotdb` · `influxdb`(时序库下沉)· `nats`(流出口)· `ollama`(本机 LLM 叙述)· `export`(Parquet 导出)· `all`(全部可 pip 装的 connector)。
 
 **Edition 捆绑**(与同名 `IAIOPS_MCP` profile 对应——按行业只装该垂直跑的协议):
-`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `pharma`(制药:bacnet+modbus+hart+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
+`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `pharma`(制药:bacnet+modbus+hart+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)· `sensor`(跨协议传感器:modbus+iolink+sparkplug)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
 
 > **信创/离线:** 纯 Python 核心 + 可选 extras 支持**离线/气隙安装**(本地 wheelhouse + `pip install --no-index`)。国产时序库下沉(TDengine/IoTDB)、合规对照见 `docs/CHINA.md`。
 

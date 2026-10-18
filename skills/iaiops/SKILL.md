@@ -42,7 +42,7 @@ description: >-
 | 光伏/PV · 逆变器/inverter · 组串/string · 风电/风机 · 场站 SCADA · 新能源电站 | **iaiops-renewables** | `IAIOPS_MCP=renewables` / `iaiops-mcp-renewables` |
 | Phoenix Contact PLCnext / vPLC（虚拟化 PLC，走内建 OPC-UA + Modbus-TCP） | **iaiops-plcnext** | `IAIOPS_MCP=plcnext` / `iaiops-mcp-plcnext` |
 | 接一个传感器 · 传感器描述/profile · IODD 导入 · 读不懂寄存器/单位/字序 · 哨兵值 · RS-485/RS-232 仪表 · 4–20 mA 经采集模块 · ESP32 传感节点 | **iaiops-sensor** | `IAIOPS_MCP=sensor` / `iaiops-mcp-sensor` |
-| IO-Link · IO-Link master · IODD · 智能传感器/executor 参数 · pdin · ISDU（主站 JSON/REST 接口，只读） | **iaiops-factory**（楼宇传感器场景 **iaiops-building**） | `IAIOPS_MCP=factory` / 单协议 `IAIOPS_MCP=iolink` / `iaiops-mcp-iolink` |
+| IO-Link · IO-Link master · 智能传感器/executor 参数 · pdin · ISDU（主站 JSON/REST 接口，只读；接入并解码一个传感器、导入 IODD → **iaiops-sensor**） | **iaiops-factory**（楼宇传感器场景 **iaiops-building**） | `IAIOPS_MCP=factory` / 单协议 `IAIOPS_MCP=iolink` / `iaiops-mcp-iolink` |
 
 - 单协议深用（只有一种设备）：直接 `IAIOPS_MCP=opcua`（或 modbus/s7/mc/fins/eip/mtconnect/
   sparkplug/ethercat/secsgem/profinet/bacnet/hart），等价脚本 `iaiops-mcp-<协议>`。
