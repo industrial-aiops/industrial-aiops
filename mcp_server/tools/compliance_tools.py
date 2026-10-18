@@ -17,7 +17,7 @@ from iaiops.core.brain.compliance_report import render_markdown_report as _rende
 from iaiops.core.brain.compliance_report import report_framework_id as _report_framework_id
 from iaiops.core.governance import governed_tool
 from iaiops.core.governance.evidence import export_evidence_bundle as _export_evidence_bundle
-from iaiops.core.governance.evidence import validate_output_path as _validate_output_path
+from iaiops.core.governance.output_paths import agent_writable_path as _agent_writable_path
 from iaiops.core.runtime.envelope import envelope_fields
 from iaiops.core.sink.push import historian_push as _historian_push
 from mcp_server._shared import mcp, tool_errors
@@ -150,7 +150,7 @@ def compliance_report(
     # "Items" here are markdown LINES; the envelope contract is unchanged —
     # how many came back, how many exist, was anything cut.
     if out_path:
-        path = _validate_output_path(out_path, suffixes=(".md", ".markdown"))
+        path = _agent_writable_path(out_path, suffixes=(".md", ".markdown"))
         path.write_text(markdown, encoding="utf-8")
         # Full document on disk: nothing was cut.
         return {
@@ -202,7 +202,8 @@ def compliance_evidence_bundle(
     Example: compliance_evidence_bundle(out_path="/tmp/evidence.zip",
         since="2026-06-01T00:00:00+00:00").
     """
-    return _export_evidence_bundle(out_path, since=since, until=until)
+    target = _agent_writable_path(out_path, suffixes=(".zip",))
+    return _export_evidence_bundle(str(target), since=since, until=until)
 
 
 # egress=True: this is THE case that motivates the no-egress gate. It is
@@ -271,4 +272,38 @@ def _sqlite_target(database: str) -> str:
     target = agent_readable_path(
         database, suffixes=(".db", ".sqlite", ".sqlite3"), must_exist=False
     )
+    _refuse_foreign_store(target)
     return str(target)
+
+
+#: Product stores that are not the sample store — writing a `samples` table into
+#: one of them is "a store we opened gets written to" (0.31.0 pre-release audit).
+_NON_SAMPLE_STORES = ("audit.db", "undo.db", "secrets.enc")
+
+
+def _refuse_foreign_store(target: Any) -> None:
+    """Refuse a product state file, or an existing database that holds anything
+    other than the historian's own ``samples`` table. Read-only probe; never writes."""
+    import sqlite3
+    from pathlib import Path
+
+    name = Path(target).name.lower()
+    if name in _NON_SAMPLE_STORES or (name.startswith("audit.") and name.endswith(".db")):
+        raise ValueError(
+            f"Not written: {name} is a product store (audit / undo / secrets), not a sample "
+            "store. Omit `database` to push into the local sample store."
+        )
+    if not Path(target).exists():
+        return
+    conn = sqlite3.connect(f"{Path(target).resolve().as_uri()}?mode=ro", uri=True)
+    try:
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    finally:
+        conn.close()
+    foreign = sorted(t for t in tables if t != "samples" and not t.startswith("sqlite_"))
+    if foreign:
+        raise ValueError(
+            "Not written: that database already holds tables other than `samples` "
+            f"({', '.join(foreign[:3])}) — it is not a sample store. Name a new file or the "
+            "local sample store."
+        )

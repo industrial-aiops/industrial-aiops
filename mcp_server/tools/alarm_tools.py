@@ -18,7 +18,7 @@ from typing import Any, Optional
 from iaiops.core.brain import alarm_flood as flood
 from iaiops.core.brain.rca_collect import collect_active_alarms
 from iaiops.core.governance import governed_tool
-from iaiops.core.governance.evidence import validate_output_path
+from iaiops.core.governance.output_paths import agent_writable_path
 from iaiops.core.runtime.envelope import envelope_fields
 from mcp_server._shared import _target, mcp, tool_errors
 
@@ -228,7 +228,8 @@ def alarm_rationalization_worksheet(
         # the same reasoning that withholds rca_narrate under IAIOPS_NO_EGRESS
         # because its base_url is caller-chosen. Checking only "does the parent
         # exist" let a confused model overwrite a dotfile or a config with CSV.
-        path = validate_output_path(out_path, suffixes=(".csv",))
+        # Confined to the agent's write roots (output_paths) — not just `..`-free.
+        path = agent_writable_path(out_path, suffixes=(".csv",))
         with path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.DictWriter(fh, fieldnames=list(flood.WORKSHEET_COLUMNS))
             writer.writeheader()
