@@ -82,8 +82,16 @@ def companion_server():
     filler = objects.add_object(vendor, "Filler")
     base_sm = filler.add_object(vendor, "BaseStateMachine")
     machine_state = base_sm.add_object(vendor, "MachineState")
-    # PackML ExecuteState is a sub-state machine: recognised, deliberately not suggested.
+    # PackML ExecuteState is a sub-state machine. Seen ACTIVE (Good 6), the walk cannot
+    # tell whether this server goes Bad or stale when stopped: recognised only.
     _, packml_number = _state_machine(machine_state, packml, "ExecuteState", exec_type, number=6)
+    # A stopped line whose server answers Bad_StateNotActive on Number, as the OPC
+    # Foundation reference stack does: the device demonstrated it — suggested.
+    wrapper_sm = objects.add_object(vendor, "Wrapper").add_object(vendor, "MachineState")
+    _, stopped_number = _state_machine(wrapper_sm, packml, "ExecuteState", exec_type, number=6)
+    stopped_number.write_value(
+        ua.DataValue(StatusCode=ua.StatusCode(ua.StatusCodes.BadStateNotActive))
+    )
     admin = filler.add_object(packml, "Admin", objecttype=admin_type.nodeid)
     processed = admin.add_variable(packml, "ProdProcessedCount", [1, 2])
     admin.add_variable(packml, "StopReason", 0)
@@ -119,6 +127,7 @@ def companion_server():
         yield {
             "url": url,
             "packml": packml_number.nodeid.to_string(),
+            "packml_stopped": stopped_number.nodeid.to_string(),
             "machinery": machinery_number.nodeid.to_string(),
             "vendor": vendor_number.nodeid.to_string(),
             "impostor": impostor_number.nodeid.to_string(),
@@ -156,12 +165,32 @@ def test_machinery_item_state_is_suggested_with_its_evidence(companion_server, h
 
 
 @pytest.mark.integration
-def test_packml_execute_state_is_recognised_but_not_suggested(companion_server, hints):
-    """A sub-state machine reads stale or Bad outside Running — both flatter availability."""
+def test_an_active_packml_execute_state_is_recognised_but_not_suggested(companion_server, hints):
+    """Seen running, nothing says whether this server goes Bad or stays stale when stopped.
+
+    The stale case counts stopped time as running, so a Good 6 is not evidence enough.
+    """
     assert companion_server["packml"] not in _by_node(hints)
     (packml,) = [r for r in hints["recognised_without_role"] if r["type"].startswith("PackMLExec")]
+    assert packml["browse_path"].startswith("Filler/")
     assert "sub-state machine" in packml["why_no_role"]
-    assert "Bad_StateNotActive" in packml["why_no_role"]
+    assert "read Number as Good" in packml["why_no_role"]
+    assert "Re-run the suggestion while the machine is stopped" in packml["why_no_role"]
+
+
+@pytest.mark.integration
+def test_a_stopped_packml_execute_state_is_suggested_on_its_own_evidence(companion_server, hints):
+    """Number answered Bad_StateNotActive during the walk: the device showed what it does."""
+    hint = _by_node(hints)[companion_server["packml_stopped"]]
+    assert (hint["role"], hint["running_when"], hint["spec_id"]) == ("run_state", [6], "packml")
+    assert hint["browse_path"] == "Wrapper/MachineState/ExecuteState/CurrentState/Number"
+    assert "§6.3.8" in hint["why"] and "answered BadStateNotActive" in hint["why"]
+    assert hint["current_value"] == cs.STATE_NOT_ACTIVE
+    assert hint["verified_on"] == "2026-10-18"
+    # The stale-server hole and the mode caveat travel with it into the sheet.
+    evidence = cs.evidence_line(hint)
+    assert "stale" in evidence and "待核实" in evidence
+    assert any("Maintenance" in c for c in hint["caveats"])
 
 
 @pytest.mark.integration
@@ -178,7 +207,9 @@ def test_names_alone_never_match(companion_server, hints):
     nodes = _by_node(hints)
     for decoy in ("state_current", "impostor", "decoy", "spoof"):
         assert companion_server[decoy] not in nodes, decoy
-    assert set(nodes) == {companion_server[k] for k in ("machinery", "vendor", "hostile")}
+    assert set(nodes) == {
+        companion_server[k] for k in ("machinery", "vendor", "hostile", "packml_stopped")
+    }
 
 
 @pytest.mark.integration
@@ -228,7 +259,7 @@ def test_the_suggested_running_value_is_what_collection_reads(companion_server, 
 @pytest.mark.integration
 def test_tag_discovery_carries_companion_specs(companion_server):
     model = disc.tag_discovery(_target(companion_server["url"]))
-    assert len(model["companion_specs"]["suggestions"]) == 3
+    assert len(model["companion_specs"]["suggestions"]) == 4
     assert model["companion_specs"]["is_truncated"] is False
 
 

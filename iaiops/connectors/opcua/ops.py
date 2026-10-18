@@ -222,6 +222,55 @@ def _read_one(client: Any, node_id: str) -> dict:
     }
 
 
+#: The one Bad status that is itself an observation. OPC 10000-16 §4.4.2: a state
+#: machine that is not active (a SubStateMachine whose parent is in another
+#: state, §4.5.2) has CurrentState and LastTransition "with a status equal to
+#: Bad_StateNotActive". It means "none of this machine's states is current" — so
+#: no declared running state of that machine is current either.
+STATE_NOT_ACTIVE = "BadStateNotActive"
+
+
+def read_observation(client: Any, node_id: str) -> tuple[Any, str]:
+    """Read one node for COLLECTION → ``(value, source_timestamp)``; Bad is never a value.
+
+    ``_read_one`` turns every failure into an ``{"error"}`` descriptor, which is
+    right for a person reading a node and wrong for a collector: the collector
+    took ``value`` off it — ``None`` — and wrote that as a sample, so a node the
+    server rejected, and a connection that had died, both stored as an empty
+    reading with full coverage. On a run-state tag that empty reading is "not
+    running": blind time measured as downtime, and a dead session that was
+    never reconnected because nothing ever raised.
+
+    Here the three outcomes stay apart:
+
+    * a transport / session fault RAISES as itself — the runner records a gap
+      and reconnects;
+    * a Bad status on the node is :class:`OTNoReadingError` — a gap, session kept;
+    * ``Bad_StateNotActive`` is the one exception: the server is answering, and
+      what it says is a fact about the machine. It is returned as the value
+      :data:`STATE_NOT_ACTIVE`, text that matches no declared running state.
+    """
+    from iaiops.core.runtime.session_factory import OTNoReadingError
+
+    try:
+        node = client.get_node(node_id)
+    except Exception as exc:  # noqa: BLE001 — a malformed id is this point's problem only
+        raise OTNoReadingError(
+            f"OPC-UA node {s(node_id, 128)}: {s(exc, 160)}", protocol="opcua"
+        ) from exc
+    dv = node.read_data_value(raise_on_bad_status=False)
+    code = dv.StatusCode
+    stamp = s(dv.SourceTimestamp, 64) if dv.SourceTimestamp else ""
+    if code is not None and code.is_bad():
+        name = s(getattr(code, "name", code), 64)
+        if name == STATE_NOT_ACTIVE:
+            return STATE_NOT_ACTIVE, stamp
+        raise OTNoReadingError(
+            f"OPC-UA node {s(node_id, 128)} answered {name}; no value", protocol="opcua"
+        )
+    return _coerce_value(dv.Value.Value if dv.Value is not None else None), stamp
+
+
 def _coerce_value(value: Any) -> Any:
     """Make an OPC-UA value JSON-safe (scalars pass through; else sanitize)."""
     if value is None or isinstance(value, (bool, int, float, str)):
@@ -545,5 +594,7 @@ __all__ = [
     "opcua_session",
     "OTConnectionError",
     "read_value_or_error",
+    "read_observation",
+    "STATE_NOT_ACTIVE",
     "MAX_SAMPLES",
 ]

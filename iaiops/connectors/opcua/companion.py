@@ -172,10 +172,17 @@ def _match_state(walk: _Walk, ref: Any, path: str, rule: cs.StateRule, instance_
             "can be suggested. Declare it by hand after watching the value.",
         )
         return
-    try:
-        value = _coerce_value(number.read_value())
-    except Exception:  # noqa: BLE001 — the declaration stands even if the read fails
-        value = None
+    value, status = _read_number(number)
+    refusal = cs.substate_refusal(rule, status)
+    if refusal is not None:
+        walk.recognised(ref.NodeId.to_string(), path, rule.spec_id, rule.type_name, refusal)
+        return
+    observed = (
+        f"Read during this walk, Number answered {cs.STATE_NOT_ACTIVE}: the server "
+        "reports the inactive sub-state on the node that is collected."
+        if rule.active_only_in
+        else ""
+    )
     walk.out["suggestions"].append(
         cs.suggestion(
             rule,
@@ -183,8 +190,26 @@ def _match_state(walk: _Walk, ref: Any, path: str, rule: cs.StateRule, instance_
             browse_path=_name(f"{path}/{'/'.join(cs.STATE_NUMBER_PATH)}", 256),
             instance_type=_name(instance_type, 128),
             current_value=value,
+            observed=observed,
         )
     )
+
+
+def _read_number(number: Any) -> tuple[Any, str]:
+    """``(value, status name)`` of ``CurrentState/Number``; a Bad status is kept, not raised.
+
+    The status is evidence for a sub-state rule, so it must survive the read.
+    An empty status means the read itself failed — the declaration still stands.
+    """
+    try:
+        dv = number.read_data_value(raise_on_bad_status=False)
+    except Exception:  # noqa: BLE001 — the declaration stands even if the read fails
+        return None, ""
+    status = s(getattr(dv.StatusCode, "name", dv.StatusCode), 64) if dv.StatusCode else "Good"
+    if status == cs.STATE_NOT_ACTIVE:
+        return status, status
+    value = dv.Value.Value if dv.Value is not None else None
+    return _coerce_value(value), status
 
 
 def _summary(walk: _Walk, objects: int, depth_cap: int, pending: bool) -> dict[str, Any]:
