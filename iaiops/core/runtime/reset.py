@@ -36,6 +36,7 @@ KNOWN_FILES = frozenset(
         "undo.db",
         "data.db",
         "audit_forward.cursor",
+        "tag_suggestion.key",
         "baselines.json",
         "program_baselines.json",
     }
