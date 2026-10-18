@@ -57,11 +57,11 @@ class TestEachReadUsesTheOpenClient:
         from iaiops.core.runtime.capabilities import _session_read_opcua
 
         class Node:
-            def read_data_value(self):
+            def read_data_value(self, raise_on_bad_status=True):
                 # Shaped like a real DataValue rather than the minimum that
-                # compiles: the session read reuses the connector's own
-                # `_read_one`, which also reports datatype and status, and a
-                # stub missing those would test a path the product does not run.
+                # compiles: the session read inspects the status code itself,
+                # and a stub missing it would test a path the product does not run.
+                seen["raise_on_bad_status"] = raise_on_bad_status
                 variant = type(
                     "V", (), {"Value": 42, "VariantType": type("T", (), {"name": "Int32"})()}
                 )()
@@ -71,7 +71,9 @@ class TestEachReadUsesTheOpenClient:
                     {
                         "Value": variant,
                         "SourceTimestamp": "2026-08-01T00:00:00",
-                        "StatusCode": type("S", (), {"name": "Good"})(),
+                        "StatusCode": type(
+                            "S", (), {"name": "Good", "is_bad": lambda self: False}
+                        )(),
                     },
                 )()
 
@@ -84,6 +86,8 @@ class TestEachReadUsesTheOpenClient:
 
         value, _ts = _session_read_opcua(Client(), "ns=2;i=5")
         assert value == 42
+        # A Bad status must come back to be classified, not raise as a dead session.
+        assert seen["raise_on_bad_status"] is False
         assert seen["node"] == "ns=2;i=5"
 
     def test_s7_reads_the_address_from_the_client(self):
