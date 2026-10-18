@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Fixed — an OPC UA text value was stored as a Python repr
+
+- A LocalizedText value (a state machine's `CurrentState`, for one) was read,
+  shown and collected as `LocalizedText(Locale=None, Text='Idle')` — seen live
+  on the OPC Foundation reference PackML server. A text `running_when` could
+  never match it, so `oee measure` refused with `no_running_state_matched`.
+  It is now its text (`Idle`), sanitised as before; the locale is dropped,
+  because a declaration names the word the device sends. Every OPC UA read path
+  goes through the same coercion (`read_node`, collection, discovery, RCA).
+  Companion-spec suggestions are unchanged: they stay on the
+  language-independent `CurrentState/Number`.
+
 ### Fixed — a steady OPC UA value was collected once, then never again
 
 - **Every Good OPC UA poll is an observation now.** The collector skipped a

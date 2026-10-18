@@ -298,6 +298,11 @@ def _coerce_value(value: Any) -> Any:
         return value
     if isinstance(value, (list, tuple)):
         return [_coerce_value(v) for v in value][:100]
+    if type(value).__name__ == "LocalizedText":
+        # Its text, not its repr: `str()` stored "LocalizedText(Locale=None,
+        # Text='Idle')", which no declared running state can ever match. The
+        # locale is dropped — a declaration names the word the device sends.
+        return s(getattr(value, "Text", None), 256)
     return s(value, 256)
 
 
