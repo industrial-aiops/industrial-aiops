@@ -190,3 +190,99 @@ class TestTheRoundTripActuallyCloviesTheGap:
         oee_after = next(c for c in after.capabilities if c.key == "oee")
         mapping = next(r for r in oee_after.requirements if r.key == "oee_role_mapping")
         assert mapping.met, mapping.detail
+
+
+class TestSuggestionStamp:
+    """`export --suggest` → edit → `apply`, through the real commands and a real CSV.
+
+    The device walk is replaced (no OPC UA server here); everything from the
+    hint onward — stamping, the key file, the CSV, the verification — is real.
+    """
+
+    HINT = {
+        "role": "run_state",
+        "running_when": [3],
+        "spec": "OPC 40001-1",
+        "instance_type": "MachineryItemState_StateMachineType",
+        "browse_path": "Press/MachineryItemState/CurrentState/Number",
+        "node_id": "ns=2;i=7",
+        "why": "Executing = 3",
+    }
+
+    def _export(self, cli, tmp_path, monkeypatch):
+        import iaiops.cli.tags as tags_cli
+
+        monkeypatch.setattr(
+            tags_cli, "_suggestions", lambda config: {("line1", "40002"): self.HINT}
+        )
+        out = tmp_path / "sheet.csv"
+        result = runner.invoke(cli, ["export", str(out), "--suggest"])
+        assert result.exit_code == 0, result.output
+        return out, list(csv.DictReader(out.open(newline="", encoding="utf-8")))
+
+    def _apply(self, cli, out, rows):
+        with out.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
+            writer.writeheader()
+            writer.writerows(rows)
+        result = runner.invoke(cli, ["apply", str(out), "--by", "alice"])
+        assert result.exit_code == 0, result.output
+        return result.output
+
+    def test_the_first_suggest_creates_the_site_key(self, cli, configured, tmp_path, monkeypatch):
+        from iaiops.core.governance.paths import ops_path
+
+        assert not ops_path("tag_suggestion.key").exists()
+        _, rows = self._export(cli, tmp_path, monkeypatch)
+        assert ops_path("tag_suggestion.key").exists()
+        assert rows[1]["suggestion_stamp"].startswith("v1:") and rows[0]["suggestion_stamp"] == ""
+
+    def test_an_untouched_acceptance_is_credited_to_the_device(
+        self, cli, configured, tmp_path, monkeypatch
+    ):
+        out, rows = self._export(cli, tmp_path, monkeypatch)
+        rows[1].update(role="run_state", running_when="3")
+        output = self._apply(cli, out, rows)
+        assert "1 companion_spec" in output and "unverified" not in output
+
+    def test_typed_suggestion_columns_are_credited_to_the_person(
+        self, cli, configured, tmp_path, monkeypatch
+    ):
+        out, rows = self._export(cli, tmp_path, monkeypatch)
+        rows[0].update(
+            suggested_role="good_count",
+            suggestion_evidence="OPC 40001-1: typed by hand",
+            role="good_count",
+        )
+        output = self._apply(cli, out, rows)
+        assert "1 companion_spec_unverified" in output
+        assert "missing" in output and "Re-export" in output
+
+    def test_a_deleted_key_downgrades_and_does_not_refuse(
+        self, cli, configured, tmp_path, monkeypatch
+    ):
+        from iaiops.core.governance.paths import ops_path
+
+        out, rows = self._export(cli, tmp_path, monkeypatch)
+        ops_path("tag_suggestion.key").unlink()
+        rows[1].update(role="run_state", running_when="3")
+        output = self._apply(cli, out, rows)
+        assert "1 companion_spec_unverified" in output and "no_key" in output
+        assert not ops_path("tag_suggestion.key").exists()  # apply never mints a key
+
+    def test_a_damaged_key_stops_export_with_the_reason(
+        self, cli, configured, tmp_path, monkeypatch
+    ):
+        """Stamping with a key that is not one would void the sheet; say so, plainly."""
+        from iaiops.core.governance.paths import ops_path
+
+        ops_path("tag_suggestion.key").parent.mkdir(parents=True, exist_ok=True)
+        ops_path("tag_suggestion.key").write_bytes(b"short")
+        import iaiops.cli.tags as tags_cli
+
+        monkeypatch.setattr(tags_cli, "_suggestions", lambda config: {})
+        result = runner.invoke(cli, ["export", str(tmp_path / "s.csv"), "--suggest"])
+        assert result.exit_code == 1
+        said = " ".join(result.output.split())
+        assert "not a suggestion stamp key" in said and "Delete it" in said
+        assert isinstance(result.exception, SystemExit)  # a teaching line, not a traceback

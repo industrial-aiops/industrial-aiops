@@ -273,10 +273,14 @@ def _hint(node_id: str = "ns=2;i=7") -> dict:
     )
 
 
+#: A test-only stamp key; the stamp itself is covered in test_suggestion_stamp.py.
+_KEY = b"t" * 32
+
+
 def _sheet(hint: dict | None = None) -> list[dict]:
     config = _Config([_target("opc.tcp://x", tags=(MonitorTag(ref="ns=2;i=7"),))])
     hints = {("line1", "ns=2;i=7"): hint} if hint else None
-    return [dict(r) for r in sheet_rows(config, hints)]
+    return [dict(r) for r in sheet_rows(config, hints, stamp_key=_KEY)]
 
 
 @pytest.mark.unit
@@ -297,7 +301,7 @@ def test_an_untouched_suggested_sheet_confirms_nothing():
 def test_an_exact_acceptance_is_credited_to_the_device_declaration():
     (row,) = _sheet(_hint())
     row.update(role="run_state", running_when="3.0")
-    (edit,) = validate_rows([row])
+    (edit,) = validate_rows([row], stamp_key=_KEY)
     assert edit.basis == BASIS_COMPANION
     assert "OPC 40001-1" in edit.evidence
     patch = config_patch((edit,), by="alice")
@@ -343,7 +347,7 @@ def test_the_csv_round_trip_keeps_the_evidence(tmp_path: Path):
     with path.open(newline="", encoding="utf-8") as handle:
         (back,) = list(csv.DictReader(handle))
     back.update(role="run_state", running_when="3")
-    assert validate_rows([back])[0].basis == BASIS_COMPANION
+    assert validate_rows([back], stamp_key=_KEY)[0].basis == BASIS_COMPANION
 
 
 @pytest.mark.unit

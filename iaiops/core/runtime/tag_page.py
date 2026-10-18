@@ -269,19 +269,21 @@ def render_tag_page(
     config: Any,
     *,
     hints: dict[tuple[str, str], dict[str, Any]] | None = None,
+    stamp_key: bytes | None = None,
     lang: str = "en",
     generated_at: str = "",
 ) -> str:
     """[PURE] One self-contained page for confirming what the point list means.
 
     Collects only. Everything it produces goes through ``iaiops tags apply``,
-    which is where the refusals and the author live.
+    which is where the refusals and the author live. The rows' suggestion stamps
+    ride along unseen and come back in the downloaded sheet unchanged.
     """
     from iaiops.core.report.html import document
     from iaiops.core.runtime.config import TagRole
 
     t = _strings(lang)
-    rows = sheet_rows(config, hints)
+    rows = sheet_rows(config, hints, stamp_key=stamp_key)
     if not rows:
         body = (
             f"<h1>{escape(t['title'])}</h1>"
