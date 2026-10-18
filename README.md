@@ -287,6 +287,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten — each o
 | IO-Link | `iolink_read_pdin` | process-data-in (raw hex + bytes) | R | low | {hex, bytes[]} |
 | IO-Link | `iolink_read_isdu` | ISDU acyclic parameter read | R | low | {index, subindex, value} |
 | IO-Link | `iolink_scan` | master + all connected devices | R | low | {master{}, devices[]} |
+| Serial ASCII | `serial_sniff` | raw lines from a serial instrument (sends nothing) | R | low | {endpoint, seconds, lines[], note} |
 | Sensor (`IAIOPS_MCP=sensor`) | `sensor_import_iodd` | draft a profile from an IODD (`待核实`; returns text, writes nothing; reads only under `$IAIOPS_HOME` / the config directory) | R | low | {draft, profile_id, device_name, notes[]} |
 | Sensor (`IAIOPS_MCP=sensor`) | `sensor_profile_check` | validate a profile file, list its channels (reads only under `$IAIOPS_HOME` / the config directory) | R | low | {id, protocol, verified, channels:[{channel, layout, unit, signal, band}]} |
 | Sensor (`IAIOPS_MCP=sensor`) | `sensor_read_channel` | read one point once; reachable / decodable reported separately | R | low | {levels:{reachable, decodable}, value?, unit?, band?, verified?} |

@@ -31,7 +31,7 @@ docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
 
 |  |  |
 |---|---|
-| **读** | OPC-UA（含 HDA 历史访问、tag 自动发现）· Modbus TCP/RTU · S7comm · 三菱 MC · 欧姆龙 FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link —— 另有两层只读 REST 面：BAS 监控器（Metasys / Niagara）与 Ignition Gateway |
+| **读** | OPC-UA（含 HDA 历史访问、tag 自动发现）· Modbus TCP/RTU · S7comm · 三菱 MC · 欧姆龙 FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link · 串口 ASCII 仪表(RS-232/485、串口服务器)—— 另有两层只读 REST 面：BAS 监控器（Metasys / Niagara）与 Ignition Gateway |
 | **查得清** | `scan` 现场勘察(零发包预览,给人签字的那份)· `readiness` 这个站点今天能跑什么、还差什么(零联网)· `collect` 有界评估采集 + 断点续跑 · `store` 留存与剪枝 |
 | **想明白** | 停机根因 copilot（旗舰;四级结论 + 假设账本 + 时序排除）、**从采集历史实测的 OEE**(可用率/性能/质量 + 六大损失,可出自包含 HTML 报告)、报警洪泛分析（ISA-18.2）、数据流断点定位、数据可信度打分、资产台账、老 PLC 程序讲解（ST/AWL/L5X） |
 | **查得完** | `investigate` 八步证据闭环 —— 定义事件 → 取证 → 归一校验 → 压缩排序 → 关联时间线 → 验假设 → 知识校验 → 结论闭环;每一步走不通时说清是**你**没给还是**产品**给不了 · `tags` 点表语义确认(导出表 / 静态页 / 产出 config 补丁) |
@@ -526,10 +526,11 @@ iaiops opcua discover -e line1
 
 把一块原始寄存器按所有候选字节序(AB/BA、ABCD/DCBA/BADC/CDAB)解一遍,按提示值/合理区间打分选出正确字节序——**纯逻辑、无需设备**。配套一组厂商寄存器模板(Eastron SDM630、Schneider PM5xxx 等)把寄存器块解成命名工程量。
 
-### 4b. 传感层:类型化点位 + IO-Link 采集 + 描述库(HLD §16 / §17)
+### 4b. 传感层:类型化点位 + IO-Link 采集 + 描述库 + 串口仪表(HLD §16 / §17)
 
 - **采集用的类型化点位**(HLD §16):采集 / 监视的 ref 可以写明表、类型、字序和缩放 —— `ir:0:float32:CDAB`、`hr:12:int16*0.1`(语法 `<hr|ir>:<addr>[:<type>[:<order>]][*<scale>]`;32 位类型必须写明字序)。端点上配了 `sensor_profile: <文件>` 时,`ch:<名>` 读该描述里的一个通道(哨兵值 → 盲区,声明的量程强制生效)。裸地址保持原义(一个保持寄存器,uint16),`readiness` 把它报为**未类型化**。DI 模块上的开关量传感器(NPN / PNP / 干接点)读作 `di:<addr>:<high|low>`(FC02)或 `co:<addr>:<high|low>`(FC01):有效电平必须写明(常闭开关动作时读 0),值 1 = 已动作;把开关量点声明为产量计数时,`readiness` 报 `count_source` 缺口(轮询会漏掉短脉冲)—— 只检查 Modbus ref,PLC 位尚未检查。随包的**描述库**(`iaiops sensor list | show`,MCP `sensor_profile_list | show`)收录常见电表和光伏逆变器的社区寄存器表,每条都由同一设备的 Modbus 模板派生,并带着该模板的注意事项 —— 每条都是 `待核实`;CI 逐通道、双向核对每条与其模板。用法:复制一份(`show <id> --out <文件>`),对照设备自己的显示核一个读数,再绑定这份副本。
 - **IO-Link 采集**(HLD §16):`port_profiles: {<端口>: <profile.yaml>}` 给每个端口绑定一份传感器描述;之后 `port<N>/<通道>` ref 可采集(`collect`、`monitor`)。没有描述的端口**不解码** —— 拒绝,绝不猜。描述带 `match: {vendor_id, device_id}` 时,解码前先核对该端口上的设备(按主站和端口缓存 5 秒,任一次读取失败即丢弃)。带 `pd_bits` 时,长度不同的过程数据映像被拒绝。`iaiops sensor import-iodd <iodd.xml>` 从厂商 IODD 起草一份描述(`verified: 待核实`,单位代码保留不映射,无法表示的项逐条列出);`iaiops sensor check` 校验一份描述。
+- **串口 ASCII 仪表**(秤、分析仪、扫码枪、老式表计 —— 只读):每次读数发一行文本的仪表,经 RS-232 / RS-485 / RS-422 / USB 虚拟串口(`pyserial>=3.5`,extra `iaiops[serial]`,已含在 `iaiops[sensor]` 中)或串口服务器的原始 TCP 套接字接入。解码靠一份传感器描述(`protocol: serial`):`framing`(结束符、编码、最大行长)、`mode: listen | poll`(外加 poll 唯一允许发送的那条 `query`),每个通道一条必须匹配整行、带 `value` 分组的正则,状态码(`ok` / 命名的无效码 → 盲区),单位固定和/或取自该行。**安全规则**:端口**独占**打开 —— 被别的程序占着的端口直接拒绝,绝不抢(这是建议锁:没加锁就打开它的程序探测不到,各操作系统 `待核实`)。poll 需要端点上写 `bus: dedicated`(`shared` = 已有主站的 RS-485 总线:只能 listen);去皮 / 清零 / 标定不是读,不属于 `query`。listen 需要 `stale_after_s`(期限内没有新行 = 盲区,绝不沿用上一个值)。采集要求每个通道单位固定。工具:`serial_sniff` / `iaiops serial sniff`(原始行,不发送任何东西);解码读取走 `sensor_read_channel` / `iaiops sensor read`;采集走 `iaiops collect run`。验证:经真实 pyserial 路径的 pty 对、本地 TCP 串口服务器路径,以及一次实验室局域网走查。**真实仪表的行格式按描述逐份 `待核实`。**
 
 ### 5. HART-IP 过程仪表(只读)
 

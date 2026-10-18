@@ -26,7 +26,8 @@
 - README: the five `sensor_*` MCP tools in the capability matrix and the
   `sensor` edition (`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`) in the per-edition
   tool list. README.zh-CN: the typed-point (HLD §16), IO-Link collection and
-  sensor-library paragraphs, and the `sensor` edition in both edition lists.
+  sensor-library paragraphs, the serial ASCII instrument paragraph, and the
+  `sensor` edition in both edition lists; `serial_sniff` in the README matrix.
 ### Added — serial ASCII instruments: a `serial` connector (HLD §17.4 E4, D53–D58)
 
 - **Scales, gas analysers, barcode readers, legacy meters** that send a text line
