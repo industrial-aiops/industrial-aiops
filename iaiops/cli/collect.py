@@ -111,6 +111,7 @@ def collect_run_cmd(
     from datetime import datetime
 
     from iaiops.core.collect.reader import (
+        polls_are_fresh,
         read_point,
         ref_problems,
         session_builder_for,
@@ -178,6 +179,7 @@ def collect_run_cmd(
             db_path=db,
             should_stop=lambda: stopping["flag"],
             session_builder=session_builder_for(protocol) if in_session else None,
+            fresh_each_read=polls_are_fresh(protocol),
         )
     finally:
         signal.signal(signal.SIGINT, previous)

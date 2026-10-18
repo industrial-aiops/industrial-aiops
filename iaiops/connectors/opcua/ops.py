@@ -229,6 +229,21 @@ def _read_one(client: Any, node_id: str) -> dict:
 #: no declared running state of that machine is current either.
 STATE_NOT_ACTIVE = "BadStateNotActive"
 
+#: Uncertain codes that mean the server did NOT observe this value now (OPC
+#: 10000-4 §7.38): the source stopped updating, communication is lost, a
+#: substitute was put in, or no value ever arrived. Collection counts every Good
+#: poll as an observation, so these are the server's only way to say "stale" —
+#: they are gaps. Other Uncertain codes (EngineeringUnitsExceeded,
+#: SensorNotAccurate, …) qualify a value that WAS observed and stay values.
+NOT_OBSERVED = frozenset(
+    {
+        "UncertainLastUsableValue",
+        "UncertainNoCommunicationLastUsableValue",
+        "UncertainSubstituteValue",
+        "UncertainInitialValue",
+    }
+)
+
 
 def read_observation(client: Any, node_id: str) -> tuple[Any, str]:
     """Read one node for COLLECTION → ``(value, source_timestamp)``; Bad is never a value.
@@ -261,8 +276,14 @@ def read_observation(client: Any, node_id: str) -> tuple[Any, str]:
     dv = node.read_data_value(raise_on_bad_status=False)
     code = dv.StatusCode
     stamp = s(dv.SourceTimestamp, 64) if dv.SourceTimestamp else ""
+    name = s(getattr(code, "name", code), 64) if code is not None else "Good"
+    if name in NOT_OBSERVED:
+        raise OTNoReadingError(
+            f"OPC-UA node {s(node_id, 128)} answered {name}: the server did not "
+            "observe this value now",
+            protocol="opcua",
+        )
     if code is not None and code.is_bad():
-        name = s(getattr(code, "name", code), 64)
         if name == STATE_NOT_ACTIVE:
             return STATE_NOT_ACTIVE, stamp
         raise OTNoReadingError(
@@ -277,6 +298,11 @@ def _coerce_value(value: Any) -> Any:
         return value
     if isinstance(value, (list, tuple)):
         return [_coerce_value(v) for v in value][:100]
+    if type(value).__name__ == "LocalizedText":
+        # Its text, not its repr: `str()` stored "LocalizedText(Locale=None,
+        # Text='Idle')", which no declared running state can ever match. The
+        # locale is dropped — a declaration names the word the device sends.
+        return s(getattr(value, "Text", None), 256)
     return s(value, 256)
 
 
@@ -596,5 +622,6 @@ __all__ = [
     "read_value_or_error",
     "read_observation",
     "STATE_NOT_ACTIVE",
+    "NOT_OBSERVED",
     "MAX_SAMPLES",
 ]
