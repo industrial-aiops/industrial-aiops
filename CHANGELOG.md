@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Added — switching sensors: NPN / PNP / dry contact (HLD §17.5b E2b)
+
+- **Discrete inputs and coils are collectable.** A proximity, photoelectric,
+  limit or pressure switch reaches iaiops through a PLC (already readable) or a
+  Modbus DI module, whose discrete inputs (FC02) and coils (FC01) could be read
+  once but not collected. New typed points `di:<addr>:<high|low>` and
+  `co:<addr>:<high|low>`, and profile channels with
+  `layout: {table: discrete | coil, address, active}`, work on every read path —
+  collection, monitor, the per-ref read, `modbus health`, `sensor_read_channel`.
+- **The active level is required (D60).** A normally-closed switch reads 0 when a
+  part is present; a guessed level would invert present and absent. The stored
+  value is 1 = actuated, 0 = not. A switching point takes no type, order, scale,
+  range or sentinel, and its `signal` is `level` or `event` only.
+- **A switching point is not a production counter (D61).** `readiness` adds a
+  `count_source` requirement under OEE: a count role mapped to a switch is a gap —
+  polling misses every pulse shorter than the interval, so the count would be low
+  and look plausible. Use the module's or the PLC's counter register.
+- No software debounce (the module's or PLC's input filter does that), no coil
+  writes, IO-Link SIO mode deferred until a real master confirms its datapoints.
+
 ### Added — a sensor entry: one install, one menu, one skill (HLD §17.2 E2)
 
 - **`pip install iaiops[sensor]`** pulls the Modbus, IO-Link and MQTT/Sparkplug

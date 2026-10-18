@@ -7,14 +7,20 @@ ordinary-looking integer.
 
 Grammar (case-insensitive table, otherwise exact)::
 
-    <table>:<address>[:<type>[:<order>]][*<scale>]
+    <table>:<address>[:<type>[:<order>]][*<scale>]       registers
+    <di|co>:<address>:<high|low>                         switching sensors (§17.5b)
 
-    table   hr (holding, FC03) | ir (input, FC04)
+    table   hr (holding, FC03) | ir (input, FC04) | di (discrete input, FC02) | co (coil, FC01)
     type    uint16 (default) | int16 | uint32 | int32 | float32
     order   AB (default for 16-bit) | BA ; ABCD | DCBA | BADC | CDAB — REQUIRED for 32-bit
     scale   a non-zero number multiplied into the value
 
-    ir:0:float32:CDAB      hr:12:int16*0.1      hr:40
+    ir:0:float32:CDAB      hr:12:int16*0.1      hr:40      di:3:low
+
+A switching point (an NPN / PNP / dry-contact sensor on a DI module) has no type,
+order or scale, and its active level is REQUIRED: a normally-closed switch reads 0
+when actuated, so a guessed level would invert present and absent (D60). Its value
+is 1 when actuated, 0 when not.
 
 A bare address (``"40"``) is the legacy point and keeps its exact old meaning —
 one holding register, unsigned — so existing configs and stored series do not
@@ -31,12 +37,38 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from iaiops.core.runtime.sensor import Channel, SensorProfile, decode_registers, modbus_layout
-
-_TABLES = {"hr": "holding", "ir": "input"}
-GRAMMAR = (
-    "<hr|ir>:<address>[:<type>[:<order>]][*<scale>], e.g. ir:0:float32:CDAB or hr:12:int16*0.1"
+from iaiops.core.runtime.sensor import (
+    Channel,
+    SensorProfile,
+    SwitchLayout,
+    decode_registers,
+    decode_switch,
+    modbus_layout,
+    switch_layout,
 )
+
+_TABLES = {"hr": "holding", "ir": "input", "di": "discrete", "co": "coil"}
+SWITCH_TABLES = ("discrete", "coil")
+GRAMMAR = (
+    "<hr|ir>:<address>[:<type>[:<order>]][*<scale>] or <di|co>:<address>:<high|low>, "
+    "e.g. ir:0:float32:CDAB, hr:12:int16*0.1, di:3:low"
+)
+
+#: pymodbus client method per table — one map, so every read path agrees.
+CLIENT_METHODS = {
+    "holding": "read_holding_registers",
+    "input": "read_input_registers",
+    "discrete": "read_discrete_inputs",
+    "coil": "read_coils",
+}
+
+
+def response_words(table: str, resp: object, count: int) -> list[int]:
+    """Registers, or bits as 0/1 — cut to ``count``: pymodbus pads bit reads to 8."""
+    if table in SWITCH_TABLES:
+        return [1 if bit else 0 for bit in list(getattr(resp, "bits", []))[:count]]
+    return list(getattr(resp, "registers", []))
+
 
 #: Reads ``count`` words of ``table`` starting at ``address``.
 WordReader = Callable[[str, int, int], list[int]]
@@ -52,12 +84,17 @@ class ModbusPoint:
     order: str = "AB"
     scale: float = 1.0
     legacy: bool = False
+    #: Switching points only: the level that means "actuated".
+    active: str = ""
 
     @property
     def words(self) -> int:
         return 2 if self.value_type in ("uint32", "int32", "float32") else 1
 
     def channel(self, name: str) -> Channel:
+        if self.table in SWITCH_TABLES:
+            layout = switch_layout(self.table, self.address, self.active, name)
+            return Channel(name=name, layout=layout, unit="", signal="level")
         layout = modbus_layout(self.table, self.address, self.value_type, self.order, name)
         return Channel(name=name, layout=layout, unit="", signal="level", scale=self.scale)
 
@@ -100,7 +137,11 @@ def parse_point(ref: str) -> ModbusPoint:
         raise ValueError(f"Modbus point ref {ref!r} is not in the grammar {GRAMMAR}.")
     table = _TABLES.get(parts[0].lower())
     if table is None:
-        raise ValueError(f"Modbus point {ref!r}: table {parts[0]!r} must be hr or ir ({GRAMMAR}).")
+        raise ValueError(
+            f"Modbus point {ref!r}: table {parts[0]!r} must be hr, ir, di or co ({GRAMMAR})."
+        )
+    if table in SWITCH_TABLES:
+        return _switch_point(ref, table, parts, star)
     value_type = parts[2] if len(parts) > 2 else "uint16"
     order = parts[3] if len(parts) > 3 else None
     layout = modbus_layout(
@@ -116,10 +157,27 @@ def parse_point(ref: str) -> ModbusPoint:
     )
 
 
+def _switch_point(ref: str, table: str, parts: list[str], star: str) -> ModbusPoint:
+    """``di:<addr>:<high|low>`` — no type, order or scale; the level is required."""
+    where = f"Modbus point {ref!r}"
+    if star:
+        raise ValueError(f"{where}: a switching bit has no scale.")
+    if len(parts) == 2:
+        switch_layout(table, 0, None, where)  # raises: the active level is required
+    if len(parts) != 3:
+        raise ValueError(f"Modbus ref {ref!r} is not in the grammar {GRAMMAR}.")
+    layout = switch_layout(table, _address(parts[1], ref), parts[2].lower(), where)
+    return ModbusPoint(
+        table=table, address=layout.address, value_type="bool", order="", active=layout.active
+    )
+
+
 def read_point_value(read_words: WordReader, ref: str) -> float | int | None:
     """Read and decode one point. Raises ``InvalidReadingError`` for a non-measurement."""
     point = parse_point(ref)
     words = list(read_words(point.table, point.address, point.words))
+    if point.table in SWITCH_TABLES:
+        return decode_switch(point.channel(str(ref).strip()), words).value
     if point.legacy:
         return words[0] if words else None
     return decode_registers(point.channel(str(ref).strip()), words).value
@@ -165,12 +223,17 @@ def read_ref_value(
         return read_point_value(read_words, ref)
     channel = profile_channel(ref, profile)
     layout = channel.layout
+    if isinstance(layout, SwitchLayout):
+        return decode_switch(channel, list(read_words(layout.table, layout.address, 1))).value
     words = list(read_words(layout.table, layout.address, layout.words))
     return decode_registers(channel, words).value
 
 
 __all__ = [
     "CHANNEL_PREFIX",
+    "CLIENT_METHODS",
+    "SWITCH_TABLES",
+    "response_words",
     "GRAMMAR",
     "ModbusPoint",
     "check_ref",

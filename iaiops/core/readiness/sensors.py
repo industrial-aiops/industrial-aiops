@@ -132,4 +132,69 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
     )
 
 
-__all__ = ["decodable_points_req", "sensor_point_facts"]
+#: Roles that COUNT production. A switching point may hold none of them (D61).
+_COUNT_ROLES = ("total_count", "good_count", "reject_count")
+
+
+def _is_switching(target: Any, ref: str) -> bool:
+    """A Modbus `di:` / `co:` point, or a profile channel on a switching bit."""
+    if str(getattr(target, "protocol", "")) != "modbus":
+        return False
+    from iaiops.connectors.modbus.points import SWITCH_TABLES, is_channel_ref, parse_point
+    from iaiops.connectors.modbus.points import profile_channel as channel_for
+    from iaiops.core.runtime.sensor import SwitchLayout
+    from iaiops.core.runtime.sensor.binding import endpoint_profile
+
+    try:
+        if is_channel_ref(ref):
+            return isinstance(channel_for(ref, endpoint_profile(target)).layout, SwitchLayout)
+        return parse_point(ref).table in SWITCH_TABLES
+    except (OSError, ValueError):
+        return False  # an unreadable ref is reported by decodable_points, not here
+
+
+def switching_count_tags(targets: tuple[Any, ...]) -> list[str]:
+    """Tags declared as a production counter that sit on a switching sensor."""
+    found = []
+    for target in targets:
+        for tag in getattr(target, "tags", ()) or ():
+            ref = str(tag.get("ref", "") if isinstance(tag, Mapping) else getattr(tag, "ref", ""))
+            role = str(
+                tag.get("role", "") if isinstance(tag, Mapping) else getattr(tag, "role", "")
+            )
+            if role in _COUNT_ROLES and _is_switching(target, ref):
+                found.append(f"{getattr(target, 'name', '')}:{ref} ({role})")
+    return found
+
+
+def count_source_req(facts: dict[str, Any]) -> Requirement:
+    """D61: a switching point is not a production counter.
+
+    Polling an on/off switch misses every pulse shorter than the interval, so a
+    count built from it is systematically low — and plausibly so. The count must
+    come from a counter (a DI module's or a PLC's counter register).
+    """
+    found = list(facts.get("switching_count_tags") or ())
+    return Requirement(
+        key="count_source",
+        label="production counts come from a counter, not a polled switch",
+        met=not found,
+        detail=(
+            f"counted from a switching sensor: {', '.join(found[:5])}"
+            if found
+            else "no production-count role sits on a switching sensor"
+        ),
+        fix=(
+            "Map the count role to a counter register — the DI module's or the PLC's "
+            "pulse counter (e.g. hr:<addr>:uint32:<order>). Polled on/off misses every "
+            "pulse shorter than the sampling interval."
+        ),
+    )
+
+
+__all__ = [
+    "count_source_req",
+    "decodable_points_req",
+    "sensor_point_facts",
+    "switching_count_tags",
+]
