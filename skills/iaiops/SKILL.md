@@ -41,7 +41,7 @@ description: >-
 | 制药/药厂 · GMP · 洁净室/洁净区 · Annex 1 · 压差梯度/pressure cascade · grade A/B/C/D · 尘埃粒子 · EMS/环境监测 · PW/WFI/纯化水/注射用水 · TOC · 生物反应器 · 冻干机 · 灌装线 · CSV/IQ/OQ · Annex 11 · Part 11 · 数据完整性/ALCOA | **iaiops-pharma** | `IAIOPS_MCP=pharma` / `iaiops-mcp-pharma` |
 | 光伏/PV · 逆变器/inverter · 组串/string · 风电/风机 · 场站 SCADA · 新能源电站 | **iaiops-renewables** | `IAIOPS_MCP=renewables` / `iaiops-mcp-renewables` |
 | Phoenix Contact PLCnext / vPLC（虚拟化 PLC，走内建 OPC-UA + Modbus-TCP） | **iaiops-plcnext** | `IAIOPS_MCP=plcnext` / `iaiops-mcp-plcnext` |
-| 接一个传感器 · 传感器描述/profile · IODD 导入 · 读不懂寄存器/单位/字序 · 哨兵值 · Modbus RTU 仪表（RS-485/RS-232；ASCII 协议仪表尚不支持） · 4–20 mA 经采集模块 · ESP32 传感节点 | **iaiops-sensor** | `IAIOPS_MCP=sensor` / `iaiops-mcp-sensor` |
+| 接一个传感器 · 传感器描述/profile · IODD 导入 · 读不懂寄存器/单位/字序 · 哨兵值 · Modbus RTU 仪表（RS-485/RS-232） · 串口 ASCII（称重仪表 / 气体分析仪 / 扫码枪）· 串口服务器 · 4–20 mA 经采集模块 · ESP32 传感节点 | **iaiops-sensor** | `IAIOPS_MCP=sensor` / `iaiops-mcp-sensor` |
 | IO-Link · IO-Link master · 智能传感器/executor 参数 · pdin · ISDU（主站 JSON/REST 接口，只读；接入并解码一个传感器、导入 IODD → **iaiops-sensor**） | **iaiops-factory**（楼宇传感器场景 **iaiops-building**） | `IAIOPS_MCP=factory` / 单协议 `IAIOPS_MCP=iolink` / `iaiops-mcp-iolink` |
 
 - 单协议深用（只有一种设备）：直接 `IAIOPS_MCP=opcua`（或 modbus/s7/mc/fins/eip/mtconnect/

@@ -6,7 +6,7 @@
 
 **让 AI 说清楚产线为什么停了 —— 而且每句结论都带证据引用。**
 
-一个厂商中立、**读优先**的现场数据 tap。它讲 **14 种现场协议**，把跨协议的证据在时间上对齐，
+一个厂商中立、**读优先**的现场数据 tap。它讲 **15 种现场协议**，把跨协议的证据在时间上对齐，
 交给智能体的是**带引用的裁决**，不是猜测。每次调用都留审计（运维方设 `IAIOPS_AUDIT_OPT_OUT=reads` 时，成功的声明式读取不记）；读取路径绝不回连。
 
 ```bash
@@ -179,7 +179,7 @@ iaiops protocols            # 能力地图
 **协议 extras:** `opcua` · `modbus` · `s7` · `mc` · `fins`(纯标准库,不 pin 任何依赖)· `eip` · `mtconnect` · `sparkplug` · `secsgem` · `ethercat` · `profinet` · `bacnet` · `hart` · `iolink` · `bas`(BAS 监控器层 REST,复用 mtconnect HTTP pin)· `ignition`(Ignition Gateway 只读层,复用 mtconnect HTTP pin)· 另有 `tdengine` · `iotdb` · `influxdb`(时序库下沉)· `nats`(流出口)· `ollama`(本机 LLM 叙述)· `export`(Parquet 导出)· `all`(全部可 pip 装的 connector)。
 
 **Edition 捆绑**(与同名 `IAIOPS_MCP` profile 对应——按行业只装该垂直跑的协议):
-`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `pharma`(制药:bacnet+modbus+hart+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)· `sensor`(跨协议传感器:modbus+iolink+sparkplug;随包带描述库 `iaiops sensor list | show`,常见电表/光伏逆变器,全部 `待核实`)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
+`fab`(secsgem+opcua+s7+modbus)· `factory`(离散制造全套:opcua+modbus+s7+mc+fins+eip+mtconnect+sparkplug+ethercat+profinet+iolink+ignition)· `process`(opcua+modbus+hart)· `building`(bacnet+modbus+opcua+iolink+bas)· `water`(水处理:modbus+opcua+hart)· `warehouse`(仓储/物料搬运:eip+profinet+modbus+opcua+sparkplug)· `clinical`(医疗设施:bacnet+modbus+opcua)· `pharma`(制药:bacnet+modbus+hart+opcua)· `renewables`(光伏/风电:modbus+opcua+sparkplug)· `plcnext`(opcua+modbus)· `sensor`(跨协议传感器:modbus+iolink+sparkplug+serial;随包带描述库 `iaiops sensor list | show`,常见电表/光伏逆变器,全部 `待核实`)。能源捆绑在 [`iaiops-energy`](https://github.com/industrial-aiops/industrial-aiops-energy) 包内。
 
 > **信创/离线:** 纯 Python 核心 + 可选 extras 支持**离线/气隙安装**(本地 wheelhouse + `pip install --no-index`)。国产时序库下沉(TDengine/IoTDB)、合规对照见 `docs/CHINA.md`。
 
@@ -554,7 +554,7 @@ iaiops opcua discover -e line1
 - **光伏/风电**(`IAIOPS_MCP=renewables`,modbus+opcua+sparkplug):PV 逆变器(SUN2000/Growatt 模板)+ 风机控制器 + 场站 SCADA + Sparkplug 遥测;版工具 `pv_performance`(组串性能对比)。
 - **半小时电表数据**(供应商 HH 文件;building + renewables 版):`iaiops meter check|profile` 读英国供应商的半小时用电文件(宽表:日期 + 46–50 个时段列;长表:时间戳 + kWh),报夜间基础负荷、按**声明的**营业时间算的非营业时段用电、峰值、完整日对比、负荷率、星期×时段热力图,给了电价表还按时段算钱并给出移峰的**上限**;`--report` 出自包含 HTML。MCP:`meter_hh_check`、`meter_load_profile`。空格=缺失不是 0;缺口不外推;日期只认英式日在前;无实测/估算标志时报「未知」不报「实测」。DUoS 时段因配网区域而异,不内置。尚未跑过真实供应商文件(`待核实`)。示例:`demo/metering/`。
 - **PLCnext 打包版**(`IAIOPS_MCP=plcnext`,opcua+modbus):菲尼克斯 PLCnext 虚拟化 PLC,经其内置 OPC-UA server(`opc.tcp` 4840)+ Modbus-TCP 过程数据 server,不新增 connector;route-verified,真机 `待核实`。
-- **传感器**(`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`,跨协议:modbus+iolink+sparkplug):接入、解码、试读一个传感器(见 4b);版工具 `sensor_import_iodd` + `sensor_profile_check` + `sensor_read_channel` + `sensor_profile_list` + `sensor_profile_show`,全部只读;把描述绑定进 config.yaml 仍是人的编辑。`sensor_import_iodd` / `sensor_profile_check` 只读 `$IAIOPS_HOME` 或配置目录下的文件。
+- **传感器**(`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`,跨协议:modbus+iolink+sparkplug+serial):接入、解码、试读一个传感器(见 4b);版工具 `sensor_import_iodd` + `sensor_profile_check` + `sensor_read_channel` + `sensor_profile_list` + `sensor_profile_show`,全部只读;把描述绑定进 config.yaml 仍是人的编辑。`sensor_import_iodd` / `sensor_profile_check` 只读 `$IAIOPS_HOME` 或配置目录下的文件。
 
 ### 7. 保守基线学习(0.10 新增)
 
@@ -593,7 +593,7 @@ iaiops opcua discover -e line1
 
 - **带认证的 socket**:走 HTTP/SSE(`IAIOPS_MCP_TRANSPORT=streamable-http|sse`)时,设了 `IAIOPS_MCP_TOKEN`(或 `IAIOPS_MCP_TOKEN_FILE`,至少 32 字符)后每个请求都必须带 `Authorization: Bearer <token>`;**绑定到回环以外的地址而没有 token,服务拒绝启动**(0.29.0 起,破坏性变更)。随包的容器(Margo、airgap、Siemens IE、IGEL)因此都要从密钥设施注入 token;`IAIOPS_ALLOWLIST_IPS` 是可选的第二层,默认关闭(容器端口映射后面不要只设回环:调用方显示为网桥网关地址)。一个共享 token,不是按人身份;自身不带 TLS。
 - **审计行记来源**:`iaiops-mcp` 与 `iaiops` CLI 写的审计行记录调用从哪个前端进来(`origin`:`mcp` 或 `cli`;为空 = 未知,绝不当成人或 agent——包括该字段出现前写的行,以及没声明来源的 server)、MCP 客户端**自报**的名字、每会话一个 id,以及带预览开关的工具这次是 `preview` 还是 `apply`。这些字段进哈希链:**旧版 iaiops 校验含 0.29 行的 audit.db 会报 `row_hash mismatch`**,共享一个 `IAIOPS_HOME` 的进程要一起升级。
-- **读优先**:**203 个受治理工具 = 186 只读 + 4 个不改设备但会把数据发出去(`stream_publish`、`stream_publish_event`、`uns_publish`、`rca_narrate`)+ 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
+- **读优先**:**204 个受治理工具 = 187 只读 + 4 个不改设备但会把数据发出去(`stream_publish`、`stream_publish_event`、`uns_publish`、`rca_narrate`)+ 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。

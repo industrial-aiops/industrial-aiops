@@ -87,6 +87,12 @@ _BROWSE: dict[str, str] = {
 #: how five wrong claims travelled together — and because a protocol added later
 #: must land in one of these two tables deliberately (there is a test).
 _NO_BROWSE_REASONS: dict[str, str] = {
+    "serial": (
+        "a serial ASCII instrument has no point list: it sends (or answers with) "
+        "a text line, and what the line means comes from a `protocol: serial` "
+        "sensor profile. `iaiops serial sniff` shows the raw lines without "
+        "sending anything; bind a profile and use `ch:<channel>` under `tags:`."
+    ),
     "s7": (
         "an S7 CPU exposes no symbol table on the wire — the names live in the "
         "TIA/STEP7 project, not the PLC. Take the DB and offsets from the "
