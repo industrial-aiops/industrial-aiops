@@ -36,12 +36,20 @@ def tools():
 
 @pytest.fixture
 def unconfigured(tmp_path, monkeypatch):
-    """A site with no config at all — the state a first-time caller is in."""
+    """A site with no config at all — the state a first-time caller is in.
+
+    Returns the iaiops home (``~/.iaiops``), where the stores these tests name live:
+    a ``db`` override must lie under the agent's read roots, and a home directory
+    that IS ``$IAIOPS_HOME`` is too broad to be one.
+    """
     monkeypatch.setenv("HOME", str(tmp_path))
+    state = tmp_path / ".iaiops"
+    state.mkdir()
+    monkeypatch.setenv("IAIOPS_HOME", str(state))
     from iaiops.core.runtime import config as config_mod
 
-    monkeypatch.setattr(config_mod, "CONFIG_DIR", tmp_path / ".iaiops", raising=False)
-    return tmp_path
+    monkeypatch.setattr(config_mod, "CONFIG_DIR", state, raising=False)
+    return state
 
 
 class TestItIsGoverned:

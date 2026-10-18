@@ -472,6 +472,8 @@ MCP 客户端按产线给每个 server 配一个 `IAIOPS_MCP` 菜单 = 现场只
 ```bash
 iaiops program snapshot ~/exports/Line3.scl --name Line3 --label "approved v3.2 / MOC-118"
 iaiops program drift    ~/exports/Line3_today.scl --name Line3
+# 走 MCP 时,只有运维方把 ~/exports 列进去,agent 才能读:
+#   IAIOPS_AGENT_READ_DIRS=~/exports
 ```
 
 快照存的是文件 SHA-256 加上每个 block 的结构指纹（名字/类型/语言、声明的变量、调用、分支条件、
@@ -555,7 +557,7 @@ iaiops opcua discover -e line1
 - **光伏/风电**(`IAIOPS_MCP=renewables`,modbus+opcua+sparkplug):PV 逆变器(SUN2000/Growatt 模板)+ 风机控制器 + 场站 SCADA + Sparkplug 遥测;版工具 `pv_performance`(组串性能对比)。
 - **半小时电表数据**(供应商 HH 文件;building + renewables 版):`iaiops meter check|profile` 读英国供应商的半小时用电文件(宽表:日期 + 46–50 个时段列;长表:时间戳 + kWh),报夜间基础负荷、按**声明的**营业时间算的非营业时段用电、峰值、完整日对比、负荷率、星期×时段热力图,给了电价表还按时段算钱并给出移峰的**上限**;`--report` 出自包含 HTML。MCP:`meter_hh_check`、`meter_load_profile`。空格=缺失不是 0;缺口不外推;日期只认英式日在前;无实测/估算标志时报「未知」不报「实测」。DUoS 时段因配网区域而异,不内置。尚未跑过真实供应商文件(`待核实`)。示例:`demo/metering/`。
 - **PLCnext 打包版**(`IAIOPS_MCP=plcnext`,opcua+modbus):菲尼克斯 PLCnext 虚拟化 PLC,经其内置 OPC-UA server(`opc.tcp` 4840)+ Modbus-TCP 过程数据 server,不新增 connector;route-verified,真机 `待核实`。
-- **传感器**(`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`,跨协议:modbus+iolink+sparkplug+serial):接入、解码、试读一个传感器(见 4b);版工具 `sensor_import_iodd` + `sensor_profile_check` + `sensor_read_channel` + `sensor_profile_list` + `sensor_profile_show`,全部只读;把描述绑定进 config.yaml 仍是人的编辑。`sensor_import_iodd` / `sensor_profile_check` 只读 `$IAIOPS_HOME` 或配置目录下的文件。
+- **传感器**(`IAIOPS_MCP=sensor` / `iaiops-mcp-sensor`,跨协议:modbus+iolink+sparkplug+serial):接入、解码、试读一个传感器(见 4b);版工具 `sensor_import_iodd` + `sensor_profile_check` + `sensor_read_channel` + `sensor_profile_list` + `sensor_profile_show`,全部只读;把描述绑定进 config.yaml 仍是人的编辑。`sensor_import_iodd` / `sensor_profile_check` 只读 agent 可读目录(见「安全与治理」)下的文件。
 
 ### 7. 保守基线学习(0.10 新增)
 
@@ -595,6 +597,7 @@ iaiops opcua discover -e line1
 - **带认证的 socket**:走 HTTP/SSE(`IAIOPS_MCP_TRANSPORT=streamable-http|sse`)时,设了 `IAIOPS_MCP_TOKEN`(或 `IAIOPS_MCP_TOKEN_FILE`,至少 32 字符)后每个请求都必须带 `Authorization: Bearer <token>`;**绑定到回环以外的地址而没有 token,服务拒绝启动**(0.29.0 起,破坏性变更)。随包的容器(Margo、airgap、Siemens IE、IGEL)因此都要从密钥设施注入 token;`IAIOPS_ALLOWLIST_IPS` 是可选的第二层,默认关闭(容器端口映射后面不要只设回环:调用方显示为网桥网关地址)。一个共享 token,不是按人身份;自身不带 TLS。
 - **审计行记来源**:`iaiops-mcp` 与 `iaiops` CLI 写的审计行记录调用从哪个前端进来(`origin`:`mcp` 或 `cli`;为空 = 未知,绝不当成人或 agent——包括该字段出现前写的行,以及没声明来源的 server)、MCP 客户端**自报**的名字、每会话一个 id,以及带预览开关的工具这次是 `preview` 还是 `apply`。这些字段进哈希链:**旧版 iaiops 校验含 0.29 行的 audit.db 会报 `row_hash mismatch`**,共享一个 `IAIOPS_HOME` 的进程要一起升级。
 - **读优先**:**204 个受治理工具 = 187 只读 + 4 个不改设备但会把数据发出去(`stream_publish`、`stream_publish_event`、`uns_publish`、`rca_narrate`)+ 10 个 MOC 设备写 + `historian_push`(也是写,但写的是历史库不是设备,`[WRITE][risk=low]`)+ 2 个已弃用别名**(每版工具只在选中对应 edition 时加载,故裸协议/单 edition 面比该全线总数小);读侧新增两层厂商 REST **只读**面——BAS 控制器层(Metasys/Niagara,building 版)与 Ignition Gateway MES/SCADA 层(factory 版);10 个写/命令工具(`s7_write_db`、`mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、`ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`)全部 `[WRITE][risk=HIGH][MOC]`(`bas_command` 默认关闭 + 生命安全对象 denylist)。
+- **agent 只读运维方放文件的地方**:会打开 agent 所给主机文件的 13 个 MCP 工具 —— `sensor_import_iodd`、`sensor_profile_check`、6 个 `plc_program_*` 文件工具、`device_advisory_check`、`site_readiness` / `onboarding_status` / `onboarding_config_draft` 的 `db=` 覆盖,以及 `sink="sqlite"` 时的 `historian_push` —— 先解析路径(`~`、`..`、每一层符号链接),不在 `$IAIOPS_HOME`、配置目录或 `IAIOPS_AGENT_READ_DIRS` 所列目录(`os.pathsep` 分隔的绝对路径,如 `~/exports:~/advisories`;写在 server 的环境或 `~/.iaiops/.env` 里 —— 没有任何工具会写这两处)之下就**不打开**直接拒绝。相对路径、`/`、包含主目录、属于别的用户或组/其他人可写的条目一律忽略。拒绝信息不透露文件的任何内容,连是否存在都不说。CLI 照常读运维方输入的任何路径。
 - **破坏性操作**:dry-run 默认 + 双重确认 + MOC 门控 + 需记录审批人(一次性 `iaiops approve` 令牌;未配置 `risk_tiers` 时 high/critical 默认 `dual` 层);**10 个写工具全部声明 undo**(0.20.3 起无豁免),成功的写捕获改前值/状态并登记逆操作描述符。逆操作**在真没有逆的情况下如实返回「无」**——瞬时(`retain=False`)的 `mqtt_publish` 发出去就收不回;`ethercat_set_state` 的 `+ERR`/`NONE`/`BOOT` 不是可重新请求的干净 AL 状态。**一个过度承诺的 undo 比没有 undo 更糟**,因为总会有人把它重放到活的设备上。
 - **治理 harness**:每个工具都过策略预检(策略引擎 fail-closed)+ 预算/失控熔断 + 风险分级 + 审计落库 `~/.iaiops/audit.db`(SHA-256 哈希链防篡改 + `iaiops audit verify`;高危写在审计不可用时拒绝执行);任何注册工具缺治理标记,MCP server 拒绝启动。**审计状态如实反映结果**(0.20.3):工具不抛异常而是返回规范 `{error, hint}` 信封,过去会被记成 `status='ok'`——失败的写和成功的写在轨迹里无法区分,熔断器也被告知「成功」;现已识别该信封记 `error`。**失控窗口计入被拒绝的重试**(0.20.3):上限不计拒绝(它没干活),但一个不理解拒绝、无限重试的调用方是最常见的卡死循环,过去完全拦不住(实测 500 次被拒高危写、上限 10、零拦停)。
 - **机密**:Fernet 加密库,绝不明文;配置目录权限告警。

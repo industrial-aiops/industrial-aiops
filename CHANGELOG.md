@@ -21,6 +21,37 @@
   an IODD or profile from elsewhere (e.g. `~/Downloads`) must copy it under
   `$IAIOPS_HOME` first.
 
+- **Ten more MCP tools read only under the agent read roots, and the operator can
+  name more.** `plc_program_outline` / `xref` / `section` / `visibility` /
+  `snapshot` / `drift` read any `.st`/`.scl`/`.awl`/`.l5x`/`.txt` on the host
+  (`plc_program_section` returned up to 200 lines of it); `device_advisory_check`
+  read any YAML/JSON file; and the `db=` override of `site_readiness` /
+  `onboarding_status` / `onboarding_config_draft` opened any SQLite file. All now
+  go through the same guard as the sensor tools. The roots are `$IAIOPS_HOME`,
+  the config directory and — new — the directories the operator lists in
+  **`IAIOPS_AGENT_READ_DIRS`** (`os.pathsep`-separated absolute paths, in the
+  server's environment or `~/.iaiops/.env`; no tool writes either). An entry
+  that is relative, missing, `/`, contains the home directory or is
+  world-writable is ignored. A `db=` path may still name a store that does not
+  exist yet (it reads as empty), but only inside the roots. The CLI
+  (`iaiops program …`, `iaiops readiness --db`, …) is unchanged. **Upgrade:** an
+  agent workflow that passes `~/exports/Line3.scl` or `~/advisories.yaml` needs
+  `IAIOPS_AGENT_READ_DIRS=~/exports:~/advisories` (or the files copied under
+  `$IAIOPS_HOME`); `device_advisory_check` now accepts `.yaml`/`.yml`/`.json` only.
+  An operator-listed directory must be owned by the server's user and not
+  writable by group or others (otherwise someone else could swap a checked
+  directory for a symlink between the check and the read); the home-directory
+  test compares file identity, so `/USERS/ZW` on a case-insensitive disk is
+  still the home directory.
+- **`historian_push(sink="sqlite", database=…)` is confined the same way.** It
+  created or wrote any SQLite file on the host and tightened its parent
+  directory to 0700.
+- **Reading the scan store no longer writes to it.** `onboarding_status` and
+  `onboarding_config_draft` (and `iaiops onboard` / `iaiops scan list|report`) ran
+  the store's schema setup on whatever database they opened — adding two tables
+  and switching it to WAL, even on the audit database. A store without the
+  scan tables now simply has no scans.
+
 ### Docs
 
 - README: the five `sensor_*` MCP tools in the capability matrix and the
