@@ -34,6 +34,36 @@
   most 200 characters, `date` is YYYY-MM-DD, a blank optional field is dropped.
   An unknown id or protocol filter is a clear error; MCP results no longer carry
   the installed path (copy a profile, never bind the installed file).
+### Fixed — an OPC UA text value was stored as a Python repr
+
+- A LocalizedText value (a state machine's `CurrentState`, for one) was read,
+  shown and collected as `LocalizedText(Locale=None, Text='Idle')` — seen live
+  on the OPC Foundation reference PackML server. A text `running_when` could
+  never match it, so `oee measure` refused with `no_running_state_matched`.
+  It is now its text (`Idle`), sanitised as before; the locale is dropped,
+  because a declaration names the word the device sends. Every OPC UA read path
+  goes through the same coercion (`read_node`, collection, discovery, RCA).
+  Companion-spec suggestions are unchanged: they stay on the
+  language-independent `CurrentState/Number`.
+
+### Fixed — a steady OPC UA value was collected once, then never again
+
+- **Every Good OPC UA poll is an observation now.** The collector skipped a
+  read whose source timestamp matched the last one written — right for MQTT,
+  where the stamp identifies a publish, wrong for OPC UA, where
+  `SourceTimestamp` is when the value last *changed*. Every poll of a steady
+  state was dropped: measured, 49 polls over 6 s of a line that ran and then
+  stopped stored 2 samples while the run reported 100% coverage. Over a long
+  run it errs in the flattering direction — the states that last longest
+  (long stops among them) are the ones that turn into blind time. OPC UA reads
+  are now stamped when polled (`timestamp_is_change_time` in the capability
+  table, `run_collection(fresh_each_read=…)`); MQTT keeps its repeat check.
+- **A value the server did not observe is a gap.** With polls trusted as
+  observations, the server's own staleness flag is the guard:
+  `UncertainLastUsableValue`, `UncertainNoCommunicationLastUsableValue`,
+  `UncertainSubstituteValue` and `UncertainInitialValue` are recorded as gaps,
+  never written. Other Uncertain codes (e.g. `EngineeringUnitsExceeded`) still
+  qualify an observed value and are kept.
 
 ### Fixed — an OPC UA read the server rejected was stored as an empty sample
 
