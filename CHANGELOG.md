@@ -29,6 +29,34 @@
   re-run while the machine is stopped. The suggestion carries both caveats
   (stale-server hole, 待核实 on a production PackML server; Execute in a
   Maintenance/Manual UnitMode also reads as running).
+### Added — switching sensors: NPN / PNP / dry contact (HLD §17.5b E2b)
+
+- **Discrete inputs and coils are collectable.** A proximity, photoelectric,
+  limit or pressure switch reaches iaiops through a PLC (already readable) or a
+  Modbus DI module, whose discrete inputs (FC02) and coils (FC01) could be read
+  once but not collected. New typed points `di:<addr>:<high|low>` and
+  `co:<addr>:<high|low>`, and profile channels with
+  `layout: {table: discrete | coil, address, active}`, work on every read path —
+  collection, monitor, the per-ref read, `modbus health`, `sensor_read_channel`.
+- **The active level is required (D60).** A normally-closed switch reads 0 when a
+  part is present; a guessed level would invert present and absent. The stored
+  value is 1 = actuated, 0 = not. A switching point takes no type, order, scale,
+  range or sentinel, and its `signal` is `level` or `event` only.
+- **A switching point is not a production counter (D61).** `readiness` adds a
+  `count_source` requirement under OEE: a count role mapped to a switch is a gap —
+  polling misses every pulse shorter than the interval, so the count would be low
+  and look plausible. Use the module's or the PLC's counter register.
+- No software debounce (the module's or PLC's input filter does that), no coil
+  writes, IO-Link SIO mode deferred until a real master confirms its datapoints.
+- **Fixed before release (adversarial review):** `count_source` reported "met"
+  for a count role it could not check — a `di:` ref with no level, a `ch:` ref
+  whose profile cannot be read; "cannot tell" is now a gap too. Switching
+  channels are no longer listed as "stored without a unit (still 待核实)" — a
+  switch has no unit by design, and a `unit` on a switching channel is refused.
+  `response_ms` is kept; unknown layout keys are refused; table and active level
+  are case-insensitive in profiles as in refs. A switching read carries `active`
+  and `meaning` ("1 = actuated…"). D61 is checked on Modbus refs in this build;
+  PLC bits and refusing in `oee measure` are follow-ups.
 
 ### Added — a sensor entry: one install, one menu, one skill (HLD §17.2 E2)
 
@@ -142,6 +170,34 @@
 - **Fixed in the decoder:** a value exactly on the range edge could be refused
   after scaling (3 × 0.1 = 0.30000000000000004); the edge now has a tolerance far
   below any sensor's resolution.
+
+### Changed — `basis: companion_spec` now has to be earned, not typed (HLD §10.1, D49)
+
+- **Suggestion columns are stamped at export.** `tags export --suggest` and
+  `tags page --suggest` write a new read-only `suggestion_stamp` column: an
+  HMAC-SHA256 over `endpoint`, `ref`, `suggested_role`, `suggested_running_when`
+  and `suggestion_evidence`, under a per-site key created on the first
+  `--suggest` at `$IAIOPS_HOME/tag_suggestion.key` (owner-only; never in a repo;
+  removed by `iaiops reset`). Until now `apply` credited a row to the device
+  whenever `role` equalled `suggested_role` — and anyone editing the CSV could
+  type that column, so a manual call could leave as "the device declared this".
+- **A row whose stamp does not verify is `companion_spec_unverified`** —
+  downgraded, never refused. That covers typed or edited suggestion columns, a
+  suggestion moved to another row, a sheet exported on another site, a sheet
+  exported before this release, and `apply` on a host with no key. `apply`
+  says how many and why, and never creates a key itself. `manual_over_suggestion`
+  rows record the stamp outcome too, and the config patch comment states it.
+- **What it does not prove**, said in the code and in HLD D49: the device is still
+  not re-read at `apply`, and the key is a site secret, not a person's — whoever
+  can read `$IAIOPS_HOME` can mint a stamp. It separates "came out of the export"
+  from "typed into the file".
+- **Upgrade notes.** `SHEET_COLUMNS` gains `suggestion_stamp` (after
+  `suggestion_evidence`). `validate_rows(rows, config, stamp_key=None)` and
+  `sheet_rows(config, hints, stamp_key=None)` take the key; **with no key passed,
+  no row is `companion_spec`** — callers that want the credit must pass
+  `suggestion_stamp.site_key()`. `TagEdit` gains `suggestion_stamp` (also in
+  `as_dict()`). Sheets exported by 0.29.0 still apply; their device matches read
+  as `companion_spec_unverified` until re-exported.
 
 ## 0.29.0 — 2026-10-17
 

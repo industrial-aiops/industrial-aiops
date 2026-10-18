@@ -32,6 +32,9 @@ The refusals, in order of how much damage each would do:
    name). That arrives in read-only ``suggested_*`` columns with its evidence;
    ``role`` still starts empty, so an untouched sheet confirms nothing, and a
    suggestion only becomes a role when a person writes it into ``role``.
+   Those columns are STAMPED at export (``suggestion_stamp``); a row whose stamp
+   does not verify is credited to the person, not the device — see
+   ``iaiops.core.runtime.suggestion_stamp``.
 2. **``run_state`` without ``running_when`` is refused.** Assuming "anything
    non-zero means running" counts idle and fault as production — the trap
    ``MonitorTag`` already refuses, refused here too so the sheet cannot emit a
@@ -42,7 +45,8 @@ The refusals, in order of how much damage each would do:
    ``roles_present`` already applies: picking either is a guess, and the wrong
    pick produces a number that looks right.
 
-[PURE] No I/O and no clock. Rows in, rows or text out.
+[PURE] No I/O and no clock. Rows in, rows or text out. The stamp key is passed
+in; reading it from ``$IAIOPS_HOME`` is the caller's job.
 """
 
 from __future__ import annotations
@@ -68,20 +72,27 @@ SHEET_COLUMNS = (
     "suggested_role",
     "suggested_running_when",
     "suggestion_evidence",
+    "suggestion_stamp",
     "role",
     "running_when",
 )
 
 #: How a confirmed row came to be. ``companion_spec`` means the person set
-#: exactly what the device declared; ``manual_over_suggestion`` means a person
-#: was shown a declaration and chose something else — both are a person's call.
+#: exactly what the device declared, and the suggestion columns carry a stamp
+#: this site's key verifies; ``companion_spec_unverified`` is the same match
+#: over columns that cannot be shown to come from ``export --suggest`` (typed,
+#: edited, moved, another site's, or no key to check with) — a manual call, and
+#: said so; ``manual_over_suggestion`` means a person was shown a declaration and
+#: chose something else. All of them are a person's call.
 BASIS_MANUAL = "manual"
 BASIS_COMPANION = "companion_spec"
+BASIS_COMPANION_UNVERIFIED = "companion_spec_unverified"
 BASIS_OVERRIDE = "manual_over_suggestion"
 MAX_EVIDENCE = 600
 
 __all__ = [
     "BASIS_COMPANION",
+    "BASIS_COMPANION_UNVERIFIED",
     "BASIS_MANUAL",
     "BASIS_OVERRIDE",
     "SHEET_COLUMNS",
@@ -105,6 +116,10 @@ class TagEdit:
     #: re-checked against the device here.
     basis: str = BASIS_MANUAL
     evidence: str = ""
+    #: The suggestion stamp's ``check`` outcome (``verified``, ``missing``,
+    #: ``mismatch``, ``other_key``, ``no_key``); empty when the row had no
+    #: suggestion to stamp.
+    suggestion_stamp: str = ""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -114,6 +129,7 @@ class TagEdit:
             "running_when": list(self.running_when),
             "basis": self.basis,
             "evidence": self.evidence,
+            "suggestion_stamp": self.suggestion_stamp,
         }
 
 
@@ -127,14 +143,19 @@ def _attr(tag: Any, name: str) -> str:
 
 
 def sheet_rows(
-    config: Any, hints: dict[tuple[str, str], dict[str, Any]] | None = None
+    config: Any,
+    hints: dict[tuple[str, str], dict[str, Any]] | None = None,
+    stamp_key: bytes | None = None,
 ) -> tuple[dict[str, str], ...]:
     """One row per monitored tag, with the ``role`` column deliberately EMPTY.
 
     ``hints`` maps ``(endpoint, ref)`` to a companion-spec suggestion (see
     ``iaiops.connectors.opcua.companion``). It fills the read-only
     ``suggested_*`` columns only — never ``role``: a suggestion pre-filled into
-    the editable cell would make an untouched sheet confirm it.
+    the editable cell would make an untouched sheet confirm it. With
+    ``stamp_key``, each suggested row is stamped so ``validate_rows`` can tell
+    the export's columns from typed ones; without it, nothing is stamped and an
+    acceptance reads as ``companion_spec_unverified``.
 
     ``declared_role`` shows what config.yaml already says, so the reader can see
     it without it being pre-filled: copying it into ``role`` would make
@@ -143,37 +164,46 @@ def sheet_rows(
     declared is read-only context here, everything editable starts empty.
     """
     from iaiops.core.brain.companion_specs import evidence_line
+    from iaiops.core.runtime.suggestion_stamp import stamp
 
     rows: list[dict[str, str]] = []
     for target in getattr(config, "targets", ()) or ():
         endpoint = str(getattr(target, "name", ""))
         for tag in getattr(target, "tags", ()) or ():
             hint = (hints or {}).get((endpoint, _attr(tag, "ref"))) or {}
-            rows.append(
-                {
-                    "endpoint": endpoint,
-                    "ref": _attr(tag, "ref"),
-                    "label": _attr(tag, "label"),
-                    "declared_role": _attr(tag, "role"),
-                    "suggested_role": str(hint.get("role", "") or ""),
-                    "suggested_running_when": " ".join(
-                        str(v) for v in hint.get("running_when", ()) or ()
-                    ),
-                    "suggestion_evidence": s(evidence_line(hint), MAX_EVIDENCE) if hint else "",
-                    "role": "",
-                    # Empty for the same reason `role` is, and — found by looking
-                    # at the rendered page — for consistency with it. Echoing the
-                    # existing value into an EDITABLE cell while leaving `role`
-                    # blank meant somebody who changed the role to a counter got
-                    # refused over a field they never touched.
-                    "running_when": "",
-                }
-            )
+            row = {
+                "endpoint": endpoint,
+                "ref": _attr(tag, "ref"),
+                "label": _attr(tag, "label"),
+                "declared_role": _attr(tag, "role"),
+                "suggested_role": str(hint.get("role", "") or ""),
+                "suggested_running_when": " ".join(
+                    str(v) for v in hint.get("running_when", ()) or ()
+                ),
+                "suggestion_evidence": s(evidence_line(hint), MAX_EVIDENCE) if hint else "",
+                "suggestion_stamp": "",
+                "role": "",
+                # Empty for the same reason `role` is, and — found by looking
+                # at the rendered page — for consistency with it. Echoing the
+                # existing value into an EDITABLE cell while leaving `role`
+                # blank meant somebody who changed the role to a counter got
+                # refused over a field they never touched.
+                "running_when": "",
+            }
+            if hint and stamp_key is not None:
+                row = {**row, "suggestion_stamp": stamp(stamp_key, row)}
+            rows.append(row)
     return tuple(rows)
 
 
-def validate_rows(rows: list[dict[str, Any]], config: Any = None) -> tuple[TagEdit, ...]:
+def validate_rows(
+    rows: list[dict[str, Any]], config: Any = None, stamp_key: bytes | None = None
+) -> tuple[TagEdit, ...]:
     """Every filled row, checked. Raises rather than returning a partial answer.
+
+    ``stamp_key`` is this site's suggestion stamp key. Without it no stamp can be
+    verified, so no row is ``companion_spec`` — the default is the unflattering
+    one. A stamp that does not verify downgrades the basis; it never refuses.
 
     A blank ``role`` is skipped, not treated as a withdrawal: a sheet that has
     been through a spreadsheet loses cells routinely, and blank-means-withdraw
@@ -185,7 +215,7 @@ def validate_rows(rows: list[dict[str, Any]], config: Any = None) -> tuple[TagEd
         raise ValueError(f"A confirmation sheet is capped at {MAX_ROWS} rows.")
     known = _known_refs(config)
     edits = [
-        _edit(row, str(row.get("role", "") or "").strip().lower(), known, TagRole)
+        _edit(row, str(row.get("role", "") or "").strip().lower(), known, TagRole, stamp_key)
         for row in rows or ()
         if str(row.get("role", "") or "").strip()
     ]
@@ -234,7 +264,13 @@ def _known_refs(config: Any) -> dict[str, set[str]] | None:
     }
 
 
-def _edit(row: dict[str, Any], role: str, known: dict[str, set[str]] | None, roles: Any) -> TagEdit:
+def _edit(
+    row: dict[str, Any],
+    role: str,
+    known: dict[str, set[str]] | None,
+    roles: Any,
+    stamp_key: bytes | None,
+) -> TagEdit:
     endpoint = s(str(row.get("endpoint", "") or "").strip(), MAX_NAME)
     ref = s(str(row.get("ref", "") or "").strip(), MAX_NAME)
     if not ref:
@@ -261,7 +297,7 @@ def _edit(row: dict[str, Any], role: str, known: dict[str, set[str]] | None, rol
         raise ValueError(
             f"`running_when` only means something on a run_state tag; {ref!r} is {role}."
         )
-    basis, evidence = _basis(row, role, running)
+    basis, evidence, stamped = _basis(row, role, running, stamp_key)
     return TagEdit(
         endpoint=endpoint,
         ref=ref,
@@ -269,31 +305,40 @@ def _edit(row: dict[str, Any], role: str, known: dict[str, set[str]] | None, rol
         running_when=running,
         basis=basis,
         evidence=evidence,
+        suggestion_stamp=stamped,
     )
 
 
-def _basis(row: dict[str, Any], role: str, running: tuple[str, ...]) -> tuple[str, str]:
+def _basis(
+    row: dict[str, Any], role: str, running: tuple[str, ...], stamp_key: bytes | None
+) -> tuple[str, str, str]:
     """Whether this confirmed row is exactly what the device declared.
 
-    Only an EXACT match — same role, same running values — is ``companion_spec``.
-    A person who kept the role but changed the running value made their own
-    call, and crediting it to the spec would put words in the device's mouth.
-    A suggestion without its evidence text is treated as no suggestion.
+    Only an EXACT match — same role, same running values — over suggestion
+    columns whose stamp verifies is ``companion_spec``. A person who kept the
+    role but changed the running value made their own call, and crediting it to
+    the spec would put words in the device's mouth; so would crediting columns
+    anyone could have typed. A suggestion without its evidence text is treated
+    as no suggestion. Returns ``(basis, evidence, stamp outcome)``.
     """
     from iaiops.core.brain.companion_specs import one_line
+    from iaiops.core.runtime.suggestion_stamp import VERIFIED, check
 
     suggested = str(row.get("suggested_role", "") or "").strip().lower()
     # Folded to one line: this text is written into a YAML comment in the patch,
     # and a newline would end the comment and let the sheet write config keys.
     evidence = s(one_line(row.get("suggestion_evidence", "")), MAX_EVIDENCE)
     if not suggested or not evidence:
-        return BASIS_MANUAL, ""
+        return BASIS_MANUAL, "", ""
+    stamped = check(stamp_key, row)
     suggested_running = _numeric_set(
         str(row.get("suggested_running_when", "") or "").replace(",", " ").split()
     )
-    if suggested == role and suggested_running == _numeric_set(running):
-        return BASIS_COMPANION, evidence
-    return BASIS_OVERRIDE, evidence
+    if suggested != role or suggested_running != _numeric_set(running):
+        return BASIS_OVERRIDE, evidence, stamped
+    if stamped == VERIFIED:
+        return BASIS_COMPANION, evidence, stamped
+    return BASIS_COMPANION_UNVERIFIED, evidence, stamped
 
 
 def _numeric_set(values: Any) -> frozenset[str]:
@@ -311,14 +356,34 @@ def _basis_comment(edit: TagEdit) -> str:
     from iaiops.core.brain.companion_specs import one_line
 
     evidence = one_line(edit.evidence)
+    stamped = one_line(edit.suggestion_stamp)
     if edit.basis == BASIS_COMPANION:
         return (
-            "set as the sheet's companion-spec suggestion columns stated (not re-read "
-            f"from the device) — {evidence}"
+            "set as the sheet's companion-spec suggestion columns stated (stamp verified "
+            f"with this site's key; not re-read from the device) — {evidence}"
+        )
+    if edit.basis == BASIS_COMPANION_UNVERIFIED:
+        return (
+            f"manual — matches the sheet's suggestion columns, but their stamp is "
+            f"{_STAMP_WORDS.get(stamped, stamped)}, so they cannot be shown to come from "
+            f"`tags export --suggest` on this site — {evidence}"
         )
     if edit.basis == BASIS_OVERRIDE:
-        return f"manual, differing from the sheet's companion-spec suggestion — {evidence}"
+        unverified = (
+            "" if stamped == "verified" else f" (stamp {_STAMP_WORDS.get(stamped, stamped)})"
+        )
+        return (
+            f"manual, differing from the sheet's companion-spec suggestion{unverified} — {evidence}"
+        )
     return "manual"
+
+
+_STAMP_WORDS = {
+    "missing": "missing",
+    "mismatch": "not matching the columns",
+    "other_key": "from another site's key",
+    "no_key": "uncheckable (no stamp key on this site)",
+}
 
 
 def _refuse_double_claims(edits: list[TagEdit]) -> None:

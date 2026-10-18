@@ -20,7 +20,7 @@ import math
 import struct
 from dataclasses import dataclass
 
-from iaiops.core.runtime.sensor.profile import BitLayout, Channel, ModbusLayout
+from iaiops.core.runtime.sensor.profile import BitLayout, Channel, ModbusLayout, SwitchLayout
 
 
 class InvalidReadingError(ValueError):
@@ -135,3 +135,19 @@ def _finish(channel: Channel, value: float | int) -> Reading:
             )
     band = channel.accuracy.band if channel.accuracy is not None else None
     return Reading(value=value, unit=channel.unit, band=band)
+
+
+def decode_switch(channel: Channel, bits: list[int]) -> Reading:
+    """A switching sensor's bit → 1 if actuated, 0 if not (HLD §17.5b, D60).
+
+    "Actuated" follows the declared active level: on a normally-closed switch
+    (``active: low``) a 0 on the wire means the switch is actuated.
+    """
+    layout = channel.layout
+    if not isinstance(layout, SwitchLayout):
+        raise TypeError(f"Channel {channel.name!r} is not a switching channel.")
+    if not bits:
+        raise InvalidReadingError(f"{channel.name}: the device answered with no bit.")
+    level = 1 if bits[0] else 0
+    actuated = level if layout.active == "high" else 1 - level
+    return Reading(value=actuated, unit=channel.unit)

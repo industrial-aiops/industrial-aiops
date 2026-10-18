@@ -307,7 +307,7 @@ def modbus_health_summary(
     register_type: str = "holding",
     decode: str = "uint16",
 ) -> dict:
-    """[READ] Classify holding/input registers against warn/alarm thresholds.
+    """[READ] Classify Modbus points (registers, or di:/co: switching bits) against thresholds.
 
     ``addresses`` defaults to the endpoint's configured tag refs (parsed as
     register addresses). ``thresholds`` overrides per-address bounds keyed by
@@ -383,13 +383,14 @@ def _health_value(
             if resp is None or (hasattr(resp, "isError") and resp.isError()):
                 return None, "read failed"
             return float(_decode_registers(list(resp.registers[:1]), decode)[0]), ""
-        methods = {"holding": "read_holding_registers", "input": "read_input_registers"}
+        from iaiops.connectors.modbus.points import CLIENT_METHODS, response_words
 
         def read(table: str, address: int, count: int) -> list[int]:
-            resp = getattr(client, methods[table])(address, count=count, device_id=target.unit_id)
+            method = getattr(client, CLIENT_METHODS[table])
+            resp = method(address, count=count, device_id=target.unit_id)
             if resp is None or (hasattr(resp, "isError") and resp.isError()):
                 raise OSError("read failed")
-            return list(resp.registers)
+            return response_words(table, resp, count)
 
         # A typed point carries its own table and type; register_type/decode do not apply.
         return float(read_point_value(read, ref)), ""

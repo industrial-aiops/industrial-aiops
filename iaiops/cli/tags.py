@@ -17,7 +17,10 @@ Contacts nothing — except `export --suggest` / `page --suggest`, which open on
 read-only OPC UA session per configured OPC UA endpoint to read what the device
 declares through companion specs (Machinery; PackML on device evidence). Those arrive as read-only
 suggestion columns with their evidence; `role` still starts empty, and a
-suggestion becomes a role only when a person writes it there (D16).
+suggestion becomes a role only when a person writes it there (D16). Suggested
+rows are stamped with this site's key (`$IAIOPS_HOME/tag_suggestion.key`,
+created on first `--suggest`); `apply` credits a row to the device only when
+that stamp verifies, and otherwise says `companion_spec_unverified`.
 """
 
 from __future__ import annotations
@@ -41,6 +44,26 @@ _SUGGEST_HELP = (
     "evidence. Opens one "
     "read-only session per OPC UA endpoint. Nothing is pre-filled into `role`."
 )
+
+
+def _stamp_key(create: bool):
+    """This site's suggestion stamp key — or, at ``apply``, None with the reason said.
+
+    ``apply`` never refuses a sheet over the stamp: without a usable key every
+    suggestion match is simply credited to the person, and the output says why.
+    """
+    from rich.markup import escape
+
+    from iaiops.core.runtime.suggestion_stamp import StampKeyError, site_key
+
+    if create:
+        return site_key(create=True)
+    try:
+        key = site_key()
+    except StampKeyError as exc:
+        console.print(f"  [yellow]![/] {escape(str(exc))}")
+        return None
+    return key
 
 
 def _canonical_ref(ref: str) -> str:
@@ -132,7 +155,9 @@ def export_cmd(
     spec (by type definition, never by name) carry `suggested_role`,
     `suggested_running_when` and `suggestion_evidence`. To accept one, copy it
     into `role` / `running_when`; `apply` records that the role rested on the
-    device's declaration.
+    device's declaration. `suggestion_stamp` is what lets it tell: leave it and
+    the three suggestion columns as they are — an edited one, or one typed in,
+    reads as `companion_spec_unverified`.
     """
     from iaiops.core.governance.evidence import validate_output_path
     from iaiops.core.runtime.config import load_config
@@ -140,7 +165,11 @@ def export_cmd(
 
     path = validate_output_path(out, suffixes=(".csv",))
     config = load_config()
-    rows = sheet_rows(config, _suggestions(config) if suggest else None)
+    rows = sheet_rows(
+        config,
+        _suggestions(config) if suggest else None,
+        stamp_key=_stamp_key(create=True) if suggest else None,
+    )
     if not rows:
         raise ValueError(
             "No monitored tags to confirm. Find devices first (`iaiops scan run "
@@ -177,7 +206,11 @@ def apply_cmd(
     """
     from iaiops.core.governance.evidence import validate_output_path
     from iaiops.core.runtime.config import load_config
-    from iaiops.core.runtime.tag_sheet import config_patch, validate_rows
+    from iaiops.core.runtime.tag_sheet import (
+        BASIS_COMPANION_UNVERIFIED,
+        config_patch,
+        validate_rows,
+    )
 
     file = Path(sheet).expanduser()
     if not file.exists():
@@ -189,7 +222,10 @@ def apply_cmd(
         config = load_config()
     except Exception:  # noqa: BLE001 — an unconfigured site is a real state
         config = None
-    edits = validate_rows(rows, config)
+    has_suggestions = any(str(row.get("suggestion_evidence") or "").strip() for row in rows)
+    edits = validate_rows(
+        rows, config, stamp_key=_stamp_key(create=False) if has_suggestions else None
+    )
     pending = sum(
         1
         for row in rows
@@ -218,6 +254,16 @@ def apply_cmd(
         + (f"; {pending} device suggestion(s) left unconfirmed" if pending else "")
         + "[/]"
     )
+    unverified = [e for e in edits if e.basis == BASIS_COMPANION_UNVERIFIED]
+    if unverified:
+        why = ", ".join(sorted({e.suggestion_stamp for e in unverified}))
+        console.print(
+            f"  [yellow]![/] {len(unverified)} row(s) match suggestion columns whose stamp "
+            f"does not verify here ({why}). "
+            "[dim]They are credited to the person, not the device: the columns were "
+            "edited, typed in, moved, exported on another site, or exported before stamps "
+            "existed. Re-export with `--suggest` on this site to restore the credit.[/]"
+        )
 
     patch = config_patch(edits, by=by)
     if out is not None:
@@ -267,6 +313,7 @@ def page_cmd(
         render_tag_page(
             config,
             hints=_suggestions(config) if suggest else None,
+            stamp_key=_stamp_key(create=True) if suggest else None,
             lang=lang,
             generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
         ),

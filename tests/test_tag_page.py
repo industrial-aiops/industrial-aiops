@@ -232,3 +232,24 @@ class TestTheScriptCannotDriftFromTheColumns:
         script = _script(page())
         assert "SHEET.columns.map" in script, script
         assert "row.endpoint, row.ref" not in script
+
+
+def test_the_suggestion_stamp_rides_through_the_page_unchanged():
+    """The page's CSV is rebuilt from the embedded rows; the stamp must be in them,
+    or every sheet downloaded from the page would read as unverified."""
+    from iaiops.core.runtime.suggestion_stamp import VERIFIED, check
+
+    key = b"p" * 32
+    hint = {
+        "role": "run_state",
+        "running_when": [3],
+        "spec": "OPC 40001-1",
+        "instance_type": "MachineryItemState_StateMachineType",
+        "browse_path": "Press/MachineryItemState/CurrentState/Number",
+        "node_id": "ns=2;i=6",
+        "why": "Executing = 3",
+    }
+    config = FakeConfig([FakeTarget("line1", [FakeTag("ns=2;i=6")])])
+    html = render_tag_page(config, hints={("line1", "ns=2;i=6"): hint}, stamp_key=key)
+    (row,) = _embedded(html)["rows"]
+    assert row["suggestion_stamp"] and check(key, row) == VERIFIED

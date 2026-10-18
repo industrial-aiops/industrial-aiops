@@ -79,7 +79,16 @@ description: >-
 | `ch:fz` | Modbus 端点描述里的通道 `fz`（带单位、量程、哨兵） |
 | `port2/distance` | IO-Link 主站 2 号口描述里的通道 `distance` |
 | `ir:0:float32:CDAB` / `hr:12:int16*0.1` | 带类型的 Modbus 点：表 / 地址 / 类型 / 字序 / 比例（**32 位必须写字序**） |
+| `di:3:low` / `co:0:high` | 开关量（NPN / PNP / 干接点，接在 DI 模块上）：离散输入 / 线圈 + **必填的有效电平**；值 = 1 动作 / 0 未动作。常闭开关写 `low` |
 | `40` | 裸地址：一个保持寄存器按 uint16 读 —— 兼容旧配置，readiness 标「未声明类型」 |
+
+## 开关量传感器（NPN / PNP / 干接点）
+
+它们从不直接接电脑：接在 PLC 上就读 PLC 位号；接在 Modbus DI 模块上就用 `di:` / `co:` 点，或在描述里写
+`layout: {table: discrete | coil, address: N, active: high | low}`（`signal` 只能是 `level` / `event`）。
+**有效电平必须写**：常闭开关在「有工件」时输出 0，猜错会把有和无整个反过来。
+**开关量不能当产量计数**：轮询会漏掉短脉冲，`site_readiness` 会在 OEE 下报 `count_source` 缺口 ——
+产量要读 DI 模块或 PLC 的计数寄存器。去抖交给模块 / PLC 的输入滤波，tap 不做软件去抖。
 
 ## 边界
 

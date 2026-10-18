@@ -90,7 +90,7 @@ def test_unknown_channel_names_the_known_ones():
         (lambda p: p["channels"][0].pop("signal"), "signal"),
         (lambda p: p["channels"][0].update(signal="analog"), "signal"),
         (lambda p: p["channels"][0]["layout"].update(type="float64"), "type"),
-        (lambda p: p["channels"][0]["layout"].update(table="coil"), "table"),
+        (lambda p: p["channels"][0]["layout"].update(table="relay"), "table"),
         (lambda p: p["channels"][0]["layout"].update(address=-1), "address"),
         (lambda p: p["channels"][0].update(range=[10, 5]), "range"),
         (lambda p: p["channels"][0].update(scale=0), "scale"),

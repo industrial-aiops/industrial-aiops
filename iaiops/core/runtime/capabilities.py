@@ -277,11 +277,20 @@ def _modbus_ops_reader(t: Any):
     A legacy point asks for ``decode="uint16"`` exactly as before; a typed point
     asks for the raw words and decodes them itself.
     """
-    from iaiops.connectors.modbus.ops import modbus_read_holding, modbus_read_input
+    from iaiops.connectors.modbus.ops import (
+        modbus_read_coils,
+        modbus_read_discrete,
+        modbus_read_holding,
+        modbus_read_input,
+    )
 
     fns = {"holding": modbus_read_holding, "input": modbus_read_input}
+    bit_fns = {"discrete": modbus_read_discrete, "coil": modbus_read_coils}
 
     def read(table: str, address: int, count: int) -> list[int]:
+        if table in bit_fns:
+            bits = bit_fns[table](t, address=address, count=count).get("bits") or []
+            return [1 if bit else 0 for bit in bits[:count]]
         if count == 1 and table == "holding":
             return list(fns[table](t, address=address, count=1).get("decoded") or [])
         return list(
@@ -429,16 +438,14 @@ def _session_read_modbus(client: Any, ref: str) -> tuple[Any, str]:
             "know which device to address. The session attaches it at open time — a "
             "client built another way must do the same rather than defaulting."
         )
-    from iaiops.connectors.modbus.points import read_ref_value
+    from iaiops.connectors.modbus.points import CLIENT_METHODS, read_ref_value, response_words
     from iaiops.core.runtime.sensor import InvalidReadingError
 
-    methods = {"holding": "read_holding_registers", "input": "read_input_registers"}
-
     def read(table: str, address: int, count: int) -> list[int]:
-        resp = getattr(client, methods[table])(address, count=count, device_id=int(unit))
+        resp = getattr(client, CLIENT_METHODS[table])(address, count=count, device_id=int(unit))
         if resp.isError():
             raise OSError(f"Modbus read of {ref} failed: {resp}")
-        return list(resp.registers)
+        return response_words(table, resp, count)
 
     # The session attached the endpoint's profile at open time, like the unit id.
     profile = getattr(client, "iaiops_sensor_profile", None)
