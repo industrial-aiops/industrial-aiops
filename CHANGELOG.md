@@ -10,6 +10,12 @@ never say `ok` about points they could not judge, configuration causes are no
 longer reported as field faults, invalid IO-Link process data is a gap). 204
 governed tools.
 
+### Fixed — release
+
+- The first 0.31.0 publish was rejected by PyPI (`summary` over 512 characters
+  after the protocol list grew); nothing was published. The description is
+  shortened and `tests/test_package_metadata.py` now guards the limit.
+
 ### Upgrade notes — read before upgrading
 
 - **MCP tools now refuse files outside the agent's roots.** Reads
