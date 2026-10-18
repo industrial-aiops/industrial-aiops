@@ -23,6 +23,17 @@
 - **CI guards:** every entry loads, ids are unique, and a template-derived entry
   matches its template address by address, type, word order, scale and unit.
   203 governed tools.
+- **Fixed before release (adversarial review):** `iaiops sensor show <id> >
+  file.yaml` wrote YAML broken by terminal wrapping — it now prints the file byte
+  for byte. The drift guard checks both directions (no channel, range, sentinel or
+  accuracy added beyond the template) and the template caveat is a field shown by
+  `list`, `check` and the MCP summary, not only a YAML comment. **Profiles refuse
+  unknown keys** (a misspelt `derived-from:` used to skip every guard), and
+  `verified` and `provenance` must agree for every profile: bench / field needs
+  evidence, evidence on 待核实 is refused; provenance values are one line of at
+  most 200 characters, `date` is YYYY-MM-DD, a blank optional field is dropped.
+  An unknown id or protocol filter is a clear error; MCP results no longer carry
+  the installed path (copy a profile, never bind the installed file).
 
 ### Added — switching sensors: NPN / PNP / dry contact (HLD §17.5b E2b)
 

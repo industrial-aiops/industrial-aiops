@@ -27,7 +27,7 @@ def _modbus_profile(unit="N"):
             "id": "force",
             "protocol": "modbus",
             "source": "manual",
-            "verified": "bench",
+            "verified": "待核实",
             "channels": [
                 {
                     "name": "fz",
@@ -156,7 +156,7 @@ def test_a_profile_that_cannot_be_read_leaves_the_unit_empty_and_the_run_going(
 PROFILE_TEXT = """id: force
 protocol: modbus
 source: manual
-verified: bench
+verified: 待核实
 channels:
   - name: fz
     layout: {{table: input, address: 0, type: int16}}

@@ -92,7 +92,7 @@ def test_filters():
 
 
 def test_unknown_id_names_the_known_ones():
-    with pytest.raises(KeyError, match="known"):
+    with pytest.raises(LookupError, match="Known"):
         library.get("no-such-profile")
 
 

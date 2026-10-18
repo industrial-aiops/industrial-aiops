@@ -1,12 +1,12 @@
-# Library profile derived from the Modbus template `schneider_pm5xxx_basic`.
-# 待核实 — community register map; confirm base addresses per model/firmware.
-# Copy it (`iaiops sensor show <id> --out <file>`), check one reading against
-# the device's own display, then bind it as `sensor_profile:` in config.yaml.
+# Library profile derived from the Modbus template `schneider_pm5xxx_basic` — keep the two in step
+# (tests/test_sensor_library.py checks it). Copy it (`iaiops sensor show <id> --out
+# <file>`), check one reading against the device's display, then bind the copy.
 id: energy-meter-schneider-pm5xxx-basic
 protocol: modbus
 source: community
 verified: 待核实
 description: Schneider PM5xxx power meter, basic metering block (FC03, float32 ABCD).
+caveat: 待核实 — community register map; confirm base addresses per model/firmware.
 derived_from: modbus-template:schneider_pm5xxx_basic
 channels:
 - name: current_a

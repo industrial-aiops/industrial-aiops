@@ -121,7 +121,7 @@ def test_a_32_bit_modbus_type_needs_an_explicit_word_order():
 def test_profile_loads_from_yaml(tmp_path):
     path = tmp_path / "p.yaml"
     path.write_text(
-        "id: x\nprotocol: modbus\nsource: manual\nverified: bench\nchannels:\n"
+        "id: x\nprotocol: modbus\nsource: manual\nverified: 待核实\nchannels:\n"
         "  - name: force\n    layout: {table: holding, address: 4, type: float32, order: CDAB}\n"
         "    unit: N\n    signal: level\n",
         "utf-8",

@@ -18,7 +18,7 @@ PROFILE = parse_profile(
         "id": "force",
         "protocol": "modbus",
         "source": "manual",
-        "verified": "bench",
+        "verified": "待核实",
         "channels": [
             {
                 "name": "fz",

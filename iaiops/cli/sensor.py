@@ -84,6 +84,16 @@ def check_cmd(
         f"verified {loaded.verified}",
         highlight=False,
     )
+    # The evidence (or the warning) travels with the verdict, not only in --json.
+    details = (
+        ("description", loaded.description),
+        ("caveat", loaded.caveat),
+        ("derived from", loaded.derived_from),
+        ("provenance", "; ".join(f"{k}: {v}" for k, v in loaded.provenance)),
+    )
+    for label, value in details:
+        if value:
+            console.print(f"  {label}: {value}", markup=False, highlight=False)
     for row in rows:
         console.print(
             f"  {row['channel']}: {row['layout']} → {row['unit']} ({row['signal']})",
@@ -147,9 +157,11 @@ def list_cmd(
         _emit({"profiles": entries})
         return
     for entry in entries:
+        if entry.get("caveat"):
+            entry = {**entry, "description": f"{entry['description']} — {entry['caveat']}"}
         console.print(
             f"{entry['id']}  [{entry['category']}, {entry['protocol']}, "
-            f"verified {entry['verified']}] {entry['description'][:70]}",
+            f"verified {entry['verified']}] {entry['description']}",
             markup=False,
             highlight=False,
         )
@@ -167,10 +179,15 @@ def show_cmd(
     from iaiops.core.governance.evidence import validate_output_path
     from iaiops.core.runtime.sensor import library
 
-    path, _profile = library.get(profile_id)
+    try:
+        path, _profile = library.get(profile_id)
+    except library.ProfileNotFoundError as exc:
+        raise ValueError(str(exc)) from exc
     text = path.read_text("utf-8")
     if out is None:
-        console.print(text, markup=False, highlight=False)
+        # Raw bytes, not the rich console: it wraps at the terminal width and a
+        # wrapped comment line breaks the YAML for `show <id> > file.yaml`.
+        typer.echo(text, nl=False)
         return
     target = validate_output_path(out, suffixes=(".yaml", ".yml"))
     if target.is_symlink():

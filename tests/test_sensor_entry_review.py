@@ -34,7 +34,7 @@ PROFILE = parse_profile(
         "id": "force",
         "protocol": "modbus",
         "source": "manual",
-        "verified": "bench",
+        "verified": "待核实",
         "channels": [
             {
                 "name": "fz",
@@ -96,7 +96,7 @@ def test_2_short_process_data_is_not_a_measurement():
             "id": "t",
             "protocol": "iolink",
             "source": "manual",
-            "verified": "bench",
+            "verified": "待核实",
             "channels": [
                 {
                     "name": "distance",

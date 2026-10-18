@@ -145,6 +145,9 @@ class SensorProfile:
     pd_bits: int | None = None
     #: Free text shown with the profile (what device, which firmware family).
     description: str = ""
+    #: What must be checked before trusting the decoding (e.g. word order varies
+    #: by firmware). Shown with the profile everywhere it is listed.
+    caveat: str = ""
     #: Evidence for ``verified`` above 待核实: who checked, which device, what was
     #: compared (plus optional firmware / date). Kept as ordered pairs (frozen).
     provenance: tuple[tuple[str, str], ...] = ()
@@ -224,7 +227,28 @@ def modbus_layout(
     return ModbusLayout(table=table, address=address, value_type=value_type, order=order)
 
 
+def _reject_unknown(raw: dict, allowed: tuple[str, ...], where: str) -> None:
+    """A misspelt key must not vanish: `derived-from:` would silently mean "not
+    derived" and skip every guard that applies to derived entries."""
+    unknown = sorted(str(k) for k in raw if k not in allowed)
+    if unknown:
+        raise ValueError(
+            f"{where}: unknown key(s) {', '.join(unknown)}; accepted: {', '.join(allowed)}."
+        )
+
+
+TOP_KEYS = (
+    "id", "protocol", "source", "verified", "channels", "match", "pd_bits",
+    "description", "caveat", "provenance", "derived_from",
+)  # fmt: skip
+CHANNEL_KEYS = (
+    "name", "layout", "unit", "signal", "scale", "offset", "range", "invalid",
+    "accuracy", "response_ms",
+)  # fmt: skip
+
+
 def _bit_layout(raw: dict, where: str) -> BitLayout:
+    _reject_unknown(raw, ("bit_offset", "bit_length", "type"), where)
     offset = _int(raw.get("bit_offset"), "bit_offset", where, 0, MAX_PD_BITS - 1)
     length = _int(raw.get("bit_length"), "bit_length", where, 1, 64)
     value_type = _choice(raw, "type", BIT_TYPES, where)
@@ -260,9 +284,12 @@ def _layout(raw: Any, protocol: str, where: str) -> ModbusLayout | BitLayout | S
         active = raw.get("active")
         active = active.lower() if isinstance(active, str) else active
         return switch_layout(table.lower(), raw.get("address"), active, where)
-    return modbus_layout(
+    layout = modbus_layout(
         raw.get("table"), raw.get("address"), raw.get("type"), raw.get("order"), where
     )
+    # After the table check: a wrong table is the more useful message.
+    _reject_unknown(raw, ("table", "address", "type", "order"), where)
+    return layout
 
 
 def _range(raw: Any, where: str) -> tuple[float, float] | None:
@@ -348,6 +375,7 @@ def _channel(raw: Any, protocol: str, index: int) -> Channel:
         raise ValueError(f"channel #{index + 1}: must be a mapping.")
     name = _text(raw, "name", f"channel #{index + 1}")
     where = f"channel {name!r}"
+    _reject_unknown(raw, CHANNEL_KEYS, where)
     scale = _number(raw.get("scale", 1.0), "scale", where)
     if scale == 0:
         raise ValueError(f"{where}: scale 0 would turn every reading into 0.")
@@ -397,13 +425,37 @@ PROVENANCE_REQUIRED = ("by", "device", "compared")
 PROVENANCE_KEYS = (*PROVENANCE_REQUIRED, "firmware", "date")
 
 
+#: Longest evidence value kept; longer is not evidence, it is a document.
+MAX_PROVENANCE_VALUE = 200
+
+
+def _provenance_value(key: str, value: Any, where: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{where}: provenance {key} must be text, got {type(value).__name__}.")
+    text = value.strip()
+    if "\n" in text or "\r" in text or len(text) > MAX_PROVENANCE_VALUE:
+        raise ValueError(
+            f"{where}: provenance {key} must be one line of at most "
+            f"{MAX_PROVENANCE_VALUE} characters."
+        )
+    if key == "date":
+        from datetime import date
+
+        try:
+            date.fromisoformat(text)
+        except ValueError as exc:
+            raise ValueError(f"{where}: provenance date {text!r} is not YYYY-MM-DD.") from exc
+    return text
+
+
 def _provenance(raw: Any, where: str) -> tuple[tuple[str, str], ...]:
     if raw is None:
         return ()
     if not isinstance(raw, dict):
         raise ValueError(f"{where}: provenance must be a mapping of {', '.join(PROVENANCE_KEYS)}.")
-    unknown = sorted(set(raw) - set(PROVENANCE_KEYS))
-    missing = [k for k in PROVENANCE_REQUIRED if not str(raw.get(k) or "").strip()]
+    unknown = sorted(str(k) for k in raw if k not in PROVENANCE_KEYS)
+    present = {k: v for k, v in raw.items() if v is not None and str(v).strip() != ""}
+    missing = [k for k in PROVENANCE_REQUIRED if k not in present]
     if unknown or missing:
         raise ValueError(
             f"{where}: provenance needs {', '.join(PROVENANCE_REQUIRED)}"
@@ -411,7 +463,27 @@ def _provenance(raw: Any, where: str) -> tuple[tuple[str, str], ...]:
             + (f"; unknown {', '.join(unknown)}" if unknown else "")
             + " — evidence is who checked which device against what."
         )
-    return tuple((k, str(raw[k]).strip()) for k in PROVENANCE_KEYS if k in raw)
+    return tuple(
+        (k, _provenance_value(k, present[k], where)) for k in PROVENANCE_KEYS if k in present
+    )
+
+
+def _verified_evidence(raw: dict, where: str) -> tuple[tuple[str, str], ...]:
+    """``verified`` and ``provenance`` must agree (HLD §17.3, D52): bench / field
+    needs evidence, and evidence on a 待核实 profile reads as verification."""
+    evidence = _provenance(raw.get("provenance"), where)
+    verified = raw.get("verified")
+    if verified in ("bench", "field") and not evidence:
+        raise ValueError(
+            f"{where}: verified {verified!r} needs provenance (by, device, compared) — "
+            "otherwise it is a claim, not a check."
+        )
+    if verified == "待核实" and evidence:
+        raise ValueError(
+            f"{where}: provenance is given but verified is still 待核实 — raise verified "
+            "to bench / field, or drop the provenance."
+        )
+    return evidence
 
 
 def parse_profile(raw: Any) -> SensorProfile:
@@ -419,6 +491,7 @@ def parse_profile(raw: Any) -> SensorProfile:
     if not isinstance(raw, dict):
         raise ValueError(f"A sensor profile must be a mapping, got {type(raw).__name__}.")
     where = f"profile {raw.get('id')!r}"
+    _reject_unknown(raw, TOP_KEYS, where)
     protocol = _choice(raw, "protocol", PROTOCOLS, where)
     channels_raw = raw.get("channels")
     if not isinstance(channels_raw, list) or not channels_raw:
@@ -450,7 +523,8 @@ def parse_profile(raw: Any) -> SensorProfile:
         device_id=device_id,
         pd_bits=pd_bits,
         description=str(raw.get("description") or "").strip(),
-        provenance=_provenance(raw.get("provenance"), where),
+        caveat=str(raw.get("caveat") or "").strip(),
+        provenance=_verified_evidence(raw, where),
         derived_from=str(raw.get("derived_from") or "").strip(),
     )
 
@@ -503,6 +577,7 @@ def profile_summary(profile: SensorProfile) -> dict[str, Any]:
         ),
         "pd_bits": profile.pd_bits,
         "description": profile.description,
+        "caveat": profile.caveat,
         "provenance": dict(profile.provenance) or None,
         "derived_from": profile.derived_from or None,
         "channels": rows,

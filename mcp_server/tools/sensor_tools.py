@@ -137,15 +137,14 @@ def sensor_profile_list(
         device_id: IO-Link device id (optional).
 
     Returns dict: {profiles:[{id, category, protocol, verified, source,
-        description, vendor_id, device_id, derived_from, channels, path}]}.
+        description, caveat, vendor_id, device_id, derived_from, channels}]}.
     """
     from iaiops.core.runtime.sensor import library
 
-    return {
-        "profiles": library.list_profiles(
-            protocol=protocol, vendor_id=vendor_id, device_id=device_id
-        )
-    }
+    entries = library.list_profiles(protocol=protocol, vendor_id=vendor_id, device_id=device_id)
+    # No install path: a profile is COPIED (sensor_profile_show → save), never bound
+    # in place — an upgrade would silently change the decoding under a config.
+    return {"profiles": [{k: v for k, v in e.items() if k != "path"} for e in entries]}
 
 
 @mcp.tool()
@@ -160,10 +159,18 @@ def sensor_profile_show(profile_id: str) -> dict:
     Args:
         profile_id: An id from ``sensor_profile_list``.
 
-    Returns dict: {summary (as sensor_profile_check), yaml, path}; {error} for an
-        unknown id (the message lists the known ids).
+    Returns dict: {summary (as sensor_profile_check), yaml, next}; {error, known}
+        for an unknown id.
     """
     from iaiops.core.runtime.sensor import library, profile_summary
 
-    path, profile = library.get(profile_id)
-    return {"summary": profile_summary(profile), "yaml": path.read_text("utf-8"), "path": str(path)}
+    try:
+        path, profile = library.get(profile_id)
+    except library.ProfileNotFoundError as exc:
+        return {"error": str(exc), "known": exc.known}
+    return {
+        "summary": profile_summary(profile),
+        "yaml": path.read_text("utf-8"),
+        "next": "Save this YAML to a file, check one reading against the device's display, "
+        "then bind that file (not the installed one) under sensor_profile in config.yaml.",
+    }

@@ -12,9 +12,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from iaiops.core.runtime.sensor.profile import SensorProfile, load_profile_file
+from iaiops.core.runtime.sensor.profile import PROTOCOLS, SensorProfile, load_profile_file
 
 LIBRARY_DIR = Path(__file__).resolve().parents[3] / "sensor_profiles"
+
+
+class ProfileNotFoundError(LookupError):
+    """No library entry has this id."""
+
+    def __init__(self, profile_id: str, known: list[str]) -> None:
+        self.known = known
+        super().__init__(
+            f"No library profile {profile_id!r}. Known: {', '.join(known)} (`iaiops sensor list`)."
+        )
 
 
 def _files() -> list[Path]:
@@ -29,6 +39,7 @@ def _entry(path: Path, profile: SensorProfile) -> dict[str, Any]:
         "verified": profile.verified,
         "source": profile.source,
         "description": profile.description,
+        "caveat": profile.caveat,
         "vendor_id": profile.vendor_id,
         "device_id": profile.device_id,
         "derived_from": profile.derived_from or None,
@@ -42,7 +53,13 @@ def list_profiles(
     vendor_id: int | None = None,
     device_id: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Library entries, optionally filtered by protocol and IO-Link identity."""
+    """Library entries, optionally filtered by protocol and IO-Link identity.
+
+    A filter value that cannot match anything (an unknown protocol) is refused —
+    "you typed it wrong" must not read as "the library has nothing".
+    """
+    if protocol is not None and protocol not in PROTOCOLS:
+        raise ValueError(f"protocol must be one of {', '.join(PROTOCOLS)}; got {protocol!r}.")
     out = []
     for path in _files():
         profile = load_profile_file(path)
@@ -62,8 +79,7 @@ def get(profile_id: str) -> tuple[Path, SensorProfile]:
         profile = load_profile_file(path)
         if profile.id == profile_id:
             return path, profile
-    known = ", ".join(load_profile_file(p).id for p in _files())
-    raise KeyError(f"No library profile {profile_id!r}. known: {known}")
+    raise ProfileNotFoundError(profile_id, [load_profile_file(p).id for p in _files()])
 
 
-__all__ = ["LIBRARY_DIR", "get", "list_profiles"]
+__all__ = ["LIBRARY_DIR", "ProfileNotFoundError", "get", "list_profiles"]
