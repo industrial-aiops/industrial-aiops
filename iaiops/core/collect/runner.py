@@ -220,6 +220,12 @@ def run_collection(
         session_ctx = None
         subject = None
 
+    #: A ref's unit comes from its sensor profile (D56) — looked up around EVERY
+    #: read, not once per run: the read path reloads an edited profile, and a unit
+    #: resolved at start would label a value decoded with the new scale (1.5 kN
+    #: stored as "1.5 N"). A unit that changes DURING the read is a gap.
+    from iaiops.core.runtime.sensor.binding import unit_for
+
     #: ref → the source timestamp last written for it (empty when the protocol
     #: states none, which means every tick is a fresh observation).
     last_written: dict[str, str] = {}
@@ -248,6 +254,7 @@ def run_collection(
             repeated = 0
             for ref in plan.tags:
                 attempted += 1
+                unit = unit_for(target, ref)
                 try:
                     value, source_ts = reader(subject, ref)
                 except OTNoReadingError as exc:
@@ -268,6 +275,14 @@ def run_collection(
                         connected = False
                         break
                     continue
+                unit_after = unit_for(target, ref)
+                if unit_after != unit:
+                    tracker.failure(
+                        f"sensor profile for {ref} changed during the read (unit {unit!r} → "
+                        f"{unit_after!r}); the value is not stored with a guessed unit",
+                        _now_iso(),
+                    )
+                    continue
                 tracker.success()
                 stamp = source_ts or _now_iso()
                 if source_ts and last_written.get(ref) == source_ts:
@@ -281,6 +296,7 @@ def run_collection(
                         "value": value,
                         "numeric": isinstance(value, (int, float)) and not isinstance(value, bool),
                         "timestamp": stamp,
+                        "tags": {"unit": unit},
                     }
                 )
 

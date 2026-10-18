@@ -30,6 +30,59 @@
   (stale-server hole, 待核实 on a production PackML server; Execute in a
   Maintenance/Manual UnitMode also reads as running).
 
+### Added — a sensor entry: one install, one menu, one skill (HLD §17.2 E2)
+
+- **`pip install iaiops[sensor]`** pulls the Modbus, IO-Link and MQTT/Sparkplug
+  dependencies at once, and **`IAIOPS_MCP=sensor`** / **`iaiops-mcp-sensor`** starts
+  a server with those protocols, the brain and three new read-only tools. The
+  sensor layer stays in core — it spans protocols, so it is not a package (D50).
+- **`sensor_import_iodd`** drafts a profile from an IODD and returns the text —
+  it writes nothing. **`sensor_profile_check`** validates a profile file.
+  **`sensor_read_channel`** (and CLI **`iaiops sensor read <endpoint> <ref>`**, the
+  same engine) reads one point once and reports `reachable` and `decodable`
+  separately: a timeout is `reachable=false, decodable=null`, never "cannot
+  decode"; a ref the endpoint cannot read is refused before anything is
+  contacted; only a good read carries value, unit, accuracy band and the
+  profile's verification level; a bare Modbus address says `untyped`.
+- **Binding a profile into config.yaml is not a tool** (D51): the tools stop at
+  check, draft and read once; a person adds the lines.
+- **Skill `iaiops-sensor`** — the "connect a sensor" path step by step, with its
+  support matrix; routed from the router skill. 201 governed tools.
+- Verified on the lab LAN: good reads with unit and band, a 0xFFFF sentinel
+  reported as not decodable, an unprofiled port refused without contact, an
+  unreachable device reported as `reachable=false, decodable=null`.
+- **Fixed before release (adversarial review):** a device that answered with an
+  error — a Modbus exception for a wrong register address, an IO-Link master
+  reporting a different sensor on the port — was reported as unreachable; it is
+  now `reachable=true, decodable=false` with the device's answer. Short IO-Link
+  process data and an empty answer are not measurements (they were "unreachable"
+  and "decodable" respectively). A ref refused before contact reports both levels
+  as null with `refused: true`. `iaiops sensor read` exits 1 unless the point was
+  both reachable and decodable, and its help no longer says it contacts nothing.
+  The skill no longer calls the server read-only: `IAIOPS_MCP=sensor` includes
+  `mqtt_publish` (HIGH, MOC-gated). The file tools refuse symbolic links.
+
+### Added — the unit travels with the value (HLD §17.5, D56)
+
+- **Collected samples now carry their unit.** The store's `unit` column was
+  always empty, although a sensor profile knows whether a channel is mm or N —
+  the lab LAN run of #249 showed it. A ref's unit is its profile channel's unit
+  (`ch:<name>` on Modbus, `port<N>/<channel>` on IO-Link), resolved once when a
+  run starts. A bare or typed Modbus point has no unit (it says how to decode,
+  not what it measures), other protocols are not judged, and a unit still marked
+  待核实 — an IODD unit code nobody has mapped — is stored as empty, never
+  guessed. `readiness` lists profile channels whose unit is still 待核实.
+  Verified on the lab LAN: N, mm, degC and bool land in the store.
+- **The unit comes from the same profile that decoded the value.** It is looked
+  up around every read, not once per run: the read path reloads a profile edited
+  mid-run, and a unit fixed at the start would have stored 1.5 kN as "1.5 N". If
+  the unit changes during a read, that sample is a gap. A unit longer than the 32
+  characters the store keeps is refused when the profile loads.
+- **Heads-up for historians:** exports and `historian push` now carry a non-empty
+  `unit` for profile channels. A sink that keys series on tags (InfluxDB writes
+  `unit` as a tag) will start a new series for the same metric (`fz` →
+  `fz,unit=N`); rows stored before this change keep an empty unit.
+
 ### Added — sensor layer S3: profiles bound to endpoints, IO-Link collectable (HLD §16)
 
 - **IO-Link can be collected — through a profile, and only through one.** Process

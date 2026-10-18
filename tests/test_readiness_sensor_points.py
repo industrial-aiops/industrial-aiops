@@ -52,6 +52,7 @@ def test_other_protocols_are_not_judged():
         "untyped": [],
         "unreadable": [],
         "unverified_profiles": [],
+        "no_unit": [],
     }
 
 
@@ -91,6 +92,7 @@ def test_unverified_profiles_are_named_even_when_met(monkeypatch):
     facts = sensor_point_facts((_modbus("cell", "ch:fz", profile="force.yaml"),))
     req = decodable_points_req({"sensor_points": facts})
     assert req.met and "force" in req.detail and "待核实" in req.detail
+    assert facts["no_unit"] == []  # a confirmed unit is not "stored without a unit"
 
 
 def test_assess_includes_it_under_continuous_collection(tmp_path):
@@ -108,3 +110,34 @@ def test_assess_includes_it_under_continuous_collection(tmp_path):
     collection = next(c for c in report.capabilities if c.key == "continuous_collection")
     keys = [r.key for r in collection.requirements]
     assert "decodable_points" in keys
+
+
+def test_profile_channels_without_a_confirmed_unit_are_named(monkeypatch):
+    from iaiops.core.runtime.sensor import parse_profile
+
+    profile = parse_profile(
+        {
+            "id": "tof",
+            "protocol": "iolink",
+            "source": "iodd",
+            "verified": "待核实",
+            "channels": [
+                {
+                    "name": "distance",
+                    "layout": {"bit_offset": 0, "bit_length": 16, "type": "uint"},
+                    "unit": "unitCode 1013 (待核实)",
+                    "signal": "level",
+                }
+            ],
+        }
+    )
+    monkeypatch.setattr("iaiops.core.runtime.sensor.binding.cached_profile", lambda path: profile)
+    master = SimpleNamespace(
+        name="m",
+        protocol="iolink",
+        sensor_profile="",
+        port_profiles=((2, "tof.yaml"),),
+        tags=(_tag("port2/distance"),),
+    )
+    req = decodable_points_req({"sensor_points": sensor_point_facts((master,))})
+    assert "without a unit" in req.detail and "m:port2/distance" in req.detail

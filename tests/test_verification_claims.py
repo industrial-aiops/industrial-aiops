@@ -132,7 +132,10 @@ def test_the_edition_count_matches_the_skills_that_ship(readme):
     )
     text = (_root() / readme).read_text("utf-8")
     words = {"Ten": 10, "十个": 10, "Nine": 9, "九个": 9, "Eleven": 11, "十一个": 11}
-    hits = list(re.finditer("(" + "|".join(words) + r")[ *]*(?:per-industry |行业版)", text))
+    # "editions" / "edition": with `sensor`, not every edition is an industry.
+    hits = list(
+        re.finditer("(" + "|".join(words) + r")[ *]*(?:per-industry |行业版|editions? )", text)
+    )
     assert hits, f"{readme} no longer states an edition count"
     claimed = {words[m.group(1)] for m in hits}
     assert claimed == {len(editions)}, (

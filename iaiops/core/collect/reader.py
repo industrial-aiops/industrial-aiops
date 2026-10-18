@@ -72,10 +72,8 @@ def ref_problems(target: Any, refs: tuple[str, ...] | list[str]) -> list[str]:
         from iaiops.connectors.modbus.points import check_ref
         from iaiops.core.runtime.sensor.binding import endpoint_profile
 
-        profile = endpoint_profile(target)
-
         def check(ref: str) -> None:
-            check_ref(ref, profile)
+            check_ref(ref, endpoint_profile(target))
 
     elif protocol == "iolink":
         from iaiops.connectors.iolink.points import check_ref as check_iolink
@@ -89,7 +87,7 @@ def ref_problems(target: Any, refs: tuple[str, ...] | list[str]) -> list[str]:
     for ref in refs:
         try:
             check(ref)
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:  # a bound profile deleted since load is a problem too
             problems.append(str(exc))
     return problems
 

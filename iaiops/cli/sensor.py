@@ -1,9 +1,11 @@
-"""``iaiops sensor`` — sensor profiles: draft one from an IODD, check one (HLD §16).
+"""``iaiops sensor`` — sensor profiles and one-shot reads (HLD §16 / §17).
 
 A profile says how a sensor's raw bytes decode. ``import-iodd`` drafts one from
 the vendor's IODD — marked ``verified: 待核实``, with units left as IODD codes
 and every item it could not represent listed. ``check`` validates a profile file
-and shows its channels. Both read local files only; neither contacts a device.
+and shows its channels. Those two read local files only. ``read`` CONTACTS the
+device: it reads one point once and reports reachable / decodable separately,
+exiting 1 unless both are true.
 
 Bind a profile in config.yaml: ``sensor_profile: <file>`` on a Modbus endpoint,
 ``port_profiles: {<port>: <file>}`` on an IO-Link master.
@@ -18,7 +20,10 @@ import typer
 from iaiops.cli._common import _emit, cli_errors, console
 
 sensor_app = typer.Typer(
-    help="Sensor profiles — draft one from an IODD, check one. Contacts nothing.",
+    help=(
+        "Sensor profiles: draft from an IODD, check (local files); "
+        "read one point (contacts the device)."
+    ),
     no_args_is_help=True,
 )
 
@@ -66,40 +71,11 @@ def check_cmd(
     as_json: bool = typer.Option(False, "--json"),
 ) -> None:
     """Validate a profile and show its channels. Exit 1 with the reason if it is invalid."""
-    from iaiops.core.runtime.sensor import BitLayout, load_profile_file
+    from iaiops.core.runtime.sensor import load_profile_file, profile_summary
 
     loaded = load_profile_file(profile)
-    rows = []
-    for channel in loaded.channels:
-        layout = channel.layout
-        where = (
-            f"bits {layout.bit_offset}+{layout.bit_length} {layout.value_type}"
-            if isinstance(layout, BitLayout)
-            else f"{layout.table}[{layout.address}] {layout.value_type} {layout.order}"
-        )
-        rows.append(
-            {
-                "channel": channel.name,
-                "layout": where,
-                "unit": channel.unit,
-                "signal": channel.signal,
-                "range": list(channel.range) if channel.range else None,
-                "sentinels": len(channel.invalid),
-                "band": channel.accuracy.band if channel.accuracy else None,
-            }
-        )
-    summary = {
-        "id": loaded.id,
-        "protocol": loaded.protocol,
-        "source": loaded.source,
-        "verified": loaded.verified,
-        "match": (
-            {"vendor_id": loaded.vendor_id, "device_id": loaded.device_id}
-            if loaded.vendor_id is not None
-            else None
-        ),
-        "channels": rows,
-    }
+    summary = profile_summary(loaded)
+    rows = summary["channels"]
     if as_json:
         _emit(summary)
         return
@@ -116,5 +92,43 @@ def check_cmd(
         )
 
 
+@cli_errors
+def read_cmd(
+    endpoint: str = typer.Argument(..., help="Configured endpoint name."),
+    ref: str = typer.Argument(..., help="ch:<name>, port<N>/<channel>, or a typed Modbus point."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Read one point once: reachable / decodable / value + unit + band + verification."""
+    from iaiops.core.runtime.connection import ConnectionManager
+    from iaiops.core.runtime.sensor import probe
+
+    out = probe.read_channel(ConnectionManager.from_config().target(endpoint), ref)
+    if as_json:
+        _emit(out)
+        return
+    levels = out.get("levels", {})
+    console.print(
+        f"[bold]{endpoint}[/] {ref}: reachable={levels.get('reachable')} "
+        f"decodable={levels.get('decodable')}",
+        highlight=False,
+    )
+    if levels.get("decodable"):
+        band = f" ±{out['band']}" if out.get("band") is not None else ""
+        console.print(
+            f"  {out.get('value')} {out.get('unit') or '(no unit)'}{band} — profile "
+            f"{out.get('profile') or '(none)'}, verified {out.get('verified') or '-'}",
+            markup=False,
+            highlight=False,
+        )
+        if out.get("untyped"):
+            console.print("  [yellow]untyped:[/] read as uint16 — give it a type (ir:/hr:…).")
+    else:
+        console.print(f"  {out.get('reason', '')}", markup=False, highlight=False)
+    if not (levels.get("reachable") and levels.get("decodable")):
+        # Scripts and CI must be able to tell a failed probe from a good one.
+        raise typer.Exit(1)
+
+
 sensor_app.command("import-iodd")(import_iodd_cmd)
 sensor_app.command("check")(check_cmd)
+sensor_app.command("read")(read_cmd)

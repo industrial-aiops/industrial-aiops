@@ -264,6 +264,21 @@ def _accuracy(raw: Any, where: str) -> Accuracy | None:
     return Accuracy(full_scale=full_scale, **parts)
 
 
+#: The local store keeps 32 characters of a unit; a longer one would be cut
+#: silently, so it is refused here instead.
+MAX_UNIT_LENGTH = 32
+
+
+def _unit(raw: dict, where: str) -> str:
+    unit = _text(raw, "unit", where)
+    if len(unit) > MAX_UNIT_LENGTH:
+        raise ValueError(
+            f"{where}: unit {unit!r} is longer than {MAX_UNIT_LENGTH} characters, which the "
+            "store would cut — put the description in the channel name, keep the unit short."
+        )
+    return unit
+
+
 def _channel(raw: Any, protocol: str, index: int) -> Channel:
     if not isinstance(raw, dict):
         raise ValueError(f"channel #{index + 1}: must be a mapping.")
@@ -285,7 +300,7 @@ def _channel(raw: Any, protocol: str, index: int) -> Channel:
     return Channel(
         name=name,
         layout=layout,
-        unit=_text(raw, "unit", where),
+        unit=_unit(raw, where),
         signal=_choice(raw, "signal", SIGNALS, where),
         scale=scale,
         offset=_number(raw.get("offset", 0.0), "offset", where),
@@ -361,3 +376,39 @@ def load_profile_file(path: Path | str) -> SensorProfile:
     if not isinstance(raw, dict):
         raise ValueError(f"Sensor profile {path} must be a YAML mapping at the top level.")
     return parse_profile(raw)
+
+
+def profile_summary(profile: SensorProfile) -> dict[str, Any]:
+    """A profile as a plain mapping for display — shared by the CLI and MCP."""
+    rows = []
+    for channel in profile.channels:
+        layout = channel.layout
+        where = (
+            f"bits {layout.bit_offset}+{layout.bit_length} {layout.value_type}"
+            if isinstance(layout, BitLayout)
+            else f"{layout.table}[{layout.address}] {layout.value_type} {layout.order}"
+        )
+        rows.append(
+            {
+                "channel": channel.name,
+                "layout": where,
+                "unit": channel.unit,
+                "signal": channel.signal,
+                "range": list(channel.range) if channel.range else None,
+                "sentinels": len(channel.invalid),
+                "band": channel.accuracy.band if channel.accuracy else None,
+            }
+        )
+    return {
+        "id": profile.id,
+        "protocol": profile.protocol,
+        "source": profile.source,
+        "verified": profile.verified,
+        "match": (
+            {"vendor_id": profile.vendor_id, "device_id": profile.device_id}
+            if profile.vendor_id is not None
+            else None
+        ),
+        "pd_bits": profile.pd_bits,
+        "channels": rows,
+    }

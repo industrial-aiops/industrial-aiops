@@ -170,6 +170,10 @@ clinical = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[opcua]"]
 # BMS/EMS (cleanroom cascade) + Modbus PW/WFI skids + HART transmitters (conductivity
 # / TOC) + OPC-UA DCS and bioreactors. No new protocol: pharma needed semantics.
 pharma = ["iaiops[bacnet]", "iaiops[modbus]", "iaiops[hart]", "iaiops[opcua]"]
+# Sensor edition (HLD §17.2, D50) — matches IAIOPS_MCP=sensor: one install for the
+# protocols sensors arrive on (Modbus RTU/TCP incl. RS-232/485, IO-Link masters,
+# MQTT/Sparkplug nodes). Not an industry: a capability that spans protocols.
+sensor = ["iaiops[modbus]", "iaiops[iolink]", "iaiops[sparkplug]"]
 # 信创 / China entry: domestic TSDB historian sinks (compliance mapping is built-in).
 xinchuang = ["iaiops[tdengine]", "iaiops[iotdb]"]
 
@@ -209,6 +213,7 @@ iaiops-mcp-factory = "mcp_server.entrypoints:main_factory"
 iaiops-mcp-process = "mcp_server.entrypoints:main_process"
 iaiops-mcp-building = "mcp_server.entrypoints:main_building"
 iaiops-mcp-plcnext = "mcp_server.entrypoints:main_plcnext"
+iaiops-mcp-sensor = "mcp_server.entrypoints:main_sensor"
 iaiops-mcp-water = "mcp_server.entrypoints:main_water"
 iaiops-mcp-renewables = "mcp_server.entrypoints:main_renewables"
 iaiops-mcp-warehouse = "mcp_server.entrypoints:main_warehouse"

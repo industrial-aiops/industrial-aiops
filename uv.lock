@@ -661,6 +661,13 @@ s7 = [
 secsgem = [
     { name = "secsgem" },
 ]
+sensor = [
+    { name = "paho-mqtt" },
+    { name = "protobuf" },
+    { name = "pymodbus" },
+    { name = "pyserial" },
+    { name = "requests" },
+]
 sparkplug = [
     { name = "paho-mqtt" },
     { name = "protobuf" },
@@ -729,6 +736,7 @@ requires-dist = [
     { name = "iaiops", extras = ["ignition"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["iolink"], marker = "extra == 'building'" },
     { name = "iaiops", extras = ["iolink"], marker = "extra == 'factory'" },
+    { name = "iaiops", extras = ["iolink"], marker = "extra == 'sensor'" },
     { name = "iaiops", extras = ["iotdb"], marker = "extra == 'xinchuang'" },
     { name = "iaiops", extras = ["mc"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'building'" },
@@ -739,6 +747,7 @@ requires-dist = [
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'plcnext'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'process'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'renewables'" },
+    { name = "iaiops", extras = ["modbus"], marker = "extra == 'sensor'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["modbus"], marker = "extra == 'water'" },
     { name = "iaiops", extras = ["mtconnect"], marker = "extra == 'bas'" },
@@ -763,6 +772,7 @@ requires-dist = [
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'factory'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'mqtt'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'renewables'" },
+    { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'sensor'" },
     { name = "iaiops", extras = ["sparkplug"], marker = "extra == 'warehouse'" },
     { name = "iaiops", extras = ["tdengine"], marker = "extra == 'xinchuang'" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.30,<2.0" },
@@ -803,7 +813,7 @@ requires-dist = [
     { name = "taospy", marker = "extra == 'tdengine-rest'", specifier = ">=2.7,<3" },
     { name = "typer", specifier = ">=0.12,<1.0" },
 ]
-provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "tdengine-rest", "tdengine-ws", "iotdb", "influxdb", "nats", "mqtt", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "warehouse", "clinical", "pharma", "xinchuang"]
+provides-extras = ["opcua", "modbus", "s7", "mc", "eip", "mtconnect", "iolink", "bas", "ignition", "sparkplug", "secsgem", "ethercat", "profinet", "bacnet", "hart", "fins", "tdengine", "tdengine-rest", "tdengine-ws", "iotdb", "influxdb", "nats", "mqtt", "ollama", "export", "all", "fab", "factory", "process", "building", "plcnext", "water", "renewables", "warehouse", "clinical", "pharma", "sensor", "xinchuang"]
 
 [package.metadata.requires-dev]
 dev = [
