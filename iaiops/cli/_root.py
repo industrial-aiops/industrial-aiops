@@ -54,9 +54,8 @@ from iaiops.cli.verify import verify_app
 app = typer.Typer(
     name="iaiops",
     help="Governed, vendor-neutral OT data tap + intelligent troubleshooting for "
-    "AI agents (OPC-UA / Modbus / S7comm / Mitsubishi MC / MTConnect / "
-    "MQTT-Sparkplug / EtherNet-IP / EtherCAT / Omron FINS) + OEE/asset analytics. Read-first; "
-    "writes are MOC-gated.",
+    "AI agents across every supported field protocol (`iaiops protocols` lists them) + OEE/asset "
+    "analytics. Read-first; writes are MOC-gated.",
     no_args_is_help=True,
 )
 

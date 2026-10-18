@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Docs
+
+- `iaiops protocols` no longer calls OPC-UA certificate security "roadmap" — it is
+  implemented (application certificate, `security_policy` + `security_mode`) and
+  verified at rung 2a. `iaiops --help` no longer lists 9 of the 15 protocols;
+  `doctor --help` no longer says it checks only OPC-UA / Modbus. README,
+  README.zh-CN and the verification record now say plainly that no serial profile
+  ships (the line format of any profile a site writes stays `待核实`), and the zh
+  README states the serial lab run was against our own simulator (rung 2c).
+
 ## 0.31.0 — 2026-10-18
 
 Serial ASCII instruments become the 15th protocol; every MCP tool that opens a

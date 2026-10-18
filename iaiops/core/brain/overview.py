@@ -14,7 +14,10 @@ PROTOCOLS: tuple[dict, ...] = (
         "status": "implemented",
         "library": "asyncua (sync facade)",
         "transport": "opc.tcp binary",
-        "auth": "anonymous | username/password (cert security = roadmap)",
+        "auth": (
+            "anonymous | username/password | application certificate "
+            "(security_policy + security_mode; default Basic256Sha256 SignAndEncrypt)"
+        ),
         "read_tools": [
             "opcua_server_info",
             "opcua_browse",
