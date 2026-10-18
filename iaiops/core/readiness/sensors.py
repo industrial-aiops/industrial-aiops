@@ -77,7 +77,11 @@ def sensor_point_facts(targets: tuple[Any, ...]) -> dict[str, Any]:
                 untyped.append(f"{name}:{ref}")
             else:
                 decoded += 1
-                if _is_profile_ref(protocol, ref) and not unit_for(target, ref):
+                if (
+                    _is_profile_ref(protocol, ref)
+                    and _switching(target, ref) != "yes"  # a switch has no unit by design
+                    and not unit_for(target, ref)
+                ):
                     no_unit.append(f"{name}:{ref}")
     return {
         "judged_endpoints": judged,
@@ -136,25 +140,32 @@ def decodable_points_req(facts: dict[str, Any]) -> Requirement:
 _COUNT_ROLES = ("total_count", "good_count", "reject_count")
 
 
-def _is_switching(target: Any, ref: str) -> bool:
-    """A Modbus `di:` / `co:` point, or a profile channel on a switching bit."""
+def _switching(target: Any, ref: str) -> str:
+    """``"yes"`` / ``"no"`` / ``"unknown"`` — whether ``ref`` sits on a switching bit.
+
+    "unknown" is its own answer: a `di:` ref with no level, or a `ch:` ref whose
+    profile cannot be read, cannot vouch for being a counter. Folding it into
+    "no" would report a count source as fine when nobody could check it.
+    """
     if str(getattr(target, "protocol", "")) != "modbus":
-        return False
-    from iaiops.connectors.modbus.points import SWITCH_TABLES, is_channel_ref, parse_point
+        return "no"  # D61 is checked on Modbus refs in this build (HLD §17.5b)
+    from iaiops.connectors.modbus.points import is_channel_ref
     from iaiops.connectors.modbus.points import profile_channel as channel_for
     from iaiops.core.runtime.sensor import SwitchLayout
     from iaiops.core.runtime.sensor.binding import endpoint_profile
 
+    text = str(ref).strip()
+    if not is_channel_ref(text):
+        return "yes" if text.split(":", 1)[0].lower() in ("di", "co") else "no"
     try:
-        if is_channel_ref(ref):
-            return isinstance(channel_for(ref, endpoint_profile(target)).layout, SwitchLayout)
-        return parse_point(ref).table in SWITCH_TABLES
-    except (OSError, ValueError):
-        return False  # an unreadable ref is reported by decodable_points, not here
+        layout = channel_for(text, endpoint_profile(target)).layout
+    except Exception:  # noqa: BLE001 — cannot tell is the finding
+        return "unknown"
+    return "yes" if isinstance(layout, SwitchLayout) else "no"
 
 
 def switching_count_tags(targets: tuple[Any, ...]) -> list[str]:
-    """Tags declared as a production counter that sit on a switching sensor."""
+    """Count-role tags on a switching sensor — or that cannot be checked."""
     found = []
     for target in targets:
         for tag in getattr(target, "tags", ()) or ():
@@ -162,8 +173,14 @@ def switching_count_tags(targets: tuple[Any, ...]) -> list[str]:
             role = str(
                 tag.get("role", "") if isinstance(tag, Mapping) else getattr(tag, "role", "")
             )
-            if role in _COUNT_ROLES and _is_switching(target, ref):
-                found.append(f"{getattr(target, 'name', '')}:{ref} ({role})")
+            if role not in _COUNT_ROLES:
+                continue
+            verdict = _switching(target, ref)
+            name = f"{getattr(target, 'name', '')}:{ref} ({role})"
+            if verdict == "yes":
+                found.append(name)
+            elif verdict == "unknown":
+                found.append(f"{name} — cannot tell: its profile could not be read")
     return found
 
 
@@ -180,7 +197,7 @@ def count_source_req(facts: dict[str, Any]) -> Requirement:
         label="production counts come from a counter, not a polled switch",
         met=not found,
         detail=(
-            f"counted from a switching sensor: {', '.join(found[:5])}"
+            f"counted from a switching sensor (or unverifiable): {', '.join(found[:5])}"
             if found
             else "no production-count role sits on a switching sensor"
         ),

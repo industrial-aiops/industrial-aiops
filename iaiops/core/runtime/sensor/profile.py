@@ -192,7 +192,8 @@ def modbus_layout(
     """Validate a Modbus layout. Shared with the typed-point grammar."""
     if not isinstance(table, str) or table not in MODBUS_TABLES:
         raise ValueError(
-            f"{where}: table must be one of {', '.join(MODBUS_TABLES)}; got {table!r}."
+            f"{where}: table must be one of {', '.join(MODBUS_TABLES + SWITCH_TABLES)}; "
+            f"got {table!r}."
         )
     address = _int(address, "address", where, 0, MAX_ADDRESS)
     if not isinstance(value_type, str) or value_type not in MODBUS_WIDTHS:
@@ -244,11 +245,14 @@ def _layout(raw: Any, protocol: str, where: str) -> ModbusLayout | BitLayout | S
         raise ValueError(f"{where}: layout is required (a mapping).")
     if protocol == "iolink":
         return _bit_layout(raw, where)
-    if raw.get("table") in SWITCH_TABLES:
-        extra = sorted(k for k in ("type", "order") if k in raw)
+    table = raw.get("table")
+    if isinstance(table, str) and table.lower() in SWITCH_TABLES:
+        extra = sorted(k for k in raw if k not in ("table", "address", "active"))
         if extra:
             raise ValueError(f"{where}: {', '.join(extra)} do not apply to a switching bit.")
-        return switch_layout(raw["table"], raw.get("address"), raw.get("active"), where)
+        active = raw.get("active")
+        active = active.lower() if isinstance(active, str) else active
+        return switch_layout(table.lower(), raw.get("address"), active, where)
     return modbus_layout(
         raw.get("table"), raw.get("address"), raw.get("type"), raw.get("order"), where
     )
@@ -315,12 +319,21 @@ def _unit(raw: dict, where: str) -> str:
 
 def _switch_channel(raw: dict, name: str, layout: SwitchLayout, where: str) -> Channel:
     """A switching channel: a state or an event, no unit, no scale (HLD §17.5b)."""
-    bad = sorted(k for k in ("scale", "offset", "range", "accuracy", "invalid") if k in raw)
+    bad = sorted(k for k in ("scale", "offset", "range", "accuracy", "invalid", "unit") if k in raw)
     if bad:
-        raise ValueError(f"{where}: {', '.join(bad)} do not apply to a switching channel.")
+        raise ValueError(
+            f"{where}: {', '.join(bad)} do not apply to a switching channel — its value is "
+            "1 = actuated / 0 = not, with no unit."
+        )
     signal = _choice(raw, "signal", SWITCH_SIGNALS, where)
-    unit = raw.get("unit") or ""
-    return Channel(name=name, layout=layout, unit=str(unit), signal=signal)
+    response = raw.get("response_ms")
+    return Channel(
+        name=name,
+        layout=layout,
+        unit="",
+        signal=signal,
+        response_ms=None if response is None else _number(response, "response_ms", where),
+    )
 
 
 def _channel(raw: Any, protocol: str, index: int) -> Channel:

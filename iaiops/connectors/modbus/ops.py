@@ -307,7 +307,7 @@ def modbus_health_summary(
     register_type: str = "holding",
     decode: str = "uint16",
 ) -> dict:
-    """[READ] Classify holding/input registers against warn/alarm thresholds.
+    """[READ] Classify Modbus points (registers, or di:/co: switching bits) against thresholds.
 
     ``addresses`` defaults to the endpoint's configured tag refs (parsed as
     register addresses). ``thresholds`` overrides per-address bounds keyed by

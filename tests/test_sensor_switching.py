@@ -66,12 +66,15 @@ def _bits(*values):
     return read
 
 
-@pytest.mark.parametrize(("ref", "level", "actuated"), [
-    ("di:5:high", 1, 1),
-    ("di:5:high", 0, 0),
-    ("di:5:low", 0, 1),  # NC switch: 0 = actuated
-    ("di:5:low", 1, 0),
-])
+@pytest.mark.parametrize(
+    ("ref", "level", "actuated"),
+    [
+        ("di:5:high", 1, 1),
+        ("di:5:high", 0, 0),
+        ("di:5:low", 0, 1),  # NC switch: 0 = actuated
+        ("di:5:low", 1, 0),
+    ],
+)
 def test_actuated_follows_the_declared_level(ref, level, actuated):
     read = _bits(level)
     assert read_point_value(read, ref) == actuated
@@ -105,7 +108,9 @@ def test_a_switching_channel_needs_its_active_level():
 
 def test_a_switching_channel_cannot_be_a_counter_or_a_waveform():
     with pytest.raises(ValueError, match="signal"):
-        parse_profile(_profile({"table": "discrete", "address": 0, "active": "high"}, signal="counter"))
+        parse_profile(
+            _profile({"table": "discrete", "address": 0, "active": "high"}, signal="counter")
+        )
 
 
 def test_a_switching_channel_has_no_register_options():
@@ -125,7 +130,9 @@ def test_a_switching_channel_reads_through_ch_refs():
 def test_profile_summary_shows_the_switching_layout():
     from iaiops.core.runtime.sensor import profile_summary
 
-    summary = profile_summary(parse_profile(_profile({"table": "discrete", "address": 2, "active": "low"})))
+    summary = profile_summary(
+        parse_profile(_profile({"table": "discrete", "address": 2, "active": "low"}))
+    )
     assert summary["channels"][0]["layout"] == "discrete[2] active-low"
 
 

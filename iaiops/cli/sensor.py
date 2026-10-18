@@ -121,7 +121,10 @@ def read_cmd(
             highlight=False,
         )
         if out.get("untyped"):
-            console.print("  [yellow]untyped:[/] read as uint16 — give it a type (ir:/hr:…).")
+            console.print(
+                "  [yellow]untyped:[/] read as uint16 — give it a type "
+                "(ir:/hr:…, di:/co: for switches)."
+            )
     else:
         console.print(f"  {out.get('reason', '')}", markup=False, highlight=False)
     if not (levels.get("reachable") and levels.get("decodable")):

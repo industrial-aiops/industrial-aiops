@@ -21,6 +21,15 @@
   and look plausible. Use the module's or the PLC's counter register.
 - No software debounce (the module's or PLC's input filter does that), no coil
   writes, IO-Link SIO mode deferred until a real master confirms its datapoints.
+- **Fixed before release (adversarial review):** `count_source` reported "met"
+  for a count role it could not check — a `di:` ref with no level, a `ch:` ref
+  whose profile cannot be read; "cannot tell" is now a gap too. Switching
+  channels are no longer listed as "stored without a unit (still 待核实)" — a
+  switch has no unit by design, and a `unit` on a switching channel is refused.
+  `response_ms` is kept; unknown layout keys are refused; table and active level
+  are case-insensitive in profiles as in refs. A switching read carries `active`
+  and `meaning` ("1 = actuated…"). D61 is checked on Modbus refs in this build;
+  PLC bits and refusing in `oee measure` are follow-ups.
 
 ### Added — a sensor entry: one install, one menu, one skill (HLD §17.2 E2)
 

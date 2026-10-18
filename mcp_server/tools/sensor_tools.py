@@ -101,7 +101,9 @@ def sensor_read_channel(ref: str, endpoint: Optional[str] = None) -> dict:
 
     Args:
         ref: ``ch:<name>`` (Modbus profile channel), ``port<N>/<channel>``
-            (IO-Link), or a typed Modbus point such as ``ir:0:float32:CDAB``.
+            (IO-Link), a typed Modbus point such as ``ir:0:float32:CDAB``, or a
+            switching point ``di:<addr>:<high|low>`` / ``co:<addr>:<high|low>``
+            (value 1 = actuated; the result carries ``active`` and ``meaning``).
         endpoint: Endpoint name from config (default endpoint if omitted).
 
     Returns dict: {endpoint, ref, contacted, refused?, levels:{reachable,
