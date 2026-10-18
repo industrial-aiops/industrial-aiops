@@ -593,11 +593,21 @@ def load_profile_file(path: Path | str) -> SensorProfile:
     """Read and validate one YAML profile."""
     import yaml
 
-    text = Path(path).read_text("utf-8")
+    try:
+        text = Path(path).read_text("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError(f"Sensor profile {path} is not UTF-8 text.") from None
     try:
         raw = yaml.safe_load(text)
     except yaml.YAMLError as exc:
-        raise ValueError(f"Sensor profile {path} is not valid YAML: {exc}") from exc
+        # Position and problem only: str(exc) quotes the offending line of the
+        # file, and an error must not become a way to read one.
+        mark = getattr(exc, "problem_mark", None)
+        where = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+        problem = getattr(exc, "problem", None) or "unparseable"
+        if "'" in problem or '"' in problem:  # a quoted tag / alias / token from the file
+            problem = "unparseable"
+        raise ValueError(f"Sensor profile {path} is not valid YAML{where}: {problem}.") from None
     if not isinstance(raw, dict):
         raise ValueError(f"Sensor profile {path} must be a YAML mapping at the top level.")
     return parse_profile(raw)

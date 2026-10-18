@@ -14,25 +14,17 @@ Three steps of "connect a sensor", each read-only:
 Binding a profile into config.yaml is deliberately NOT a tool (D51): config.yaml
 is the one source of truth and which sensor sits on which port is a site fact.
 The same engines back the CLI (``iaiops sensor import-iodd | check | read``).
+
+The two file tools read only under ``$IAIOPS_HOME`` or the config directory
+(``agent_readable_path``): the path comes from a model, so it must not reach any
+file on the host. The CLI reads whatever path the operator types.
 """
 
-from pathlib import Path
 from typing import Optional
 
 from iaiops.core.governance import governed_tool
+from iaiops.core.governance.input_paths import agent_readable_path
 from mcp_server._shared import _target, mcp, tool_errors
-
-
-def _local_file(path: str, suffixes: tuple[str, ...]) -> Path:
-    candidate = Path(path).expanduser()
-    if candidate.is_symlink():
-        # A link named `x.yaml` can point anywhere; parser errors echo file content.
-        raise ValueError(f"{path!r} is a symbolic link — pass the real file.")
-    if candidate.suffix.lower() not in suffixes:
-        raise ValueError(f"Expected a {'/'.join(suffixes)} file, got {path!r}.")
-    if not candidate.is_file():
-        raise ValueError(f"{path!r} is not a readable file.")
-    return candidate
 
 
 @mcp.tool()
@@ -48,17 +40,22 @@ def sensor_import_iodd(path: str, process_data: Optional[str] = None) -> dict:
     in config.yaml yourself — this tool never edits config.
 
     Args:
-        path: Local path to the device's IODD (.xml).
+        path: The device's IODD (.xml), under $IAIOPS_HOME or the config
+            directory — other paths are refused unread.
         process_data: ProcessData id, required when the IODD declares several.
 
     Returns dict: {draft (YAML text), profile_id, device_name, notes[]}.
     """
     from iaiops.core.runtime.sensor.iodd import MAX_IODD_BYTES, import_iodd, render_draft
 
-    source = _local_file(path, (".xml",))
+    source = agent_readable_path(path, suffixes=(".xml",))
     if source.stat().st_size > MAX_IODD_BYTES:
         raise ValueError(f"{path!r} is larger than {MAX_IODD_BYTES // (1024 * 1024)} MB.")
-    draft = import_iodd(source.read_text("utf-8"), process_data=process_data)
+    try:
+        text = source.read_text("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError(f"{path!r} is not UTF-8 text.") from None
+    draft = import_iodd(text, process_data=process_data)
     return {
         "draft": render_draft(draft, source_name=source.name),
         "profile_id": draft.profile["id"],
@@ -74,7 +71,8 @@ def sensor_profile_check(path: str) -> dict:
     """[READ][risk=low] Validate a sensor profile file and list its channels.
 
     Args:
-        path: Local path to a profile (.yaml / .yml).
+        path: A profile (.yaml / .yml), under $IAIOPS_HOME or the config
+            directory — other paths are refused unread.
 
     Returns dict: {id, protocol, source, verified, match, pd_bits,
         channels:[{channel, layout, unit, signal, range, sentinels, band}]}.
@@ -82,7 +80,7 @@ def sensor_profile_check(path: str) -> dict:
     """
     from iaiops.core.runtime.sensor import load_profile_file, profile_summary
 
-    return profile_summary(load_profile_file(_local_file(path, (".yaml", ".yml"))))
+    return profile_summary(load_profile_file(agent_readable_path(path, suffixes=(".yaml", ".yml"))))
 
 
 @mcp.tool()
