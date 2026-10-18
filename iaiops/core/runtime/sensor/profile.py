@@ -21,7 +21,7 @@ from typing import Any
 
 PROTOCOLS = ("modbus", "iolink")
 #: Where a profile came from. It travels into reports with ``verified``.
-SOURCES = ("iodd", "datasheet", "manual")
+SOURCES = ("iodd", "datasheet", "manual", "community")
 #: How far the decoding has been checked against a real device.
 VERIFIED = ("待核实", "bench", "field")
 #: Decides how a channel can honestly be collected (HLD §16.4).
@@ -143,6 +143,13 @@ class SensorProfile:
     #: offsets count from the END of the image, so an image of another length
     #: (another PD variant, same device id) shifts every field — refused.
     pd_bits: int | None = None
+    #: Free text shown with the profile (what device, which firmware family).
+    description: str = ""
+    #: Evidence for ``verified`` above 待核实: who checked, which device, what was
+    #: compared (plus optional firmware / date). Kept as ordered pairs (frozen).
+    provenance: tuple[tuple[str, str], ...] = ()
+    #: Where the decoding came from when it is a copy, e.g. "modbus-template:<name>".
+    derived_from: str = ""
 
     def channel(self, name: str) -> Channel:
         for candidate in self.channels:
@@ -385,6 +392,28 @@ def _match(raw: Any, protocol: str, where: str) -> tuple[int | None, int | None]
     return vendor, device
 
 
+#: Evidence a provenance must carry; ``firmware`` and ``date`` are optional.
+PROVENANCE_REQUIRED = ("by", "device", "compared")
+PROVENANCE_KEYS = (*PROVENANCE_REQUIRED, "firmware", "date")
+
+
+def _provenance(raw: Any, where: str) -> tuple[tuple[str, str], ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, dict):
+        raise ValueError(f"{where}: provenance must be a mapping of {', '.join(PROVENANCE_KEYS)}.")
+    unknown = sorted(set(raw) - set(PROVENANCE_KEYS))
+    missing = [k for k in PROVENANCE_REQUIRED if not str(raw.get(k) or "").strip()]
+    if unknown or missing:
+        raise ValueError(
+            f"{where}: provenance needs {', '.join(PROVENANCE_REQUIRED)}"
+            + (f" (missing {', '.join(missing)})" if missing else "")
+            + (f"; unknown {', '.join(unknown)}" if unknown else "")
+            + " — evidence is who checked which device against what."
+        )
+    return tuple((k, str(raw[k]).strip()) for k in PROVENANCE_KEYS if k in raw)
+
+
 def parse_profile(raw: Any) -> SensorProfile:
     """Validate a profile mapping into frozen objects; raise ``ValueError`` on any defect."""
     if not isinstance(raw, dict):
@@ -420,6 +449,9 @@ def parse_profile(raw: Any) -> SensorProfile:
         vendor_id=vendor_id,
         device_id=device_id,
         pd_bits=pd_bits,
+        description=str(raw.get("description") or "").strip(),
+        provenance=_provenance(raw.get("provenance"), where),
+        derived_from=str(raw.get("derived_from") or "").strip(),
     )
 
 
@@ -470,5 +502,8 @@ def profile_summary(profile: SensorProfile) -> dict[str, Any]:
             else None
         ),
         "pd_bits": profile.pd_bits,
+        "description": profile.description,
+        "provenance": dict(profile.provenance) or None,
+        "derived_from": profile.derived_from or None,
         "channels": rows,
     }

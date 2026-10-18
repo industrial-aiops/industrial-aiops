@@ -132,6 +132,60 @@ def read_cmd(
         raise typer.Exit(1)
 
 
+@cli_errors
+def list_cmd(
+    protocol: str = typer.Option(None, "--protocol", help="modbus | iolink"),
+    vendor_id: int = typer.Option(None, "--vendor-id", help="IO-Link vendor id."),
+    device_id: int = typer.Option(None, "--device-id", help="IO-Link device id."),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """List the shipped profile library. A match is a suggestion, not a binding."""
+    from iaiops.core.runtime.sensor import library
+
+    entries = library.list_profiles(protocol=protocol, vendor_id=vendor_id, device_id=device_id)
+    if as_json:
+        _emit({"profiles": entries})
+        return
+    for entry in entries:
+        console.print(
+            f"{entry['id']}  [{entry['category']}, {entry['protocol']}, "
+            f"verified {entry['verified']}] {entry['description'][:70]}",
+            markup=False,
+            highlight=False,
+        )
+    if not entries:
+        console.print("No library profile matches.")
+
+
+@cli_errors
+def show_cmd(
+    profile_id: str = typer.Argument(..., help="Library profile id (see `iaiops sensor list`)."),
+    out: Path = typer.Option(None, "--out", help="Copy it to this file (.yaml) to edit and bind."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing --out file."),
+) -> None:
+    """Show a library profile, or copy it to a file you then check and bind yourself."""
+    from iaiops.core.governance.evidence import validate_output_path
+    from iaiops.core.runtime.sensor import library
+
+    path, _profile = library.get(profile_id)
+    text = path.read_text("utf-8")
+    if out is None:
+        console.print(text, markup=False, highlight=False)
+        return
+    target = validate_output_path(out, suffixes=(".yaml", ".yml"))
+    if target.is_symlink():
+        raise ValueError(f"{target} is a symbolic link — write to a real file path.")
+    if target.exists() and not force:
+        raise ValueError(f"{target} exists. Pass --force to overwrite it.")
+    target.write_text(text, "utf-8")
+    console.print(
+        f"[green]Copied[/] {profile_id} → {target}  (verified: {_profile.verified}). "
+        "Check one reading against the device's display, then bind it in config.yaml."
+    )
+
+
 sensor_app.command("import-iodd")(import_iodd_cmd)
 sensor_app.command("check")(check_cmd)
 sensor_app.command("read")(read_cmd)
+sensor_app.command("list")(list_cmd)
+sensor_app.command("show")(show_cmd)

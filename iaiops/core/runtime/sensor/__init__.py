@@ -7,6 +7,7 @@ record as a gap.
 
 from __future__ import annotations
 
+from iaiops.core.runtime.sensor import library
 from iaiops.core.runtime.sensor.decode import (
     InvalidReadingError,
     Reading,
@@ -30,6 +31,7 @@ from iaiops.core.runtime.sensor.profile import (
 )
 
 __all__ = [
+    "library",
     "Accuracy",
     "BitLayout",
     "Channel",

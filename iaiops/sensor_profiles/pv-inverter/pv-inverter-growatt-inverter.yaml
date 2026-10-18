@@ -1,0 +1,47 @@
+# Library profile derived from the Modbus template `growatt_inverter`.
+# 待核实 — public RTU protocol map; addresses/scaling vary by Growatt series/firmware; confirm against the Growatt Modbus RTU protocol doc.
+# Copy it (`iaiops sensor show <id> --out <file>`), check one reading against
+# the device's own display, then bind it as `sensor_profile:` in config.yaml.
+id: pv-inverter-growatt-inverter
+protocol: modbus
+source: community
+verified: 待核实
+description: Growatt PV inverter core telemetry (FC04, uint32/uint16, ABCD).
+derived_from: modbus-template:growatt_inverter
+channels:
+- name: input_power
+  layout:
+    table: input
+    address: 1
+    type: uint32
+    order: ABCD
+  scale: 0.1
+  unit: W
+  signal: level
+- name: pv1_voltage
+  layout:
+    table: input
+    address: 3
+    type: uint16
+    order: AB
+  scale: 0.1
+  unit: V
+  signal: level
+- name: output_power
+  layout:
+    table: input
+    address: 35
+    type: uint32
+    order: ABCD
+  scale: 0.1
+  unit: W
+  signal: level
+- name: grid_frequency
+  layout:
+    table: input
+    address: 37
+    type: uint16
+    order: AB
+  scale: 0.01
+  unit: Hz
+  signal: level

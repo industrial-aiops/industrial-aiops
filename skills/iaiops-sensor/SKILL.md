@@ -23,7 +23,8 @@ description: >-
 
 1. **认出设备**：IO-Link 用 `iolink_ports` / `iolink_device_info` 看端口上的 vendor/device id；
    Modbus 设备没有可核对的数字身份 —— 型号由人确认。
-2. **拿到描述（profile）**：IO-Link 有 IODD 时用 `sensor_import_iodd` 起草（**返回文本、不写盘**）。
+2. **拿到描述（profile）**：先查描述库 `sensor_profile_list`（有就 `sensor_profile_show` 取文本，CLI 可
+   `iaiops sensor show <id> --out <文件>` 复制一份）；IO-Link 有 IODD 时用 `sensor_import_iodd` 起草（**返回文本、不写盘**）。
    草稿一律 `verified: 待核实`，IODD 单位代码原样保留 —— 让人把单位改成真实单位。
    Modbus 传感器按规格书写描述（寄存器表、类型、字序、比例、量程、哨兵值）。
 3. **检查**：`sensor_profile_check` —— 字段错一个就拒绝并指出是哪个。
@@ -44,6 +45,8 @@ description: >-
 - `sensor_import_iodd` — IODD → 草稿描述文本 + 「未导入」清单；不写盘、不改 config
 - `sensor_profile_check` — 校验描述，列出通道 / 布局 / 单位 / 精度带 / 核实等级
 - `sensor_read_channel` — 读一个点一次，三级分开报告；读不了的点在联系设备之前就拒绝
+- `sensor_profile_list` / `sensor_profile_show` — 查随包的描述库（电表、光伏逆变器等，默认 `待核实`）；
+  IO-Link 可按 vendor/device id 过滤 —— **只是建议**，同一设备号可能有多种过程数据布局
 
 ### Modbus（只读；RTU 走 RS-485 / RS-232 / USB 串口，TCP 走网口）
 - `modbus_read_holding` `modbus_read_input` `modbus_read_coils` `modbus_read_discrete`
