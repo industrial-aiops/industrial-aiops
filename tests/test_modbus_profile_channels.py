@@ -110,3 +110,58 @@ def test_plan_time_check_knows_the_channels(bound):
     assert len(problems) == 1 and "fz" in problems[0]
     unbound = SimpleNamespace(name="x", protocol="modbus", sensor_profile="")
     assert "sensor_profile" in ref_problems(unbound, ("ch:fz",))[0]
+
+
+def _write_profile(path, unit: str, scale: float) -> None:
+    import yaml
+
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "id": "force",
+                "protocol": "modbus",
+                "source": "manual",
+                "verified": "待核实",
+                "channels": [
+                    {
+                        "name": "fz",
+                        "layout": {"table": "input", "address": 4, "type": "uint16"},
+                        "unit": unit,
+                        "scale": scale,
+                        "signal": "level",
+                    }
+                ],
+            }
+        )
+    )
+
+
+def test_session_decodes_with_the_profile_the_unit_comes_from(tmp_path):
+    """The value and its unit must come from ONE profile (HLD §17.5, D56).
+
+    The session used to decode with the profile it copied at open time while the
+    runner took the unit from the file on every read — so editing the profile
+    mid-run (N, scale 1 → kN, scale 0.001) stored raw 1500 as "1500 kN": a
+    1000× error carrying a perfectly plausible unit.
+    """
+    import os
+
+    from iaiops.core.runtime.connection import _prepare_modbus
+    from iaiops.core.runtime.sensor.binding import unit_for
+
+    path = tmp_path / "force.yaml"
+    _write_profile(path, "N", 1.0)
+    target = SimpleNamespace(name="cell", protocol="modbus", unit_id=1, sensor_profile=str(path))
+    client = _Client([1500], None)
+    _prepare_modbus(client, target)
+
+    value, _ = caps._session_read_modbus(client, "ch:fz")
+    assert (value, unit_for(target, "ch:fz")) == (pytest.approx(1500.0), "N")
+
+    _write_profile(path, "kN", 0.001)
+    st = path.stat()
+    # A later edit within the same session.
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000_000))
+
+    value, _ = caps._session_read_modbus(client, "ch:fz")
+    assert (value, unit_for(target, "ch:fz")) == (pytest.approx(1.5), "kN")

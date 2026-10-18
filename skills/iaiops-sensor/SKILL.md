@@ -8,7 +8,7 @@ description: >-
   IO-Link masters (JSON interface) and MQTT/Sparkplug nodes. Use when the task
   mentions a sensor, sensor profile, IODD, IO-Link device, process data / pdin,
   decoding registers into engineering units, float32 word order, sentinel /
-  no-target values, RS-485 or RS-232 instruments, or "接一个传感器 / 传感器描述 /
+  no-target values, Modbus RTU instruments (RS-485 / RS-232), or "接一个传感器 / 传感器描述 /
   读不懂寄存器 / 单位". The sensor tools are read-only and never write config; the
   server also exposes mqtt_publish (HIGH, MOC-gated) via the MQTT/Sparkplug set.
 ---
@@ -51,7 +51,7 @@ description: >-
 ### Modbus（只读；RTU 走 RS-485 / RS-232 / USB 串口，TCP 走网口）
 - `modbus_read_holding` `modbus_read_input` `modbus_read_coils` `modbus_read_discrete`
 - `modbus_detect_byte_order` — float32 / 32 位字序不确定时先探测，**描述里必须写明字序**
-- `modbus_health_summary` — 支持带类型的点（`ir:0:float32:CDAB`）与 `ch:` 通道
+- `modbus_health_summary` — 支持带类型的点（`ir:0:float32:CDAB`）；`ch:` 通道尚不支持（会返回 unknown）
 
 ### 串口 ASCII（只读）
 - `serial_sniff` — 听一段时间、返回原始行（latin-1 显示每个字节）；**什么都不发**；独占打开，端口被占用就拒绝
@@ -72,9 +72,9 @@ description: >-
 
 | 路径 | 库 pin | 规范 / 覆盖 | 传输 | 自测 |
 |---|---|---|---|---|
-| Modbus RTU / TCP | `pymodbus>=3.5,<4`、`pyserial>=3.5` | Modbus Application Protocol；FC03/FC04；16/32 位与 float32 全部字序 | RS-485 / RS-232 / RS-422 / USB 串口；TCP | 进程内假客户端；实验机局域网走查（float32 CDAB、NaN、超量程） |
-| IO-Link 主站 | `requests>=2.31,<3` | IO-Link 1.1 过程数据 + IODD 位偏移约定；ifm IoT-Core JSON（其他厂商路径 `待核实`） | HTTP | 进程内模拟主站；实验机局域网走查（哨兵、换传感器、PD 长度） |
-| 串口 ASCII | `pyserial>=3.5` | 按描述逐份 `待核实`（行尾 / 编码 / 正则 / 状态码） | RS-232 / RS-485 / RS-422 / USB 串口；串口服务器原始 TCP | pty 对（真实 pyserial 路径）+ 本机 TCP；实验机局域网走查（称重模拟器） |
+| Modbus RTU / TCP | `pymodbus>=3.5,<4`、`pyserial>=3.5` | Modbus Application Protocol；FC01–FC04；16/32 位与 float32 全部字序 | RS-485 / RS-232 / RS-422 / USB 串口；TCP | 进程内假客户端；实验机局域网上对**自建** Modbus 模拟器走查（验证阶梯 2b，非第三方设备；float32 CDAB、NaN、超量程） |
+| IO-Link 主站 | `requests>=2.31,<3` | IO-Link 1.1 过程数据 + IODD 位偏移约定；ifm IoT-Core JSON（`待核实`：只对模拟主站验证过；其他厂商路径同样 `待核实`） | HTTP | 进程内模拟主站；实验机局域网上对**自建**模拟主站走查（2b；哨兵、换传感器、PD 长度） |
+| 串口 ASCII | `pyserial>=3.5` | 按描述逐份 `待核实`（行尾 / 编码 / 正则 / 状态码） | RS-232 / RS-485 / RS-422 / USB 串口；串口服务器原始 TCP | pty 对（真实 pyserial 路径）+ 本机 TCP；实验机局域网上对**自建**称重模拟器走查（2b，非第三方设备） |
 | MQTT / Sparkplug | `paho-mqtt>=2.0,<3`、`protobuf>=4.25,<8` | Sparkplug B；纯 MQTT 只有陈旧判断 | TCP（TLS / 代理认证 `待核实`） | 真实代理录制回放 |
 
 真实 IO-Link 主站的身份字段编码、真实厂商 IODD 仍 `待核实`。

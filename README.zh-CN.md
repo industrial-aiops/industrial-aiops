@@ -6,7 +6,7 @@
 
 **让 AI 说清楚产线为什么停了 —— 而且每句结论都带证据引用。**
 
-一个厂商中立、**读优先**的现场数据 tap。它讲 **14 种现场协议**，把跨协议的证据在时间上对齐，
+一个厂商中立、**读优先**的现场数据 tap。它讲 **15 种现场协议**，把跨协议的证据在时间上对齐，
 交给智能体的是**带引用的裁决**，不是猜测。每次调用都留审计（运维方设 `IAIOPS_AUDIT_OPT_OUT=reads` 时，成功的声明式读取不记）；读取路径绝不回连。
 
 ```bash
@@ -18,9 +18,9 @@ iaiops doctor                    # 先自检，再谈信任
 也可以直接跑容器 —— **cosign 签名**、**非 root**。它以 stdio 讲 MCP，所以要保持 stdin 打开，并挂一个卷存审计库：
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.29.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.30.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.29.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.30.0-factory
 ```
 
 要加固部署或离线部署（只读根文件系统、`cap_drop: ALL`、no-new-privileges、可选端侧 LLM），

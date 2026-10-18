@@ -236,3 +236,16 @@ def test_doctor_does_not_count_serial_as_a_failure():
 
     cap = REGISTRY["serial"]
     assert cap.doctor_probe is not UNSUPPORTED or cap.probe_style != PROBE_HARD
+
+
+def test_a_profile_edited_mid_run_reopens_instead_of_mixing_profiles(pty_port):
+    """Same rule as the 0.30.0 Modbus fix: the value and its unit come from ONE
+    profile resolved at read time — never the copy taken when the link opened."""
+    controller, path = pty_port
+    target = _target(_profile(), path, stale_after_s=1.0)
+    with ops.serial_session(target) as session:
+        os.write(controller, b"warm-up\r\n5.00 kg\r\n")
+        assert ops.session_read(session, "ch:w")[0] == pytest.approx(5.0)
+        target._profile = _profile(pattern=r"(?P<value>[+-]?\d+\.\d+) (?P<unit>kg)x?")
+        with pytest.raises(OTConnectionError, match="changed"):
+            ops.session_read(session, "ch:w")

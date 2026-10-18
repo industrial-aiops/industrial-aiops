@@ -35,6 +35,59 @@
   silent 9600 / 4840 default); a non-ASCII terminator is refused; `bus` is refused
   on non-serial endpoints; readiness and doctor judge serial endpoints.
 
+## 0.30.0 — 2026-10-18
+
+The sensor layer becomes usable end to end — sensor profiles bound to endpoints,
+IO-Link collectable, switching sensors (NPN / PNP / dry contact), the unit stored
+with every value, and a library of starting profiles (`iaiops sensor list|show`,
+all `待核实`) — and three OPC UA collection errors that all pointed the flattering
+way are fixed: a rejected read stored as an empty sample (counted as "not
+running"), a steady state polled once and then treated as blind, and a text value
+stored as a Python repr. Companion-spec role suggestions now have to be earned
+(stamped at export), not typed. 203 governed tools.
+
+### Upgrade notes — read before upgrading
+
+- **OPC UA collection writes one sample per poll, stamped with the collector's
+  clock, not `SourceTimestamp`** (#263). Expect many more rows per run (size
+  `iaiops store prune` retention for it) and timestamps that follow host time.
+  OPC UA runs collected by 0.29 under-sampled steady states: do not compare their
+  coverage or availability with 0.30 runs — re-collect.
+- **A Bad OPC UA status, and the Uncertain codes `LastUsableValue`,
+  `NoCommunicationLastUsableValue`, `SubstituteValue` and `InitialValue`, are now
+  gaps, not empty samples** (#261, #263). Coverage drops and downtime shrinks where
+  0.29 counted rejected reads as "not running". Rows written by 0.29 keep their
+  empty samples.
+- **OPC UA `LocalizedText` is stored and returned as its text** (`Idle`, not
+  `LocalizedText(...)`) in `opcua_read_node`, collection and RCA (#264). A window
+  spanning the upgrade mixes both forms; the old rows match no `running_when`.
+- **`basis: companion_spec` now needs a stamp this site's key verifies** (#259).
+  Re-export sheets made with 0.29 (`tags export`) — their suggestion columns carry
+  no stamp and read as `companion_spec_unverified`. A new secret,
+  `$IAIOPS_HOME/tag_suggestion.key`, is created on first export: back it up with
+  `IAIOPS_HOME`. `validate_rows` called without the key credits no row as
+  `companion_spec` — **iaiops-enterprise users must upgrade to the enterprise
+  release that passes the key** (0.12.0), or every E11 sign-off downgrades device
+  suggestions.
+- **Sensor profiles refuse unknown keys.** A 0.29 S1/S2 profile file with extra
+  keys fails `iaiops sensor check`, and fails config loading once bound.
+- **`readiness`:** a Modbus site with bare addresses now reports continuous
+  collection as **degraded** (was ready). Scripts keyed on `ready` will flip.
+- **`monitor` on OPC UA** reports a Bad read as an error sample (was value `None`).
+- **Library API:** `run_collection(fresh_each_read=False)` is the default; callers
+  collecting OPC UA must pass `polls_are_fresh(protocol)` themselves (`collect run`
+  does).
+
+### Fixed — a Modbus session decoded with a stale profile while storing the current unit
+
+- The collection session copied the endpoint's sensor profile when it opened,
+  while the runner took the unit from the profile file on every read. Editing a
+  profile mid-run (N, scale 1 → kN, scale 0.001) stored raw 1500 as **"1500 kN"** —
+  a 1000× error carrying a perfectly plausible unit. The session now resolves the
+  profile on every read (re-parsed only when the file changes), so a value and its
+  unit always come from one profile. Found by the pre-release audit; the new test
+  fails on the old code.
+
 ### Added — a sensor profile library (HLD §17.3 E3, D52)
 
 - **Profiles ship with the package** under `iaiops/sensor_profiles/<category>/`:
@@ -171,8 +224,8 @@
 - **Binding a profile into config.yaml is not a tool** (D51): the tools stop at
   check, draft and read once; a person adds the lines.
 - **Skill `iaiops-sensor`** — the "connect a sensor" path step by step, with its
-  support matrix; routed from the router skill. 201 governed tools.
-- Verified on the lab LAN: good reads with unit and band, a 0xFFFF sentinel
+  support matrix; routed from the router skill.
+- Run on the lab LAN against **our own** Modbus simulator (verification level 2b, not a third-party device): good reads with unit and band, a 0xFFFF sentinel
   reported as not decodable, an unprofiled port refused without contact, an
   unreachable device reported as `reachable=false, decodable=null`.
 - **Fixed before release (adversarial review):** a device that answered with an
@@ -196,7 +249,7 @@
   not what it measures), other protocols are not judged, and a unit still marked
   待核实 — an IODD unit code nobody has mapped — is stored as empty, never
   guessed. `readiness` lists profile channels whose unit is still 待核实.
-  Verified on the lab LAN: N, mm, degC and bool land in the store.
+  Run on the lab LAN against our own simulators (2b): N, mm, degC and bool land in the store.
 - **The unit comes from the same profile that decoded the value.** It is looked
   up around every read, not once per run: the read path reloads a profile edited
   mid-run, and a unit fixed at the start would have stored 1.5 kN as "1.5 N". If

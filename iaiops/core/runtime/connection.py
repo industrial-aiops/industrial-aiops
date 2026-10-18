@@ -125,9 +125,15 @@ def _prepare_modbus(client: Any, target: Any, **_kwargs: Any) -> None:
     """
     client.iaiops_unit_id = int(getattr(target, "unit_id", 1) or 1)
     # Same reason for the sensor profile: `ch:<name>` refs decode through it, and
-    # a session-scoped read has no other way to reach the endpoint's config.
+    # a session-scoped read has no other way to reach the endpoint's config. The
+    # TARGET is attached, not a copy of the profile: the reader resolves the
+    # profile on every read, the same way the runner resolves the unit, so a
+    # value and its unit always come from one profile (HLD §17.5, D56). A copy
+    # taken here decoded an edited N→kN profile with the old scale and stored
+    # raw 1500 as "1500 kN".
     from iaiops.core.runtime.sensor.binding import endpoint_profile
 
+    client.iaiops_target = target
     client.iaiops_sensor_profile = endpoint_profile(target)
 
 

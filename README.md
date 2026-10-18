@@ -6,7 +6,7 @@
 
 **Ask an AI agent why the line stopped — and get an answer that cites its evidence.**
 
-A vendor-neutral, **read-first** data tap for the factory floor. It speaks **14 field protocols**,
+A vendor-neutral, **read-first** data tap for the factory floor. It speaks **15 field protocols**,
 correlates what it reads *across* them, and hands your agent an evidence-cited verdict instead of a
 guess. Every call is audited, and no reading ever phones home.
 
@@ -20,9 +20,9 @@ Prefer a container? The published image is **cosign-signed** and runs **non-root
 over stdio, so keep stdin open and mount a volume for the audit store:
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.29.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.30.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.29.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.30.0-factory
 ```
 
 For a hardened or air-gapped deployment (read-only rootfs, `cap_drop: ALL`, no-new-privileges,
@@ -322,7 +322,7 @@ behind each claim. Every `待核实` is hardware-gated, not forgotten — each o
 ### Modbus-TCP / Modbus-RTU
 - **Versions/variants**: Modbus-TCP and **Modbus-RTU (serial RS-485/232)** via `pymodbus` (+ `pyserial`). Read function codes **FC01 (coils), FC02 (discrete), FC03 (holding), FC04 (input)**. Write FCs (**FC05/06/15/16**) = **not implemented** (read-only).
 - **Connection params**: TCP — `host`, `port` (502), `unit_id`. RTU — `transport: rtu`, `serial_port` (e.g. `/dev/ttyUSB0`), `baudrate`, `unit_id`. Registers are untyped 16-bit words → `decode` hint (uint16/int16/uint32/int32/float32/raw); `modbus_detect_byte_order` auto-detects the byte/word order (AB/BA · ABCD/DCBA/BADC/CDAB) from hint values — pure logic, no extra device load.
-- **Typed points for collection** (HLD §16): a collected/monitored ref can name its table, type, word order and scale — `ir:0:float32:CDAB`, `hr:12:int16*0.1` (grammar `<hr|ir>:<addr>[:<type>[:<order>]][*<scale>]`; a 32-bit type must state its order). With `sensor_profile: <file>` on the endpoint, `ch:<name>` reads a channel of that profile (sentinels → gaps, declared range enforced). A bare address keeps its old meaning (one holding register, uint16) and `readiness` reports it as **untyped**. Switching sensors (NPN / PNP / dry contact) on a DI module read as `di:<addr>:<high|low>` (FC02) or `co:<addr>:<high|low>` (FC01): the active level is required (a normally-closed switch reads 0 when actuated), the value is 1 = actuated, and `readiness` refuses a switching point as the production counter (polling misses short pulses). A shipped **profile library** (`iaiops sensor list | show`, MCP `sensor_profile_list | show`) holds community register maps for common energy meters and PV inverters, each derived from the Modbus template of the same device and carrying its caveat — every entry `待核实`; CI checks each entry against its template channel by channel, in both directions. Copy one (`show <id> --out <file>`), check a reading against the device's display, then bind the copy.
+- **Typed points for collection** (HLD §16): a collected/monitored ref can name its table, type, word order and scale — `ir:0:float32:CDAB`, `hr:12:int16*0.1` (grammar `<hr|ir>:<addr>[:<type>[:<order>]][*<scale>]`; a 32-bit type must state its order). With `sensor_profile: <file>` on the endpoint, `ch:<name>` reads a channel of that profile (sentinels → gaps, declared range enforced). A bare address keeps its old meaning (one holding register, uint16) and `readiness` reports it as **untyped**. Switching sensors (NPN / PNP / dry contact) on a DI module read as `di:<addr>:<high|low>` (FC02) or `co:<addr>:<high|low>` (FC01): the active level is required (a normally-closed switch reads 0 when actuated), the value is 1 = actuated, and `readiness` reports a `count_source` gap when a switching point is declared as the production counter (polling misses short pulses) — checked on Modbus refs only; PLC bits are not yet checked. A shipped **profile library** (`iaiops sensor list | show`, MCP `sensor_profile_list | show`) holds community register maps for common energy meters and PV inverters, each derived from the Modbus template of the same device and carrying its caveat — every entry `待核实`; CI checks each entry against its template channel by channel, in both directions. Copy one (`show <id> --out <file>`), check a reading against the device's display, then bind the copy.
 - **Vendor register templates** (`modbus_list_templates` / `modbus_apply_template`): named register maps decoding a block into engineering values — energy meters (Eastron SDM630, Schneider PM5xxx, Carlo Gavazzi EM24), PV inverters (Huawei SUN2000, Growatt), Phoenix PLCnext process data, and water-industry templates (E+H Promag, Hach SC controller, generic dosing pump). Each template carries an explicit `待核实` caveat — no invented "verified" addresses.
 - **Coverage**: many domestic 国产 PLCs (汇川 Inovance / 信捷 Xinje / 和利时 Hollysys / 台达 Delta) and any Modbus vendor. RTU framing is live-verified over a real serial link (socat PTY + pymodbus RTU server); specific physical RS-485 devices stay `待核实`.
 
