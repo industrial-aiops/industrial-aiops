@@ -154,6 +154,7 @@ ENDPOINT_KEYS = BlockKeys(
         "sensor_profile",
         "port_profiles",
         "bus",
+        "safety",
         "tags",
         "ideal_cycle_time_s",
     ),

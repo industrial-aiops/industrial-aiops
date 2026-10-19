@@ -416,6 +416,10 @@ class TargetConfig:
     #: Serial only: `shared` (the RS-485 bus already has a master — listen only)
     #: or `dedicated` (polling allowed). No default: it cannot be detected (D57).
     bus: str = ""
+    #: `sis` marks a safety instrumented system: every write tool refuses this
+    #: endpoint, approved or not — iaiops is not an IEC 61508 / 61511 tool, and a
+    #: SIS is changed under the plant's own functional-safety MOC. Reads stay allowed.
+    safety: str = ""
     tags: tuple[MonitorTag, ...] = ()
     #: Design cycle time for the product this line runs — a product SPEC rather
     #: than something the machine reports, which is why it is a line value and
@@ -965,6 +969,18 @@ def _parse_bus(raw: Any, endpoint: str, protocol: str = "serial") -> str:
     return value
 
 
+def _parse_safety(raw: Any, endpoint: str) -> str:
+    if raw in (None, ""):
+        return ""
+    value = str(raw).strip().lower()
+    if value != "sis":
+        raise ValueError(
+            f"Endpoint {endpoint!r}: safety must be `sis` (a safety instrumented system — "
+            f"every write refused) or omitted; got {raw!r}. iaiops grades no SIL."
+        )
+    return value
+
+
 def _serial_terms(d: dict, endpoint: str) -> None:
     """A serial endpoint states what cannot be defaulted safely: the device server's
     TCP port, and the line's baud rate (a wrong one reads as garbage)."""
@@ -1034,6 +1050,7 @@ def _parse_target(d: dict) -> TargetConfig:
         sensor_profile=str(d.get("sensor_profile", "") or "").strip(),
         port_profiles=parse_port_profiles(d.get("port_profiles"), str(named)),
         bus=_parse_bus(d.get("bus"), str(named), protocol),
+        safety=_parse_safety(d.get("safety"), str(named)),
         tags=parse_tags(d.get("tags", []), endpoint=str(d.get("name", ""))),
         ideal_cycle_time_s=_opt_float(d.get("ideal_cycle_time_s")),
     )
