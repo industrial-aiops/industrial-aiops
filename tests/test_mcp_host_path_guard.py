@@ -65,13 +65,17 @@ def _plc_calls(path: str):
         "visibility": lambda: t.plc_program_visibility(path=path),
         "snapshot": lambda: t.plc_program_snapshot(path=path, name="Line3"),
         "drift": lambda: t.plc_program_drift(path=path, name="Line3"),
+        # The path is refused before the endpoint is even looked up.
+        "xref_config": lambda: t.plc_program_xref_config(path=path, endpoint="no-such-endpoint"),
     }
 
 
 # ── PLC program tools ────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("tool", ["outline", "xref", "section", "visibility", "snapshot", "drift"])
+@pytest.mark.parametrize(
+    "tool", ["outline", "xref", "section", "visibility", "snapshot", "drift", "xref_config"]
+)
 def test_plc_program_tools_refuse_an_export_outside_the_roots(outside, tool):
     prog = outside / "Line3.scl"
     prog.write_text(PROGRAM, "utf-8")

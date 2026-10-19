@@ -65,7 +65,7 @@ OPC-UA server**(opc.tcp 4840)与 **Modbus-TCP 过程数据 server** 读取 —�
   `compliance_report` `compliance_evidence_bundle`
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish`
   `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents`
-- 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility`
+- 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility` `plc_program_xref_config`
   （解读导出的 ST/AWL/L5X;PLCnext 工程可导出 IEC 61131 ST 文本后离线解读）
 - 程序变更基线：`plc_program_snapshot` `plc_program_drift` `plc_program_history` — 把「认可的那一版」
   的结构记下来（文件 SHA-256 + 每个 block 的结构指纹：声明/调用/分支条件/定时器，**不含行号、注释、

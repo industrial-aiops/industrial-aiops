@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+### Added — which program address is which field point (exact address only)
+
+- `iaiops program xref-config <file> --endpoint <name> [--live]` and MCP
+  `plc_program_xref_config` (`[READ][risk=low]`, 205 governed tools): join an
+  exported program's addresses with one endpoint's configured points. Three lists
+  — matched (address, program symbol, configured ref, label, role, cited lines),
+  in the export but not configured, configured but not named in this export —
+  plus overlaps (`MW20` vs `MD20`: same memory, different width, **not** a match)
+  and symbolic-only names. **Never by name**: a configured label that reads like a
+  program symbol is not a match; quoted S7 symbols take their address from the tag
+  table, which is not in the export, so they are listed and never joined.
+  Comparable pairs are Siemens AWL / `.scl` × `s7` (area, DB, byte, bit and width
+  must all agree — the configured side is read exactly as pyS7 reads it, and a test
+  holds the two together) and L5X × a Logix `ethernetip` endpoint (the tag path is
+  the CIP address; a member like `Tag.ACC` joins as `member_of_tag`). Every other
+  pair — Modbus, OPC UA, MQTT, PCCC, Micro800, a generic `.st` file (CODESYS
+  `%MW10` is not S7 `MW10`) — returns `comparable: false` with the reason and **no
+  lists**, because "configured but unused" would itself be a claim. `--live` reads
+  only the matched points, read-only; a failed or empty read is a gap with no value,
+  and each value carries `read_at` (S7 and CIP have no device timestamp, so none is
+  invented).
+  Only operand text is scanned: string literals, `/* */` and `(* *)` comments,
+  quoted symbol names and `#locals` are blanked first, declaration sections are
+  skipped, and pointers (`P#M 10.0`), register-indirect and DB-relative operands
+  (`L DBW 4` after `OPN DB 10`) are listed as indirect sites rather than matched.
+  An export that cannot be read — an empty file, a truncated or DOCTYPE-carrying
+  L5X, an L5X with no tags — is refused with no lists, never answered as "nothing
+  configured is in it". The L5X controller name is reported so a match can be
+  checked against the right PLC.
+- `iaiops program doc <file> [--endpoint <name>] --out <x.html>`: one
+  self-contained HTML document of an exported program — blocks, variables, I/O list
+  (absolute S7 inputs/outputs; L5X module I/O is not extracted and is not guessed),
+  cross-reference with cited lines, call graph, change history when a snapshot
+  exists (with the drift verdict for this file), and, with `--endpoint`, the
+  exact-address cross-reference above. Deterministic (no clock: same inputs, same
+  bytes), zero network, everything escaped, no LLM, and the program file is only
+  read. CLI-only.
+
 ### Added — `safety: sis`: a safety instrumented system is never written
 
 - An endpoint marked `safety: sis` refuses every write tool — real writes and
