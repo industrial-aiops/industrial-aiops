@@ -83,6 +83,8 @@ def _variables(outline: Any) -> str:
     empty = (
         "No declarations are extracted from this format (AWL carries operands, not a "
         "declaration table) — see the cross-reference below."
+        if outline.fmt == "awl"
+        else "No variable declarations were found in this export."
     )
     return section("Variables", rows_table(cols, rows, empty=empty))
 

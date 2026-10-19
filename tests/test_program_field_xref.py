@@ -679,3 +679,111 @@ def test_wellformed_l5x_without_tags_is_refused(tmp_path):
     path = _write(tmp_path, "notags.L5X", text)
     r = fx.xref_program_endpoint(path, _target("ethernetip", [{"ref": "Run"}]))
     assert r["refused"] and r["configured_not_in_export"] is None
+
+
+# ─── pre-release review regressions ──────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_scl_assignment_without_space_is_seen(tmp_path):
+    text = (
+        'FUNCTION_BLOCK "FB_Out"\nBEGIN\n'
+        "    %Q0.0:=TRUE;\n    %MW20:=5;\n    x := %IW256:P;\nEND_FUNCTION_BLOCK\n"
+    )
+    r, matched = _s7_matched(tmp_path, "out.scl", text, ["Q0.0", "MW20"])
+    assert matched == {"Q0.0", "MW20"}
+    assert all(s["access"] == "write" for m in r["matched"] for s in m["sites"])
+    assert all(s["block"] == "FB_Out" for m in r["matched"] for s in m["sites"])
+    assert "PIW256" in {row["address"] for row in r["in_export_not_configured"]}
+
+
+@pytest.mark.unit
+def test_awl_struct_members_are_declarations_not_operands(tmp_path):
+    text = """\
+TYPE "UDT_X"
+  STRUCT
+    T1 : TIME ;
+  END_STRUCT ;
+END_TYPE
+
+DATA_BLOCK "DB1"
+  STRUCT
+    IW1 : INT ;
+  END_STRUCT ;
+BEGIN
+  IW1 := 5;
+END_DATA_BLOCK
+"""
+    r, matched = _s7_matched(tmp_path, "db1.awl", text, ["IW1"])
+    assert matched == set()
+    assert "T1" not in {row["address"] for row in r["in_export_not_configured"]}
+
+
+@pytest.mark.unit
+def test_awl_quoted_block_names_attribute_sites(tmp_path):
+    text = 'FUNCTION_BLOCK "FB_Motor"\nBEGIN\nNETWORK\n      =     Q      4.0\nEND_FUNCTION_BLOCK\n'
+    r, _ = _s7_matched(tmp_path, "fb.awl", text, ["Q4.0"])
+    assert r["matched"][0]["sites"][0]["block"] == "FB_Motor"
+
+
+@pytest.mark.unit
+def test_awl_memory_indirect_through_a_local_is_listed(tmp_path):
+    text = "FUNCTION FC 1 : VOID\nBEGIN\nNETWORK\n      L     MW [#idx]\nEND_FUNCTION\n"
+    r, _ = _s7_matched(tmp_path, "fc1.awl", text, ["MW0"])
+    assert any(s["line"] == 4 for s in r["indirect_access_sites"])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("text", ["// only a comment\n", "this is not awl at all\n"])
+def test_awl_without_statements_is_refused(tmp_path, text):
+    path = _write(tmp_path, "x.awl", text)
+    r = fx.xref_program_endpoint(path, _target("s7", [{"ref": "M10.0"}]))
+    assert r["refused"] and r["configured_not_in_export"] is None
+
+
+@pytest.mark.unit
+def test_s7_export_with_no_absolute_address_says_so(tmp_path):
+    path = _write(tmp_path, "conveyor.scl", SCL_SAMPLE)
+    r = fx.xref_program_endpoint(path, _target("s7", [{"ref": "M0.0"}]))
+    assert any("names no absolute address" in n for n in r["notes"])
+
+
+ST_L5X = L5X_SAMPLE.replace(
+    '<Line Number="0">Conv_Speed := 2.0;</Line>',
+    '<Line Number="0">// Motor_Run := 1;</Line>'
+    '<Line Number="1">(* Conv_Speed := 0;</Line>'
+    '<Line Number="2">   still a comment *)</Line>'
+    '<Line Number="3">IF Motor_Run THEN Conv_Speed := 2.0; END_IF;</Line>',
+).replace(
+    "<Text>XIC(Motor_Run)TON(RunTmr,?,?)JSR(SpeedCalc,0);</Text>",
+    "<Text>XIC(Motor_Run)TON(RunTmr,?,?)COP(Conv_Speed,Motor_Run,1)ADD(Conv_Speed,1,Conv_Speed)"
+    "JSR(SpeedCalc,0);</Text>",
+)
+
+
+@pytest.mark.unit
+def test_logix_st_comments_are_not_sites_and_writes_are_found(tmp_path):
+    path = _write(tmp_path, "line3.L5X", ST_L5X)
+    r = fx.xref_program_endpoint(
+        path, _target("ethernetip", [{"ref": "Motor_Run"}, {"ref": "Conv_Speed"}])
+    )
+    by = {m["configured_ref"]: m for m in r["matched"]}
+    st = [s for s in by["Motor_Run"]["sites"] if s["block"].endswith("SpeedCalc")]
+    assert [s["line"] for s in st] == [3]  # lines 0-2 are comments
+    assert {s["access"] for s in st} == {"read"}
+    speed_st = [s for s in by["Conv_Speed"]["sites"] if s["block"].endswith("SpeedCalc")]
+    assert [(s["line"], s["access"]) for s in speed_st] == [(3, "write")]
+    rung1 = [s for s in by["Motor_Run"]["sites"] if s["line"] == 1 and "Main" in s["block"]]
+    assert rung1 and rung1[0]["access"] == "write"  # COP destination
+    speed_rung = [s for s in by["Conv_Speed"]["sites"] if s["line"] == 1 and "Main" in s["block"]]
+    assert speed_rung[0]["access"] == "write"  # ADD destination
+
+
+@pytest.mark.unit
+def test_refused_result_is_not_called_not_comparable_by_live(tmp_path):
+    from iaiops.core.brain.plc_program import field_live
+
+    path = _write(tmp_path, "empty.awl", "  \n")
+    r = fx.xref_program_endpoint(path, _target("s7", [{"ref": "M10.0"}]))
+    live = field_live.read_matched(SimpleNamespace(name="plc1"), r, read=lambda t, ref: 1)
+    assert live["points"] == [] and "refused" in live["note"]

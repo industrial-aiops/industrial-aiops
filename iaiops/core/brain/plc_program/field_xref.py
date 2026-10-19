@@ -402,16 +402,25 @@ def _refuse(head: dict[str, Any], why: str, parse_errors: tuple[str, ...] = ()) 
 def _s7_result(head: dict[str, Any], fmt: str, text: str, tags: tuple) -> dict[str, Any]:
     if not text.strip():
         return _refuse(head, "the export is empty")
+    outline = (parse_awl if fmt == "awl" else parse_st)(text, head["program"]["source_file"])
+    if not outline.blocks:
+        why = "no program block (OB/FB/FC/DB) was found — this is not a readable export"
+        return _refuse(head, why, outline.parse_errors)
     scan = field_scan.scan_awl(text) if fmt == "awl" else field_scan.scan_scl(text)
     body = _s7_join(scan, tags)
     notes = [*_S7_NOTES, _SCOPE_NOTE, _S7_IDENTITY_NOTE]
+    if not scan.addresses:
+        notes.insert(
+            0,
+            "This export names no absolute address — its code is symbolic, so nothing "
+            "can be joined; the configured points are not shown to be unused.",
+        )
     if scan.indirect:
         notes.append(
             f"{len(scan.indirect)} indirect access site(s) (pointer, AR register, "
             "DB-relative operand) touch addresses this extraction cannot resolve — "
             "listed, not guessed."
         )
-    outline = (parse_awl if fmt == "awl" else parse_st)(text, head["program"]["source_file"])
     return {
         **head,
         "unmatchable": None,

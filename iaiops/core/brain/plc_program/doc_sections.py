@@ -38,6 +38,8 @@ def _notes(notes: Sequence[str]) -> str:
 
 
 def _in_export_empty(result: dict[str, Any]) -> str:
+    if not result.get("matched") and not result.get("overlaps"):
+        return "This export names no absolute address, so nothing in it can be joined."
     if result.get("symbolic_only") or result.get("indirect_access_sites"):
         return (
             "No absolute address in the export is left unconfigured — but the symbolic "

@@ -333,21 +333,25 @@ def plc_program_xref_config(path: str, endpoint: str, live: bool = False) -> dic
 
     Returns dict: {program:{source_file, format, content_sha256}, endpoint:{name,
         protocol, configured_tag_count}, comparable, address_space,
-        unmatchable:{program_format, protocol, reason}|null,
+        unmatchable:{program_format, protocol, reason}|null, refused (why an
+        unreadable export was not answered)|null, parse_errors, program.controller
+        (L5X: {name, processor_type}),
         matched:[{address, program_symbol, configured_ref, label, role, match
-        ('exact_address'|'member_of_tag'), sites:[{access, block, line,
+        ('exact_address'|'member_of_tag'), sites_scope (L5X), sites:[{access, block, line,
         source_line}], site_count}]|null, in_export_not_configured|null,
         configured_not_in_export|null, configured_not_comparable, overlaps,
         symbolic_only, indirect_access_sites, counts, notes,
-        live:{points:[{configured_ref, status ('read'|'gap'), value?, read_at,
-        freshness, error?}], read_count, gap_count} (only when live=True)}.
+        live:{points:[{configured_ref, status, ...}], read_count, gap_count}
+        (only when live=True): a 'read' point has value, read_at, freshness; a 'gap'
+        has error and NO value (read_at only when an empty answer arrived)}.
 
     Example: plc_program_xref_config(path="~/.iaiops/plc/OB1.awl", endpoint="line3").
     """
     from iaiops.core.brain.plc_program import field_live, field_xref
 
+    export = _export(path)  # confined before the endpoint is even looked up
     target = _target(endpoint)
-    result = field_xref.xref_program_endpoint(_export(path), target)
+    result = field_xref.xref_program_endpoint(export, target)
     if live:
         return {**result, "live": field_live.read_matched(target, result)}
     return result

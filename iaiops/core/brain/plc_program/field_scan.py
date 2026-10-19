@@ -48,11 +48,18 @@ _AWL_ADDRESS = re.compile(
     r"|[IQMEA][BWD]?\s*\d+(?:\.\d+)?|[TCZ]\s*\d+)(?![\w.])",
     re.I,
 )
-_INDIRECT = re.compile(r"\[\s*(AR[12]|[A-Z]*[WD]\s*\d+)", re.I)
+# Any bracket left after blanking is register- or memory-indirect (`[AR1,P#0.0]`,
+# `[#idx]`, `[MD 10]`) or an array index — an address this scan cannot resolve.
+_INDIRECT = re.compile(r"\[")
+_DECL_OPEN = re.compile(r"^\s*(TYPE\b|DATA_BLOCK\b)", re.I)
+_DECL_CLOSE = re.compile(r"^\s*END_(TYPE|DATA_BLOCK)\b", re.I)
+_STRUCT_OPEN = re.compile(r"(?<!END_)\bSTRUCT\b", re.I)
+_STRUCT_CLOSE = re.compile(r"\bEND_STRUCT\b", re.I)
+_AWL_HEADER_NOISE = re.compile(r"//[^\n]*|'(?:\$.|[^'\n])*'")
 
 _SCL_ADDR = re.compile(
     r"%(DB\d+\.DB[XBWD]\d+(?:\.[0-7])?|P[IEQA][BWD]\d+|[IEQAM][BWD]?\d+(?:\.[0-7])?)"
-    r"(:P)?(?![\w.:])",
+    r"(:P)?(?![\w.]|:(?!=))",  # `%Q0.0:=` is an assignment, `%IW256:P` a peripheral
     re.I,
 )
 _SCL_QUOTED = re.compile(r'"([^"\n]+)"\s*\.')
@@ -116,25 +123,55 @@ def _awl_line(code: str, raw: str, block: str, idx: int, out: dict) -> None:
 _AWL_ADDRESS_FULL_DB = re.compile(r"DB\d+\.DB[XBWD]\s*\d+", re.I)
 
 
+class _Declarations:
+    """Tracks declaration-only regions: VAR sections, STRUCT bodies, TYPE and DATA_BLOCK.
+
+    A member named ``IW1`` in a DB or UDT is not input word 1, and a DB's initial
+    values (``IW1 := 5``) are not statements — none of it is scanned as operands.
+    """
+
+    def __init__(self) -> None:
+        self.var = False
+        self.struct = 0
+        self.block = False
+
+    def skip(self, code: str) -> bool:
+        """Update the state for one line; True when the line is declaration-only."""
+        if _DECL_CLOSE.match(code):
+            self.block, self.var, self.struct = False, False, 0
+            return True
+        if _DECL_OPEN.match(code):
+            self.block = True
+            return True
+        if _VAR_END.match(code):
+            self.var = False
+            return True
+        if _VAR_START.match(code):
+            self.var = True
+            return True
+        if _STRUCT_CLOSE.search(code):
+            self.struct = max(0, self.struct - 1)
+            return True
+        if _STRUCT_OPEN.search(code):
+            self.struct += 1
+            return True
+        return self.var or self.struct > 0 or self.block
+
+
 def scan_awl(text: str) -> S7Scan:
     """Absolute operands, quoted data symbols and indirect sites in AWL text."""
     out: dict[str, list] = {"addresses": [], "indirect": []}
     symbols: list[SymbolSite] = []
     raw_lines = text.splitlines()
     code_lines = blank(text, _AWL_NOISE).splitlines()
-    block, in_var = "", False
+    header_lines = blank(text, _AWL_HEADER_NOISE).splitlines()  # quotes kept for names
+    block, decl = "", _Declarations()
     for idx, (raw, code) in enumerate(zip(raw_lines, code_lines, strict=False), start=1):
-        header = awl_parser._BLOCK_RE.match(code)
-        if header:
-            block, in_var = header.group(2).strip().strip('"'), False
+        header = awl_parser._BLOCK_RE.match(header_lines[idx - 1])
+        if header and not _DECL_OPEN.match(code):
+            block, decl = header.group(2).strip().strip('"'), _Declarations()
             continue
-        if _VAR_END.match(code):
-            in_var = False
-            continue
-        if _VAR_START.match(code):
-            in_var = True
-            continue
-        if in_var or not code.strip() or _AWL_SKIP.match(code):
+        if decl.skip(code) or not code.strip() or _AWL_SKIP.match(code):
             continue
         _awl_line(code, raw, block, idx, out)
         stripped = awl_parser._COMMENT_RE.sub("", raw)
@@ -162,19 +199,18 @@ def scan_scl(text: str) -> S7Scan:
     addresses: list[AddressSite] = []
     symbols: list[SymbolSite] = []
     indirect: list[tuple[str, int, str]] = []
-    block, in_var = "", False
+    block, decl = "", _Declarations()
     for idx, code in enumerate(code_lines, start=1):
         raw = raw_lines[idx - 1] if idx - 1 < len(raw_lines) else code
-        header = _BLOCK_RE.match(code)
-        if header:
-            block, in_var = header.group(2).strip().strip('"'), False
+        named = symbol_lines[idx - 1] if idx - 1 < len(symbol_lines) else code
+        header = _BLOCK_RE.match(named)  # quotes kept: `FUNCTION_BLOCK "FB_Motor"`
+        if header and not _DECL_OPEN.match(code):
+            block, decl = header.group(2).strip().strip('"'), _Declarations()
             continue
-        if _VAR_END.match(code):
-            in_var = False
-            continue
-        if _VAR_START.match(code):
-            in_var = True
-            continue
+        was_var = decl.var
+        if decl.skip(code) and not (decl.var and was_var):
+            continue  # TYPE / DATA_BLOCK / STRUCT bodies; VAR lines are kept as declarations
+        in_var = decl.var
         if _SCL_PEEK.search(code):
             indirect.append((block, idx, _quote(raw)))
         for m in _SCL_ADDR.finditer(code):

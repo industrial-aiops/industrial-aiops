@@ -24,9 +24,19 @@ from iaiops.core.brain.plc_program.model import ProgramOutline
 _MAX_QUOTE = 160
 _SPLIT = re.compile(r"[.\[{]")
 _IDENT = re.compile(r"(?<![\w.:\]#])([A-Za-z_]\w*)(?!\w)(?!\s*\()")
-_WRITE_OPS = re.compile(r"\b(OTE|OTL|OTU|RES|ONS)\(\s*([^,)]+?)\s*\)", re.I)
-_DEST_OPS = re.compile(r"\b(MOV|COP|CPS|CPT)\(\s*[^)]*?,\s*([^,)]+?)\s*\)", re.I)
-_ST_ASSIGN = re.compile(r"^\s*([A-Za-z_][\w.\[\]]*)\s*:=")
+#: Destination operand (0-based) per instruction. Anything not listed is read-only
+#: here — "who writes this?" must not be answered from a guess at an operand order.
+_DEST_SLOT = {
+    **dict.fromkeys(("OTE", "OTL", "OTU", "RES", "ONS", "CLR"), 0),
+    **dict.fromkeys(("TON", "TOF", "RTO", "CTU", "CTD", "CPT"), 0),
+    **dict.fromkeys(("MOV", "COP", "CPS", "FLL", "NOT", "NEG", "ABS", "SQR", "TOD", "FRD"), 1),
+    **dict.fromkeys(("OSR", "OSF"), 1),
+    **dict.fromkeys(("ADD", "SUB", "MUL", "DIV", "MOD", "AND", "OR", "XOR", "BAND", "BOR"), 2),
+    "MVM": 3,
+}
+_CALL = re.compile(r"\b([A-Za-z_]\w*)\(")
+_ST_ASSIGN = re.compile(r"(?<![\w.:\]])([A-Za-z_][\w.\[\]]*)\s*:=")
+_ST_NOISE = re.compile(r"//[^\n]*|/\*.*?\*/|\(\*.*?\*\)|'(?:\$.|[^'\n])*'", re.S)
 
 
 @dataclass(frozen=True)
@@ -98,26 +108,66 @@ def controller_identity(text: str) -> dict[str, str]:
     return {"name": ctrl.get("Name", ""), "processor_type": ctrl.get("ProcessorType", "")}
 
 
+def _operands(text: str, open_at: int) -> list[str]:
+    """Top-level comma-separated operands of the call whose ``(`` is at ``open_at``."""
+    depth, start, parts = 0, open_at + 1, []
+    for i in range(open_at, len(text)):
+        ch = text[i]
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+            if depth == 0:
+                parts.append(text[start:i])
+                return [p.strip() for p in parts]
+        elif ch == "," and depth == 1:
+            parts.append(text[start:i])
+            start = i + 1
+    return [p.strip() for p in parts]
+
+
 def _writes(text: str) -> set[str]:
-    found = {base_of(m.group(2)) for m in _WRITE_OPS.finditer(text)}
-    found |= {base_of(m.group(2)) for m in _DEST_OPS.finditer(text)}
-    if m := _ST_ASSIGN.match(text):
-        found.add(base_of(m.group(1)))
+    """Base tags this rung / ST line writes (destination operands, ST assignments)."""
+    found: set[str] = set()
+    for m in _CALL.finditer(text):
+        slot = _DEST_SLOT.get(m.group(1).upper())
+        if slot is None:
+            continue
+        operands = _operands(text, m.end() - 1)
+        if slot < len(operands) and operands[slot] and operands[slot] != "?":
+            found.add(base_of(operands[slot]))
+    found |= {base_of(m.group(1)) for m in _ST_ASSIGN.finditer(text)}
     return found
+
+
+def _uncommented(entries: list[tuple[str, int, str, str]]) -> list[tuple[str, int, str]]:
+    """Blank ST comments and strings per routine — a block comment spans <Line>s."""
+    out: list[tuple[str, int, str]] = []
+    by_block: dict[str, list[tuple[int, str]]] = {}
+    for block, number, rtext, _comment in entries:
+        by_block.setdefault(block, []).append((number, rtext.replace("\n", " ")))
+    for block, rows in by_block.items():
+        joined = "\n".join(r for _n, r in rows)
+        blanked = _ST_NOISE.sub(lambda m: re.sub(r"[^\n]", " ", m.group(0)), joined)
+        for (number, _r), code in zip(rows, blanked.split("\n"), strict=False):
+            out.append((block, number, code))
+    return out
 
 
 def site_index(text: str, source_file: str) -> dict[str, list[dict]]:
     """``{base tag (casefolded): [site, ...]}`` over every rung and ST line."""
     index: dict[str, list[dict]] = {}
-    for block, number, rtext, _comment in rung_texts(text, source_file):
-        writes = _writes(rtext)
-        for base in dict.fromkeys(m.group(1).casefold() for m in _IDENT.finditer(rtext)):
+    entries = rung_texts(text, source_file)
+    quotes = {(b, n): t for b, n, t, _c in entries}
+    for block, number, code in _uncommented(entries):
+        writes = _writes(code)
+        for base in dict.fromkeys(m.group(1).casefold() for m in _IDENT.finditer(code)):
             index.setdefault(base, []).append(
                 {
                     "access": "write" if base in writes else "read",
                     "block": block,
                     "line": number,
-                    "source_line": rtext.strip()[:_MAX_QUOTE],
+                    "source_line": quotes.get((block, number), code).strip()[:_MAX_QUOTE],
                 }
             )
     return index

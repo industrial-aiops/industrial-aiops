@@ -75,6 +75,13 @@ def read_matched(target: Any, xref: dict[str, Any], read: Reader | None = None) 
     """Read every matched point of an ``xref_program_endpoint`` result."""
     reader = read if read is not None else default_read
     matched = xref.get("matched")
+    if xref.get("refused"):
+        return {
+            "points": [],
+            "read_count": 0,
+            "gap_count": 0,
+            "note": f"refused ({xref['refused']}) — nothing is matched, so nothing is read",
+        }
     if not xref.get("comparable") or matched is None:
         return {
             "points": [],
