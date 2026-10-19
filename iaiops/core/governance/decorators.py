@@ -278,6 +278,7 @@ class _CallState:
         "safe_params",
         "env",
         "risk_level",
+        "declared_risk",
         "timeout_seconds",
         "rationale",
         "approved_by",
@@ -328,6 +329,9 @@ class _CallState:
         # write keeps the declared risk. Determined from the bound preview flag
         # (defaults applied above), so an omitted ``dry_run`` still reads True.
         self.risk_level = _effective_risk_level(risk_level, preview_param, preview_truthy, params)
+        # The tool's DECLARED risk, before preview lowers it — a dry-run of a write
+        # is still a write tool for the SIS rule.
+        self.declared_risk = risk_level
         self.write_mode = _write_mode(preview_param, preview_truthy, params)
         # Control-char scrub of param values (recursively) before they land in
         # the audit row / SIEM forward — device-sourced strings can carry
@@ -407,6 +411,37 @@ def _pre_check_with_loop_guard(state: _CallState) -> None:
         raise
 
 
+#: Rule name on the denial and in the audit row.
+SIS_RULE = "safety_sis_no_writes"
+
+
+def _refuse_writes_to_sis(state: _CallState) -> None:
+    """A write tool (declared high/critical — previews included) never reaches an
+    endpoint the operator marked ``safety: sis``. No approval unlocks it."""
+    if state.declared_risk not in ("high", "critical") or not state.env:
+        return
+    try:
+        from iaiops.core.runtime.config import load_config
+
+        target = load_config().get_target(state.env)
+    except Exception:  # noqa: BLE001 — an unknown endpoint fails in the tool itself
+        return
+    if getattr(target, "safety", "") != "sis":
+        return
+    result = PolicyResult(
+        allowed=False,
+        rule=SIS_RULE,
+        reason=(
+            f"Refused: endpoint {state.env!r} is marked `safety: sis` (a safety "
+            "instrumented system). iaiops never writes to it — not even with an "
+            "approval; change it under the plant's functional-safety MOC. Reads are allowed."
+        ),
+    )
+    state.status = "denied"
+    state.result = {"error": result.reason, "rule": result.rule}
+    raise PolicyDenied(result)
+
+
 def _pre_check(state: _CallState) -> None:
     """Policy pre-check + L5 auto-remediation pattern consult.
 
@@ -427,6 +462,8 @@ def _pre_check(state: _CallState) -> None:
             "rule": state.policy_result.rule,
         }
         raise PolicyDenied(state.policy_result)
+
+    _refuse_writes_to_sis(state)
 
     # Audit availability gate — high/critical-risk tools MUST leave an audit
     # trail. When the audit DB cannot be written, deny them (fail closed);

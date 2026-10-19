@@ -4,6 +4,31 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## OT engineer trust — research findings → work items (2026-10-19)
+
+Source: the user's market research (PLCtalk threads on GenAI writing PLC code and on
+how engineers use AI; an integration-friction guide; a Medium SCADA-test-lab post).
+**Evidence is anecdotal and self-selected** — a handful of forum threads; record link,
+date and reply count per claim, look for counter-evidence, and validate with 3–5
+field engineers before building beyond the minimal versions.
+
+| Pain (as reported) | What iaiops actually offers | Gap → item |
+|---|---|---|
+| Engineers distrust AI writing PLC logic (wrong compatibility claims, unusable ladder) | No tool moves logic; ten MOC-gated value writes only | **D — done**: pinned by `test_no_plc_logic_writes.py` |
+| AI does not know which program symbol is which field point | Live points + human-confirmed semantics (`tags export/apply`, D16); **program analysis is offline and not linked to live points** | **A** below |
+| Accepted uses: documentation, commenting, variable mapping | `plc_program_outline / xref / visibility` (mapping), `snapshot / drift` (change management) | **B** below |
+| Many protocols; OPC UA certificate setup breaks | 15 protocols (rungs vary — VERIFICATION-RECORD); `opcua_diagnose_connection` classifies cert/policy failures | demo it; no new work |
+| Functional safety (IEC 61508/61511) demands review + traceability | Hash-chained audit, MOC, dry-run, enterprise signed evidence — but iaiops is **not** a safety tool | **C — done**: `safety: sis` refuses all writes; position traceability under 62443 / NIS2, never 61511 |
+
+- **A — program ↔ field-point cross-reference** (MIT, analysis): join `plc_program_xref`
+  / outline symbols and addresses with configured endpoint tags by **exact address
+  match only** (never a name guess), plus live values. Report three lists: matched,
+  in program but not configured, configured but unused by the program. Minimal
+  version first; show it to engineers.
+- **B — `iaiops program doc`** (MIT): deterministic I/O list + block outline +
+  cross-reference + change history as one self-contained HTML. LLM optional and only
+  to draft comments into a SEPARATE document — never written back into the project.
+
 ## Status — 2026-08-22 (sequencing decided: OEE first, knowledge base second, PdM last)
 
 `readiness` shipped (#166). The next question was no longer "what do we build" but

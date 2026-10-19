@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+### Added — `safety: sis`: a safety instrumented system is never written
+
+- An endpoint marked `safety: sis` refuses every write tool — real writes and
+  previews alike — whatever approvals exist (rule `safety_sis_no_writes`, audited
+  as a denial). Reads stay allowed. Any other `safety` value is a config error.
+  iaiops is not a safety system and not an IEC 61508 / 61511 tool; the README says
+  so next to the rule.
+
+### Tests — "never writes PLC logic" is pinned
+
+- `tests/test_no_plc_logic_writes.py`: the only state-changing tools are the ten
+  reviewed value writes; no tool name or description moves PLC logic; the value
+  writes take no program content; every `plc_program_*` tool is a low-risk read of
+  an exported file. A new write tool fails the test until it is reviewed.
+
 ### Docs
 
 - `iaiops protocols` no longer calls OPC-UA certificate security "roadmap" — it is
