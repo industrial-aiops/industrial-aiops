@@ -27,7 +27,7 @@ from iaiops.core.brain.plc_visibility import plc_visibility
 from iaiops.core.governance import governed_tool
 from iaiops.core.governance.input_paths import agent_readable_path
 from iaiops.core.runtime.envelope import envelope_fields
-from mcp_server._shared import mcp, tool_errors
+from mcp_server._shared import _target, mcp, tool_errors
 
 MAX_BLOCKS = 50
 MAX_VARS_PER_BLOCK = 100
@@ -307,3 +307,47 @@ def plc_program_history(name: Optional[str] = None) -> dict:
     from iaiops.core.brain import program_baseline as pb
 
     return pb.history(name)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
+def plc_program_xref_config(path: str, endpoint: str, live: bool = False) -> dict:
+    """[READ][risk=low] Join an exported program's addresses with one endpoint's configured points.
+
+    Answers "which program symbol is that point on the line?" by **exact address
+    match only** — never by name. A configured label that reads like a program
+    symbol, or a ref one character from a tag, is NOT a match (semantics are given
+    by a person, never guessed). Comparable pairs: Siemens AWL / .scl × an ``s7``
+    endpoint (area, DB, byte, bit and width must all agree) and Rockwell L5X × a
+    Logix ``ethernetip`` endpoint (the tag path is the CIP address). Every other
+    pair returns ``comparable: false`` with the reason and NO lists — e.g. Modbus
+    registers are assigned in the device's Modbus map, which no export contains.
+
+    Args:
+        path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB),
+            under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir.
+        endpoint: Configured endpoint name whose ``tags`` are joined.
+        live: Also read the MATCHED points now (read-only). A failed read is a
+            gap with no value; each value carries ``read_at``.
+
+    Returns dict: {program:{source_file, format, content_sha256}, endpoint:{name,
+        protocol, configured_tag_count}, comparable, address_space,
+        unmatchable:{program_format, protocol, reason}|null,
+        matched:[{address, program_symbol, configured_ref, label, role, match
+        ('exact_address'|'member_of_tag'), sites:[{access, block, line,
+        source_line}], site_count}]|null, in_export_not_configured|null,
+        configured_not_in_export|null, configured_not_comparable, overlaps,
+        symbolic_only, indirect_access_sites, counts, notes,
+        live:{points:[{configured_ref, status ('read'|'gap'), value?, read_at,
+        freshness, error?}], read_count, gap_count} (only when live=True)}.
+
+    Example: plc_program_xref_config(path="~/.iaiops/plc/OB1.awl", endpoint="line3").
+    """
+    from iaiops.core.brain.plc_program import field_live, field_xref
+
+    target = _target(endpoint)
+    result = field_xref.xref_program_endpoint(_export(path), target)
+    if live:
+        return {**result, "live": field_live.read_matched(target, result)}
+    return result

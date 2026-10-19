@@ -172,3 +172,64 @@ def forget_cmd(
     from iaiops.core.brain import program_baseline as pb
 
     _emit(pb.forget(name, keep=keep))
+
+
+@program_app.command("xref-config")
+@cli_errors
+def xref_config_cmd(
+    path: PathArg,
+    endpoint: Annotated[
+        str, typer.Option("--endpoint", help="Configured endpoint whose tags are joined")
+    ],
+    live: Annotated[
+        bool,
+        typer.Option(
+            "--live", help="Also read the matched points now (read-only; a failed read is a gap)"
+        ),
+    ] = False,
+) -> None:
+    """Which program address is which configured point — exact address match only.
+
+    Never by name: a label that reads like a symbol is not a match. Where the
+    program format and the endpoint's protocol share no address space the
+    result says why and lists nothing.
+    """
+    from iaiops.cli._common import resolve_target
+    from iaiops.core.brain.plc_program import field_live, field_xref
+
+    target = resolve_target(endpoint)
+    result = field_xref.xref_program_endpoint(str(path), target)
+    if live:
+        result = {**result, "live": field_live.read_matched(target, result)}
+    _emit(result)
+
+
+@program_app.command("doc")
+@cli_errors
+def doc_cmd(
+    path: PathArg,
+    out: Annotated[Path, typer.Option("--out", help="HTML file to write (.html/.htm)")],
+    endpoint: Annotated[
+        str | None,
+        typer.Option(
+            "--endpoint", help="Also cross-reference this endpoint's points (exact address only)"
+        ),
+    ] = None,
+    name: NameOption = None,
+) -> None:
+    """A self-contained HTML document of one exported program.
+
+    Blocks, variables, I/O list, cross-reference, call graph and — when a
+    snapshot exists — change history; with --endpoint, which configured point is
+    which program address. Deterministic (same inputs, same bytes), zero network,
+    no LLM. The program file is only read.
+    """
+    from iaiops.cli._common import resolve_target
+    from iaiops.core.brain.plc_program import program_doc
+    from iaiops.core.governance.evidence import validate_output_path
+
+    target_path = validate_output_path(out, suffixes=(".html", ".htm"))
+    target = resolve_target(endpoint) if endpoint else None
+    html = program_doc.render(str(path), target=target, name=name)
+    target_path.write_text(html, encoding="utf-8")
+    _emit({"written": str(target_path), "bytes": len(html.encode("utf-8"))})
