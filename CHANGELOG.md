@@ -1,6 +1,27 @@
 # Changelog
 
-## Unreleased
+## 0.32.0 — 2026-10-20
+
+Which program address is which field point: an exported PLC program (Siemens AWL /
+SCL, Rockwell L5X) is joined to an endpoint's configured points **by exact address
+only — never by name** (`iaiops program xref-config`, MCP `plc_program_xref_config`),
+and `iaiops program doc` turns the same export into one self-contained,
+deterministic HTML document. An endpoint marked `safety: sis` now refuses every
+write, and "iaiops never writes PLC logic" is pinned by a test. 205 governed tools.
+
+### Upgrade notes — read before upgrading
+
+- **No breaking changes.** One new read-only tool, `plc_program_xref_config`
+  (`[READ][risk=low]`), loads in every profile with the other `plc_program_*`
+  tools; its file path is confined like theirs (`$IAIOPS_HOME`, the config
+  directory, `IAIOPS_AGENT_READ_DIRS`).
+- `safety:` is a new endpoint key. Its only value is `sis`; anything else is a
+  config error. (0.31.0 already refused unknown keys, so no existing config
+  carries it.)
+- `program xref-config --live` and `plc_program_xref_config(live=True)` read the
+  MATCHED points from the device, read-only. They do not yet check that the
+  export came from that endpoint's controller — `program.controller` (L5X) is
+  reported so a person can; AWL/SCL exports do not name their CPU.
 
 ### Added — which program address is which field point (exact address only)
 
