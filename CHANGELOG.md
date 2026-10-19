@@ -23,6 +23,14 @@
   only the matched points, read-only; a failed or empty read is a gap with no value,
   and each value carries `read_at` (S7 and CIP have no device timestamp, so none is
   invented).
+  Only operand text is scanned: string literals, `/* */` and `(* *)` comments,
+  quoted symbol names and `#locals` are blanked first, declaration sections are
+  skipped, and pointers (`P#M 10.0`), register-indirect and DB-relative operands
+  (`L DBW 4` after `OPN DB 10`) are listed as indirect sites rather than matched.
+  An export that cannot be read — an empty file, a truncated or DOCTYPE-carrying
+  L5X, an L5X with no tags — is refused with no lists, never answered as "nothing
+  configured is in it". The L5X controller name is reported so a match can be
+  checked against the right PLC.
 - `iaiops program doc <file> [--endpoint <name>] --out <x.html>`: one
   self-contained HTML document of an exported program — blocks, variables, I/O list
   (absolute S7 inputs/outputs; L5X module I/O is not extracted and is not guessed),

@@ -97,6 +97,8 @@ class S7Address:
         """Same memory, some shared byte — but not the same address."""
         if (self.area, self.db) != (other.area, other.db) or self == other:
             return False
+        if self.size == 0 and other.size == 0:
+            return False  # two different bits of one byte are different points
         if self.area in ("T", "C"):
             return False
         (a0, a1), (b0, b1) = self.span, other.span
@@ -142,7 +144,8 @@ def parse_s7_config_ref(ref: str) -> S7Address | None:
     Mirrors ``pyS7.address_parser.map_address_to_tag`` (a test holds the two
     together); strings and anything pyS7 itself would refuse are ``None``.
     """
-    text = str(ref or "").strip().upper()
+    # Not stripped: pyS7 refuses " M10.0", so the connector could never read it.
+    text = str(ref or "").upper()
     if m := _CFG_DB.match(text):
         db, token, start, bit = m.groups()
         return _config_address("DB", int(db), token, int(start), bit)

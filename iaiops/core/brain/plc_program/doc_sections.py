@@ -37,6 +37,40 @@ def _notes(notes: Sequence[str]) -> str:
     return f"<ul class='notes'>{items}</ul>" if items else ""
 
 
+def _in_export_empty(result: dict[str, Any]) -> str:
+    if result.get("symbolic_only") or result.get("indirect_access_sites"):
+        return (
+            "No absolute address in the export is left unconfigured — but the symbolic "
+            "names and indirect access listed below are not resolved, so this is not "
+            "complete coverage."
+        )
+    return "Every absolute address in the export is configured."
+
+
+def _configured_empty(result: dict[str, Any]) -> str:
+    if not result["endpoint"]["configured_tag_count"]:
+        return "No points are configured on this endpoint."
+    comparable = result["endpoint"]["configured_tag_count"] - len(
+        result.get("configured_not_comparable") or []
+    )
+    if not comparable:
+        return "No configured point is a comparable address (see below)."
+    if result.get("configured_not_comparable"):
+        return (
+            "Every comparable configured point is named in the export "
+            "(the non-comparable ones are listed below)."
+        )
+    return "Every configured point is named in the export."
+
+
+def _refused(result: dict[str, Any], lead: str) -> str:
+    errors = "".join(f"<li>{escape(e)}</li>" for e in result.get("parse_errors") or [])
+    body = f"<p><span class='badge'>Refused</span> {escape(result['refused'])}</p>"
+    if errors:
+        body += f"<ul class='notes'>{errors}</ul>"
+    return section("Field cross-reference", lead + body + _notes(result["notes"]))
+
+
 def field_section(result: dict[str, Any]) -> str:
     """The exact-address cross-reference against one endpoint."""
     endpoint = result["endpoint"]
@@ -45,6 +79,8 @@ def field_section(result: dict[str, Any]) -> str:
         f"({escape(endpoint['protocol'])}, {escape(endpoint['configured_tag_count'])} "
         "configured points). Joined by exact address only — never by name.</p>"
     )
+    if result.get("refused"):
+        return _refused(result, lead)
     if not result["comparable"]:
         reason = result["unmatchable"]["reason"]
         body = f"<p><span class='badge'>Not comparable</span> {escape(reason)}</p>"
@@ -71,12 +107,12 @@ def field_section(result: dict[str, Any]) -> str:
             [r["address"], r.get("symbol"), r.get("note"), _sites(r)]
             for r in result["in_export_not_configured"]
         ],
-        empty="Every address in the export is configured.",
+        empty=_in_export_empty(result),
     )
     configured = rows_table(
         ["Configured ref", "Label", "Role"],
         [[r["configured_ref"], r["label"], r["role"]] for r in result["configured_not_in_export"]],
-        empty="Every configured point is named in the export.",
+        empty=_configured_empty(result),
     )
     extra = []
     if result.get("configured_not_comparable"):
@@ -97,6 +133,19 @@ def field_section(result: dict[str, Any]) -> str:
             + rows_table(
                 ["Configured ref", "Program address"],
                 [[r["configured_ref"], r["program_address"]] for r in result["overlaps"]],
+                empty="",
+            )
+        )
+    if result.get("indirect_access_sites"):
+        extra.append(
+            "<h3>Indirect access (address not resolvable from the export — "
+            "listed, not guessed)</h3>"
+            + rows_table(
+                ["Block", "Line", "Source"],
+                [
+                    [r["block"], r["line"], r["source_line"]]
+                    for r in result["indirect_access_sites"]
+                ],
                 empty="",
             )
         )

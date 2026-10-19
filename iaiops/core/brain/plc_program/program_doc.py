@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from iaiops.core.brain.plc_program import field_scan, field_xref
+from iaiops.core.brain.plc_program import field_logix, field_scan, field_xref
 from iaiops.core.brain.plc_program.awl_parser import parse_awl
 from iaiops.core.brain.plc_program.doc_sections import (
     field_section,
@@ -27,7 +27,7 @@ from iaiops.core.brain.plc_program.fingerprint import content_sha256
 from iaiops.core.brain.plc_program.l5x_parser import parse_l5x
 from iaiops.core.brain.plc_program.outline import load_program
 from iaiops.core.brain.plc_program.st_parser import parse_st
-from iaiops.core.brain.plc_program.xref import find_symbol
+from iaiops.core.brain.plc_program.xref import _awl_hits, _st_hits
 from iaiops.core.report.html import document, escape, kv
 
 MAX_XREF_SYMBOLS = 200
@@ -96,23 +96,52 @@ def _symbol_names(outline: Any) -> list[str]:
     return list(seen)
 
 
-def _xref_rows(path: str, outline: Any, scan: field_scan.S7Scan | None) -> tuple[list, str]:
-    rows: list[list[Any]] = []
-    names = _symbol_names(outline)
-    for name in names[:MAX_XREF_SYMBOLS]:
-        for hit in find_symbol(path, name)[:MAX_SITES_PER_SYMBOL]:
-            rows.append([name, hit.access, hit.block, hit.line, hit.source_line])
+def _l5x_rows(text: str, path: str, outline: Any) -> tuple[list, int]:
+    """Scope-aware tag sites from one pass over the rungs (AOI parameters excluded)."""
+    tags = field_logix.logix_tags(outline)
+    try:
+        index = field_logix.site_index(text, path)
+    except ValueError:
+        return [], len(tags)
+    local = {t.name.casefold(): set() for t in tags}
+    for t in tags:
+        if t.program:
+            local[t.name.casefold()].add(t.program)
+    rows = []
+    for tag in tags[:MAX_XREF_SYMBOLS]:
+        for site in field_logix.sites_for(tag, index, local[tag.name.casefold()])[
+            :MAX_SITES_PER_SYMBOL
+        ]:
+            rows.append(
+                [tag.path, site["access"], site["block"], site["line"], site["source_line"]]
+            )
+    return rows, len(tags)
+
+
+def _xref_rows(
+    path: str, text: str, fmt: str, outline: Any, scan: field_scan.S7Scan | None
+) -> tuple[list, str]:
+    if fmt == "l5x":
+        rows, total = _l5x_rows(text, path, outline)
+    else:
+        rows, lines = [], text.splitlines()
+        names = _symbol_names(outline)
+        total = len(names)
+        hits_for = _awl_hits if fmt == "awl" else _st_hits
+        for name in names[:MAX_XREF_SYMBOLS]:
+            for hit in hits_for(lines, name, path)[:MAX_SITES_PER_SYMBOL]:
+                rows.append([name, hit.access, hit.block, hit.line, hit.source_line])
     if scan is not None:
         for site in scan.addresses:
             rows.append([site.address.text, site.access, site.block, site.line, site.source_line])
     note = ""
-    if len(names) > MAX_XREF_SYMBOLS:
-        note = f"First {MAX_XREF_SYMBOLS} of {len(names)} declared names cross-referenced."
+    if total > MAX_XREF_SYMBOLS:
+        note = f"First {MAX_XREF_SYMBOLS} of {total} declared names cross-referenced."
     return rows, note
 
 
-def _xref(path: str, outline: Any, scan: field_scan.S7Scan | None) -> str:
-    rows, note = _xref_rows(path, outline, scan)
+def _xref(path: str, text: str, fmt: str, outline: Any, scan: field_scan.S7Scan | None) -> str:
+    rows, note = _xref_rows(path, text, fmt, outline, scan)
     cols = ["Symbol / address", "Access", "Block", "Line / rung", "Source"]
     lead = (
         "<p class='sub'>Access is classified from the statement (assignment target, AWL "
@@ -170,6 +199,10 @@ def _history(path: str, name: str | None) -> str:
             "snapshot</span>, and this section will show what moved since.</p>"
         )
         return section("Change history", body)
+    keyed = (
+        "<p class='sub'>History is keyed by program name (default: the file stem — pass "
+        "<span class='mono'>--name</span> when two programs share a file name).</p>"
+    )
     rows = [
         [s.get("snapshot_id"), s.get("taken_at"), s.get("label"), s.get("note")]
         for s in hist["snapshots"]
@@ -184,7 +217,7 @@ def _history(path: str, name: str | None) -> str:
         )
     except (LookupError, ValueError) as exc:
         verdict = f"<p class='empty'>Drift not computed: {escape(exc)}</p>"
-    return section("Change history", table + verdict)
+    return section("Change history", keyed + table + verdict)
 
 
 def _as_path(path: str):
@@ -208,7 +241,7 @@ def render(path: str, *, target: Any = None, name: str | None = None) -> str:
         _blocks(outline),
         _variables(outline),
         _io_list(fmt, scan),
-        _xref(str(resolved), outline, scan),
+        _xref(str(resolved), text, raw_fmt, outline, scan),
         _calls(outline),
         _history(str(resolved), name),
     ]

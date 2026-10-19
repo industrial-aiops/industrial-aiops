@@ -509,3 +509,173 @@ def test_cli_xref_config_and_live(configured, monkeypatch):
     result = runner.invoke(app, ["program", "xref-config", path, "--endpoint", "line3", "--live"])
     assert result.exit_code == 0, result.output
     assert '"read_now"' in result.output
+
+
+# ─── adversarial-review regressions: text that is not an operand ─────────────
+
+
+def _s7_matched(tmp_path, name, text, refs):
+    path = _write(tmp_path, name, text)
+    r = fx.xref_program_endpoint(path, _target("s7", [{"ref": ref} for ref in refs]))
+    return r, {m["configured_ref"] for m in r["matched"]}
+
+
+@pytest.mark.unit
+def test_scl_strings_and_block_comments_are_not_operands(tmp_path):
+    text = """\
+FUNCTION_BLOCK "FB_Msg"
+BEGIN
+    #msg := 'check %MW20 and %Q0.0';
+    /* old: %M1.0 := TRUE */
+    #a := "Tag_%MW4".x;
+    (* %M2.0 *)
+    #b := %MW30; // %MW40
+END_FUNCTION_BLOCK
+"""
+    r, matched = _s7_matched(
+        tmp_path, "msg.scl", text, ["MW20", "Q0.0", "M1.0", "MW4", "M2.0", "MW30", "MW40"]
+    )
+    assert matched == {"MW30"}
+    assert "Tag_%MW4" in {s["symbol"] for s in r["symbolic_only"]}
+
+
+@pytest.mark.unit
+def test_scl_output_parameter_is_a_write(tmp_path):
+    text = 'FUNCTION_BLOCK "FB"\nBEGIN\n    #Inst(IN := TRUE, OUT => %MW6);\nEND_FUNCTION_BLOCK\n'
+    r, matched = _s7_matched(tmp_path, "out.scl", text, ["MW6"])
+    assert matched == {"MW6"}
+    assert r["matched"][0]["sites"][0]["access"] == "write"
+
+
+@pytest.mark.unit
+def test_awl_quoted_strings_pointers_and_locals_are_not_operands(tmp_path):
+    text = """\
+FUNCTION_BLOCK FB 5
+VAR
+  IW1 : INT ;
+  T1 : TIME ;
+END_VAR
+BEGIN
+NETWORK
+TITLE =
+      A     "Sensor I 0.1"
+      =     "Lamp Q 4.0"
+      L     'M 1.0'
+      L     P#M 10.0
+      L     #IW1
+      CALL SFC 20 (SRCBLK := P#DB10.DBX 0.0 BYTE 10, RET_VAL := MW 50)
+      a     i 0.7
+END_FUNCTION_BLOCK
+"""
+    r, matched = _s7_matched(
+        tmp_path,
+        "fb5.awl",
+        text,
+        ["I0.1", "Q4.0", "M1.0", "M10.0", "IW1", "DB10,X0.0", "I0.7", "MW50"],
+    )
+    assert matched == {"I0.7", "MW50"}  # lowercase AWL is still AWL
+    assert "T1" not in {row["address"] for row in r["in_export_not_configured"]}
+    pointer_lines = {s["line"] for s in r["indirect_access_sites"]}
+    assert {12, 14} <= pointer_lines  # P# takes an address; it is listed, not matched
+
+
+@pytest.mark.unit
+def test_awl_db_relative_access_is_indirect_not_absent(tmp_path):
+    text = (
+        "FUNCTION FC 1 : VOID\nBEGIN\nNETWORK\n      OPN   DB 10\n      L     DBW 4\nEND_FUNCTION\n"
+    )
+    r, matched = _s7_matched(tmp_path, "fc1.awl", text, ["DB10,W4"])
+    assert matched == set()
+    assert any(s["line"] == 5 for s in r["indirect_access_sites"])
+
+
+@pytest.mark.unit
+def test_bits_of_one_byte_do_not_overlap(tmp_path):
+    r, _ = _s7_matched(tmp_path, "ob1.awl", AWL_LINE, ["M10.1"])
+    assert r["overlaps"] == []
+
+
+@pytest.mark.unit
+def test_a_matched_point_still_reports_a_wider_writer(tmp_path):
+    text = (
+        "ORGANIZATION_BLOCK OB 1\nNETWORK\n"
+        "      L     MW 20\n      T     MD 20\nEND_ORGANIZATION_BLOCK\n"
+    )
+    r, matched = _s7_matched(tmp_path, "ob1.awl", text, ["MW20"])
+    assert matched == {"MW20"}
+    assert any(o["program_address"] == "MD20" for o in r["overlaps"])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "ref", [" M10.0", "M10", "DB1,X0.8", "DB1,X0", "MW10.1", "DB1,S10", "X10.0"]
+)
+def test_refs_pys7_refuses_are_not_comparable(ref):
+    from pyS7.address_parser import map_address_to_tag
+
+    try:
+        map_address_to_tag(ref)
+        accepted = True
+    except Exception:
+        accepted = False
+    if not accepted:
+        assert parse_s7_config_ref(ref) is None
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "text",
+    [
+        L5X_SAMPLE[: len(L5X_SAMPLE) // 2],
+        L5X_SAMPLE.replace("<?xml", '<!DOCTYPE x [<!ENTITY a "b">]><?xml', 1),
+        "",
+    ],
+)
+def test_unreadable_l5x_is_refused_not_answered(tmp_path, text):
+    path = _write(tmp_path, "bad.L5X", text)
+    r = fx.xref_program_endpoint(path, _target("ethernetip", [{"ref": "Motor_Run"}]))
+    assert r["refused"]
+    assert r["matched"] is None and r["configured_not_in_export"] is None
+
+
+@pytest.mark.unit
+def test_empty_awl_is_refused(tmp_path):
+    path = _write(tmp_path, "empty.awl", "   \n")
+    r = fx.xref_program_endpoint(path, _target("s7", [{"ref": "M10.0"}]))
+    assert r["refused"] and r["configured_not_in_export"] is None
+
+
+ARRAY_L5X = L5X_SAMPLE.replace(
+    '<Tag Name="Conv_Speed" DataType="REAL"/>',
+    '<Tag Name="Conv_Speed" DataType="REAL"/><Tag Name="Tank" DataType="DINT" Dimensions="10"/>',
+).replace(
+    "<Text>XIC(Start)OTE(Motor_Run);</Text>",
+    "<Text>XIC(Start)OTE(Motor_Run)OTE(Tank[2]);</Text>",
+)
+
+
+@pytest.mark.unit
+def test_logix_element_write_and_scope_of_sites(tmp_path):
+    path = _write(tmp_path, "line3.L5X", ARRAY_L5X)
+    r = fx.xref_program_endpoint(
+        path, _target("ethernetip", [{"ref": "Tank[2]"}, {"ref": "Tank{3}"}])
+    )
+    row = next(m for m in r["matched"] if m["configured_ref"] == "Tank[2]")
+    assert row["match"] == "member_of_tag" and row["sites_scope"] == "whole_tag"
+    assert any(s["access"] == "write" for s in row["sites"])  # OTE(Tank[2]) writes Tank
+    assert {m["configured_ref"] for m in r["matched"]} == {"Tank[2]", "Tank{3}"}
+    assert r["program"]["controller"] == {"name": "Line3", "processor_type": ""}
+
+
+@pytest.mark.unit
+def test_wellformed_l5x_without_tags_is_refused(tmp_path):
+    text = (
+        '<?xml version="1.0"?><RSLogix5000Content><Controller Name="C"><Programs>'
+        '<Program Name="P"><Routines><Routine Name="R" Type="RLL"><RLLContent>'
+        "<Rung Number=\"0\"><Text>XIC(Start)OTE(Run);</Text></Rung>"
+        "</RLLContent></Routine></Routines></Program></Programs></Controller>"
+        "</RSLogix5000Content>"
+    )
+    path = _write(tmp_path, "notags.L5X", text)
+    r = fx.xref_program_endpoint(path, _target("ethernetip", [{"ref": "Run"}]))
+    assert r["refused"] and r["configured_not_in_export"] is None

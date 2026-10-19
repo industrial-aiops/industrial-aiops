@@ -28,15 +28,18 @@ is touched (live values are a separate, opt-in step — ``field_live``).
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET  # noqa: S405 — only for its ParseError type
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-from iaiops.core.brain.plc_program import field_scan
+from iaiops.core.brain.plc_program import field_logix, field_scan
 from iaiops.core.brain.plc_program.addresses import S7Address, parse_s7_config_ref
+from iaiops.core.brain.plc_program.awl_parser import parse_awl
 from iaiops.core.brain.plc_program.fingerprint import content_sha256
+from iaiops.core.brain.plc_program.l5x_parser import parse_l5x
 from iaiops.core.brain.plc_program.outline import load_program
-from iaiops.core.brain.plc_program.xref import find_symbol
+from iaiops.core.brain.plc_program.st_parser import parse_st
 
 MAX_SITES = 20
 S7_SPACE = "s7_absolute"
@@ -91,8 +94,15 @@ _LOGIX_NOTES = (
     "(case-insensitive, as Logix tag names are) are the same tag. A member or "
     "element (`Tag.ACC`, `Tag[2]`) joins its tag as member_of_tag.",
     "This join assumes the export is from this endpoint's controller — the file "
-    "cannot prove that. Alias tags and I/O module tags (Local:1:I.Data) are not "
-    "extracted by the L5X parser, so a configured alias target can show as not in export.",
+    "cannot prove that; program.controller names the controller the export came from, "
+    "so check it against the endpoint. Common tag names (Start, Run) match on any "
+    "controller that has them.",
+    "An alias tag joins by its own name. I/O module tags (Local:1:I.Data) are not "
+    "extracted by the L5X parser, so a configured alias TARGET can show as not in export.",
+)
+_S7_IDENTITY_NOTE = (
+    "An AWL/SCL export does not name the CPU it came from: M and DB addresses exist on "
+    "every S7 CPU, so a match is only meaningful if this export is from this endpoint's CPU."
 )
 _SCOPE_NOTE = (
     "configured_not_in_export means THIS export never names the address directly — "
@@ -203,8 +213,8 @@ def _s7_join(scan: field_scan.S7Scan, tags: Iterable[Any]) -> dict[str, Any]:
                     **_sites(_site_dict(s) for s in sites),
                 }
             )
-            continue
-        not_in_export.append(_tag_row(tag))
+        else:
+            not_in_export.append(_tag_row(tag))
         for program_address in by_address:
             if address.overlaps(program_address):
                 overlaps.append(
@@ -269,35 +279,17 @@ def _symbolic(symbols: Iterable[field_scan.SymbolSite]) -> list[dict[str, Any]]:
 # ─── Logix ───────────────────────────────────────────────────────────────────
 
 
-def _logix_sites(path: str, tag: field_scan.LogixTag, shadowing: set[str]) -> list[dict]:
-    rows = []
-    for hit in find_symbol(path, tag.name):
-        program = hit.block.split(".", 1)[0]
-        if tag.program and program != tag.program:
-            continue  # another program's rungs see their own tag of that name
-        if not tag.program and program in shadowing:
-            continue  # a program-scoped tag of the same name shadows this one there
-        rows.append(
-            {
-                "access": hit.access,
-                "block": hit.block,
-                "line": hit.line,
-                "source_line": hit.source_line,
-            }
-        )
-    return rows
-
-
-def _logix_join(path: str, outline: Any, tags: Iterable[Any]) -> dict[str, Any]:
-    declared = {t.key: t for t in field_scan.logix_tags(outline)}
+def _logix_join(text: str, source_file: str, outline: Any, tags: Iterable[Any]) -> dict:
+    declared = {t.key: t for t in field_logix.logix_tags(outline)}
     local_names: dict[str, set[str]] = {}
     for t in declared.values():
         if t.program:
             local_names.setdefault(t.name.casefold(), set()).add(t.program)
+    index = field_logix.site_index(text, source_file)
 
     matched, not_in_export, used = [], [], set()
     for tag in tags:
-        key, whole = field_scan.logix_ref_key(tag.ref)
+        key, whole = field_logix.logix_ref_key(tag.ref)
         found = declared.get(key)
         if found is None:
             not_in_export.append(_tag_row(tag))
@@ -311,7 +303,9 @@ def _logix_join(path: str, outline: Any, tags: Iterable[Any]) -> dict[str, Any]:
                 "data_type": found.data_type,
                 **_tag_row(tag),
                 "match": "exact_address" if whole else "member_of_tag",
-                **_sites(_logix_sites(path, found, shadow)),
+                # A site belongs to the whole tag, not to the configured element.
+                "sites_scope": "tag" if whole else "whole_tag",
+                **_sites(field_logix.sites_for(found, index, shadow)),
             }
         )
     in_export = [
@@ -372,30 +366,85 @@ def xref_program_endpoint(path: str, target: Any) -> dict[str, Any]:
         "address_space": space,
     }
     if space is None:
-        return {
-            **head,
-            "unmatchable": {"program_format": fmt, "protocol": protocol, "reason": reason},
-            **dict.fromkeys(_LIST_KEYS),
-            "notes": [
-                "No lists are given: with no shared address space, 'configured but not "
-                "in the program' would be a claim this comparison cannot make."
-            ],
-        }
+        return _without_lists(
+            head,
+            unmatchable={"program_format": fmt, "protocol": protocol, "reason": reason},
+            note="No lists are given: with no shared address space, 'configured but not "
+            "in the program' would be a claim this comparison cannot make.",
+        )
     if space == S7_SPACE:
-        scan = field_scan.scan_awl(text) if fmt == "awl" else field_scan.scan_scl(text)
-        body = _s7_join(scan, tags)
-        notes = [*_S7_NOTES, _SCOPE_NOTE]
-        if scan.indirect:
-            notes.append(
-                f"{len(scan.indirect)} indirect access site(s) (pointer / AR register) "
-                "touch addresses this extraction cannot resolve — listed, not guessed."
-            )
-    else:
-        from iaiops.core.brain.plc_program.l5x_parser import parse_l5x
+        return _s7_result(head, fmt, text, tags)
+    return _logix_result(head, text, str(resolved), tags)
 
-        body = _logix_join(str(resolved), parse_l5x(text, str(resolved)), tags)
-        notes = [*_LOGIX_NOTES, _SCOPE_NOTE]
-    return {**head, "unmatchable": None, **body, "notes": notes, **_counts(body)}
+
+def _without_lists(
+    head: dict[str, Any], *, note: str, unmatchable: dict | None = None, refused: str = ""
+) -> dict[str, Any]:
+    return {
+        **head,
+        "unmatchable": unmatchable,
+        "refused": refused or None,
+        **dict.fromkeys(_LIST_KEYS),
+        "notes": [note],
+    }
+
+
+def _refuse(head: dict[str, Any], why: str, parse_errors: tuple[str, ...] = ()) -> dict:
+    result = _without_lists(
+        head,
+        refused=why,
+        note="Refused rather than answered: every configured point would otherwise read "
+        "as 'not in the export' for a file that was never read.",
+    )
+    return {**result, "parse_errors": list(parse_errors)}
+
+
+def _s7_result(head: dict[str, Any], fmt: str, text: str, tags: tuple) -> dict[str, Any]:
+    if not text.strip():
+        return _refuse(head, "the export is empty")
+    scan = field_scan.scan_awl(text) if fmt == "awl" else field_scan.scan_scl(text)
+    body = _s7_join(scan, tags)
+    notes = [*_S7_NOTES, _SCOPE_NOTE, _S7_IDENTITY_NOTE]
+    if scan.indirect:
+        notes.append(
+            f"{len(scan.indirect)} indirect access site(s) (pointer, AR register, "
+            "DB-relative operand) touch addresses this extraction cannot resolve — "
+            "listed, not guessed."
+        )
+    outline = (parse_awl if fmt == "awl" else parse_st)(text, head["program"]["source_file"])
+    return {
+        **head,
+        "unmatchable": None,
+        "refused": None,
+        **body,
+        "parse_errors": list(outline.parse_errors),
+        "notes": notes,
+        **_counts(body),
+    }
+
+
+def _logix_result(head: dict[str, Any], text: str, source_file: str, tags: tuple) -> dict:
+    outline = parse_l5x(text, source_file)
+    if outline.parse_errors and not outline.blocks:
+        return _refuse(head, "the L5X could not be parsed", outline.parse_errors)
+    if not field_logix.logix_tags(outline):
+        return _refuse(head, "the L5X declares no tags", outline.parse_errors)
+    try:
+        body = _logix_join(text, source_file, outline, tags)
+    except (ValueError, ET.ParseError) as exc:
+        return _refuse(head, f"the L5X rungs could not be read ({exc})", outline.parse_errors)
+    controller = field_logix.controller_identity(text)
+    program = {**head["program"], "controller": controller}
+    return {
+        **head,
+        "program": program,
+        "unmatchable": None,
+        "refused": None,
+        **body,
+        "parse_errors": list(outline.parse_errors),
+        "notes": [*_LOGIX_NOTES, _SCOPE_NOTE],
+        **_counts(body),
+    }
 
 
 def _counts(body: dict[str, Any]) -> dict[str, Any]:

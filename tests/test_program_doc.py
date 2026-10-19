@@ -171,3 +171,19 @@ def test_doc_path_imports_no_llm():
         for alias in node.names
     }
     assert not any("llm" in name for name in names)
+
+
+@pytest.mark.unit
+def test_doc_empty_states_do_not_overclaim(home, tmp_path):
+    awl = (
+        "ORGANIZATION_BLOCK OB 1\nNETWORK\n"
+        '      A     "Motor_Start"\n      L     DBW 4\nEND_ORGANIZATION_BLOCK\n'
+    )
+    target = SimpleNamespace(
+        name="line3", protocol="s7", plctype="Q", tags=(MonitorTag(ref="DB102,S10.15"),)
+    )
+    html = program_doc.render(_write(tmp_path, "ob1.awl", awl), target=target)
+    field = html.split("Field cross-reference", 1)[1]
+    assert "Every address in the export is configured" not in field
+    assert "Every configured point is named" not in field
+    assert "Indirect access" in field

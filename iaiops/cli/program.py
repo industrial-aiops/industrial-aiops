@@ -229,6 +229,8 @@ def doc_cmd(
     from iaiops.core.governance.evidence import validate_output_path
 
     target_path = validate_output_path(out, suffixes=(".html", ".htm"))
+    if target_path.is_symlink():
+        raise ValueError(f"Refusing to write through a symlink: {target_path}")
     target = resolve_target(endpoint) if endpoint else None
     html = program_doc.render(str(path), target=target, name=name)
     target_path.write_text(html, encoding="utf-8")
