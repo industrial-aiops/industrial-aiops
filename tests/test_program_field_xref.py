@@ -672,7 +672,7 @@ def test_wellformed_l5x_without_tags_is_refused(tmp_path):
     text = (
         '<?xml version="1.0"?><RSLogix5000Content><Controller Name="C"><Programs>'
         '<Program Name="P"><Routines><Routine Name="R" Type="RLL"><RLLContent>'
-        "<Rung Number=\"0\"><Text>XIC(Start)OTE(Run);</Text></Rung>"
+        '<Rung Number="0"><Text>XIC(Start)OTE(Run);</Text></Rung>'
         "</RLLContent></Routine></Routines></Program></Programs></Controller>"
         "</RSLogix5000Content>"
     )
