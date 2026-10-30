@@ -1399,3 +1399,85 @@ E4 串口 ASCII（#267）随 **0.31.0** 发布。E4 的实现要点：`serial` �
 | D59 | 开关量（NPN / PNP / 干接点）经 PLC 或 Modbus DI 模块读入；带类型的点加 `di:` / `co:`，不新开 connector | 它们从不直接接电脑；DI 模块是最常见的改造接法，缺的只是采集路径 |
 | D60 | 开关量通道的有效电平 `active: high \| low` **必填、无默认**；入库的是「是否动作」 | 常闭开关「有工件」时输出 0；猜电平会把有和无整个反过来 |
 | D61 | 开关量点不得承担产量计数角色；readiness 报缺口并要求计数器；判断不了（缺电平、描述读不了）同样报缺口 | D45 的落实：轮询通断漏短脉冲，偏低得看起来合理。**本版只检查 Modbus 点**（`di:` / `co:` / 开关量 `ch:`）；PLC 位（S7 / MC / FINS / OPC-UA 布尔量）与 `oee measure` 的拒算是后续 |
+
+## 18. 资产平台 V1：扫描证据离线交换
+
+> 2026-10-30 设计；实现位于隔离工作树，尚未发布。
+
+### 18.1 边界与不变量
+
+现场先经现有 `scan plan` 审阅范围，再 `scan run`；基座从指定的已存扫描
+`iaiops scan export <scan-id> --out scan.json` 生成**单个 JSON 文件**。导出只读本地扫描库，
+不触网、不新增探测，也不读取平台数据库。平台负责永久资产 ID、跨观察合并、人工确认、
+业务归属与权限。JSON 是未签名的来源**声明**和观察证据，不能证明工厂归属或现场真实性。
+此能力按 §8.3 规则 1 留 MIT；跨站治理或面向第三方的签名背书另属 enterprise。
+
+V1 只承诺明列的公共字段，不把 `load_scan()` 的内部 dict 直接序列化。未知一律为 JSON
+`null` 或显式 `unknown`，不从 `ok` 推断全网覆盖，不从空 hosts 推断全厂无资产。
+扫描时间窗是默认观测时间；现有探针没有逐字段时间戳，不补造时间。原始错误文本、
+授权人、工单、路径和连接详情不进入交换文件；状态以有界代码表达，防止凭据与异常字符串外泄。
+
+### 18.2 格式 `iaiops.scan-evidence` / `1.0`
+
+顶层必有 `format`、`format_version`、`generator`（`name`, `version`）、`exported_at`
+（UTC ISO 8601）、`source`、`observation`、`hosts`、`subject_sha256`。`source` 包含持久
+`id`（UUID 字符串；旧记录为 `null`）及固定的 `assertion: "unverified"`。`observation`
+包含原始 `scan_id`、可空的 `site` / `collection_domain`、`started_at` /
+`finished_at`、`profile`、原始
+`verdict`、`scope`、`stages`、`attempted_hosts`、`wire_summary`、`errors`、
+`truncated`。`scope` 只含请求的
+`cidrs`、`hosts`、`excluded`、`ports`、`protocols`、`allow_browse`；未记录的旧字段
+为 `null`，不以空列表伪称没请求。`stages` 为每个阶段的 `name` 与 `status`，状态取
+`not_requested`、`not_run`、`success`、`refused`、`unsupported`、`timeout`、
+`missing_dependency`、`partial`、`aborted`、`unknown`；旧记录无运行证据则为
+`unknown`。`attempted_hosts` 列出能从 L1 结果确认已尝试的主机；旧记录或中止时
+为 `null`，不能据此声称其他主机没被触及。
+`errors` 仅含状态码，不带异常文本。`truncated` 取 `true`、`false`、`null`；
+旧记录为 `null`。
+
+`hosts` 是**全部**已存 host，按地址稳定排序；每项含 `ip`、可空 `mac`、`sources`、
+`alive`、`ports`（端口、状态、可空 RTT）、`protocols`（协议、端口、确认度、证据码、
+状态码）与 `identities`。身份逐协议表达，绝不把两种协议的字段合成一台设备的身份。
+每条身份含 `protocol`、`entity_type`（如 `device`、`server_application`、`agent`；
+未知为 `null`）及 `fields`。字段名限 `vendor`、`model`、`name`、`firmware_version`、
+`software_version`、`hardware_version`、`reported_revision`、`physical_serial`、
+`source_device_id`；每个
+存在的字段含字符串 `value`、可空 `source_field` 与可空 `raw_value`。序列号一律保留
+为字符串及前导零。缺少字段即未知，不能把另一个版本或 UUID 填入物理序列号。
+无身份字段的确认协议仍保留在 `protocols`，不生成空的猜测身份。
+
+独立验证器只依赖 Python 标准库与本节契约，不调用扫描引擎或 SQLite。严格检查类型、
+枚举、时间、唯一 host/协议身份、引用关系和大小上限；同一主版本的未知附加字段可忽略，
+不支持的主版本拒绝，`0.x` 没有隐式迁移。`subject_sha256` 是 `source`、
+`observation`、`hosts` 的规范 JSON 字节 SHA-256，排除导出时间与生成器版本，
+用于完整性和同一主体的重复导出；它不是签名，
+也不合并不同扫描。相同来源 + 扫描 ID + 不同主体必须报冲突。
+
+### 18.3 采集、存储与兼容
+
+首轮明确核对 OPC UA、Modbus、S7、EtherNet/IP：OPC UA `GetEndpoints` 识别的
+主要是 server application，不是物理 PLC；Modbus FC43 的 `revision` 不自动等于
+固件；S7 `HardwareVersion` 是硬件版本，不能回退填 `firmware`；EIP ListIdentity
+`revision` 为协议报告的设备修订，物理序列号保持字符串。IO-Link `hwrevision`
+不能回退填固件，MTConnect `uuid` 是来源设备 ID 而非物理序列号。`identify.py`
+与 `brain/asset_inventory.py` 同步检查；旧公共接口如需兼容，增加元数据或迁移，
+不得无声改变旧字段含义。每个样例标明真机、第三方模拟器或自建 fixture。
+
+新扫描持久化来源 ID、请求范围与排除项、阶段执行状态、身份字段来源与主体指纹；读取
+旧扫描不修改库，缺失元数据标未知。`scan_id_for` 现有 16 位 ID 只含部分计划字段，
+故 `save_scan` 对同 ID 的不同主体必须在事务中拒绝，不能继续 `INSERT OR REPLACE`
+覆盖 hosts。完全相同主体重复保存仍幂等。来源 ID 随扫描库创建并随库迁移；复制库
+意味着复制同一来源命名空间，在另一独立现场使用前须显式重置来源身份，不能让导出
+自行生成新身份。旧扫描没有来源 ID 时，平台只按文件指纹处理单份证据，不做跨文件
+同源推断。
+
+具体生命周期：仅复制 `config.yaml` 到另一安装不会复制来源 ID，新数据库首次保存扫描
+生成新 UUID；升级或迁移**整份扫描库**保留 UUID；重装但保留数据库也保留 UUID；删库
+重装生成新 UUID，平台不得据此自动续接旧主体。把数据库克隆到另一独立现场会克隆
+同一 UUID，必须以新空库重新扫描，不能把克隆库当另一来源继续写。
+
+导出要求明确的扫描 ID；路径遵循 CLI 本地输出校验，MCP 若未来增加入口另遵守 agent
+路径限域。先在目标目录写权限受限的临时文件，独立验证通过后原子落地；默认不覆盖，
+显式覆盖也必须避免中途失败留下半文件。发布门包括有效、部分、中止、空结果、重复
+身份、旧记录、同 ID 冲突、无网络、脱敏、路径及版本拒绝；再以获授权的真实设备样本
+验证首个设备支持声明。fixture 与模拟器不能代替真机。
