@@ -77,7 +77,7 @@ def _field(value: Any, *, source: str | None = None, raw: Any = None) -> dict | 
     value = _safe(value, optional=True)
     if value is None:
         return None
-    raw_text = _safe(str(raw) if raw is not None else None, optional=True)
+    raw_text = _safe(raw, optional=True)
     return {"value": value, "source_field": source, "raw_value": raw_text}
 
 
@@ -189,6 +189,8 @@ def build_scan_evidence(record: dict, *, exported_at: str | None = None) -> dict
                 identities.append(identity)
         candidates = []
         for candidate in host.get("protocols", []):
+            if type(candidate) is not dict:
+                raise ScanContractError("stored protocol candidate is not an object")
             evidence = candidate.get("evidence")
             candidates.append(
                 {
@@ -207,10 +209,7 @@ def build_scan_evidence(record: dict, *, exported_at: str | None = None) -> dict
                 "mac": _safe(host.get("mac"), optional=True),
                 "sources": [_safe(item) for item in host.get("sources", [])],
                 "alive": host.get("alive"),
-                "ports": [
-                    {"port": p.get("port"), "state": p.get("state"), "rtt_ms": p.get("rtt_ms")}
-                    for p in host.get("ports", [])
-                ],
+                "ports": [_stored_port(p) for p in host.get("ports", [])],
                 "protocols": candidates,
                 "identities": identities,
             }
@@ -262,6 +261,12 @@ def build_scan_evidence(record: dict, *, exported_at: str | None = None) -> dict
     }
     doc["subject_sha256"] = subject_sha256(doc)
     return validate_scan_evidence(doc)
+
+
+def _stored_port(port: Any) -> dict:
+    if type(port) is not dict:
+        raise ScanContractError("stored port is not an object")
+    return {"port": port.get("port"), "state": port.get("state"), "rtt_ms": port.get("rtt_ms")}
 
 
 def export_scan(

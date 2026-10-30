@@ -762,6 +762,26 @@ def identify_hosts(
 ) -> tuple[tuple[HostResult, ...], tuple[str, ...]]:
     """Identify a whole sweep's worth of hosts. Returns results and run notes.
 
+    The historical two-value interface is retained for existing callers. The
+    runner uses ``identify_hosts_with_status`` to distinguish a complete run
+    from a segment abort, including an abort on the final host.
+    """
+    identified, notes, _aborted = identify_hosts_with_status(
+        hosts, log=log, pacing=pacing, timeout_s=timeout_s, plan=plan
+    )
+    return identified, notes
+
+
+def identify_hosts_with_status(
+    hosts: Iterable[HostResult],
+    *,
+    log: wirelog.WireLog | None = None,
+    pacing: PacingPolicy | None = None,
+    timeout_s: float = DEFAULT_IDENTIFY_TIMEOUT_S,
+    plan: dict[str, IdentifyProbe] | None = None,
+) -> tuple[tuple[HostResult, ...], tuple[str, ...], bool]:
+    """Identify hosts and expose the segment-abort signal to the scan runner.
+
     Deliberately sequential. The sweep parallelises because a TCP connect is
     answered by a kernel; an identify call is answered by a control CPU that is
     also running a machine, and four of those at once against one small plant
@@ -772,11 +792,13 @@ def identify_hosts(
     pacer = Pacer(identify_pacing(pacing or PacingPolicy()))
     out: list[HostResult] = []
     notes: list[str] = []
+    aborted = False
 
     for host in hosts:
         try:
             out.append(identify_host(host, log=log, pacer=pacer, timeout_s=timeout_s, plan=plan))
         except SegmentUnhealthy as exc:
+            aborted = True
             notes.append(str(exc))
             out.append(host)
             break
@@ -795,7 +817,7 @@ def identify_hosts(
             "confirmed. They are reported as 'port only' with no vendor — an open "
             "port is a location, not an identification."
         )
-    return tuple(out), tuple(notes)
+    return tuple(out), tuple(notes), aborted
 
 
 __all__ = [
@@ -809,5 +831,6 @@ __all__ = [
     "candidates_for_port",
     "identify_host",
     "identify_hosts",
+    "identify_hosts_with_status",
     "identify_pacing",
 ]

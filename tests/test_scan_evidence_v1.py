@@ -255,6 +255,26 @@ def test_legacy_version_and_uuid_kinds_are_not_guessed(tmp_path):
     assert "physical_serial" not in by_protocol["mtconnect"]["fields"]
 
 
+def test_export_rejects_malformed_and_oversized_stored_values(tmp_path):
+    db = tmp_path / "scan.db"
+    scan_id = save_scan(_result(), db)
+    base = load_scan(scan_id, db)
+    bad_candidate = json.loads(json.dumps(base))
+    bad_candidate["hosts"][0]["protocols"].append(42)
+    with pytest.raises(ScanContractError, match="candidate is not an object"):
+        build_scan_evidence(bad_candidate)
+
+    bad_raw = json.loads(json.dumps(base))
+    bad_raw["hosts"][0]["identity"]["s7"]["extra"]["raw_fields"]["physical_serial"] = ["00042"]
+    with pytest.raises(ScanContractError, match="non-text public value"):
+        build_scan_evidence(bad_raw)
+
+    oversized = json.loads(json.dumps(base))
+    oversized["hosts"][0]["identity"]["s7"]["serial"] = "0" * 4097
+    with pytest.raises(ScanContractError, match="oversized public text"):
+        build_scan_evidence(oversized)
+
+
 def test_export_rejects_bad_path_and_cleans_failed_temp(tmp_path, monkeypatch):
     db = tmp_path / "scan.db"
     scan_id = save_scan(_result(), db)

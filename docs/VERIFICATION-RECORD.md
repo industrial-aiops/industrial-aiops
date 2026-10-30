@@ -9,6 +9,16 @@ CLI no-network behavior. Samples in `tests/data/scan_evidence_v1/` are **self-bu
 fixtures**. No asset-platform importer or authorized physical device has been
 tested; V1 contract integration and the first field-device support claim remain
 `待核实`. This section records worktree verification, not a release.
+Release review also exercised L1-to-L2 abort isolation and L2 abort reporting
+for both a partial host list and an abort on the final host
+(`tests/test_discovery_runner.py::TestAbortIsStructural`). Those tests use
+injected probes; they do not establish device behavior.
+Release-review gates on this worktree: `pytest` **4894 passed, 49 skipped,
+1 deselected** (`test_the_local_cache_parses_without_notes` depends on this
+machine's empty `arp` output); `ruff check .`, `ruff format --check .`, and
+`bandit -q -r iaiops mcp_server -ll` passed. The gate does not close IA-06:
+there is no asset-platform importer integration or authorized physical-device
+sample in the accessible workspace.
 
 > **This file records evidence, not intent.** Every row says what was executed, by
 > which test, at which rung of the ladder in
