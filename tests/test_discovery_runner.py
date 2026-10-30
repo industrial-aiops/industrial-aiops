@@ -21,11 +21,15 @@ from iaiops.core.discovery.types import (
     L1_SWEEP,
     L2_IDENTIFY,
     L4_BROWSE,
+    PORT_OPEN,
+    VERDICT_ABORTED_UNHEALTHY,
     VERDICT_NO_DEVICES,
     VERDICT_OK,
     VERDICT_PARTIAL,
     Authorization,
+    HostResult,
     PacingPolicy,
+    PortResult,
     ScanPlan,
 )
 from iaiops.core.runtime.session_factory import OTConnectionError
@@ -337,3 +341,47 @@ class TestAbortIsStructural:
             ["10.0.0.1"], [502], pacing=PacingPolicy(per_host_gap_ms=0), connector=refuse
         )
         assert aborted is False
+
+    def test_sweep_abort_does_not_start_identification(self, monkeypatch):
+        from iaiops.core.discovery import runner
+
+        host = HostResult(ip="10.0.0.1", ports=(PortResult(502, PORT_OPEN),))
+        monkeypatch.setattr(
+            runner, "sweep_hosts", lambda *args, **kwargs: ((host,), ("segment aborted",), True)
+        )
+
+        def fail_if_identified(*args, **kwargs):
+            raise AssertionError("L2 sent traffic after L1 segment abort")
+
+        monkeypatch.setattr(identify, "identify_hosts_with_status", fail_if_identified)
+        result = run_scan(
+            plan_for(("10.0.0.1",), ports=(502,)),
+            connector=connector_for({"10.0.0.1": {502}}),
+            arp_reader=NO_ARP,
+        )
+        assert result.verdict == VERDICT_ABORTED_UNHEALTHY
+        assert result.stage_status[L2_IDENTIFY] == "not_run"
+
+    @pytest.mark.parametrize("host_count", [3, 6])
+    def test_identify_abort_preserves_swept_hosts_and_marks_the_run(self, host_count):
+        """The final-host case must signal abort even when no tail is missing."""
+        hosts = tuple(f"10.0.0.{i}" for i in range(1, host_count + 1))
+        pacing = PacingPolicy(
+            connects_per_second=100.0,
+            max_concurrency=8,
+            per_host_gap_ms=0,
+            identify_gap_ms=0,
+            host_backoff_after=99,
+            segment_abort_after=2,
+        )
+        result = run_scan(
+            plan_for(hosts, ports=(502,), pacing=pacing),
+            connector=connector_for({host: {502} for host in hosts}),
+            arp_reader=NO_ARP,
+            identify_plan=fake_identify("modbus", OTConnectionError("timeout")),
+        )
+        assert {host.ip for host in result.hosts} == set(hosts)
+        assert set(result.attempted_hosts or ()) == set(hosts)
+        assert result.stage_status[L2_IDENTIFY] == "aborted"
+        assert result.verdict == VERDICT_ABORTED_UNHEALTHY
+        assert any("aborting" in note for note in result.notes)

@@ -29,6 +29,9 @@
   new scans. An identical save is idempotent; the legacy 16-character scan ID
   naming a different body now raises a conflict instead of replacing hosts.
   Older rows export missing metadata as unknown and are not backfilled.
+- Stop before L2 when L1 aborts on an unhealthy segment. Preserve all swept
+  hosts and mark the run aborted when L2 itself aborts, including on its final
+  host.
 - Separate physical serial, source device ID, hardware/software versions and
   protocol-reported revision in the exchange format. Keep legacy flat identity
   aliases where compatibility requires them, with explicit semantics metadata.
