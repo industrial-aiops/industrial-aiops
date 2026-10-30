@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Scan evidence exchange V1
+
+- Add the offline `iaiops scan export <scan-id> --out scan.json` command and a
+  standard-library-only validator for `iaiops.scan-evidence` 1.0. The public
+  projection excludes raw errors, authorization details and internal store
+  dictionaries; output is validated before an atomic, permission-restricted
+  write. It does not scan or upload.
+- Persist source UUID, stage execution evidence and a scan-body fingerprint for
+  new scans. An identical save is idempotent; the legacy 16-character scan ID
+  naming a different body now raises a conflict instead of replacing hosts.
+  Older rows export missing metadata as unknown and are not backfilled.
+- Separate physical serial, source device ID, hardware/software versions and
+  protocol-reported revision in the exchange format. Keep legacy flat identity
+  aliases where compatibility requires them, with explicit semantics metadata.
+  No platform import or physical-device validation has been claimed.
+
 ## 0.34.0 — 2026-11-09
 
 ### Margo edge health telemetry and rc.3 Compose Archive
@@ -29,6 +45,7 @@
   MCP cannot supply that attestation. CALL parameter addresses are references
   until a block interface proves their direction. Identity-query failures do
   not echo connection errors into the result.
+
 ### Sparkplug point draft
 
 - `iaiops mqtt point-draft` and governed MCP `sparkplug_point_draft` turn a
@@ -45,6 +62,7 @@
 - Update the current package, MCP registry and edge deployment descriptors to
   0.33.0. The 0.32.0 Margo CTT record remains historical evidence for that
   released artifact; this release has not been tested on a WFM/device.
+
 
 ## 0.32.0 — 2026-10-20
 

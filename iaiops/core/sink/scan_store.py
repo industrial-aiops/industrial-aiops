@@ -6,8 +6,7 @@ one filling up must not corrupt the other.
 
 Two shapes are stored rather than one, and the redundancy is deliberate:
 
-* the **full result** as JSON, so nothing observed is lost to a schema that did
-  not anticipate it;
+* per-host protocol observations as JSON, plus bounded scan metadata;
 * the **flat columns** a person actually queries — ip, mac, vendor, model,
   serial, open ports — so the device table is a ``SELECT`` and not a program.
 
@@ -19,6 +18,9 @@ in full.
 There is no retention limit here and nothing is pruned by default. Cleanup is
 offered (:func:`prune_scans`) and never imposed — an on-box store that quietly
 discards last month's survey is worse than one that grows.
+
+An identical scan body may be saved twice. The legacy short ID is not unique
+over the whole body, so an ID collision with a different body is rejected.
 """
 
 from __future__ import annotations
@@ -26,7 +28,8 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from dataclasses import dataclass
+import uuid
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -100,6 +103,10 @@ class ScanNotFound(LookupError):
     """No scan with that id. Distinct from a scan that found nothing."""
 
 
+class ScanConflict(ValueError):
+    """The same scan ID names a different observation; refuse silent replacement."""
+
+
 def scan_id_for(result: ScanResult) -> str:
     """A deterministic id: the same result stored twice is the same row.
 
@@ -166,6 +173,7 @@ def _host_row(scan_id: str, host: HostResult) -> tuple:
                     "port": c.port,
                     "evidence": c.evidence,
                     "detail": c.detail,
+                    "status": c.status,
                 }
                 for c in host.protocols
             ]
@@ -202,6 +210,7 @@ def host_to_dict(host: HostResult) -> dict[str, Any]:
                 "port": c.port,
                 "evidence": c.evidence,
                 "detail": c.detail,
+                "status": c.status,
             }
             for c in host.protocols
         ],
@@ -214,6 +223,16 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute(CREATE_SCANS_TABLE)
     conn.execute(CREATE_SCAN_HOSTS_TABLE)
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(scans)")}
+    for name, ddl in (
+        ("source_id", "TEXT"),
+        ("body_sha256", "TEXT"),
+        ("stage_status", "TEXT"),
+        ("attempted_hosts", "TEXT"),
+    ):
+        if name not in columns:
+            conn.execute(f"ALTER TABLE scans ADD COLUMN {name} {ddl}")
+    conn.execute("CREATE TABLE IF NOT EXISTS scan_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     for ddl in _INDEXES:
         conn.execute(ddl)
     conn.commit()
@@ -244,57 +263,88 @@ def _db(db_path: Path | str | None) -> Path:
 def save_scan(result: ScanResult, db_path: Path | str | None = None) -> str:
     """Persist a scan and its hosts. Returns the scan id. Idempotent.
 
-    Re-saving the same scan REPLACES its rows rather than appending: a survey
-    stored twice is one survey, and a store that duplicated it would make the
-    next comparison report change that never happened.
+    Re-saving an identical body is a no-op. A different body with the same
+    legacy 16-character ID is a conflict, never an overwrite.
     """
     path = _db(db_path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     scan_id = scan_id_for(result)
     plan = result.plan
+    body = json.dumps(asdict(result), sort_keys=True, ensure_ascii=False, default=str)
+    body_sha256 = hashlib.sha256(body.encode("utf-8")).hexdigest()
 
     conn = _connect(path)
     try:
         _ensure_schema(conn)
         with conn:  # one transaction: a half-written scan is worse than none
-            conn.execute("DELETE FROM scan_hosts WHERE scan_id = ?", (scan_id,))
-            conn.execute(
-                "INSERT OR REPLACE INTO scans (scan_id, site, started_at, finished_at, "
-                "profile, verdict, stages, scope, approved_by, ticket, wire_summary, "
-                "notes, host_count, device_count) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (
-                    scan_id,
-                    s(plan.site, 96),
-                    result.started_at,
-                    result.finished_at,
-                    s(plan.profile, 32),
-                    result.verdict,
-                    json.dumps(list(plan.stages)),
-                    json.dumps(
-                        {
-                            "cidrs": list(plan.cidrs),
-                            "hosts": list(plan.hosts),
-                            "excluded": list(plan.excluded),
-                            "ports": list(plan.ports),
-                            "protocols": list(plan.protocols),
-                            "seed": plan.seed,
-                        }
+            existing = conn.execute(
+                "SELECT body_sha256 FROM scans WHERE scan_id = ?", (scan_id,)
+            ).fetchone()
+            if existing is not None:
+                if existing[0] != body_sha256:
+                    raise ScanConflict(
+                        f"scan ID {scan_id} already names a different or legacy body; "
+                        "nothing was overwritten"
+                    )
+            else:
+                source_row = conn.execute(
+                    "SELECT value FROM scan_meta WHERE key = 'source_id'"
+                ).fetchone()
+                if source_row is None:
+                    source_id = str(uuid.uuid4())
+                    conn.execute(
+                        "INSERT INTO scan_meta (key, value) VALUES ('source_id', ?)",
+                        (source_id,),
+                    )
+                else:
+                    source_id = source_row[0]
+                conn.execute(
+                    "INSERT INTO scans (scan_id, site, started_at, finished_at, "
+                    "profile, verdict, stages, scope, approved_by, ticket, wire_summary, "
+                    "notes, host_count, device_count, source_id, body_sha256, stage_status, "
+                    "attempted_hosts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        scan_id,
+                        s(plan.site, 96),
+                        result.started_at,
+                        result.finished_at,
+                        s(plan.profile, 32),
+                        result.verdict,
+                        json.dumps(list(plan.stages)),
+                        json.dumps(
+                            {
+                                "cidrs": list(plan.cidrs),
+                                "hosts": list(plan.hosts),
+                                "excluded": list(plan.excluded),
+                                "ports": list(plan.ports),
+                                "protocols": list(plan.protocols),
+                                "seed": plan.seed,
+                                "allow_browse": list(plan.allow_browse),
+                            }
+                        ),
+                        s(plan.authorization.approved_by, 96),
+                        s(plan.authorization.ticket, 64),
+                        json.dumps(result.wire_summary),
+                        json.dumps(list(result.notes)),
+                        len(result.hosts),
+                        len(result.devices),
+                        source_id,
+                        body_sha256,
+                        json.dumps(result.stage_status),
+                        json.dumps(
+                            list(result.attempted_hosts)
+                            if result.attempted_hosts is not None
+                            else None
+                        ),
                     ),
-                    s(plan.authorization.approved_by, 96),
-                    s(plan.authorization.ticket, 64),
-                    json.dumps(result.wire_summary),
-                    json.dumps(list(result.notes)),
-                    len(result.hosts),
-                    len(result.devices),
-                ),
-            )
-            conn.executemany(
-                "INSERT INTO scan_hosts (scan_id, ip, mac, sources, alive, open_ports, "
-                "confirmed, identity_from, vendor, model, serial, firmware, name, "
-                "ports_json, protocols_json, identity_json, errors_json) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [_host_row(scan_id, h) for h in result.hosts],
-            )
+                )
+                conn.executemany(
+                    "INSERT INTO scan_hosts (scan_id, ip, mac, sources, alive, open_ports, "
+                    "confirmed, identity_from, vendor, model, serial, firmware, name, "
+                    "ports_json, protocols_json, identity_json, errors_json) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [_host_row(scan_id, h) for h in result.hosts],
+                )
     finally:
         conn.close()
     _harden_permissions(path)
@@ -364,6 +414,10 @@ def load_scan(scan_id: str, db_path: Path | str | None = None) -> dict[str, Any]
     record = dict(scan)
     for field in ("stages", "scope", "wire_summary", "notes"):
         record[field] = json.loads(record[field])
+    if record.get("stage_status"):
+        record["stage_status"] = json.loads(record["stage_status"])
+    if record.get("attempted_hosts"):
+        record["attempted_hosts"] = json.loads(record["attempted_hosts"])
     record["hosts"] = [_host_dict(row) for row in hosts]
     return record
 
