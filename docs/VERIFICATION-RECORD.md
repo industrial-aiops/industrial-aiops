@@ -1,5 +1,15 @@
 # 验证记录 — what has actually been run, per protocol
 
+## Scan evidence V1 — worktree verification (2026-10-30)
+
+`tests/test_scan_evidence_v1.py` exercises stored scan → offline export →
+independent stdlib validator, repeat export digest, old-row unknown fields,
+same-ID conflict, atomic no-overwrite, version/tamper/duplicate rejection and
+CLI no-network behavior. Samples in `tests/data/scan_evidence_v1/` are **self-built
+fixtures**. No asset-platform importer or authorized physical device has been
+tested; V1 contract integration and the first field-device support claim remain
+`待核实`. This section records worktree verification, not a release.
+
 > **This file records evidence, not intent.** Every row says what was executed, by
 > which test, at which rung of the ladder in
 > [`PREVIEW-VERIFICATION.md`](PREVIEW-VERIFICATION.md) — and what was **not**.

@@ -454,6 +454,32 @@ class TestExtractors:
         assert out["model"] == "1769-L33ER"
         assert out["serial"] == "0x60C0FFEE"
 
+    def test_s7_hardware_version_does_not_become_firmware(self, monkeypatch):
+        from iaiops.connectors.s7 import ops
+
+        monkeypatch.setattr(
+            ops,
+            "s7_cpu_info",
+            lambda t: {"cpu_info": {"SerialNumber": "00077", "HardwareVersion": "3.2"}},
+        )
+        out = identify._probe_s7("10.0.0.5", 102, 2.0, wirelog.WireLog())
+        assert "firmware" not in out
+        assert out["extra"]["hardware_version"] == "3.2"
+        assert out["serial"] == "00077"
+
+    def test_iolink_hardware_revision_does_not_become_firmware(self, monkeypatch):
+        from iaiops.connectors.iolink import ops
+
+        monkeypatch.setattr(
+            ops,
+            "master_info",
+            lambda t: {"master": {"serialnumber": "00012", "hwrevision": "B"}},
+        )
+        out = identify._probe_iolink("10.0.0.5", 80, 2.0, wirelog.WireLog())
+        assert "firmware" not in out
+        assert out["extra"]["hardware_version"] == "B"
+        assert out["serial"] == "00012"
+
     def test_eip_identification_never_opens_a_logix_session(self, monkeypatch):
         """The probe is named for ListIdentity; it used to upload the tag list.
 

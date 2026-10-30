@@ -664,6 +664,7 @@ iaiops scan run  --targets 10.0.0.0/24 --site "Line 1" \
                  --report survey.html                  # scan → store → one HTML file
 iaiops scan list                                       # stored surveys
 iaiops scan report --out survey.html                   # re-render the latest
+iaiops scan export <scan-id> --out scan.json           # versioned offline evidence
 ```
 
 `scan plan` puts **nothing** on the wire. It prints every host and port that
@@ -682,6 +683,16 @@ The HTML report is self-contained: no fonts, scripts, styles or images from
 anywhere, and no network request when opened. Its **first** section is what the
 scan touched — per-class emission counts, including requests that failed —
 followed by the list of things it never does. The device table comes after that.
+
+`scan export` reads **one named, stored** scan and writes a versioned JSON exchange
+file for offline asset-platform import. It sends no packets and does not alter the
+scan store. The format and independent Python validator are specified in
+[HLD §18](docs/HLD.md#18-资产平台-v1扫描证据离线交换);
+sample files under `tests/data/scan_evidence_v1/` are self-built fixtures. The
+source ID is an unverified installation claim, not a site credential or a
+permanent asset ID. Existing files are protected unless `--overwrite` is given.
+Older scans may lack source, stage or field provenance; the export marks these
+unknown rather than filling them in from later scans.
 
 ### From a survey to a measured OEE — the path the site actually walks
 

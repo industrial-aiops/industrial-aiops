@@ -35,6 +35,7 @@ from iaiops.core.discovery.types import (
 )
 from iaiops.core.sink.scan_store import (
     IDENTITY_COLUMNS,
+    ScanConflict,
     ScanNotFound,
     list_scans,
     load_scan,
@@ -97,12 +98,13 @@ class TestIdempotence:
         assert len(list_scans(db)) == 1
         assert len(load_scan(first, db)["hosts"]) == 1
 
-    def test_re_saving_replaces_hosts_rather_than_duplicating_them(self, db):
+    def test_re_saving_conflicting_body_refuses_to_overwrite_hosts(self, db):
         scan_id = save_scan(result_with(plc(), plc("10.0.0.4")), db)
-        save_scan(result_with(plc()), db)  # same plan+start, fewer hosts
+        with pytest.raises(ScanConflict):
+            save_scan(result_with(plc()), db)  # same plan+start, fewer hosts
         stored = load_scan(scan_id, db)
-        assert [h["ip"] for h in stored["hosts"]] == ["10.0.0.3"]
-        assert stored["host_count"] == 1
+        assert [h["ip"] for h in stored["hosts"]] == ["10.0.0.3", "10.0.0.4"]
+        assert stored["host_count"] == 2
 
     def test_a_different_run_is_a_different_scan(self, db):
         save_scan(result_with(plc(), started="2026-08-18T09:00:00+00:00"), db)

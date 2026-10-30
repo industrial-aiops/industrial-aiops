@@ -266,6 +266,22 @@ def list_cmd(
     _emit([asdict(row) for row in list_scans(db, limit)])
 
 
+@scan_app.command("export")
+@cli_errors
+def export_cmd(
+    scan_id: str = typer.Argument(..., help="Exact scan id from `iaiops scan list`."),
+    out: Path = typer.Option(..., "--out", help="Destination JSON file."),
+    db: Path = typer.Option(None, "--db", help="Store file (default: the local iaiops store)."),
+    overwrite: bool = typer.Option(
+        False, "--overwrite", help="Explicitly replace an existing file."
+    ),
+) -> None:
+    """Export one stored scan as validated offline evidence; sends no packets."""
+    from iaiops.core.discovery.scan_export import export_scan
+
+    _emit(export_scan(scan_id, out, db=db, overwrite=overwrite))
+
+
 @scan_app.command("report")
 @cli_errors
 def report_cmd(
