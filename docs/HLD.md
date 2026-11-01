@@ -179,7 +179,7 @@ MCP 有三个**各自独立、版本协商**的东西，不是一个整体：协
 
 - `IAIOPS_NO_EGRESS` 在注册期就把外发类工具从 `list_tools()` 摘掉（§4）
 - `deploy/airgap/compose.yaml` 是一等公民部署形态
-- Margo 描述符写明 outbound-only、零入站端口
+- Margo 部署的 OT 连接只出站；MCP 工具接口开放一个需 Bearer token 的入站端口（可选 IP allowlist），不是 OT 监听端口
 - 等保 2.0 / IEC 62443 分区分域交叉表
 
 一条从 OT 网反向连出公网的隧道，正是上述整套要排除的东西。（Tunnels 本就是某托管平台的产品功能，不属于 MCP 协议。）

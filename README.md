@@ -509,13 +509,13 @@ iaiops is designed to ride on a hardened, centrally-managed **edge host** as a p
 a *compliant orchestrator* places workloads by desired-state, and **iaiops is the OT-domain
 application** — read-first tap + cross-protocol RCA, exposed as governed MCP tools, with an optional
 **on-box LLM brain** for a fully air-gapped diagnostic path (data never leaves the plant).
-> **Honest status:** iaiops is a natural Margo edge application but is **NOT Margo-compliant yet** —
-> a container image + application description + a published conformance-toolkit result are roadmap
-> `⏳` (see **[docs/MARGO-ALIGNMENT.md](docs/MARGO-ALIGNMENT.md)** and `docs/ROADMAP.md`). No material
-> claims *Margo-compliant* until that test result exists.
+> **Honest status:** iaiops is a natural Margo edge application but is **NOT Margo-compliant yet**.
+> Signed OCI images and an rc.3 Application Package are published. The released OCI package
+> passed the official Application Supplier CTT runner on Ubuntu 24.04;
+> deployment through a real WFM/device remains `待核实` (see [the validation record](docs/MARGO-CTT-VALIDATION.md)).
 
-A container + application-description **skeleton** lives in **[`deploy/margo/`](deploy/margo/)**
-(hardened Dockerfile · compose · `待核实`-marked app descriptor); per-host distribution overlays
+A container + application-description package lives in **[`deploy/margo/`](deploy/margo/)**
+(hardened Dockerfile · Compose · rc.3 descriptor); per-host distribution overlays
 that reuse it live under **[`deploy/`](deploy/)** (one folder per candidate edge host).
 
 ---
