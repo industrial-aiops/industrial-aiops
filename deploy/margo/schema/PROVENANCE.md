@@ -41,10 +41,12 @@ enum, checked by machine rather than by eye.
 
 It does **not** mean iaiops is Margo-compliant. Compliance covers deployment
 behaviour, device-side runtime, and management-interface interaction, and is
-established by the Margo **conformance test toolkit** — which exists since 2026-08
-(`margo/conformance_test_toolkit`) but whose app-supplier runner was still an
-unmerged pull request on 2026-10-15; iaiops has not been run through it. See `../../../docs/MARGO-ALIGNMENT.md` for the
-honest status, which this gate does not change.
+investigated with the Margo **conformance test toolkit**. Its Application Supplier runner was
+merged on 2026-10-16 and is available on `margo/conformance_test_toolkit` main. The released
+v0.32.0 OCI package passed its runner on Ubuntu 24.04; see `../../../docs/MARGO-CTT-VALIDATION.md`.
+The current runner checks package structure and registry artifacts,
+while live deployment through a WFM/device remains a separate verification step. See
+`../../../docs/MARGO-ALIGNMENT.md` for the honest status, which this schema gate does not change.
 
 ## The control corpus is load-bearing
 

@@ -868,8 +868,9 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
 
 ## Ecosystem / edge packaging (Margo)
 > Positioning + gap in `docs/MARGO-ALIGNMENT.md`. iaiops is a natural **Margo edge application**
-> (governed, neutral, air-gap friendly). **NOT Margo-compliant yet** — every row here is `⏳` and
-> stays `待核实` until the conformance toolkit passes on real gear. Contributor-first (free); paid
+> (governed, neutral, air-gap friendly). **NOT Margo-compliant yet** — packaging is delivered and
+> the official Application Supplier CTT passed on Ubuntu 24.04; WFM/device deployment remains `待核实`.
+> See `docs/MARGO-CTT-VALIDATION.md`. Contributor-first (free); paid
 > membership only on customer pull.
 - ✅ **Container (OCI) image per edition profile** (2026-07-15) — reproducible, headless MCP
   entrypoint, non-root, read-only-rootfs friendly (`deploy/margo/Dockerfile`). CI
@@ -877,21 +878,25 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   them** (public key `deploy/margo/cosign.pub`), and pushes
   `ghcr.io/industrial-aiops/iaiops:<version>-<profile>`. The tag→PyPI race that silently broke the
   v0.12–v0.14 image builds is fixed (CI now waits for the wheel to land on PyPI).
-- ✅ **Margo application description — hosted + signed + CI-linted** (2026-07-15) — built to the
-  real `margo.org/v1-alpha1` schema (`deploy/margo/margo.yaml`, docs.margo.org PR1 pre-draft).
-  CI assembles descriptor + deploy-ready compose into `iaiops-margo-package-<version>.tar.gz`,
-  cosign-signs it, and attaches it to the GitHub release (= `packageLocation`; verify key =
-  `keyLocation`). `tests/test_margo_package.py` lints descriptor ↔ profile menu ↔ pip extras ↔
-  build matrix ↔ version pins. Remaining `待核实` = only the secret-parameter flag
-  (margo/specification#145). Then run conformance.
+- ✅ **Margo application description — hosted + signed + CI-linted** (2026-07-15; rc.3 migration
+  2026-10-16) — `deploy/margo/margo.yaml` validates against the Margo `v1.0.0-rc.3` schema. CI
+  publishes the Application Package (`ghcr.io/industrial-aiops/iaiops-margo:<version>`) and its
+  Compose component (`ghcr.io/industrial-aiops/iaiops-compose:<version>`) as signed OCI artifacts.
+  A signed release tarball is a mirror. `tests/test_margo_package.py` lints descriptor ↔ profile
+  menu ↔ pip extras ↔ build matrix ↔ version pins. Secret-reference semantics remain open in
+  margo/specification#145; the official CTT passed on Ubuntu 24.04, while WFM/device deployment
+  remains `待核实`.
 - ✅ **On-box LLM brain option — documented + deployable** (2026-07-15) — `docs/AIRGAP.md` (three
   tiers: deterministic diagnosis needs no LLM at all; `rca_narrate` → on-box Ollama for narration;
   fully local MCP copilot as a documented pattern) + `deploy/airgap/compose.yaml` (signed iaiops
   image + pinned Ollama on an internal-only network, no published LLM ports) +
   `tests/test_airgap_compose.py`. Still `待核实`: a live narration pass against a real Ollama on
   real edge hardware, and any verified local-copilot client/model pairing.
-- ⏳ **Margo conformance run** — execute the compliance toolkit on a real device + publish the
-  traceable result. **Only after this passes** may any material say *Margo-compliant*.
+- ◐ **Margo conformance run** — the official Application Supplier CTT runner passed against the
+  released v0.32.0 OCI package on Ubuntu 24.04 (67 checks: 61 passed, 0 failed, 0 warnings,
+  1 not run, 4 not applicable, 1 info; report in `docs/MARGO-CTT-VALIDATION.md`). Verify
+  deployment and runtime observability on a real WFM/device next. A structural pass alone is
+  not a *Margo-compliant* claim.
 - ⏳ **Immutable-host validation** — live deploy on a candidate immutable edge OS (IGEL OS or
   equivalent), captured as a `待核实 → verified` row like every hardware pass.
 

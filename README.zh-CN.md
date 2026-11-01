@@ -156,9 +156,9 @@ MCP 侧同一个检查叫 `verify_determinism`；`iaiops verify suite` 只列出
 
 ### 边缘部署与生态定位(edge-native / Margo)
 iaiops 以**边缘应用(edge application)**的形态跑在加固、集中管理的**边缘主机**上——不抢主机、也不抢编排层。它天然对齐 [Margo](https://margo.org/) 工业边缘互操作标准的角色划分:*主机/设备* = 不可变边缘 OS,*合规编排器* 按期望状态下发工作负载,而 **iaiops = OT 域应用**(只读 tap + 跨协议 RCA,以受治理的 MCP 工具暴露),并可对接**本机 LLM 脑**做完全离线(气隙)诊断,数据不出厂。
-> **诚实状态:** iaiops 是天然的 Margo 边缘应用,但**目前尚未 Margo-compliant**——容器镜像 + application description + 公开的 conformance 结果均为 roadmap `⏳`(见 **[docs/MARGO-ALIGNMENT.md](docs/MARGO-ALIGNMENT.md)** 与 `docs/ROADMAP.md`)。在那份测试结果出来前,任何材料都不声称 *Margo-compliant*。
+> **诚实状态:** iaiops **目前尚未 Margo-compliant**。已发布签名 OCI 镜像和 rc.3 Application Package；官方 Application Supplier CTT 在 Ubuntu 24.04 上对已发布 OCI 包验证通过，真实 WFM/设备部署仍为`待核实`。见[验证记录](docs/MARGO-CTT-VALIDATION.md)，不能把结构验证通过写成合规认证。
 
-容器 + application-description **骨架**见 **[`deploy/margo/`](deploy/margo/)**(加固 Dockerfile · compose · 标 `待核实` 的 app 描述符);复用该镜像的按主机分发覆盖层存放于 **[`deploy/`](deploy/)**(每个候选边缘主机一个目录)。
+容器 + application-description 包见 **[`deploy/margo/`](deploy/margo/)**(加固 Dockerfile · Compose · rc.3 描述符);复用该镜像的按主机分发覆盖层存放于 **[`deploy/`](deploy/)**(每个候选边缘主机一个目录)。
 
 ---
 

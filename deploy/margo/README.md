@@ -1,11 +1,12 @@
-# `deploy/margo/` — iaiops as a Margo edge-application (skeleton)
+# `deploy/margo/` — iaiops as a Margo edge application
 
 > **Status: packaged + signed, but NOT Margo-compliant yet.** iaiops ships as a [Margo](https://margo.org/)-style
-> edge application: per-profile signed OCI images on GHCR + a cosign-signed application package on
-> each GitHub release, descriptor built to the `margo.org/v1-alpha1` schema. A passing
-> conformance-toolkit result is still `待核实` — see
+> edge application: per-profile signed OCI images on GHCR + a signed OCI application package
+> (with a signed GitHub release tarball as a mirror), descriptor built to Margo `v1.0.0-rc.3`.
+> The released OCI package passed the official Application Supplier CTT runner on Ubuntu 24.04;
+> a WFM/device deployment remains `待核实` — see
 > [`../../docs/MARGO-ALIGNMENT.md`](../../docs/MARGO-ALIGNMENT.md) for the full plan and honesty note.
-> No material claims *Margo-compliant* until the conformance result exists.
+> Do not claim *Margo-compliant* from the package test alone; WFM/device verification remains.
 
 ## What's here
 
@@ -14,7 +15,7 @@
 | `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. |
 | `compose.yaml` | Example hardened run for **local dev** (builds from source): `read_only`, `cap_drop: ALL`, no-new-privileges, single **token-authenticated** MCP port (optional IP allowlist) (socket transport — no OT inbound), single config/secret volume. |
 | `package.compose.yaml` | **Deploy-ready** compose shipped inside the signed application package (as `compose.yaml`): references the published, version-pinned GHCR image (`profile` parameter selects the per-edition variant), same hardened posture, no build section. |
-| `margo.yaml` | Margo **ApplicationDescription**, built to the real **`margo.org/v1-alpha1`** schema (docs.margo.org, PR1 pre-draft): compose `deploymentProfiles` / `components` / `requiredResources` / `parameters` / `configuration`. `packageLocation`/`keyLocation` point at the signed release asset + `cosign.pub`. Remaining `待核实` = only the secret-parameter flag pending [`margo/specification#145`](https://github.com/margo/specification/issues/145). |
+| `margo.yaml` | Margo **ApplicationDescription**, validated against the `v1.0.0-rc.3` schema: `apiVersion: v1`, compose `deploymentProfiles` / `components` / `deviceConstraints` / `parameters` / `configuration`. The component uses an OCI `repository` and `revision`; the secret-reference model remains an open point in [`margo/specification#145`](https://github.com/margo/specification/issues/145). |
 | `cosign.pub` | Public verify key for the signed images and the application package (private key lives only in CI secrets — rotate by regenerating the pair + updating this file). |
 | `.dockerignore` | Keeps the build context tiny (image installs from PyPI). |
 
@@ -22,8 +23,11 @@
 
 - `ghcr.io/industrial-aiops/iaiops:<version>-<profile>` — multi-arch (amd64/arm64), cosign-signed.
   Verify: `cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:<version>-<profile>`
-- `iaiops-margo-package-<version>.tar.gz` (+ `.sig`) on the GitHub release — the Margo application
-  package: `margo.yaml` + deploy-ready `compose.yaml` + `cosign.pub`.
+- `ghcr.io/industrial-aiops/iaiops-margo:<version>` — OCI Application Package; its compose component
+  is `ghcr.io/industrial-aiops/iaiops-compose:<version>`. Both are signed by digest. These are the
+  registry artifacts named by the rc.3 descriptor.
+- `iaiops-margo-package-<version>.tar.gz` (+ `.sig`) on the GitHub release — a signed mirror of the
+  application package: `margo.yaml` + deploy-ready `compose.yaml` + `cosign.pub`.
   Verify: `cosign verify-blob --key cosign.pub --signature <pkg>.tar.gz.sig <pkg>.tar.gz`
 - CI waits for the wheel to appear on PyPI before building (the tag→PyPI race silently broke the
   v0.12–v0.14 image builds), and `tests/test_margo_package.py` lints descriptor ↔ profile menu ↔
@@ -65,6 +69,10 @@ on the token. Margo leaves workload-to-workload
 authentication to the application, so iaiops does it; the IP allowlist is a second layer, not the
 authentication.
 
+For a mounted token file, make it readable by the container's UID 10001 (for example, owner
+10001 and mode `0600`); a host-owned `0600` file causes startup to fail with permission denied.
+Keep the file outside the image and remove it when the deployment is torn down.
+
 The OT side stays strictly **outbound** to the endpoints in `config.yaml`; the socket port is only
 the tool interface for the orchestrator/agent.
 
@@ -88,8 +96,12 @@ The three open questions posted to the WG ([Discourse t/43](https://discourse.ma
    [`margo/specification#145`](https://github.com/margo/specification/issues/145). → `masterPassword`
    is modeled as a **reference** (empty in the descriptor, injected from the device secret facility);
    iaiops resolves every credential from its on-box encrypted store **by name**, so secret values
-   never travel in the descriptor or deployment spec. We'll contribute this reference-model as a use
-   case on #145.
+   never travel in the descriptor or deployment spec. The reference-model use case was contributed
+   on #145 in July 2026; the specification decision is still open.
 
 Full detail + the contribution plan: appendix B of [`../../docs/MARGO-ALIGNMENT.md`](../../docs/MARGO-ALIGNMENT.md).
-The remaining `待核实` are only the secret-parameter flag (#145) and the conformance run.
+The remaining `待核实` include the secret-parameter contract (#145) and deployment through a real
+WFM/device. The supported-host CTT result is recorded in
+[`docs/MARGO-CTT-VALIDATION.md`](../../docs/MARGO-CTT-VALIDATION.md). The runner is now on
+[`margo/conformance_test_toolkit` main](https://github.com/margo/conformance_test_toolkit); a schema
+pass alone does not establish conformance.

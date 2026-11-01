@@ -17,9 +17,10 @@
 #     carries only a REFERENCE; see `masterPassword` / `mcpToken` and ../../docs/MARGO-ALIGNMENT.md.
 #
 # 待核实: the OCI format of a compose component is not specified by Margo (left to supplier and
-# WFM to agree); we publish it the way `docker compose publish` does. iaiops has NOT been run
-# through the conformance test toolkit (margo/conformance_test_toolkit, unmerged as of
-# 2026-10-15), so it is NOT Margo-compliant. See ../../docs/MARGO-ALIGNMENT.md.
+# WFM to agree); we publish it the way `docker compose publish` does. The official Application
+# Supplier CTT runner passed on Ubuntu 24.04, but WFM/device deployment remains unverified.
+# iaiops is NOT Margo-compliant.
+# See ../../docs/MARGO-ALIGNMENT.md.
 apiVersion: v1
 id: io-github-industrial-aiops-iaiops
 metadata:

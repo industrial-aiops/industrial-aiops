@@ -1,0 +1,84 @@
+# Margo Application Supplier CTT — v0.32.0 evidence
+
+> This is a test record, not a Margo compliance claim. The CTT is under active
+> development; a package-validator pass does not demonstrate deployment through a
+> workload fleet manager or operation on an edge device.
+
+## Subject and tool
+
+- Subject: released `ghcr.io/industrial-aiops/iaiops-margo:0.32.0` OCI Application
+  Package, not an uncommitted descriptor. The signed release tarball
+  `iaiops-margo-package-0.32.0.tar.gz` has SHA-256
+  `35ae8db036006fb4840d904f55339d763e15415f366c3d3d4b85764a5049f45e`.
+- Tool: [`margo/conformance_test_toolkit`](https://github.com/margo/conformance_test_toolkit)
+  commit `59b13482c95f98b5793b87c14aeddb677343b013` (2026-10-27), Application
+  Supplier runner. The runner targets specification `v1.0.0-rc.3`.
+- Local preflight host: macOS arm64, Go 1.26.4, **outside the toolkit's supported
+  Ubuntu 24.04 environment**. To build while `proxy.golang.org` was unreachable,
+  the temporary CTT checkout's `go.mod` used local source replacements cloned at
+  the five required module versions. No CTT Go source file was changed.
+
+## Results — 2026-11-01
+
+| Check | Observation | Limit |
+|---|---|---|
+| Extracted release archive | CTT reported `PASSED`; Application Description and Compose component repository checks passed. | Registry checks were `NOT RUN` because the input was a local folder. |
+| Released OCI reference, local preflight | CTT reported `PASSED`: 67 checks, 61 passed, 0 failed, 0 warnings, 1 not run, 4 not applicable, 1 info. [macOS HTML report](evidence/margo/ctt-app-supplier-v0.32.0-2026-11-01.html). | macOS is outside the toolkit's supported host environment. |
+| Released OCI reference, supported host | The same Application Supplier runner reported `PASSED` with the same 67/61/0/0/1/4/1 counts on `Open-test` (Ubuntu 24.04, x86_64, Go 1.24.9). [Ubuntu HTML report](evidence/margo/ctt-app-supplier-ubuntu2404-v0.32.0-2026-11-01.html), SHA-256 `ff7b49c1840220fd80f9a2d53685a141e417887339a45dc7ace513a557c6abfb`. | The not-run row requires observing a running workload's alternative telemetry export; the info row says OTLP is not declared. No WFM/device deployment occurred. |
+| Signature | `cosign verify-blob` accepted the release tarball; `cosign verify` accepted both the Application Package and Compose OCI component against the committed public key. | `--insecure-ignore-tlog=true` was used, so this verified the signatures and key claims, **not** Rekor transparency-log inclusion. The CTT checks signature presence, not the full cryptographic verification. |
+| Existing package tests | `PYTHONPATH=. pytest -q tests/test_margo_package.py`: 13 passed. The descriptor also had zero errors against the CTT-bundled JSON schema. | These are local structural checks. |
+
+The OCI CTT report marks the old PGP requirement
+`MARGO-APP-APPLICATIONDESCRIPTION-004` as `N/A` after the OCI migration; the
+Compose signature requirement accepts cosign as a recommended signature form.
+The separate [OCI signing SUP #100](https://github.com/margo/specification-enhancements/pull/100)
+is still a draft and may change future requirements.
+
+## Supported-host reproduction — 2026-11-01
+
+The published OCI reference was retested on the lab VM `Open-test` with Ubuntu
+24.04 x86_64 and Go 1.24.9. The CTT source was exported from the exact commit
+above and its Go source was unchanged. Because `proxy.golang.org` was unreachable
+from the VM, five dependencies were copied from the version-pinned local clones
+and referenced through temporary `go.mod` replacements. The binary was compiled
+on the VM and run from `ctt-runner/app-supplier/scripts/`:
+
+```bash
+~/margo-ctt-20261101/margo-ctt-app oci://ghcr.io/industrial-aiops/iaiops-margo:0.32.0
+```
+
+The generated report is retained above. The structural CTT result is verified
+on its supported host. Actual deployment through a Margo WFM/device and runtime
+observability remain **待核实**; this is not a Margo compliance claim.
+
+The reports above came from the unmodified toolkit runner. A separate report
+provenance improvement was submitted to the toolkit as
+[`margo/conformance_test_toolkit#16`](https://github.com/margo/conformance_test_toolkit/pull/16)
+and is awaiting upstream review; it does not change these results.
+
+## Published-container smoke test — 2026-11-01
+
+On the same Ubuntu VM, Docker 29.1.3 pulled the released
+`ghcr.io/industrial-aiops/iaiops:0.32.0-factory` image at digest
+`sha256:fa5c65bc7c6d5a04ea2a7b7f1657f498a02a609881506913596a9246a2215c1a`.
+It ran as UID 10001 with a read-only root filesystem, writable `/tmp`, no
+capabilities, `no-new-privileges`, a dedicated state volume, and a mounted
+token file. The streamable HTTP MCP endpoint was bound to host loopback only.
+
+| Probe | Observation |
+|---|---|
+| Container health | `healthy` |
+| MCP `initialize` without bearer token | HTTP 401 |
+| MCP `initialize` with bearer token | HTTP 200; session established |
+| MCP `tools/list` | HTTP 200; 156 factory-profile tools returned |
+| MCP `tools/call` for `protocols_supported` | Result returned with `isError: false` |
+| State/audit | `audit.db` existed in the mounted state volume with 3 rows after the probe |
+
+The first start failed because the host-owned token file was mode `0600` and
+unreadable by UID 10001. After setting its owner to UID 10001 while retaining
+mode `0600`, the same image started and passed the probes. This is a deployment
+prerequisite for any secret-file injection; the shipped Compose example also
+supports direct token injection. This Docker smoke test is **not** a deployment
+through a Margo WFM/device and does not verify OT hardware or live telemetry.
+The test container, state volume, and generated token file were removed after
+the probe; the CTT workspace and pulled image remain on the VM for follow-up.
