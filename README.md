@@ -665,6 +665,8 @@ iaiops scan run  --targets 10.0.0.0/24 --site "Line 1" \
 iaiops scan list                                       # stored surveys
 iaiops scan report --out survey.html                   # re-render the latest
 iaiops scan export <scan-id> --out scan.json           # versioned offline evidence
+iaiops scan validate scan.json                         # contract check; offline
+iaiops scan run --targets 10.0.0.5 --export scan.json  # preview, scan, store, export
 ```
 
 `scan plan` puts **nothing** on the wire. It prints every host and port that
@@ -693,6 +695,9 @@ source ID is an unverified installation claim, not a site credential or a
 permanent asset ID. Existing files are protected unless `--overwrite` is given.
 Older scans may lack source, stage or field provenance; the export marks these
 unknown rather than filling them in from later scans.
+`scan validate` checks the file's format and digest without contacting a device
+or importing it. `scan run --export` reuses the stored scan and the same exporter;
+it refuses `--no-store` and an existing output before sending scan packets.
 
 ### From a survey to a measured OEE — the path the site actually walks
 

@@ -18,6 +18,13 @@
   blank, the capture is marked incomplete, and no configuration is written.
 - Reject non-MQTT endpoints and missing `stale_after_s` before subscribing.
 
+### Scan evidence CLI follow-on (P1)
+
+- Add `iaiops scan validate <file>` for offline contract and digest checks.
+- Add `iaiops scan run --export <file>` as a shortcut over the same stored-scan
+  exporter. Invalid output options are refused before scan packets are sent;
+  a failed export reports the stored scan ID for an offline retry.
+
 ### Scan evidence exchange V1
 
 - Add the offline `iaiops scan export <scan-id> --out scan.json` command and a
