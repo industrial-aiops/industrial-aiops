@@ -7,6 +7,10 @@ iaiops meter profile demo/metering/college_hh_sample.csv \
     --site "Example FE College (synthetic)" --report college.html
 ```
 
+Preview the [self-contained HTML example](college_hh_report_example.html). It was
+generated from the synthetic sample with the illustrative tariff and is not a
+customer measurement.
+
 No hardware, no network: the input is a file.
 
 ## ⚠️ Read this before showing it to anyone
