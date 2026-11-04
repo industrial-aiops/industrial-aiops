@@ -117,7 +117,13 @@ def _awl_line(code: str, raw: str, block: str, idx: int, out: dict) -> None:
     for m in _AWL_ADDRESS.finditer(operands):
         address = parse_s7_program_address(m.group(1))
         if address is not None:
-            out["addresses"].append(AddressSite(address, access, block, idx, _quote(raw)))
+            # CALL is the access to the block, not the access to its parameter.
+            # A parameter's input/output direction needs the block interface,
+            # which this export may not include. Do not label it a call or write.
+            operand_access = (
+                "reference" if access == "call" and "(" in code[: m.start()] else access
+            )
+            out["addresses"].append(AddressSite(address, operand_access, block, idx, _quote(raw)))
 
 
 _AWL_ADDRESS_FULL_DB = re.compile(r"DB\d+\.DB[XBWD]\s*\d+", re.I)

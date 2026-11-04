@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — program export origin checks
+
+- Before attaching live values to an exported program, compare the L5X controller
+  name with the online Logix name. A name match is labelled as limited evidence.
+- AWL/SCL live reads require explicit CLI operator attestation and a CPU in RUN;
+  MCP cannot supply that attestation. CALL parameter addresses are references
+  until a block interface proves their direction. Identity-query failures do
+  not echo connection errors into the result.
+
 ## 0.32.0 — 2026-10-20
 
 Which program address is which field point: an exported PLC program (Siemens AWL /

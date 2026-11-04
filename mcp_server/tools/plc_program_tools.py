@@ -328,8 +328,10 @@ def plc_program_xref_config(path: str, endpoint: str, live: bool = False) -> dic
         path: Exported program file (.st/.scl/.awl/.l5x/.txt; must exist, ≤5 MB),
             under $IAIOPS_HOME, the config dir or an IAIOPS_AGENT_READ_DIRS dir.
         endpoint: Configured endpoint name whose ``tags`` are joined.
-        live: Also read the MATCHED points now (read-only). A failed read is a
-            gap with no value; each value carries ``read_at``.
+        live: Also read MATCHED points now. Logix requires a matching live
+            controller name. AWL/SCL has no CPU identity, so MCP live reads are
+            refused; an operator can attest origin through the CLI. A failed
+            read is a gap with no value.
 
     Returns dict: {program:{source_file, format, content_sha256}, endpoint:{name,
         protocol, configured_tag_count}, comparable, address_space,

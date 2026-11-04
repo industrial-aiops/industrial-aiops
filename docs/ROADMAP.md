@@ -25,13 +25,18 @@ field engineers before building beyond the minimal versions.
   match only** (never a name guess), plus live values. Report three lists: matched,
   in program but not configured, configured but unused by the program. Minimal
   version first; show it to engineers.
-  **Minimal version on main (unreleased)**: `iaiops program xref-config` / MCP
+  **Minimal version shipped in 0.32.0**: `iaiops program xref-config` / MCP
   `plc_program_xref_config` — AWL/.scl × s7 and L5X × Logix only; every other pair
   is reported as not comparable, with no lists.
+  **Follow-up in this branch:** Logix live reads compare the L5X controller name
+  with the online name (not a unique device ID); S7 AWL/SCL has no CPU identity,
+  so an operator must attest export origin through the CLI before live reads.
+  S7 STOP or unknown CPU state refuses point reads. AWL CALL parameter operands
+  are labelled `reference` because their direction needs a block interface.
 - **B — `iaiops program doc`** (MIT): deterministic I/O list + block outline +
   cross-reference + change history as one self-contained HTML. LLM optional and only
   to draft comments into a SEPARATE document — never written back into the project.
-  **Minimal version on main (unreleased)**: `iaiops program doc --out x.html`, CLI-only,
+  **Minimal version shipped in 0.32.0**: `iaiops program doc --out x.html`, CLI-only,
   no LLM step yet.
 
 ## Status — 2026-08-22 (sequencing decided: OEE first, knowledge base second, PdM last)
