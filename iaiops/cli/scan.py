@@ -179,6 +179,10 @@ def run_cmd(
     report: Path = typer.Option(None, "--report", help="Also write the HTML report here."),
     db: Path = typer.Option(None, "--db", help="Store file (default: the local iaiops store)."),
     no_store: bool = typer.Option(False, "--no-store", help="Do not persist the result."),
+    export: Path = typer.Option(None, "--export", help="Also write scan evidence JSON here."),
+    export_overwrite: bool = typer.Option(
+        False, "--export-overwrite", help="Explicitly replace an existing evidence file."
+    ),
 ) -> None:
     """Run the scan, store it, and optionally render the report.
 
@@ -190,6 +194,20 @@ def run_cmd(
     from iaiops.core.discovery.report import render_result
     from iaiops.core.discovery.runner import run_scan
     from iaiops.core.sink.scan_store import save_scan
+
+    export_path = None
+    if export is not None:
+        from iaiops.core.governance.evidence import validate_output_path
+
+        if no_store:
+            raise ValueError("--export requires a stored scan; remove --no-store")
+        export_path = validate_output_path(export, suffixes=(".json",))
+        if (export_path.exists() or export_path.is_symlink()) and not export_overwrite:
+            raise FileExistsError(
+                f"output already exists: {export_path}; pass --export-overwrite to replace it"
+            )
+    elif export_overwrite:
+        raise ValueError("--export-overwrite requires --export <file>")
 
     plan = _with_site_and_stages(
         _build_plan(
@@ -224,6 +242,19 @@ def run_cmd(
     if not no_store:
         scan_id = save_scan(result, db)
 
+    evidence_export = None
+    if export_path is not None:
+        from iaiops.core.discovery.scan_export import export_scan
+
+        try:
+            evidence_export = export_scan(scan_id, export_path, db=db, overwrite=export_overwrite)
+        except Exception:
+            console.print(
+                f"[yellow]Scan was stored as {scan_id}; evidence export failed. "
+                f"Retry with `iaiops scan export {scan_id} --out <file>`.[/]"
+            )
+            raise
+
     if report is not None:
         from iaiops.core.governance.evidence import validate_output_path
 
@@ -234,6 +265,7 @@ def run_cmd(
     _emit(
         {
             "scan_id": scan_id or "(not stored)",
+            "evidence_export": evidence_export,
             "verdict": result.verdict,
             "hosts_seen": len(result.hosts),
             "devices_identified": len(result.devices),
@@ -280,6 +312,30 @@ def export_cmd(
     from iaiops.core.discovery.scan_export import export_scan
 
     _emit(export_scan(scan_id, out, db=db, overwrite=overwrite))
+
+
+@scan_app.command("validate")
+@cli_errors
+def validate_cmd(
+    file: Path = typer.Argument(..., help="Offline scan evidence JSON to check."),
+) -> None:
+    """Check one evidence file against the public contract; does not contact devices."""
+    from iaiops.core.discovery.scan_contract import load_and_validate
+
+    document = load_and_validate(file)
+    observation = document["observation"]
+    _emit(
+        {
+            "format": document["format"],
+            "format_version": document["format_version"],
+            "scan_id": observation["scan_id"],
+            "source_assertion": document["source"]["assertion"],
+            "subject_sha256": document["subject_sha256"],
+            "verdict": observation["verdict"],
+            "hosts": len(document["hosts"]),
+            "valid": True,
+        }
+    )
 
 
 @scan_app.command("report")
