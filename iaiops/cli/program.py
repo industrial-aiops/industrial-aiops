@@ -187,6 +187,13 @@ def xref_config_cmd(
             "--live", help="Also read the matched points now (read-only; a failed read is a gap)"
         ),
     ] = False,
+    confirm_export_origin: Annotated[
+        bool,
+        typer.Option(
+            "--confirm-export-origin",
+            help="For AWL/SCL: operator confirms export origin; the file cannot prove it.",
+        ),
+    ] = False,
 ) -> None:
     """Which program address is which configured point — exact address match only.
 
@@ -200,7 +207,10 @@ def xref_config_cmd(
     target = resolve_target(endpoint)
     result = field_xref.xref_program_endpoint(str(path), target)
     if live:
-        result = {**result, "live": field_live.read_matched(target, result)}
+        result = {
+            **result,
+            "live": field_live.read_matched(target, result, export_confirmed=confirm_export_origin),
+        }
     _emit(result)
 
 

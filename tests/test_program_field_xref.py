@@ -506,9 +506,98 @@ def test_cli_xref_config_and_live(configured, monkeypatch):
     assert '"matched"' in result.output and '"live"' not in result.output
 
     monkeypatch.setattr(field_live, "default_read", lambda target, ref: True)
+    from iaiops.connectors.s7 import ops as s7_ops
+
+    monkeypatch.setattr(s7_ops, "s7_cpu_info", lambda target: {"cpu_status": "RUN"})
     result = runner.invoke(app, ["program", "xref-config", path, "--endpoint", "line3", "--live"])
     assert result.exit_code == 0, result.output
+    assert '"unverified"' in result.output and '"read_count": 0' in result.output
+    result = runner.invoke(
+        app,
+        [
+            "program",
+            "xref-config",
+            path,
+            "--endpoint",
+            "line3",
+            "--live",
+            "--confirm-export-origin",
+        ],
+    )
+    assert result.exit_code == 0, result.output
     assert '"read_now"' in result.output
+
+
+@pytest.mark.unit
+def test_s7_stop_never_labels_a_value_read_now(tmp_path, monkeypatch):
+    from iaiops.connectors.s7 import ops as s7_ops
+    from iaiops.core.brain.plc_program import field_live
+
+    path = _write(tmp_path, "ob1.awl", AWL_LINE)
+    target = _target("s7", [{"ref": "M10.0"}])
+    result = fx.xref_program_endpoint(path, target)
+    monkeypatch.setattr(s7_ops, "s7_cpu_info", lambda target: {"cpu_status": "STOP"})
+    live = field_live.read_matched(
+        target, result, read=lambda *_: pytest.fail("read while STOP"), export_confirmed=True
+    )
+    assert live["identity"]["status"] == "cpu_not_running"
+    assert live["points"] == []
+
+
+@pytest.mark.unit
+def test_l5x_live_controller_mismatch_refuses_read(tmp_path, monkeypatch):
+    from iaiops.connectors.eip import ops as eip_ops
+    from iaiops.core.brain.plc_program import field_live
+
+    path = _write(tmp_path, "line3.L5X", L5X_SAMPLE)
+    target = _target("ethernetip", [{"ref": "Motor_Run"}])
+    result = fx.xref_program_endpoint(path, target)
+    monkeypatch.setattr(
+        eip_ops, "eip_controller_info", lambda target: {"controller": {"name": "Other_Controller"}}
+    )
+    live = field_live.read_matched(
+        target, result, read=lambda *_: pytest.fail("read from wrong controller")
+    )
+    assert live["identity"]["status"] == "mismatch"
+    assert live["points"] == []
+
+
+@pytest.mark.unit
+def test_l5x_live_matching_name_reports_limited_identity(tmp_path, monkeypatch):
+    from iaiops.connectors.eip import ops as eip_ops
+    from iaiops.core.brain.plc_program import field_live
+
+    path = _write(tmp_path, "line3.L5X", L5X_SAMPLE)
+    target = _target("ethernetip", [{"ref": "Motor_Run"}])
+    result = fx.xref_program_endpoint(path, target)
+    exported = result["program"]["controller"]["name"]
+    monkeypatch.setattr(
+        eip_ops, "eip_controller_info", lambda target: {"controller": {"name": exported}}
+    )
+    live = field_live.read_matched(target, result, read=lambda *_: True)
+    assert live["identity"]["status"] == "name_match_only"
+    assert live["read_count"] == 1
+
+
+@pytest.mark.unit
+def test_live_identity_error_does_not_echo_connection_secrets(tmp_path, monkeypatch):
+    from iaiops.connectors.eip import ops as eip_ops
+    from iaiops.core.brain.plc_program import field_live
+
+    path = _write(tmp_path, "line3.L5X", L5X_SAMPLE)
+    target = _target("ethernetip", [{"ref": "Motor_Run"}])
+    result = fx.xref_program_endpoint(path, target)
+
+    def failed_info(_target):
+        raise RuntimeError("connection failed token=private-secret")
+
+    monkeypatch.setattr(eip_ops, "eip_controller_info", failed_info)
+    live = field_live.read_matched(
+        target, result, read=lambda *_: pytest.fail("read after identity failure")
+    )
+    assert live["identity"]["status"] == "unverified"
+    assert "private-secret" not in str(live)
+    assert live["points"] == []
 
 
 # ─── adversarial-review regressions: text that is not an operand ─────────────
@@ -574,6 +663,8 @@ END_FUNCTION_BLOCK
         ["I0.1", "Q4.0", "M1.0", "M10.0", "IW1", "DB10,X0.0", "I0.7", "MW50"],
     )
     assert matched == {"I0.7", "MW50"}  # lowercase AWL is still AWL
+    mw = next(row for row in r["matched"] if row["configured_ref"] == "MW50")
+    assert mw["sites"][0]["access"] == "reference"  # CALL parameter is not a block call
     assert "T1" not in {row["address"] for row in r["in_export_not_configured"]}
     pointer_lines = {s["line"] for s in r["indirect_access_sites"]}
     assert {12, 14} <= pointer_lines  # P# takes an address; it is listed, not matched

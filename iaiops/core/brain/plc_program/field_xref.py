@@ -93,10 +93,9 @@ _LOGIX_NOTES = (
     "A Logix tag path is the address the CIP connector reads by, so equal paths "
     "(case-insensitive, as Logix tag names are) are the same tag. A member or "
     "element (`Tag.ACC`, `Tag[2]`) joins its tag as member_of_tag.",
-    "This join assumes the export is from this endpoint's controller — the file "
-    "cannot prove that; program.controller names the controller the export came from, "
-    "so check it against the endpoint. Common tag names (Start, Run) match on any "
-    "controller that has them.",
+    "The offline join cannot prove the export came from this endpoint. With --live, "
+    "the export controller name is compared to the live Logix name before points "
+    "are read; equal names are not a unique hardware identity.",
     "An alias tag joins by its own name. I/O module tags (Local:1:I.Data) are not "
     "extracted by the L5X parser, so a configured alias TARGET can show as not in export.",
 )
