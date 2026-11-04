@@ -748,17 +748,13 @@ Everything below is the detailed backlog with per-item status.
       sent to `scan run` first, and a scan never identifies MQTT. `onboard status` now
       derives `devices` vs `uns` from config.yaml, asks when it cannot, and forks
       `uns` into B1/B2 from a stored `uns-live-audit` verdict. The point-list draft
-      below no longer waits on anything (MQTT is collectable) but is still not built;
-      the UNS points step says so rather than implying a draft exists.
+      now follows the collectable MQTT tap; it proposes refs from observed BIRTHs.
 
-- [ ] **Sparkplug BIRTH → point-list draft.** `mqtt live-schema` already returns
-      `{node: {metric: datatype}}`. Nothing turns it into a `tags:` draft, so a UNS
-      site cannot reach the confirmation sheet. It waited for the tap *on purpose*, and
-      the tap has now shipped:
-      emitting tags for an endpoint that `can_collect` rejects would have `readiness`
-      report the mapping as met while nothing collects it — which is precisely what
-      `tags apply` refuses a sheet for (`_edit`: "Putting a role on a tag that is not
-      collected…"). The tap came first; the draft is next. **`role` stays empty (D16).**
+- [x] **Sparkplug BIRTH → point-list draft (working branch).** `mqtt point-draft`
+      turns a bounded `live-schema` capture into unconfirmed refs with empty roles;
+      it does not edit config or claim the capture is complete. Operators add chosen
+      refs to config.yaml, then use `tags export/apply` to confirm semantics.
+      **`role` stays empty (D16).**
 
 **Boundary note.** All of the above is MIT and stays MIT: §8.3 rule 1 (it lets the tap
 read a data point it could not read before), and §8.3 names "任何协议 connector" among the

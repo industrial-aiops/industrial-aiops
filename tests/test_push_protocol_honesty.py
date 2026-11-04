@@ -241,7 +241,7 @@ class TestTheWholeTreeFilterTeachesBothRules:
 
     def test_a_stated_sparkplug_filter_still_gets_the_sparkplug_rule(self):
         _state, detail, command = self._points_step("spBv1.0/#")
-        assert "live-schema" in command and "group/edge[/device]:metric" in detail
+        assert "point-draft" in command and "group/edge[/device]:metric" in detail
 
     def test_a_stated_plain_filter_still_gets_the_topic_rule(self):
         _state, detail, command = self._points_step("plant/#")

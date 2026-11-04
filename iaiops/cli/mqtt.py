@@ -147,6 +147,21 @@ def live_schema_cmd(
     _emit(live.sparkplug_live_schema(resolve_target(endpoint), topic, duration_s, max_msgs))
 
 
+@mqtt_app.command("point-draft")
+@cli_errors
+def point_draft_cmd(
+    endpoint: EndpointOption = None,
+    topic: str = typer.Option("spBv1.0/#", "--topic"),
+    duration_s: int = typer.Option(30, "--duration-s"),
+    max_msgs: int = typer.Option(500, "--max-msgs"),
+) -> None:
+    """Propose unconfirmed tag refs from observed Sparkplug BIRTH messages."""
+    from iaiops.core.onboard.sparkplug_draft import capture_point_draft
+
+    target = resolve_target(endpoint)
+    _emit(capture_point_draft(target, topic, duration_s, max_msgs))
+
+
 @mqtt_app.command("uns-live-drift")
 @cli_errors
 def uns_live_drift_cmd(

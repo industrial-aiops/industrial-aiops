@@ -381,6 +381,27 @@ def sparkplug_live_schema(
 @mcp.tool()
 @governed_tool(risk_level="low")
 @tool_errors("dict")
+def sparkplug_point_draft(
+    endpoint: Optional[str] = None,
+    topic: str = "spBv1.0/#",
+    duration_s: int = 30,
+    max_msgs: int = 500,
+) -> dict:
+    """[READ][risk=low] BIRTH metrics → unconfirmed configured-point proposal.
+
+    Captures a bounded live schema. Every candidate has a collectable
+    ``group/edge[/device]:metric`` ref, but role and label remain blank for a
+    person to review. No config is written; a short capture is never complete.
+    """
+    from iaiops.core.onboard.sparkplug_draft import capture_point_draft
+
+    target = _target(endpoint)
+    return capture_point_draft(target, topic, duration_s, max_msgs)
+
+
+@mcp.tool()
+@governed_tool(risk_level="low")
+@tool_errors("dict")
 def uns_live_drift(
     baseline: dict[str, Any],
     endpoint: Optional[str] = None,

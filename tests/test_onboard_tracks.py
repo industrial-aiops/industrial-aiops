@@ -213,12 +213,12 @@ class TestTheUnsJourneyNeverScans:
             for command in _every_command(path):
                 _resolve(command)
 
-    def test_sparkplug_is_listed_with_live_schema_and_plain_mqtt_with_browse(self, tmp_path):
+    def test_sparkplug_is_listed_with_point_draft_and_plain_mqtt_with_browse(self, tmp_path):
         save_uns_audit(_audit("uns-1"), base_dir=tmp_path / "audits")
         spb = _path(Config((_broker(topic="spBv1.0/#"),)), tmp_path)
         plain = _path(Config((_broker(topic="plant/#"),)), tmp_path)
         points = next(s for s in spb.steps if s.key == "points")
-        assert "live-schema" in points.command
+        assert "point-draft" in points.command
         assert "group/edge[/device]:metric" in points.detail
         assert "mqtt browse" in next(s for s in plain.steps if s.key == "points").command
 

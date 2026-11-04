@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — program export origin checks
+## Unreleased
+
+### Program export origin checks
 
 - Before attaching live values to an exported program, compare the L5X controller
   name with the online Logix name. A name match is labelled as limited evidence.
@@ -8,6 +10,12 @@
   MCP cannot supply that attestation. CALL parameter addresses are references
   until a block interface proves their direction. Identity-query failures do
   not echo connection errors into the result.
+### Sparkplug point draft
+
+- `iaiops mqtt point-draft` and governed MCP `sparkplug_point_draft` turn a
+  bounded BIRTH capture into unconfirmed point refs. Roles and labels stay
+  blank, the capture is marked incomplete, and no configuration is written.
+- Reject non-MQTT endpoints and missing `stale_after_s` before subscribing.
 
 ## 0.32.0 — 2026-10-20
 
