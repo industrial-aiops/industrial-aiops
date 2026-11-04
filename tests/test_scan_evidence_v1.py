@@ -29,8 +29,10 @@ from iaiops.core.sink.scan_store import (
     CREATE_SCAN_HOSTS_TABLE,
     CREATE_SCANS_TABLE,
     ScanConflict,
+    list_scans,
     load_scan,
     save_scan,
+    scan_id_for,
 )
 
 pytestmark = pytest.mark.unit
@@ -226,6 +228,76 @@ def test_cli_export_is_offline_and_requires_exact_id(tmp_path, monkeypatch):
     missing = runner.invoke(scan_app, ["export", "bad", "--db", str(db), "--out", str(out)])
     assert missing.exit_code == 1
     assert "scan ID must be" in missing.output
+
+
+def test_cli_validate_checks_file_without_network_or_store(tmp_path, monkeypatch):
+    db = tmp_path / "scan.db"
+    scan_id = save_scan(_result(), db)
+    out = tmp_path / "evidence.json"
+    export_scan(scan_id, out, db=db)
+
+    def no_packets(*args, **kwargs):
+        raise AssertionError("scan validate opened a network connection")
+
+    monkeypatch.setattr(socket, "create_connection", no_packets)
+    runner = CliRunner()
+    result = runner.invoke(scan_app, ["validate", str(out)])
+    assert result.exit_code == 0, result.output
+    assert '"valid": true' in result.output
+    assert scan_id in result.output
+
+    doc = json.loads(out.read_text())
+    doc["hosts"][0]["ip"] = "10.2.0.9"
+    out.write_text(json.dumps(doc))
+    invalid = runner.invoke(scan_app, ["validate", str(out)])
+    assert invalid.exit_code == 1
+    assert "digest mismatch" in invalid.output
+
+
+def test_cli_run_export_reuses_stored_scan_and_preflights_output(tmp_path, monkeypatch):
+    from iaiops.core.discovery import runner as scan_runner
+
+    monkeypatch.setenv("IAIOPS_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(scan_runner, "run_scan", lambda plan: _result())
+    runner = CliRunner()
+    db = tmp_path / "scan.db"
+    out = tmp_path / "evidence.json"
+    args = ["run", "--targets", "10.2.0.4", "--yes", "--db", str(db), "--export", str(out)]
+    result = runner.invoke(scan_app, args)
+    assert result.exit_code == 0, result.output
+    assert load_and_validate(out)["observation"]["scan_id"] == scan_id_for(_result())
+    assert len(list_scans(db)) == 1
+
+    def no_scan(_plan):
+        raise AssertionError("scan ran despite invalid export options")
+
+    monkeypatch.setattr(scan_runner, "run_scan", no_scan)
+    assert runner.invoke(scan_app, [*args, "--no-store"]).exit_code == 1
+    assert runner.invoke(scan_app, args).exit_code == 1  # existing output, no overwrite
+
+
+def test_cli_run_export_failure_reports_stored_scan_id(tmp_path, monkeypatch):
+    from iaiops.core.discovery import runner as scan_runner
+    from iaiops.core.discovery import scan_export
+
+    monkeypatch.setenv("IAIOPS_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(scan_runner, "run_scan", lambda plan: _result())
+
+    def failed_export(*_args, **_kwargs):
+        raise ValueError("export failed")
+
+    monkeypatch.setattr(scan_export, "export_scan", failed_export)
+    db = tmp_path / "scan.db"
+    out = tmp_path / "evidence.json"
+    result = CliRunner().invoke(
+        scan_app,
+        ["run", "--targets", "10.2.0.4", "--yes", "--db", str(db), "--export", str(out)],
+    )
+    assert result.exit_code == 1
+    assert "Scan was stored as" in result.output
+    assert len(list_scans(db)) == 1
+    assert list_scans(db)[0].scan_id in result.output
+    assert not out.exists()
 
 
 def test_legacy_version_and_uuid_kinds_are_not_guessed(tmp_path):
