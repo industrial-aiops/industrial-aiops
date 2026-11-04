@@ -28,9 +28,10 @@ field engineers before building beyond the minimal versions.
   **Minimal version shipped in 0.32.0**: `iaiops program xref-config` / MCP
   `plc_program_xref_config` — AWL/.scl × s7 and L5X × Logix only; every other pair
   is reported as not comparable, with no lists.
-  **Follow-up in this branch:** Logix live reads compare the L5X controller name
-  with the online name (not a unique device ID); S7 AWL/SCL has no CPU identity,
-  so an operator must attest export origin through the CLI before live reads.
+  **Follow-up merged to `main` in #282 (unreleased):** Logix live reads compare
+  the L5X controller name with the online name (not a unique device ID); S7
+  AWL/SCL has no CPU identity, so an operator must attest export origin through
+  the CLI before live reads.
   S7 STOP or unknown CPU state refuses point reads. AWL CALL parameter operands
   are labelled `reference` because their direction needs a block interface.
 - **B — `iaiops program doc`** (MIT): deterministic I/O list + block outline +
@@ -750,7 +751,8 @@ Everything below is the detailed backlog with per-item status.
       `uns` into B1/B2 from a stored `uns-live-audit` verdict. The point-list draft
       now follows the collectable MQTT tap; it proposes refs from observed BIRTHs.
 
-- [x] **Sparkplug BIRTH → point-list draft (working branch).** `mqtt point-draft`
+- [x] **Sparkplug BIRTH → point-list draft (merged to `main` in #283;
+      unreleased).** `mqtt point-draft`
       turns a bounded `live-schema` capture into unconfirmed refs with empty roles;
       it does not edit config or claim the capture is complete. Operators add chosen
       refs to config.yaml, then use `tags export/apply` to confirm semantics.
