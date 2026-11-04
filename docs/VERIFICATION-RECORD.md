@@ -2,6 +2,15 @@
 
 ## Scan evidence V1 — worktree verification (2026-10-30)
 
+2026-11-04 rebase review: the branch rebased cleanly onto `origin/main` at
+`dca4bdd`. Focused scan evidence/store tests passed (41). `ruff check .`,
+`ruff format --check .`, and Bandit Medium+ passed. A full local run reported
+4886 passed, 49 skipped, 10 failed: one test requires this Mac's ARP cache to
+produce output, while nine live MCP HTTP tests received 502 from the local
+loopback path. These failures do not establish a product regression; Linux CI
+is needed for an independent full gate. The platform-import and authorized
+physical-device gaps below remain open.
+
 `tests/test_scan_evidence_v1.py` exercises stored scan → offline export →
 independent stdlib validator, repeat export digest, old-row unknown fields,
 same-ID conflict, atomic no-overwrite, version/tamper/duplicate rejection and
