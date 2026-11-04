@@ -315,11 +315,12 @@ def _uns_points_step(brokers: tuple[Any, ...]) -> tuple[str, str, str]:
             "namespace this is. Browse it first: if you see `spBv1.0/…` topics it is "
             "Sparkplug, and a ref is `group/edge[/device]:metric` exactly as "
             "`iaiops mqtt live-schema` prints the node — NOT the topic. Otherwise a ref "
-            "is the topic itself. Nothing turns either listing into `tags:` yet.",
+            "is the topic itself. For Sparkplug use `iaiops mqtt point-draft` to review "
+            "unconfirmed refs; plain MQTT still needs manual point entry.",
             f"iaiops mqtt browse --endpoint {name} --topic '#'",
         )
     if sparkplug:
-        command = f"iaiops mqtt live-schema --endpoint {name} --duration-s 30"
+        command = f"iaiops mqtt point-draft --endpoint {name} --duration-s 30"
         ref_rule = (
             "a Sparkplug ref is `group/edge[/device]:metric`, with the node exactly "
             "as live-schema prints it"
@@ -330,8 +331,8 @@ def _uns_points_step(brokers: tuple[Any, ...]) -> tuple[str, str, str]:
     return (
         STATE_NEXT,
         f"{len(empty)} of {len(brokers)} broker endpoint(s) have no points — first: "
-        f"{_name(first)}. Nothing turns the listing into `tags:` yet, so write them "
-        f"by hand: {ref_rule}.",
+        f"{_name(first)}. Review the observed point draft; add chosen refs to "
+        f"config.yaml and confirm roles by hand: {ref_rule}.",
         command,
     )
 

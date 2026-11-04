@@ -91,7 +91,7 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 - `mqtt_read_topic` `sparkplug_decode_payload` `sparkplug_subscribe_sample`
   `sparkplug_node_list`
 - `uns_browse` `uns_topic_audit` `uns_schema_drift` `uns_live_audit`
-  `sparkplug_live_schema` `uns_live_drift`
+  `sparkplug_live_schema` `sparkplug_point_draft` (BIRTH refs for human review; roles blank) `uns_live_drift`
 - `mqtt_publish` — **[WRITE][HIGH][MOC]**（默认 off）
 
 ### 离散制造专属（edition 工具;仅随 factory edition 加载,不进全局脑）
