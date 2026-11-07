@@ -1,5 +1,34 @@
 # 验证记录 — what has actually been run, per protocol
 
+## Scan evidence V1 — worktree verification (2026-10-30)
+
+2026-11-04 rebase review: the branch rebased cleanly onto `origin/main` at
+`dca4bdd`. Focused scan evidence/store tests passed (41). `ruff check .`,
+`ruff format --check .`, and Bandit Medium+ passed. A full local run reported
+4886 passed, 49 skipped, 10 failed: one test requires this Mac's ARP cache to
+produce output, while nine live MCP HTTP tests received 502 from the local
+loopback path. These failures do not establish a product regression; Linux CI
+is needed for an independent full gate. The platform-import and authorized
+physical-device gaps below remain open.
+
+`tests/test_scan_evidence_v1.py` exercises stored scan → offline export →
+independent stdlib validator, repeat export digest, old-row unknown fields,
+same-ID conflict, atomic no-overwrite, version/tamper/duplicate rejection and
+CLI no-network behavior. Samples in `tests/data/scan_evidence_v1/` are **self-built
+fixtures**. No asset-platform importer or authorized physical device has been
+tested; V1 contract integration and the first field-device support claim remain
+`待核实`. This section records worktree verification, not a release.
+Release review also exercised L1-to-L2 abort isolation and L2 abort reporting
+for both a partial host list and an abort on the final host
+(`tests/test_discovery_runner.py::TestAbortIsStructural`). Those tests use
+injected probes; they do not establish device behavior.
+Release-review gates on this worktree: `pytest` **4894 passed, 49 skipped,
+1 deselected** (`test_the_local_cache_parses_without_notes` depends on this
+machine's empty `arp` output); `ruff check .`, `ruff format --check .`, and
+`bandit -q -r iaiops mcp_server -ll` passed. The gate does not close IA-06:
+there is no asset-platform importer integration or authorized physical-device
+sample in the accessible workspace.
+
 > **This file records evidence, not intent.** Every row says what was executed, by
 > which test, at which rung of the ladder in
 > [`PREVIEW-VERIFICATION.md`](PREVIEW-VERIFICATION.md) — and what was **not**.

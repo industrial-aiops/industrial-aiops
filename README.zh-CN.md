@@ -91,6 +91,11 @@ iaiops readiness                 # 这个站点今天能跑哪些场景，每个
 | **声明** | `iaiops tags export` → 人填 `role` → `iaiops tags apply --by <你>` | **不会** —— `role` 列是故意留空的 |
 | **说明** | `iaiops oee measure --since … --until …` · `iaiops investigate open` · `iaiops diag rca` | **不会** —— 全部基于已采集的历史 |
 
+扫描后可用 `iaiops scan list` 查 ID，再运行 `iaiops scan export <scan-id> --out scan.json`
+生成资产平台离线导入的 V1 证据文件。导出不触网、不改扫描库，必须指定 ID；已有文件只有
+显式加 `--overwrite` 才会替换。来源 ID 是未经认证的声明，旧扫描缺少的状态和身份来源保持
+未知。字段契约与独立校验规则见 [HLD §18](docs/HLD.md#18-资产平台-v1扫描证据离线交换)。
+
 **想看完整流程对着真实设备跑一遍（约两分钟，含一次真实的中途断连）**，执行
 `./demo/oee-line/run_demo.sh` —— 不需要硬件、不需要配置，也不会在临时目录外写任何东西。
 [demo/oee-line/](demo/oee-line/) 说明了每一步是干什么的，以及那些数字能和不能说明什么。

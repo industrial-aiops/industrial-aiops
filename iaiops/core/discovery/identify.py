@@ -180,7 +180,16 @@ def _probe_modbus(host: str, port: int, timeout_s: float, log: wirelog.WireLog) 
     return _identity(
         vendor=raw.get("vendor", ""),
         model=raw.get("product_code", ""),
+        # Legacy flat field retained for callers; the evidence export uses
+        # reported_revision and does not claim a firmware build.
         firmware=raw.get("revision", ""),
+        reported_revision=raw.get("revision", ""),
+        raw_fields={
+            "vendor": raw.get("vendor", ""),
+            "model": raw.get("product_code", ""),
+            "reported_revision": raw.get("revision", ""),
+        },
+        entity_type="device",
         unit_id=raw.get("unit_id"),
         objects=raw.get("objects") or {},
         undecodable=raw.get("undecodable") or [],
@@ -204,8 +213,13 @@ def _probe_opcua(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -
     raw = ops.opcua_endpoints(target)
     return _identity(
         name=raw.get("application_name", ""),
-        model=raw.get("product_uri", ""),
+        product_uri=raw.get("product_uri", ""),
         application_uri=raw.get("application_uri", ""),
+        entity_type="server_application",
+        raw_fields={
+            "name": raw.get("application_name", ""),
+            "source_device_id": raw.get("application_uri", ""),
+        },
         endpoint_count=raw.get("endpoint_count"),
         # Visible without authenticating, and exactly what a 62443 review acts
         # on — so it rides along with the identification rather than needing a
@@ -247,8 +261,17 @@ def _probe_s7(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> d
             vendor="Siemens" if info else "",
             model=info.get("ModuleTypeName", "") or info.get("ModuleName", ""),
             serial=info.get("SerialNumber", ""),
-            firmware=info.get("ModuleVersion", "") or info.get("HardwareVersion", ""),
+            firmware=info.get("ModuleVersion", ""),
             name=info.get("ASName", ""),
+            hardware_version=info.get("HardwareVersion", ""),
+            raw_fields={
+                "model": info.get("ModuleTypeName", "") or info.get("ModuleName", ""),
+                "physical_serial": info.get("SerialNumber", ""),
+                "firmware_version": info.get("ModuleVersion", ""),
+                "hardware_version": info.get("HardwareVersion", ""),
+                "name": info.get("ASName", ""),
+            },
+            entity_type="device",
             slot=slot,
             cpu_status=raw.get("cpu_status", ""),
             info_error=info.get("info_error", ""),
@@ -283,7 +306,14 @@ def _probe_eip(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> 
         vendor=raw.get("vendor", ""),
         model=raw.get("product_name", ""),
         serial=str(raw.get("serial", "") or ""),
-        firmware=str(raw.get("revision", "") or ""),
+        reported_revision=str(raw.get("revision", "") or ""),
+        raw_fields={
+            "vendor": raw.get("vendor", ""),
+            "model": raw.get("product_name", ""),
+            "physical_serial": raw.get("serial", ""),
+            "reported_revision": raw.get("revision", ""),
+        },
+        entity_type="device",
         # ListIdentity carries no controller NAME and no driver kind. Both are
         # Logix-specific and belong to a fingerprint stage the operator has
         # authorised, not to an inventory sweep.
@@ -339,7 +369,11 @@ def _probe_mtconnect(
     # inventory row.
     return _identity(
         name=first.get("name", ""),
+        # Legacy flat field retained; source_device_id carries the truthful kind.
         serial=first.get("uuid", ""),
+        source_device_id=first.get("uuid", ""),
+        entity_type="agent",
+        raw_fields={"name": first.get("name", ""), "source_device_id": first.get("uuid", "")},
         device_count=raw.get("device_count"),
         devices=[d.get("name", "") for d in devices[:20] if d.get("name")],
     )
@@ -364,8 +398,15 @@ def _probe_iolink(host: str, port: int, timeout_s: float, log: wirelog.WireLog) 
         vendor=master.get("vendor", ""),
         model=master.get("productcode", "") or master.get("devicefamily", ""),
         serial=master.get("serialnumber", ""),
-        firmware=master.get("swrevision", "") or master.get("hwrevision", ""),
+        firmware=master.get("swrevision", ""),
         name=master.get("devicename", ""),
+        hardware_version=master.get("hwrevision", ""),
+        raw_fields={
+            "physical_serial": master.get("serialnumber", ""),
+            "software_version": master.get("swrevision", ""),
+            "hardware_version": master.get("hwrevision", ""),
+        },
+        entity_type="device",
         flavor=raw.get("flavor", ""),
     )
 
@@ -544,6 +585,7 @@ def _run_probe(
                 port=port,
                 evidence="probe_unavailable",
                 detail=f"{exc} — this host was not asked; install the extra and re-scan",
+                status="missing_dependency",
             ),
             {},
         )
@@ -557,6 +599,7 @@ def _run_probe(
                 port=port,
                 evidence=f"{probe.wire_kind}:rejected",
                 detail=f"device answered in-protocol and declined: {_short(exc)}",
+                status="refused",
             ),
             {},
         )
@@ -568,6 +611,7 @@ def _run_probe(
                 port=port,
                 evidence="tcp_open",
                 detail=_short(exc),
+                status="timeout" if isinstance(exc.__cause__, TimeoutError) else "unknown",
             ),
             {},
         )
@@ -579,6 +623,7 @@ def _run_probe(
                 port=port,
                 evidence="tcp_open",
                 detail=f"unexpected {type(exc).__name__}: {_short(exc)}",
+                status="unknown",
             ),
             {},
         )
@@ -589,6 +634,7 @@ def _run_probe(
             port=port,
             evidence=probe.wire_kind,
             detail=_summarize(identity),
+            status="success",
         ),
         identity,
     )
@@ -716,6 +762,26 @@ def identify_hosts(
 ) -> tuple[tuple[HostResult, ...], tuple[str, ...]]:
     """Identify a whole sweep's worth of hosts. Returns results and run notes.
 
+    The historical two-value interface is retained for existing callers. The
+    runner uses ``identify_hosts_with_status`` to distinguish a complete run
+    from a segment abort, including an abort on the final host.
+    """
+    identified, notes, _aborted = identify_hosts_with_status(
+        hosts, log=log, pacing=pacing, timeout_s=timeout_s, plan=plan
+    )
+    return identified, notes
+
+
+def identify_hosts_with_status(
+    hosts: Iterable[HostResult],
+    *,
+    log: wirelog.WireLog | None = None,
+    pacing: PacingPolicy | None = None,
+    timeout_s: float = DEFAULT_IDENTIFY_TIMEOUT_S,
+    plan: dict[str, IdentifyProbe] | None = None,
+) -> tuple[tuple[HostResult, ...], tuple[str, ...], bool]:
+    """Identify hosts and expose the segment-abort signal to the scan runner.
+
     Deliberately sequential. The sweep parallelises because a TCP connect is
     answered by a kernel; an identify call is answered by a control CPU that is
     also running a machine, and four of those at once against one small plant
@@ -726,11 +792,13 @@ def identify_hosts(
     pacer = Pacer(identify_pacing(pacing or PacingPolicy()))
     out: list[HostResult] = []
     notes: list[str] = []
+    aborted = False
 
     for host in hosts:
         try:
             out.append(identify_host(host, log=log, pacer=pacer, timeout_s=timeout_s, plan=plan))
         except SegmentUnhealthy as exc:
+            aborted = True
             notes.append(str(exc))
             out.append(host)
             break
@@ -749,7 +817,7 @@ def identify_hosts(
             "confirmed. They are reported as 'port only' with no vendor — an open "
             "port is a location, not an identification."
         )
-    return tuple(out), tuple(notes)
+    return tuple(out), tuple(notes), aborted
 
 
 __all__ = [
@@ -763,5 +831,6 @@ __all__ = [
     "candidates_for_port",
     "identify_host",
     "identify_hosts",
+    "identify_hosts_with_status",
     "identify_pacing",
 ]

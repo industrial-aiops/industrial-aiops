@@ -40,6 +40,7 @@ from iaiops.core.discovery.types import (
     L2_IDENTIFY,
     L3_FINGERPRINT,
     L4_BROWSE,
+    STAGE_ORDER,
     VERDICT_ABORTED_UNHEALTHY,
     VERDICT_NO_DEVICES,
     VERDICT_OK,
@@ -112,12 +113,14 @@ def run_scan(
     ports = [entry.port for entry in preview.resolve_ports(plan)]
 
     passive_known: tuple[HostResult, ...] = ()
+    arp_notes: tuple[str, ...] = ()
     if L0_PASSIVE in stages:
         entries, arp_notes = arp_reader()
         notes.extend(arp_notes)
         passive_known = passive.passive_hosts(entries, scope=scope.hosts or None)
 
     swept: tuple[HostResult, ...] = ()
+    sweep_notes: tuple[str, ...] = ()
     aborted = False
     if L1_SWEEP in stages and scope.hosts and ports:
         swept, sweep_notes, aborted = sweep_hosts(
@@ -132,24 +135,51 @@ def run_scan(
 
     hosts = passive.merge_passive(swept, passive_known)
 
-    if L2_IDENTIFY in stages and hosts:
-        hosts, identify_notes = identify.identify_hosts(
+    identify_aborted = False
+    identify_notes: tuple[str, ...] = ()
+    if L2_IDENTIFY in stages and hosts and not aborted:
+        before_identify = hosts
+        identified, identify_notes, identify_aborted = identify.identify_hosts_with_status(
             hosts, log=log, pacing=plan.pacing, plan=identify_plan
         )
+        # Identification stops on an unhealthy segment. Keep the untouched
+        # sweep tail in the scan record, without inventing identity evidence.
+        hosts = identified + before_identify[len(identified) :]
         notes.extend(identify_notes)
 
     if L1_SWEEP in stages:
         notes.extend(diagnose_empty_sweep(hosts))
 
     hosts = tuple(sorted(hosts, key=_ip_sort_key))
+    stage_status = {stage: "not_requested" for stage in STAGE_ORDER}
+    for stage in stages:
+        stage_status[stage] = "unsupported" if stage in NOT_IMPLEMENTED else "not_run"
+    if L0_PASSIVE in stages:
+        stage_status[L0_PASSIVE] = "partial" if arp_notes else "success"
+    if L1_SWEEP in stages and scope.hosts and ports:
+        stage_status[L1_SWEEP] = "aborted" if aborted else ("partial" if sweep_notes else "success")
+    if identify_aborted:
+        stage_status[L2_IDENTIFY] = "aborted"
+    elif L2_IDENTIFY in stages and hosts and any(p.state == "open" for h in hosts for p in h.ports):
+        outcomes = [c for h in hosts for c in h.protocols]
+        if outcomes and all(c.status == "missing_dependency" for c in outcomes):
+            stage_status[L2_IDENTIFY] = "missing_dependency"
+        elif outcomes and all(c.status == "refused" for c in outcomes):
+            stage_status[L2_IDENTIFY] = "refused"
+        elif identify_notes or any(c.status != "success" for c in outcomes):
+            stage_status[L2_IDENTIFY] = "partial"
+        elif outcomes:
+            stage_status[L2_IDENTIFY] = "success"
     return ScanResult(
         plan=plan,
         hosts=hosts,
-        verdict=_verdict(hosts, aborted),
+        verdict=_verdict(hosts, aborted or identify_aborted),
         wire_summary=log.summary(),
         notes=tuple(dict.fromkeys(notes)),
         started_at=started,
         finished_at=clock(),
+        stage_status=stage_status,
+        attempted_hosts=None if aborted else tuple(h.ip for h in swept),
     )
 
 
