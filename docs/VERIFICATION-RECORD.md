@@ -7,7 +7,8 @@ MQTT tap test because a single publish could precede subscription activation.
 The helper described repeated publishing but did not perform it. Its test
 setup now republishes while waiting; this tests delivery after the subscription
 is ready without weakening the assertion that a stopped publisher becomes a
-stale-reading refusal. A real-broker CI rerun is required for this fix.
+stale-reading refusal. On commit `72943a5`, the real-broker CI and all six PR
+checks passed: Python 3.11 and 3.12 each reported 4920 passed, 38 skipped.
 
 2026-11-08 contract review: a mocked IO-Link master response was projected
 through the real identification and export code. Vendor, model and name now
