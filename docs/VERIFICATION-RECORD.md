@@ -2,6 +2,13 @@
 
 ## Scan evidence V1 — worktree verification (2026-10-30)
 
+2026-11-08 CI gate follow-up: Python 3.11 failed twice in the existing live
+MQTT tap test because a single publish could precede subscription activation.
+The helper described repeated publishing but did not perform it. Its test
+setup now republishes while waiting; this tests delivery after the subscription
+is ready without weakening the assertion that a stopped publisher becomes a
+stale-reading refusal. A real-broker CI rerun is required for this fix.
+
 2026-11-08 contract review: a mocked IO-Link master response was projected
 through the real identification and export code. Vendor, model and name now
 retain raw values and source fields; the model fallback reports the actual
