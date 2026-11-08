@@ -1,23 +1,15 @@
 ---
 name: iaiops
 description: >-
-  Vendor-neutral, governed industrial/OT data tap + intelligent troubleshooting.
-  Read (and, gated, write) PLCs, controllers, machine tools and IIoT brokers over
-  OPC-UA, Modbus-TCP, Siemens S7comm, Mitsubishi MC, Omron FINS, MTConnect,
-  MQTT/Sparkplug B,
-  Allen-Bradley EtherNet/IP, EtherCAT (pysoem/SOEM), SECS/GEM (semiconductor /
-  display fab equipment over HSMS), PROFINET (DCP discovery), the building edition
-  (BACnet/IP), and Phoenix Contact PLCnext vPLC — plus cross-protocol diagnostics
-  ("no-data" dataflow diagnosis, OPC-UA connection self-diagnosis, subscription
-  health, ISA-18.2 alarm bad-actors, tag/historian health, and the AI downtime
-  root-cause copilot) and analytics (OEE/downtime, asset inventory, OPC-UA HDA,
-  change-of-value). Use when the task names any industrial protocol, a
-  PLC/SCADA/HMI/historian/CNC/RTU/IED, a semiconductor/display fab or SECS/GEM
-  equipment, an electrical substation, an opc.tcp:// or mqtt:// endpoint,
-  OEE/downtime, downtime root-cause, or OT asset inventory. Routes to
-  the iaiops MCP server. Read-first; writes are MOC-gated (high risk, dry-run +
-  double-confirm). Do NOT use for IT/network gear, Kubernetes, hypervisors, or
-  backups — those are separate AIops tools.
+  Route industrial/OT data-tap and troubleshooting tasks to the appropriate
+  iaiops edition and governed MCP profile. Use for PLC/SCADA/CNC/RTU/IED,
+  OPC-UA, Modbus, S7, MC, FINS, EtherNet/IP, EtherCAT, PROFINET, SECS/GEM,
+  MTConnect, MQTT/Sparkplug, BACnet, HART, IO-Link and serial sensors; also
+  factory, fab, process, building, water, pharma, clinical, warehouse,
+  renewables and PLCnext work involving OEE, downtime, asset inventory or
+  data quality. Read-first; device writes require MOC and are refused for
+  safety: sis endpoints. Excludes IT/network gear, Kubernetes, hypervisors
+  and backups.
 ---
 
 # iaiops — ROUTER（识别现场 → 派发 edition skill + MCP profile）
@@ -72,8 +64,8 @@ monitor-direction only。**不要**尝试用本 server 的 profile 覆盖能源�
 
 ## 安全不变量（所有 edition 一致，路由前先记住）
 
-- **Read-first**：默认只读；先 `protocols_supported` 看能力、`iaiops doctor` /
-  `<protocol> doctor` 验链路，再谈读，最后才谈写。
+- **Read-first**：默认只读；先 `protocols_supported` 看能力、`iaiops doctor`
+  验链路，再谈读，最后才谈写。
 - **写 = MOC（Management-of-Change）**：The 10 write tools（`s7_write_db`、
   `mc_write_words`、`fins_write_words`、`mqtt_publish`、`eip_write_tag`、`ethercat_write_sdo`、
   `ethercat_set_state`、`profinet_dcp_set`、`bacnet_write_property`、`bas_command`）全部
@@ -81,6 +73,7 @@ monitor-direction only。**不要**尝试用本 server 的 profile 覆盖能源�
   这 10 个是**设备**写。写历史库/时序库那类不改变现场状态的写另计，
   由 edition skill 逐个列明 —— 别把「10」当成全部写面。
 - **审批**：真实写入需具名审批人 —— CLI `iaiops approve` 双重确认后才放行。
+- **SIS 禁写**：端点标 `safety: sis` 后，所有设备写连 dry-run 预览都拒绝；审批不能覆盖此边界。
 - **未经授权绝不写生产控制系统**；AI 结论仅 advisory，引用真实信号出处，宁可
   `insufficient_evidence` 不臆测。
 - 各协议的验证状态（✅ 已自测 / 待核实）见 edition skill 的支持版本矩阵，
@@ -129,8 +122,11 @@ monitor-direction only。**不要**尝试用本 server 的 profile 覆盖能源�
 **这一层故意没有 MCP 工具 —— 让 agent 填 role 列正是 D16 禁止的那个猜测。**
 遇到它，把表交给现场的人，不要自己填。
 
-以上除 tags 外都是**双前端**：CLI 与 MCP 同一个引擎。对应的 MCP 工具名由
-edition skill 列明（本 skill 是路由，不带工具表）。
+UNS 选点可用 `iaiops mqtt point-draft --endpoint <name>`（对应 MCP 入口见
+edition skill）从有界 Sparkplug BIRTH 捕获生成**未确认**点位草稿；
+`role`、`label` 留空，由现场人员确认，命令不写配置。短时捕获不代表点位全集。
+
+CLI 与 MCP 是否都有入口以对应 edition skill 的工具表为准；本 skill 只负责路由。
 
 ## Setup（各 edition 相同）
 

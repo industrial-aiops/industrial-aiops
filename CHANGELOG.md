@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.33.0 — 2026-11-09
+
+206 governed MCP tools: 205 in the 0.32.0 release plus
+`sparkplug_point_draft`. The 0.32.0 entries below retain their release-time count.
+
 ### Program export origin checks
 
 - Before attaching live values to an exported program, compare the L5X controller
@@ -16,6 +21,16 @@
   bounded BIRTH capture into unconfirmed point refs. Roles and labels stay
   blank, the capture is marked incomplete, and no configuration is written.
 - Reject non-MQTT endpoints and missing `stale_after_s` before subscribing.
+
+### Skill guidance and release packaging
+
+- Align all 12 edition/router skills with `safety: sis`, the AWL/SCL and Logix
+  live-read guards, and the unconfirmed Sparkplug point-draft workflow. Correct
+  MQTT write labels and state that OPC UA tag discovery offers suggestions,
+  never a confirmed `role`.
+- Update the current package, MCP registry and edge deployment descriptors to
+  0.33.0. The 0.32.0 Margo CTT record remains historical evidence for that
+  released artifact; this release has not been tested on a WFM/device.
 
 ## 0.32.0 — 2026-10-20
 

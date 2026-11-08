@@ -115,6 +115,7 @@ Bearer/token 从加密 secret store 按 key 取（`secret_name`），不走明�
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish` `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents` `pdm_forecast`
   `historian_push` `export_data`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility` `plc_program_xref_config`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
+- 导出来源守卫（#282）：AWL/SCL 的 `--live` 只允许 CLI 操作者显式给出 `--confirm-export-origin` 且 CPU 为 RUN；MCP 不能声明来源，故拒绝这类 live 读。S7 STOP/未知态也拒读。L5X/Logix 在线控制器名匹配仅是有限证据，不能证明导出来源。
 - 程序变更基线：`plc_program_snapshot` `plc_program_drift` `plc_program_history` — 把「认可的那一版」
   的结构记下来（文件 SHA-256 + 每个 block 的结构指纹：声明/调用/分支条件/定时器，**不含行号、注释、
   block 顺序**，所以在文件顶上加一行注释不会把整份程序报成变更），之后问某一次导出**动没动**。
@@ -143,12 +144,14 @@ Bearer/token 从加密 secret store 按 key 取（`secret_name`），不走明�
 
 ## Workflows
 
+- **SIS 禁写**：端点 `safety: sis` 拒绝所有设备写（包括 dry-run 预览），已有审批也不能放行；只读仍可用。
+
 1. **Doctor-first**：`protocols_supported` → `iaiops doctor` → `bacnet_discover`
    （Who-Is 有响应才谈读点）。
 2. **Read-first**：`bacnet_object_list` → `bacnet_read_points` 快照 →
    趋势用 `bacnet_read_trend_log`，变化捕获用 `bacnet_cov_subscribe`；
    "没数据"用 `diagnose_dataflow`，坏点排名用 `tag_health`。
-3. **MOC 写**：`bacnet_write_property`（与可选 `mqtt_publish`）为
+3. **MOC 写**：`bacnet_write_property`、`bas_command`（与可选 `mqtt_publish`）为
    **[WRITE][HIGH][MOC]**：默认 `dry_run=True`、捕获改前值供 undo、
    `iaiops approve` 具名审批双确认。写设定值可影响在运楼宇设备 ——
    未经授权绝不写。

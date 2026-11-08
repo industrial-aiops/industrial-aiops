@@ -36,7 +36,7 @@ description: >-
 - `opcua_read_alarms` — best-effort 活动告警/condition（untimed）；`opcua_alarm_events` — A&C 事件订阅（带服务器时间戳）
 - `opcua_read_history` — HDA 历史读取（[start,end] 窗口）
 - `opcua_diagnose_connection` — 连不上时归因（证书/安全策略/认证/防火墙/DNS/端口/配置）
-- `opcua_discover_tags` — 自动发现 tag 并建语义资产模型
+- `opcua_discover_tags` — 发现 tag 并给出启发式语义建议；不是已确认的 `role`，不得据此填写 `tags`
 - `opcua_health_summary` — tag vs 阈值分类；`opcua_anomaly_scan` — 有界统计异常扫描
 
 ### Fab / 质量专属（edition 工具;仅随 fab edition 加载,不进全局脑）
@@ -80,6 +80,7 @@ description: >-
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish` `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents` `pdm_forecast`
   `historian_push` `export_data`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility` `plc_program_xref_config`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
+- 导出来源守卫（#282）：AWL/SCL 的 `--live` 只允许 CLI 操作者显式给出 `--confirm-export-origin` 且 CPU 为 RUN；MCP 不能声明来源，故拒绝这类 live 读。S7 STOP/未知态也拒读。L5X/Logix 在线控制器名匹配仅是有限证据，不能证明导出来源。
 - 程序变更基线：`plc_program_snapshot` `plc_program_drift` `plc_program_history` — 把「认可的那一版」
   的结构记下来（文件 SHA-256 + 每个 block 的结构指纹：声明/调用/分支条件/定时器，**不含行号、注释、
   block 顺序**，所以在文件顶上加一行注释不会把整份程序报成变更），之后问某一次导出**动没动**。
@@ -106,6 +107,8 @@ description: >-
 
 
 ## Workflows
+
+- **SIS 禁写**：端点 `safety: sis` 拒绝所有设备写（包括 dry-run 预览），已有审批也不能放行；只读仍可用。
 
 1. **Doctor-first**：`protocols_supported` 看配置 → `iaiops doctor` 探活 →
    `secsgem_equipment_status` 确认 GEM 链路（S1F1/F2 通了再谈其他）。

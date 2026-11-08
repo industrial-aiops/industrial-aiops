@@ -55,7 +55,7 @@ description: >-
 ### OPC-UA（只读;全院 SCADA / PLC 网关）
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`
 - `opcua_subscribe_sample` `opcua_read_alarms` `opcua_alarm_events`(A&C 带时间戳) `opcua_read_history`(HDA)
-- `opcua_diagnose_connection` — 连接失败归因;`opcua_discover_tags` 语义资产建模;
+- `opcua_diagnose_connection` — 连接失败归因;`opcua_discover_tags` 仅给启发式语义建议，不是已确认的 `role`，不得据此填写 `tags`;
   `opcua_health_summary` 阈值分类;`opcua_anomaly_scan` 有界统计异常扫描
 
 ### 跨协议脑（永远随 server 暴露）
@@ -91,6 +91,7 @@ description: >-
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish`
   `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility` `plc_program_xref_config`
+- 导出来源守卫（#282）：AWL/SCL 的 `--live` 只允许 CLI 操作者显式给出 `--confirm-export-origin` 且 CPU 为 RUN；MCP 不能声明来源，故拒绝这类 live 读。S7 STOP/未知态也拒读。L5X/Logix 在线控制器名匹配仅是有限证据，不能证明导出来源。
 - 程序变更基线：`plc_program_snapshot` `plc_program_drift` `plc_program_history` — 把「认可的那一版」
   的结构记下来（文件 SHA-256 + 每个 block 的结构指纹：声明/调用/分支条件/定时器，**不含行号、注释、
   block 顺序**，所以在文件顶上加一行注释不会把整份程序报成变更），之后问某一次导出**动没动**。
@@ -117,6 +118,8 @@ description: >-
 
 
 ## Workflows
+
+- **SIS 禁写**：端点 `safety: sis` 拒绝所有设备写（包括 dry-run 预览），已有审批也不能放行；只读仍可用。
 
 1. **Doctor-first**：`protocols_supported` → `iaiops doctor` → BACnet 先 `bacnet_discover`。
 2. **患者安全巡检**：`bacnet_read_points` 读隔离房压差 AI 点 → `isolation_room_check`;
