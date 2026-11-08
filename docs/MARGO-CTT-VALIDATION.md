@@ -51,10 +51,37 @@ The generated report is retained above. The structural CTT result is verified
 on its supported host. Actual deployment through a Margo WFM/device and runtime
 observability remain **待核实**; this is not a Margo compliance claim.
 
-The reports above came from the unmodified toolkit runner. A separate report
-provenance improvement was submitted to the toolkit as
-[`margo/conformance_test_toolkit#16`](https://github.com/margo/conformance_test_toolkit/pull/16)
-and is awaiting upstream review; it does not change these results.
+The reports above came from the toolkit runner before the report-provenance
+improvement in [`margo/conformance_test_toolkit#16`](https://github.com/margo/conformance_test_toolkit/pull/16)
+was merged into the upstream `dev` branch. That change does not alter these
+earlier results.
+
+## Post-merge supported-host validation — 2026-11-08
+
+The merged CTT `dev` commit `f6e5ef4d86019bd8f07e704923207357c34ffa1d`
+was tested on `Open-test` (Ubuntu 24.04.4, x86_64, Go 1.24.9). The checkout
+was clean before testing; its Go module files were not changed. On this host,
+`go test ./...` passed for `ctt-runner/app-supplier`, and `bash -n
+ctt-runner/ctt-start.sh` plus `git diff --check` passed. Go dependencies were
+downloaded through `goproxy.cn`, without local replacements.
+
+The interactive `bash ctt-runner/ctt-start.sh application` path selected the
+released `oci://ghcr.io/industrial-aiops/iaiops-margo:0.32.0` package and
+reported `PASSED`. Its [HTML report](evidence/margo/ctt-app-supplier-ubuntu2404-pr16-2026-11-08.html)
+has SHA-256 `8651d91d3dd32de6ba1fccaa84aeb72b752323f3df1a624397ad66e00c5cfac0`.
+It records the original OCI input, pulled manifest digest
+`sha256:366d9f9293cf2630723fd8014d922419f318b75ea429b09c56b3d3084df10013`,
+and the merged CTT source revision. The result is 67 checks: 61 passed, 0
+failed, 0 warnings, 1 not run, 4 not applicable, and 1 info. A direct runner
+invocation with the same OCI reference also reported `PASSED`.
+
+The remaining `NOT RUN` row concerns observing an alternative telemetry export
+from a running workload. No Margo WFM/device deployment or live OT hardware was
+available for this run, so deployment and runtime observability remain
+**待核实**. This is structural Application Supplier CTT evidence, not a Margo
+compliance claim. A mutable-tag race was not injected during the live registry
+run; the pinned-reference behavior is covered by the CTT unit tests and the
+merged code path.
 
 ## Published-container smoke test — 2026-11-01
 
