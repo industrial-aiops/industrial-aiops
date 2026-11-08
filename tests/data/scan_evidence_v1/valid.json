@@ -102,7 +102,7 @@
       }
     ],
     "started_at": "2026-10-30T08:00:00+00:00",
-    "truncated": null,
+    "truncated": false,
     "verdict": "ok",
     "wire_summary": {
       "tcp_connect": 1
@@ -112,5 +112,5 @@
     "assertion": "unverified",
     "id": "8b0f8465-7a8c-46d7-8b8d-b27da8b4e197"
   },
-  "subject_sha256": "afbf5c41a8f00275e96998ebf72beb4a5ad1acc78cffb08cd9c0591ac49a5c1c"
+  "subject_sha256": "428e26b28337723cbc5a0856e7d55f0a5cf469fbff4bac3c6c62b47d9237cb8a"
 }

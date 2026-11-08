@@ -2,6 +2,19 @@
 
 ## Scan evidence V1 — worktree verification (2026-10-30)
 
+2026-11-08 lab preflight: `scan plan` for one authorized Ubuntu `Open-test` VM
+emitted no packets and previewed six TCP connects under `legacy-safe`. `scan run`
+then recorded exactly six connects, one live host, zero identified industrial
+devices, and a `partial` verdict because the local ARP cache could not be read.
+`scan export` wrote that stored scan, and the standalone stdlib validator accepted
+the JSON. The export preserved `partial` and the live host, reported
+`truncated: false`, and produced subject SHA-256
+`41654c7f7f5425fd5d3284e15301660f7744b5ec71225d9c8636de7fb235c92a`.
+The focused scan evidence/store/runner/CLI tests passed (109), as did Ruff check
+and format on changed Python files. This VM has no industrial protocol service:
+the run proves the real scan → store → export → validate path, not a device
+identity, platform import, or physical-device support claim.
+
 2026-11-04 rebase review: the branch rebased cleanly onto `origin/main` at
 `dca4bdd`. Focused scan evidence/store tests passed (41). `ruff check .`,
 `ruff format --check .`, and Bandit Medium+ passed. A full local run reported

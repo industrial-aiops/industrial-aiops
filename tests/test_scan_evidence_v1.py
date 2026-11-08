@@ -76,6 +76,7 @@ def test_export_round_trip_and_repeat_subject(tmp_path):
     assert a["source"]["id"] == load_scan(scan_id, db)["source_id"]
     assert a["subject_sha256"] == b["subject_sha256"]
     assert a["observation"]["attempted_hosts"] == ["10.2.0.4"]
+    assert a["observation"]["truncated"] is False
     fields = a["hosts"][0]["identities"][0]["fields"]
     assert fields["physical_serial"] == {
         "value": "00042",
@@ -139,6 +140,7 @@ def test_actual_legacy_schema_exports_without_migrating_database(tmp_path):
     doc = load_and_validate(out)
     assert doc["source"]["id"] is None
     assert doc["observation"]["scope"]["allow_browse"] is None
+    assert doc["observation"]["truncated"] is None
     with sqlite3.connect(db) as conn:
         after = [row[1] for row in conn.execute("PRAGMA table_info(scans)")]
     assert after == before
@@ -205,7 +207,9 @@ def test_identity_does_not_publish_raw_errors_or_authorization(tmp_path):
 def test_shared_fixture_contract():
     root = Path(__file__).parent / "data" / "scan_evidence_v1"
     for name in ("valid", "partial", "aborted", "empty"):
-        assert load_and_validate(root / f"{name}.json")["format_version"] == "1.0"
+        sample = load_and_validate(root / f"{name}.json")
+        assert sample["format_version"] == "1.0"
+        assert sample["observation"]["truncated"] is False
     with pytest.raises(ScanContractError, match="duplicate protocol identity"):
         load_and_validate(root / "duplicate_identity.invalid.json")
 

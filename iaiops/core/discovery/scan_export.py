@@ -248,7 +248,10 @@ def build_scan_evidence(record: dict, *, exported_at: str | None = None) -> dict
         "errors": ["unknown"]
         if record.get("notes") or any(h.get("errors") for h in record.get("hosts", []))
         else [],
-        "truncated": None,
+        # New exports never cut host/evidence rows to fit: the plan refuses
+        # excessive scope and export refuses an oversized document. Legacy
+        # rows have no body fingerprint, so their completeness is unknown.
+        "truncated": False if record.get("body_sha256") else None,
     }
     doc = {
         "format": FORMAT,

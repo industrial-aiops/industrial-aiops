@@ -52,7 +52,7 @@
       }
     ],
     "started_at": "2026-10-30T08:00:00+00:00",
-    "truncated": null,
+    "truncated": false,
     "verdict": "aborted_unhealthy_segment",
     "wire_summary": {
       "tcp_connect": 1
@@ -62,5 +62,5 @@
     "assertion": "unverified",
     "id": "8b0f8465-7a8c-46d7-8b8d-b27da8b4e197"
   },
-  "subject_sha256": "e6db96841a277719a42088303e74fad2fd693127f7c6b45729a1268d58721949"
+  "subject_sha256": "d06c502ce5a3aafea0a7b2c4fc86c9e196efb4343a0f89cd66fd65d51bb78631"
 }
