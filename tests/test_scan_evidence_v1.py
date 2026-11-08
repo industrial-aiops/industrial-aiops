@@ -11,6 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from iaiops.cli.scan import scan_app
+from iaiops.core.discovery import identify, wirelog
 from iaiops.core.discovery.scan_contract import (
     ScanContractError,
     load_and_validate,
@@ -84,6 +85,57 @@ def test_export_round_trip_and_repeat_subject(tmp_path):
         "raw_value": "00042",
     }
     assert fields["hardware_version"]["value"] == "3.1"
+
+
+def test_iolink_probe_fields_keep_source_in_export(tmp_path, monkeypatch):
+    from iaiops.connectors.iolink import ops
+
+    monkeypatch.setattr(
+        ops,
+        "master_info",
+        lambda target: {
+            "master": {
+                "vendor": "ifm electronic",
+                "productcode": "AL1350",
+                "devicename": "master-1",
+            }
+        },
+    )
+    identity = identify._probe_iolink("10.2.0.4", 80, 2.0, wirelog.WireLog())
+    db = tmp_path / "scan.db"
+    scan_id = save_scan(_result(), db)
+    record = load_scan(scan_id, db)
+    record["hosts"][0]["protocols"] = [
+        {
+            "protocol": "iolink",
+            "port": 80,
+            "confidence": "confirmed",
+            "evidence": "iolink_http",
+            "status": "success",
+        }
+    ]
+    record["hosts"][0]["identity"] = {"iolink": identity}
+
+    fields = build_scan_evidence(record)["hosts"][0]["identities"][0]["fields"]
+    for name, source in (
+        ("vendor", "vendor"),
+        ("model", "productcode"),
+        ("name", "devicename"),
+    ):
+        assert fields[name]["source_field"] == source
+        assert fields[name]["raw_value"] == fields[name]["value"]
+
+    monkeypatch.setattr(
+        ops,
+        "master_info",
+        lambda target: {"master": {"devicefamily": "AL series"}},
+    )
+    record["hosts"][0]["identity"] = {
+        "iolink": identify._probe_iolink("10.2.0.4", 80, 2.0, wirelog.WireLog())
+    }
+    fallback = build_scan_evidence(record)["hosts"][0]["identities"][0]["fields"]["model"]
+    assert fallback["source_field"] == "devicefamily"
+    assert fallback["raw_value"] == "AL series"
 
 
 def test_conflict_preserves_original_and_source_id(tmp_path):

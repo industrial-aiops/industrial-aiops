@@ -2,6 +2,15 @@
 
 ## Scan evidence V1 — worktree verification (2026-10-30)
 
+2026-11-08 contract review: a mocked IO-Link master response was projected
+through the real identification and export code. Vendor, model and name now
+retain raw values and source fields; the model fallback reports the actual
+`productcode` or `devicefamily` branch. The S7 `ModuleName` fallback also
+records its chosen source. Focused scan-evidence and identification tests
+passed (77); the wider scan-evidence/store/runner/CLI/identification set passed
+(174), as did full Ruff check, Ruff format check, and Bandit Medium+.
+This is a code-path check, not a physical IO-Link/S7 device test.
+
 2026-11-08 lab preflight: `scan plan` for one authorized Ubuntu `Open-test` VM
 emitted no packets and previewed six TCP connects under `legacy-safe`. `scan run`
 then recorded exactly six connects, one live host, zero identified industrial

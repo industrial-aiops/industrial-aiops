@@ -460,12 +460,19 @@ class TestExtractors:
         monkeypatch.setattr(
             ops,
             "s7_cpu_info",
-            lambda t: {"cpu_info": {"SerialNumber": "00077", "HardwareVersion": "3.2"}},
+            lambda t: {
+                "cpu_info": {
+                    "ModuleName": "CPU 315",
+                    "SerialNumber": "00077",
+                    "HardwareVersion": "3.2",
+                }
+            },
         )
         out = identify._probe_s7("10.0.0.5", 102, 2.0, wirelog.WireLog())
         assert "firmware" not in out
         assert out["extra"]["hardware_version"] == "3.2"
         assert out["serial"] == "00077"
+        assert out["extra"]["source_fields"]["model"] == "ModuleName"
 
     def test_iolink_hardware_revision_does_not_become_firmware(self, monkeypatch):
         from iaiops.connectors.iolink import ops

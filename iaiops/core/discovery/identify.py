@@ -271,6 +271,9 @@ def _probe_s7(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> d
                 "hardware_version": info.get("HardwareVersion", ""),
                 "name": info.get("ASName", ""),
             },
+            source_fields={
+                "model": "ModuleTypeName" if info.get("ModuleTypeName") else "ModuleName",
+            },
             entity_type="device",
             slot=slot,
             cpu_status=raw.get("cpu_status", ""),
@@ -402,9 +405,15 @@ def _probe_iolink(host: str, port: int, timeout_s: float, log: wirelog.WireLog) 
         name=master.get("devicename", ""),
         hardware_version=master.get("hwrevision", ""),
         raw_fields={
+            "vendor": master.get("vendor", ""),
+            "model": master.get("productcode", "") or master.get("devicefamily", ""),
+            "name": master.get("devicename", ""),
             "physical_serial": master.get("serialnumber", ""),
             "software_version": master.get("swrevision", ""),
             "hardware_version": master.get("hwrevision", ""),
+        },
+        source_fields={
+            "model": "productcode" if master.get("productcode") else "devicefamily",
         },
         entity_type="device",
         flavor=raw.get("flavor", ""),

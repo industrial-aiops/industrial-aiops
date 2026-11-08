@@ -21,6 +21,9 @@
 - Separate physical serial, source device ID, hardware/software versions and
   protocol-reported revision in the exchange format. Keep legacy flat identity
   aliases where compatibility requires them, with explicit semantics metadata.
+  Preserve IO-Link vendor, model and name provenance, including the actual
+  product-code/device-family fallback; likewise identify the chosen S7 model
+  field.
   No platform import or physical-device validation has been claimed.
 
 ## 0.34.0 — 2026-11-09

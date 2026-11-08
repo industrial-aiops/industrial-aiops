@@ -78,7 +78,7 @@ def _field(value: Any, *, source: str | None = None, raw: Any = None) -> dict | 
     if value is None:
         return None
     raw_text = _safe(raw, optional=True)
-    return {"value": value, "source_field": source, "raw_value": raw_text}
+    return {"value": value, "source_field": _safe(source, optional=True), "raw_value": raw_text}
 
 
 def _identity(protocol: str, data: dict) -> dict | None:
@@ -86,6 +86,7 @@ def _identity(protocol: str, data: dict) -> dict | None:
         raise ScanContractError("stored protocol identity is not an object")
     extra = data.get("extra") if type(data.get("extra")) is dict else {}
     raw = extra.get("raw_fields") if type(extra.get("raw_fields")) is dict else {}
+    sources = extra.get("source_fields") if type(extra.get("source_fields")) is dict else {}
     mapping = _RAW.get(protocol, {})
     fields: dict[str, dict] = {}
 
@@ -95,7 +96,7 @@ def _identity(protocol: str, data: dict) -> dict | None:
         has_raw = name in raw
         item = _field(
             value,
-            source=mapping.get(name) if has_raw else None,
+            source=sources.get(name, mapping.get(name)) if has_raw else None,
             raw=raw.get(raw_name or name) if has_raw else None,
         )
         if item is not None:
