@@ -2,6 +2,16 @@
 
 ## Scan evidence V1 — worktree verification (2026-10-30)
 
+2026-11-09 merge review: restored the historical flat OPC UA model, EIP
+firmware/revision and S7/IO-Link hardware-version fallback fields for existing
+store and HTML report consumers. The public exchange still labels source UUIDs,
+hardware and reported revisions separately and does not promote a hardware
+fallback into firmware. The HTML report now calls its ambiguous columns legacy.
+The `os.link` unsupported-media path has an O_EXCL reservation and replace
+fallback. Focused discovery/export/report tests: 110 passed. No FAT/exFAT/SMB
+medium was mounted in this environment; the actual removable-media check stays
+`待核实` and is required before merging the V1 PR.
+
 2026-11-08 CI gate follow-up: Python 3.11 failed twice in the existing live
 MQTT tap test because a single publish could precede subscription activation.
 The helper described repeated publishing but did not perform it. Its test

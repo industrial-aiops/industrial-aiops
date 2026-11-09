@@ -20,7 +20,12 @@
   host.
 - Separate physical serial, source device ID, hardware/software versions and
   protocol-reported revision in the exchange format. Keep legacy flat identity
-  aliases where compatibility requires them, with explicit semantics metadata.
+  aliases, including OPC UA model, EIP revision and S7/IO-Link hardware fallbacks,
+  for existing callers; label the HTML report's ambiguous legacy columns.
+  Explicit provenance prevents those fallbacks from claiming firmware in the
+  exchange format. Fall back to exclusive create plus atomic replace on media
+  that cannot hard-link, including FAT/exFAT and some SMB shares; physical USB
+  verification remains pending.
   Preserve IO-Link vendor, model and name provenance, including the actual
   product-code/device-family fallback; likewise identify the chosen S7 model
   field.

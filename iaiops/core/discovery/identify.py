@@ -213,6 +213,7 @@ def _probe_opcua(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -
     raw = ops.opcua_endpoints(target)
     return _identity(
         name=raw.get("application_name", ""),
+        model=raw.get("product_uri", ""),
         product_uri=raw.get("product_uri", ""),
         application_uri=raw.get("application_uri", ""),
         entity_type="server_application",
@@ -261,7 +262,7 @@ def _probe_s7(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> d
             vendor="Siemens" if info else "",
             model=info.get("ModuleTypeName", "") or info.get("ModuleName", ""),
             serial=info.get("SerialNumber", ""),
-            firmware=info.get("ModuleVersion", ""),
+            firmware=info.get("ModuleVersion", "") or info.get("HardwareVersion", ""),
             name=info.get("ASName", ""),
             hardware_version=info.get("HardwareVersion", ""),
             raw_fields={
@@ -309,6 +310,7 @@ def _probe_eip(host: str, port: int, timeout_s: float, log: wirelog.WireLog) -> 
         vendor=raw.get("vendor", ""),
         model=raw.get("product_name", ""),
         serial=str(raw.get("serial", "") or ""),
+        firmware=str(raw.get("revision", "") or ""),
         reported_revision=str(raw.get("revision", "") or ""),
         raw_fields={
             "vendor": raw.get("vendor", ""),
@@ -401,7 +403,7 @@ def _probe_iolink(host: str, port: int, timeout_s: float, log: wirelog.WireLog) 
         vendor=master.get("vendor", ""),
         model=master.get("productcode", "") or master.get("devicefamily", ""),
         serial=master.get("serialnumber", ""),
-        firmware=master.get("swrevision", ""),
+        firmware=master.get("swrevision", "") or master.get("hwrevision", ""),
         name=master.get("devicename", ""),
         hardware_version=master.get("hwrevision", ""),
         raw_fields={

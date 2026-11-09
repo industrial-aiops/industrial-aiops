@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import re
@@ -117,14 +118,14 @@ def _identity(protocol: str, data: dict) -> dict | None:
         add("reported_revision", extra.get("reported_revision") or data.get("firmware"))
     elif protocol == "iolink":
         if "software_version" in raw:
-            add("software_version", data.get("firmware"))
+            add("software_version", raw.get("software_version"))
         else:
             add("reported_revision", data.get("firmware"))
         if "hardware_version" in raw:
             add("hardware_version", extra.get("hardware_version"))
     elif protocol == "s7":
         if "firmware_version" in raw:
-            add("firmware_version", data.get("firmware"))
+            add("firmware_version", raw.get("firmware_version"))
         else:
             add("reported_revision", data.get("firmware"))
         if "hardware_version" in raw:
@@ -303,8 +304,32 @@ def export_scan(
         if overwrite:
             os.replace(temporary, path)
         else:
-            os.link(temporary, path)  # atomic create; existing destination fails
-            temporary.unlink()
+            try:
+                os.link(temporary, path)  # atomic no-clobber on hard-link-capable media
+                temporary.unlink()
+            except OSError as exc:
+                if exc.errno not in {errno.EPERM, errno.ENOTSUP, errno.EOPNOTSUPP, errno.EXDEV}:
+                    raise
+                # FAT/exFAT and some SMB shares reject hard links. Reserve the
+                # name exclusively, then atomically replace the empty reservation.
+                # Never use plain replace without O_EXCL: that would clobber a
+                # file created between the exists check and publication.
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                reservation = os.fstat(fd)
+                os.close(fd)
+                try:
+                    os.replace(temporary, path)
+                except OSError:
+                    try:
+                        current = os.stat(path, follow_symlinks=False)
+                    except FileNotFoundError:
+                        current = None
+                    if current is not None and (current.st_dev, current.st_ino) == (
+                        reservation.st_dev,
+                        reservation.st_ino,
+                    ):
+                        path.unlink()
+                    raise
         temporary = None
     finally:
         if temporary is not None:

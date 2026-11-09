@@ -122,8 +122,8 @@ _COLUMNS = (
     ("Protocol", "text", "confirmed"),
     ("Vendor", "text", "vendor"),
     ("Model", "text", "model"),
-    ("Serial", "text", "serial"),
-    ("Firmware", "text", "firmware"),
+    ("Serial / ID (legacy)", "text", "serial"),
+    ("Version (legacy)", "text", "firmware"),
     ("Name", "text", "name"),
     ("Open ports", "text", "open_ports"),
     ("Seen via", "text", "sources"),
@@ -159,6 +159,9 @@ def _devices(record: dict[str, Any]) -> str:
 </tbody></table></div>
 <p class="sub" style="margin-top:.6rem;font-size:.8rem">
   A blank cell means the device did not report that field. It is never filled by inference.
+  The legacy Serial / ID column may contain a source UUID; Version may contain a
+  hardware revision or protocol revision. Use the per-protocol source fields in the
+  appendix or the scan-evidence export for the precise kind.
   &ldquo;Identity from&rdquo; names the one protocol that supplied this row&rsquo;s identity —
   where a host speaks two, the rest is in the appendix rather than merged into a device that
   does not exist.

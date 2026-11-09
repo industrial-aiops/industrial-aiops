@@ -1462,11 +1462,12 @@ L1 因网段异常中止后不得继续执行 L2；L2 自身中止时仍保留 L
 
 首轮明确核对 OPC UA、Modbus、S7、EtherNet/IP：OPC UA `GetEndpoints` 识别的
 主要是 server application，不是物理 PLC；Modbus FC43 的 `revision` 不自动等于
-固件；S7 `HardwareVersion` 是硬件版本，不能回退填 `firmware`；EIP ListIdentity
+固件；S7 `HardwareVersion` 是硬件版本，不能在交换格式回退填固件；EIP ListIdentity
 `revision` 为协议报告的设备修订，物理序列号保持字符串。IO-Link `hwrevision`
-不能回退填固件，MTConnect `uuid` 是来源设备 ID 而非物理序列号。`identify.py`
-与 `brain/asset_inventory.py` 同步检查；旧公共接口如需兼容，增加元数据或迁移，
-不得无声改变旧字段含义。每个样例标明真机、第三方模拟器或自建 fixture。
+不能在交换格式回退填固件，MTConnect `uuid` 是来源设备 ID 而非物理序列号。
+旧版 `identify.py` 扁平 `firmware`、`serial`、`model` 字段保留原有回退和值语义，
+供既有存储与 HTML 报告兼容；报告标明这些是 legacy 列，不作为精确身份种类。
+`identify.py` 与 `brain/asset_inventory.py` 同步检查；每个样例标明真机、第三方模拟器或自建 fixture。
 
 新扫描持久化来源 ID、请求范围与排除项、阶段执行状态、身份字段来源与主体指纹；读取
 旧扫描不修改库，缺失元数据标未知。`scan_id_for` 现有 16 位 ID 只含部分计划字段，

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import socket
 import sqlite3
@@ -309,6 +310,77 @@ def test_legacy_version_and_uuid_kinds_are_not_guessed(tmp_path):
     assert s7["entity_type"] is None
     assert by_protocol["mtconnect"]["fields"]["source_device_id"]["value"] == "machine-uuid"
     assert "physical_serial" not in by_protocol["mtconnect"]["fields"]
+
+
+def test_new_probe_legacy_fallback_is_not_exported_as_firmware(tmp_path, monkeypatch):
+    from iaiops.connectors.iolink import ops as iolink_ops
+    from iaiops.connectors.s7 import ops as s7_ops
+
+    monkeypatch.setattr(
+        s7_ops,
+        "s7_cpu_info",
+        lambda target: {"cpu_info": {"HardwareVersion": "3.2"}},
+    )
+    monkeypatch.setattr(
+        iolink_ops,
+        "master_info",
+        lambda target: {"master": {"hwrevision": "B"}},
+    )
+    db = tmp_path / "scan.db"
+    scan_id = save_scan(_result(), db)
+    record = load_scan(scan_id, db)
+    s7 = identify._probe_s7("10.2.0.4", 102, 2.0, wirelog.WireLog())
+    iolink = identify._probe_iolink("10.2.0.4", 80, 2.0, wirelog.WireLog())
+    assert s7["firmware"] == "3.2" and iolink["firmware"] == "B"
+    record["hosts"][0]["identity"] = {"s7": s7, "iolink": iolink}
+    record["hosts"][0]["protocols"].append(
+        {"protocol": "iolink", "confidence": "confirmed", "port": 80, "evidence": "iolink_http"}
+    )
+    rows = build_scan_evidence(record)["hosts"][0]["identities"]
+    identities = {row["protocol"]: row["fields"] for row in rows}
+    assert "firmware_version" not in identities["s7"]
+    assert identities["s7"]["hardware_version"]["value"] == "3.2"
+    assert "software_version" not in identities["iolink"]
+    assert identities["iolink"]["hardware_version"]["value"] == "B"
+
+
+def test_export_falls_back_when_media_rejects_hard_links(tmp_path, monkeypatch):
+    from iaiops.core.discovery import scan_export
+
+    db = tmp_path / "scan.db"
+    scan_id = save_scan(_result(), db)
+    out = tmp_path / "evidence.json"
+
+    def no_links(*args):
+        raise OSError(errno.EOPNOTSUPP, "hard links unsupported")
+
+    monkeypatch.setattr(scan_export.os, "link", no_links)
+    export_scan(scan_id, out, db=db)
+    assert load_and_validate(out)["observation"]["scan_id"] == scan_id
+    with pytest.raises(FileExistsError):
+        export_scan(scan_id, out, db=db)
+    assert list(tmp_path.glob(".scan-evidence-*")) == []
+
+
+def test_unsupported_link_replace_failure_removes_reservation(tmp_path, monkeypatch):
+    from iaiops.core.discovery import scan_export
+
+    db = tmp_path / "scan.db"
+    scan_id = save_scan(_result(), db)
+    out = tmp_path / "evidence.json"
+
+    def no_links(*args):
+        raise OSError(errno.EOPNOTSUPP, "hard links unsupported")
+
+    def no_replace(*args):
+        raise OSError(errno.EIO, "write failed")
+
+    monkeypatch.setattr(scan_export.os, "link", no_links)
+    monkeypatch.setattr(scan_export.os, "replace", no_replace)
+    with pytest.raises(OSError, match="write failed"):
+        export_scan(scan_id, out, db=db)
+    assert not out.exists()
+    assert list(tmp_path.glob(".scan-evidence-*")) == []
 
 
 def test_export_rejects_malformed_and_oversized_stored_values(tmp_path):
