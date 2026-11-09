@@ -126,7 +126,7 @@ This run was on **macOS arm64 (Go 1.26.4), outside the CTT-supported Ubuntu 24.0
 host**. Five pinned Go modules were sourced from their upstream GitHub tags and
 replaced only in a temporary `-modfile` because the Go module proxies were
 unreachable; the CTT Go sources and the released OCI artifact were not changed.
-Repeat on Ubuntu 24.04 before calling 0.33.0 a supported-host CTT result.
+The supported-host repeat is recorded below.
 `MARGO-APP-OBSERVABILITY-004` is `N/A` because the released Compose component
 does not declare OTEL variables. The `-003/-005/-006` row is still `NOT RUN`:
 current CTT code marks it so unconditionally, even if OTLP is declared. The
@@ -159,3 +159,19 @@ Upstream [CTT #16](https://github.com/margo/conformance_test_toolkit/pull/16)
 merged into `dev` on 2026-11-06. Its follow-on
 [#17](https://github.com/margo/conformance_test_toolkit/pull/17) targets `main`
 and remained open at this check; the `dev` runner above includes #16.
+
+## Published v0.33.0 supported-host repeat — 2026-11-09
+
+On `Open-test` (Ubuntu 24.04.4, x86_64, Go 1.24.9), the official Application
+Supplier CTT was built from clean upstream `dev` commit
+`f6e5ef4d86019bd8f07e704923207357c34ffa1d` without source changes. The
+runner pulled the **published** `oci://ghcr.io/industrial-aiops/iaiops-margo:0.33.0`
+manifest at
+`sha256:4a3a994072fb5843946a7a11547517f8aee962bbc0bce72c1cb937a2641a4413`
+and reported `PASSED`: 67 checks, 61 passed, 0 failed, 0 warnings, 1 not run,
+4 not applicable, 1 info. The retained [Ubuntu HTML report](evidence/margo/ctt-app-supplier-ubuntu2404-v0.33.0-2026-11-09.html)
+has SHA-256 `8c213810e7838f7c292f0f8198244ed4ab2c9283b9204900d09f1fd25a9802c2`.
+
+The same published Compose OCI component still has the direct-YAML format gap
+described above. This CTT result neither validates that component's rc.3 archive
+format nor demonstrates Symphony onboarding, device deployment or telemetry.

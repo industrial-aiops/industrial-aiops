@@ -900,7 +900,7 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
 - ◐ **Margo conformance run** — the official Application Supplier CTT runner passed against the
   released v0.32.0 OCI package on Ubuntu 24.04 (67 checks: 61 passed, 0 failed, 0 warnings,
   1 not run, 4 not applicable, 1 info). The released v0.33.0 OCI package passed the same counts
-  in a macOS preflight; **repeat v0.33.0 on supported Ubuntu 24.04**. Reports and limits are in
+  on Open-test Ubuntu 24.04.4, after a matching macOS preflight. Reports and limits are in
   `docs/MARGO-CTT-VALIDATION.md`. A structural pass alone is not a *Margo-compliant* claim.
 - ⏳ **Optional local OTLP health metrics (next-release candidate)** — export only process uptime
   and audit counts, off by default and blocked by `IAIOPS_NO_EGRESS=1`; the feature branch has
