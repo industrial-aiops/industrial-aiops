@@ -11,7 +11,7 @@ description: >-
   alarm analysis. Use when the task mentions warehouse, 仓储, 物流, intralogistics,
   distribution center / DC, fulfillment, conveyor / 输送线, sorter / 分拣, palletizer,
   AS/RS / 立体库, AGV / AMR / 移动机器人, WMS / WCS, or material handling. Read-first;
-  this edition's tool surface is read-only.
+  MQTT publish is MOC-gated; read-first.
 ---
 
 # iaiops-warehouse — 仓储 / 物料搬运 edition（EtherNet/IP + Profinet + Modbus + OPC-UA + Sparkplug + 脑）
@@ -54,12 +54,15 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`
 - `opcua_subscribe_sample` `opcua_read_alarms` `opcua_alarm_events`(A&C 带时间戳) `opcua_read_history`(HDA)
 - `opcua_diagnose_connection` — 连接失败归因（证书/策略/认证/网络/配置）
-- `opcua_discover_tags` — 自动发现 + 语义资产建模；`opcua_health_summary` 阈值分类;
+- `opcua_discover_tags` — 发现点位并给出启发式语义建议；不是已确认的 `role`，不得据此填写 `tags`；`opcua_health_summary` 阈值分类;
   `opcua_anomaly_scan` 有界统计异常扫描
 
 ### MQTT-Sparkplug B（可选；AGV/AMR 车队、IoT 传感/网关的 UNS）
 - `sparkplug_node_list` `sparkplug_subscribe_sample` `sparkplug_decode_payload`
-- `mqtt_read_topic` `mqtt_publish` `sparkplug_live_schema`
+- `mqtt_read_topic` `sparkplug_live_schema` `sparkplug_point_draft`
+- `mqtt_publish` — **[WRITE][HIGH][MOC]**（默认 dry-run；需具名审批）
+- UNS 选点：`iaiops mqtt point-draft --endpoint <name>` 或 MCP `sparkplug_point_draft`
+  从有界 BIRTH 捕获提出未确认 refs；`role`/`label` 留空，由现场人员确认，不写配置。
 - `uns_browse` `uns_topic_audit` `uns_schema_drift` `uns_live_audit` `uns_live_drift`
 
 ### 仓储专属（edition 工具;仅随 warehouse edition 加载,不进全局脑）
@@ -103,6 +106,7 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish`
   `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility` `plc_program_xref_config`
+- 导出来源守卫（#282）：AWL/SCL 的 `--live` 只允许 CLI 操作者显式给出 `--confirm-export-origin` 且 CPU 为 RUN；MCP 不能声明来源，故拒绝这类 live 读。S7 STOP/未知态也拒读。L5X/Logix 在线控制器名匹配仅是有限证据，不能证明导出来源。
 - 程序变更基线：`plc_program_snapshot` `plc_program_drift` `plc_program_history` — 把「认可的那一版」
   的结构记下来（文件 SHA-256 + 每个 block 的结构指纹：声明/调用/分支条件/定时器，**不含行号、注释、
   block 顺序**，所以在文件顶上加一行注释不会把整份程序报成变更），之后问某一次导出**动没动**。
@@ -130,6 +134,8 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
 
 ## Workflows
 
+- **SIS 禁写**：端点 `safety: sis` 拒绝所有设备写（包括 dry-run 预览），已有审批也不能放行；只读仍可用。
+
 1. **Doctor-first**：`protocols_supported` → `iaiops doctor` → EtherNet/IP 先
    `eip_controller_info`,OPC-UA 先 `opcua_diagnose_connection`。
 2. **输送带 PdM**：`modbus_apply_template`(`conveyor_vfd`) 读 drive_temperature /
@@ -137,7 +143,7 @@ OPC-UA,AGV/AMR 与 IoT 传感走 MQTT-Sparkplug。
    即提前派维护。AGV 车队同理用 `agv_battery` 模板 + `pdm_forecast` 盯 SOC/温度衰减。
 3. **停机分诊**：分拣线停机 = `downtime_triage`(告警 cascade + RCA + PdM 前兆一次给出),
    或 `downtime_root_cause_live` 现采证据链;吞吐掉速用 OEE/`oee_multidim` 定位瓶颈工位。
-4. **MOC 写**：本 edition **读优先**;EtherNet/IP `eip_write_tag`、Profinet `profinet_dcp_set`
+4. **MOC 写**：本 edition **读优先**;EtherNet/IP `eip_write_tag`、Profinet `profinet_dcp_set`、`mqtt_publish`
    为写工具,统一走 MOC:`risk=HIGH` + 默认 `dry_run=True` + 改前值 undo + `iaiops approve`
    具名审批双确认。未经授权绝不写生产控制系统。
 

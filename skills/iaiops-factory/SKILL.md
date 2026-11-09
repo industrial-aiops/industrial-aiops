@@ -26,7 +26,7 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 - `opcua_server_info` / `opcua_browse` / `opcua_read_node` / `opcua_read_many`
 - `opcua_subscribe_sample` `opcua_read_alarms` `opcua_alarm_events`(A&C 带时间戳) `opcua_read_history`(HDA)
 - `opcua_diagnose_connection` — 连接失败五类归因（证书/策略/认证/网络/配置）
-- `opcua_discover_tags` — 自动发现 + 语义资产建模
+- `opcua_discover_tags` — 发现点位并给出启发式语义建议；不是已确认的 `role`，不得据此填写 `tags`
 - `opcua_health_summary` — tag vs 阈值分类；`opcua_anomaly_scan` — 有界统计异常扫描
 
 ### Modbus-TCP / Modbus-RTU（本 edition 只读）
@@ -91,7 +91,9 @@ PROFINET：`pip install iaiops[profinet]`（或 `iaiops[factory]` bundle）；Om
 - `mqtt_read_topic` `sparkplug_decode_payload` `sparkplug_subscribe_sample`
   `sparkplug_node_list`
 - `uns_browse` `uns_topic_audit` `uns_schema_drift` `uns_live_audit`
-  `sparkplug_live_schema` `sparkplug_point_draft` (BIRTH refs for human review; roles blank) `uns_live_drift`
+  `sparkplug_live_schema` `sparkplug_point_draft` `uns_live_drift`
+- UNS 选点：`iaiops mqtt point-draft --endpoint <name>` 或 MCP `sparkplug_point_draft`
+  从有界 BIRTH 捕获提出未确认 refs；`role`/`label` 留空，由现场人员确认，不写配置。
 - `mqtt_publish` — **[WRITE][HIGH][MOC]**（默认 off）
 
 ### 离散制造专属（edition 工具;仅随 factory edition 加载,不进全局脑）
@@ -145,6 +147,7 @@ server，但那已由 `opcua` connector 处理，本读层**不碰 OPC-UA**。�
   `compliance_report` `compliance_evidence_bundle`
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish` `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents` `pdm_forecast`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility` `plc_program_xref_config`（解读导出的 ST/AWL/L5X 程序,只读文件,强制引用行号）
+- 导出来源守卫（#282）：AWL/SCL 的 `--live` 只允许 CLI 操作者显式给出 `--confirm-export-origin` 且 CPU 为 RUN；MCP 不能声明来源，故拒绝这类 live 读。S7 STOP/未知态也拒读。L5X/Logix 在线控制器名匹配仅是有限证据，不能证明导出来源。
 - 程序变更基线：`plc_program_snapshot` `plc_program_drift` `plc_program_history` — 把「认可的那一版」
   的结构记下来（文件 SHA-256 + 每个 block 的结构指纹：声明/调用/分支条件/定时器，**不含行号、注释、
   block 顺序**，所以在文件顶上加一行注释不会把整份程序报成变更），之后问某一次导出**动没动**。
@@ -171,6 +174,8 @@ server，但那已由 `opcua` connector 处理，本读层**不碰 OPC-UA**。�
 
 
 ## Workflows
+
+- **SIS 禁写**：端点 `safety: sis` 拒绝所有设备写（包括 dry-run 预览），已有审批也不能放行；只读仍可用。
 
 1. **Doctor-first**：`protocols_supported` → `iaiops doctor`（或 `opcua_diagnose_connection`
    之类协议自检）→ 再读数。

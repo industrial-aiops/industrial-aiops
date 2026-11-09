@@ -62,8 +62,10 @@ description: >-
 - `iolink_master_info` `iolink_ports` `iolink_device_info` `iolink_read_pdin` `iolink_read_isdu` `iolink_scan`
 
 ### MQTT / Sparkplug（改造用传感节点，如 ESP32）
-- `sparkplug_node_list` `sparkplug_subscribe_sample` `mqtt_read_topic` `uns_browse`
+- `sparkplug_node_list` `sparkplug_subscribe_sample` `mqtt_read_topic` `uns_browse` `sparkplug_point_draft`
 - 采集要求端点写 `stale_after_s`（停发和读数不变在线上分不出来）
+- UNS 选点：`iaiops mqtt point-draft --endpoint <name>` 或 MCP `sparkplug_point_draft`
+  从有界 BIRTH 捕获提出未确认 refs；`role`/`label` 留空，由现场人员确认，不写配置。
 - ⚠️ `mqtt_publish` —— 本菜单里**唯一的设备写**：`[WRITE][risk=HIGH][MOC]`，默认 dry-run，
   需要审批；接传感器用不到它，别为「试一下」去发布
 
@@ -116,6 +118,8 @@ description: >-
 产量要读 DI 模块或 PLC 的计数寄存器。去抖交给模块 / PLC 的输入滤波，tap 不做软件去抖。
 
 ## 边界
+
+- **SIS 禁写**：端点 `safety: sis` 拒绝所有设备写（包括 dry-run 预览），已有审批也不能放行；只读仍可用。
 
 - **传感器工具只读**：不写设备、不改 config、不做传感器配置（重新示教、改量程不在本 edition）。
   同一 server 带的 `mqtt_publish` 是受 MOC 约束的写，见上。

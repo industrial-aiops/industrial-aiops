@@ -9,7 +9,7 @@ description: >-
   Use when the task mentions solar / 光伏 / PV / photovoltaic, inverter / 逆变器 /
   组串 / string / combiner, irradiance / 辐照 / POA, wind / 风电 / turbine / 风机 /
   nacelle / pitch / yaw, plant SCADA, performance ratio, soiling / 积灰 / shading /
-  遮挡, or 电站. Read-first; this edition's tool surface is read-only.
+  遮挡, or 电站. Read-first; MQTT publish is MOC-gated.
   Also supplier half-hourly (HH) electricity files for the site's import meter — base load, out-of-hours use, tariff time bands.
 ---
 
@@ -18,7 +18,7 @@ description: >-
 启动：`IAIOPS_MCP=renewables` / `iaiops-mcp-renewables`（= modbus + opcua + sparkplug
 + 脑；等价 `IAIOPS_MCP=modbus,opcua,sparkplug`）。典型现场：逆变器/组串汇流箱、风机控制器
 走 Modbus,全站 SCADA 走 OPC-UA,遥测经 MQTT-Sparkplug。语义层已含 irradiance / wind_speed /
-rotor_speed / pitch / yaw / state_of_charge 等可再生类别(`opcua_discover_tags` 自动归类)。
+rotor_speed / pitch / yaw / state_of_charge 等可再生类别（`opcua_discover_tags` 只给启发式类别建议；不是已确认的 `role`，不得据此填写 `tags`）。
 
 ## 工具
 
@@ -41,7 +41,10 @@ rotor_speed / pitch / yaw / state_of_charge 等可再生类别(`opcua_discover_t
 
 ### MQTT-Sparkplug B（可选;电站遥测 / IoT 网关 UNS）
 - `sparkplug_node_list` `sparkplug_subscribe_sample` `sparkplug_decode_payload`
-- `mqtt_read_topic` `mqtt_publish` `sparkplug_live_schema`
+- `mqtt_read_topic` `sparkplug_live_schema` `sparkplug_point_draft`
+- `mqtt_publish` — **[WRITE][HIGH][MOC]**（默认 dry-run；需具名审批）
+- UNS 选点：`iaiops mqtt point-draft --endpoint <name>` 或 MCP `sparkplug_point_draft`
+  从有界 BIRTH 捕获提出未确认 refs；`role`/`label` 留空，由现场人员确认，不写配置。
 - `uns_browse` `uns_topic_audit` `uns_schema_drift` `uns_live_audit` `uns_live_drift`
 
 ### 半小时电表数据（edition 工具;随 building / renewables 加载;只读,不连设备）
@@ -87,6 +90,7 @@ rotor_speed / pitch / yaw / state_of_charge 等可再生类别(`opcua_discover_t
   `historian_push` `export_data` `historian_query` `historian_coverage` `stream_publish` `uns_publish`
   `stream_publish_event` `rca_narrate` `fleet_status` `fleet_incidents`
 - 程序解读：`plc_program_outline` `plc_program_xref` `plc_program_section` `plc_program_visibility` `plc_program_xref_config`
+- 导出来源守卫（#282）：AWL/SCL 的 `--live` 只允许 CLI 操作者显式给出 `--confirm-export-origin` 且 CPU 为 RUN；MCP 不能声明来源，故拒绝这类 live 读。S7 STOP/未知态也拒读。L5X/Logix 在线控制器名匹配仅是有限证据，不能证明导出来源。
 - 程序变更基线：`plc_program_snapshot` `plc_program_drift` `plc_program_history` — 把「认可的那一版」
   的结构记下来（文件 SHA-256 + 每个 block 的结构指纹：声明/调用/分支条件/定时器，**不含行号、注释、
   block 顺序**，所以在文件顶上加一行注释不会把整份程序报成变更），之后问某一次导出**动没动**。
@@ -114,11 +118,14 @@ rotor_speed / pitch / yaw / state_of_charge 等可再生类别(`opcua_discover_t
 
 ## Workflows
 
+- **SIS 禁写**：端点 `safety: sis` 拒绝所有设备写（包括 dry-run 预览），已有审批也不能放行；只读仍可用。
+
 1. **Doctor-first**：`protocols_supported` → `iaiops doctor` → OPC-UA 先 `opcua_diagnose_connection`。
 2. **欠发排查**：`modbus_apply_template`(`huawei_sun2000_inverter`) 读各组串功率(+辐照) →
    `pv_performance` 排欠发组串 → 结合 `pdm_forecast` 盯逆变器温升趋势。
 3. **停机/告警**：`downtime_triage`;风机齿轮箱/轴承劣化用 `pdm_forecast`。
-4. **只读**：本 edition 工具表面全只读(逆变器限功率/风机偏航不经本工具下发)。
+4. **MOC 写**：逆变器限功率/风机偏航不经本工具下发；可选的 `mqtt_publish` 是
+   **[WRITE][HIGH][MOC]**，默认 dry-run，需具名审批与双确认。
 
 ## 支持版本矩阵（内部 HLD §8，设计文档不随本仓发布;`待核实` 不得当既成事实）
 
