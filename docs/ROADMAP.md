@@ -903,22 +903,24 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   on Open-test Ubuntu 24.04.4, after a matching macOS preflight. Reports and limits are in
   `docs/MARGO-CTT-VALIDATION.md`. A structural pass alone is not a *Margo-compliant* claim.
 - ⏳ **Optional local OTLP health metrics (next-release candidate)** — export only process uptime
-  and audit counts, off by default and blocked by `IAIOPS_NO_EGRESS=1`; the feature branch has
+  and audit counts, off by default and blocked by `IAIOPS_NO_EGRESS=1`; `main` has
   implementation and a loopback receiver test. It is **not** in the immutable v0.33.0 artifact.
   Current CTT statically checks Compose OTEL variables; its runtime row remains `NOT RUN` even
   after declaration. Capture a running-workload OTLP receiver trace separately.
 - ⏳ **Official sandbox WFM/Compose-device lifecycle** — on lab VMs, install Symphony/MIS/Harbor
   plus a Compose device; use [`MARGO-SANDBOX-RUNBOOK.md`](MARGO-SANDBOX-RUNBOOK.md) for the pinned
-  topology, artifact gate and evidence sequence. The 0.33.0 Compose component is **incompatible with the rc.3 archive
-  format and the sandbox client**; a converted component/package must be labelled as an unsigned
-  sandbox adapter with separate digests, or wait for the next corrected signed release. Record package
+  topology, artifact gate and evidence sequence. The 0.33.0 Compose component is
+  **incompatible with the rc.3 archive format and the sandbox client**; a converted
+  component/package must be labelled as an unsigned sandbox adapter with separate digests,
+  or wait for the next corrected signed release. Record package
   onboarding, deploy, update and delete with exact sandbox commit/digests. OTLP application
   metrics require a **later signed release** containing the exporter; 0.33.0 can exercise only
   the lifecycle and the sandbox's own observability stack.
   This closes only the **sandbox** WFM/device gap; commercial WFM and immutable-host validation
   remain separate. No OT hardware is needed for this software-stack check.
-- ⏳ **Compose Archive release correction** — the branch replaces the direct-YAML OCI component
-  with a deterministic single-layer `.tar.gz` archive, rc.3 media types and required annotations.
+- ⏳ **Compose Archive release correction** — the `main` workflow replaces the direct-YAML
+  OCI component with a deterministic single-layer `.tar.gz` archive, rc.3 media types and
+  required annotations.
   Verify the local OCI manifest, then the next signed release and sandbox device pull. The current
   CTT does not catch this mismatch; do not reuse its 0.33.0 pass as format evidence.
 - ✅ **Report the CTT blind spot** — [margo/conformance_test_toolkit#18](https://github.com/margo/conformance_test_toolkit/issues/18)

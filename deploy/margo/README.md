@@ -87,7 +87,7 @@ the tool interface for the orchestrator/agent.
 
 ## Optional local health metrics (next-release candidate)
 
-The branch adds `OTEL_METRICS_EXPORTER=none|otlp` to the Compose component and Margo parameters.
+The source on `main` adds `OTEL_METRICS_EXPORTER=none|otlp` to the Compose component and Margo parameters.
 `none` is the default. With `otlp`, install `iaiops[telemetry]` and set
 `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` to an OTLP/HTTP collector such as
 `http://127.0.0.1:4318/v1/metrics` (same network namespace) or a private IP on the site network.

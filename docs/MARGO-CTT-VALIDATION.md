@@ -130,7 +130,7 @@ The supported-host repeat is recorded below.
 `MARGO-APP-OBSERVABILITY-004` is `N/A` because the released Compose component
 does not declare OTEL variables. The `-003/-005/-006` row is still `NOT RUN`:
 current CTT code marks it so unconditionally, even if OTLP is declared. The
-new optional local-health exporter on the feature branch is **not in the
+new optional local-health exporter now on `main` is **not in the
 released 0.33.0 image or OCI package**. No WFM/device deployment occurred in
 this preflight.
 
@@ -146,11 +146,12 @@ showed `artifactType: application/vnd.docker.compose.project` and one direct
 `compose.yaml` layer of `application/vnd.docker.compose.file+yaml` media type. The
 official sandbox's Compose device client searches for a pulled `.tar.gz` file,
 so the unmodified 0.33.0 component cannot satisfy that path. **The 61/67 CTT
-result did not test this format requirement.** The feature branch corrects the
-next release's publishing workflow; any 0.33.0 sandbox conversion must be
-recorded as a separate experimental artifact with its own digest and signature
-status, not described as deployment of the original signed component.
-The branch's corrected archive was pushed only to a **local OCI layout** with
+result did not test this format requirement.** The correction merged to `main`
+in #289 and updates the next release's publishing workflow; any 0.33.0 sandbox
+conversion must be recorded as a separate experimental artifact with its own
+digest and signature status, not described as deployment of the original signed
+component.
+The corrected archive was pushed only to a **local OCI layout** with
 ORAS 1.3.0: one tar.gz layer, both required media types, and type/version layer
 annotations; the archive contains only `iaiops/compose.yaml`. This checks the
 new publishing shape, not a released registry artifact or device deployment.
