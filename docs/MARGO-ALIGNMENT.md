@@ -88,8 +88,12 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
    (`ghcr.io/industrial-aiops/iaiops-compose:<version>`, the descriptor's `repository`), both
    cosign-signed by digest; the signed tarball stays attached to each GitHub release as a mirror.
    `tests/test_margo_package.py` lints the descriptor against the pinned profile bundles. The
-   compose component's OCI format is not specified by Margo — pushed as `docker compose publish`
-   does (`待核实` against a real WFM). First push happens on the next release tag; the job then checks both packages are anonymously pullable and fails with instructions if GHCR created them private (a one-time visibility flip by the org owner). Remaining: only the secret-parameter flag (pending
+   published 0.33.0 Compose component used a direct YAML layer with the Docker Compose artifact
+   type. That is **incompatible** with rc.3's required single-layer Compose Archive; the official
+   CTT passed without checking this format. The next-release workflow now builds the required
+   tar.gz archive and OCI media types/annotations, but a signed registry artifact and WFM/device
+   pull remain `待核实`. CI checks both packages are anonymously pullable. The secret-parameter flag
+   also remains open (pending
    [`margo/specification#145`](https://github.com/margo/specification/issues/145)).
 3. **`✅` On-box LLM brain option (2026-07-15)** — documented + deployable: `docs/AIRGAP.md`
    (tiered architecture, offline wheelhouse + offline model provisioning, zero-egress

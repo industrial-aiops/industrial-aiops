@@ -16,9 +16,11 @@
 #   • Secrets — still no secret-typed parameter (margo/specification#145, open). The deploy config
 #     carries only a REFERENCE; see `masterPassword` / `mcpToken` and ../../docs/MARGO-ALIGNMENT.md.
 #
-# 待核实: the OCI format of a compose component is not specified by Margo (left to supplier and
-# WFM to agree); we publish it the way `docker compose publish` does. The official Application
-# Supplier CTT runner passed on Ubuntu 24.04, but WFM/device deployment remains unverified.
+# Margo rc.3 specifies a single-layer Compose Archive in OCI. The published 0.33.0 component
+# predates the corrected archive workflow and uses an incompatible direct-YAML layer. A source
+# edit cannot repair that signed release; this descriptor will point at the corrected component
+# only after a later release. The Application Supplier CTT did not check this component format.
+# WFM/device deployment remains unverified.
 # iaiops is NOT Margo-compliant.
 # See ../../docs/MARGO-ALIGNMENT.md.
 apiVersion: v1

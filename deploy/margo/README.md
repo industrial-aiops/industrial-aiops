@@ -24,14 +24,23 @@
 - `ghcr.io/industrial-aiops/iaiops:<version>-<profile>` — multi-arch (amd64/arm64), cosign-signed.
   Verify: `cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:<version>-<profile>`
 - `ghcr.io/industrial-aiops/iaiops-margo:<version>` — OCI Application Package; its compose component
-  is `ghcr.io/industrial-aiops/iaiops-compose:<version>`. Both are signed by digest. These are the
-  registry artifacts named by the rc.3 descriptor.
+  is `ghcr.io/industrial-aiops/iaiops-compose:<version>`. Both are signed by digest. **The published
+  0.33.0 component uses a direct YAML layer, which rc.3 does not accept as a Compose Archive.**
+  The next release's workflow builds a single-layer `.tar.gz` archive with the required media types
+  and annotations. A signature on 0.33.0 does not fix its component format.
 - `iaiops-margo-package-<version>.tar.gz` (+ `.sig`) on the GitHub release — a signed mirror of the
   application package: `margo.yaml` + deploy-ready `compose.yaml` + `cosign.pub`.
   Verify: `cosign verify-blob --key cosign.pub --signature <pkg>.tar.gz.sig <pkg>.tar.gz`
 - CI waits for the wheel to appear on PyPI before building (the tag→PyPI race silently broke the
   v0.12–v0.14 image builds), and `tests/test_margo_package.py` lints descriptor ↔ profile menu ↔
   pip extras ↔ build matrix ↔ version pins on every CI run.
+
+The [rc.3 Compose Component Registry](https://docs.margo.org/specification/applications/application-registry/#compose-component-registry)
+requires one top-level directory containing `compose.yaml`, a single tar.gz OCI layer, and
+`application/vnd.org.margo.component.compose+json` / `application/vnd.org.margo.component.compose.tar+gzip`.
+It explicitly excludes the `docker compose publish` format. The official Application Supplier CTT
+currently misses this mismatch; see the validation record. The corrected workflow is not in the
+already signed 0.33.0 artifact.
 
 ## Quick start
 

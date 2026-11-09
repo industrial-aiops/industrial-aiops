@@ -134,6 +134,27 @@ new optional local-health exporter on the feature branch is **not in the
 released 0.33.0 image or OCI package**. No WFM/device deployment occurred in
 this preflight.
 
+**Component-format gap found by independent review:** the rc.3
+[Compose Component Registry specification](https://docs.margo.org/specification/applications/application-registry/#compose-component-registry)
+requires one `.tar.gz` layer with `artifactType`
+`application/vnd.org.margo.component.compose+json`, layer `mediaType`
+`application/vnd.org.margo.component.compose.tar+gzip`, and required layer
+annotations. An independent `oras manifest fetch` of the published 0.33.0
+`iaiops-compose` digest
+`sha256:16b3f61fcd038129bba439e133818bb208604e9f7a2f57132c140564bdfeafa8`
+showed `artifactType: application/vnd.docker.compose.project` and one direct
+`compose.yaml` layer of `application/vnd.docker.compose.file+yaml` media type. The
+official sandbox's Compose device client searches for a pulled `.tar.gz` file,
+so the unmodified 0.33.0 component cannot satisfy that path. **The 61/67 CTT
+result did not test this format requirement.** The feature branch corrects the
+next release's publishing workflow; any 0.33.0 sandbox conversion must be
+recorded as a separate experimental artifact with its own digest and signature
+status, not described as deployment of the original signed component.
+The branch's corrected archive was pushed only to a **local OCI layout** with
+ORAS 1.3.0: one tar.gz layer, both required media types, and type/version layer
+annotations; the archive contains only `iaiops/compose.yaml`. This checks the
+new publishing shape, not a released registry artifact or device deployment.
+
 Upstream [CTT #16](https://github.com/margo/conformance_test_toolkit/pull/16)
 merged into `dev` on 2026-11-06. Its follow-on
 [#17](https://github.com/margo/conformance_test_toolkit/pull/17) targets `main`

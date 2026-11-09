@@ -10,6 +10,9 @@
 - Wire the exporter choice and endpoint through the rc.3 application parameters and Compose
   environment. The current CTT runtime-export row remains `NOT RUN` by design; receiving
   metrics must be verified separately on a running workload.
+- Correct the **next-release** Compose OCI component to the rc.3 single-layer `.tar.gz` archive
+  and required media types/annotations. The published 0.33.0 component used a direct YAML layer;
+  the Application Supplier CTT did not detect that format mismatch.
 
 ## 0.33.0 — 2026-11-09
 

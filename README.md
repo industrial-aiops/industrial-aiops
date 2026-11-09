@@ -513,6 +513,8 @@ application** — read-first tap + cross-protocol RCA, exposed as governed MCP t
 > **Honest status:** iaiops is a natural Margo edge application but is **NOT Margo-compliant yet**.
 > Signed OCI images and an rc.3 Application Package are published. The released OCI package
 > passed the official Application Supplier CTT runner on Ubuntu 24.04;
+> independent review found the published 0.33.0 Compose component has the wrong OCI archive
+> format, which the CTT did not test. The correction is a next-release candidate;
 > deployment through a real WFM/device remains `待核实` (see [the validation record](docs/MARGO-CTT-VALIDATION.md)).
 
 A container + application-description package lives in **[`deploy/margo/`](deploy/margo/)**

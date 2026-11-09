@@ -191,6 +191,15 @@ MCP 进程的边缘适配层读取，不改协议 connector、OT 采集路径或
 应用包继续固定镜像版本并签名。已经发布的 0.33.0 OCI 制品不可被本地后续修改冒充；
 新增遥测只在下一次构建发布后才成为发布包能力。
 
+**Compose 组件格式**：rc.3 的 Application Registry 规范要求一个顶层目录、其中的
+`compose.yaml`，整体为 `.tar.gz` 单层 OCI blob；`artifactType` 必须是
+`application/vnd.org.margo.component.compose+json`，层 `mediaType` 必须是
+`application/vnd.org.margo.component.compose.tar+gzip`，并声明组件类型/版本注解。
+`docker compose publish` 的项目制品格式被规范明确排除。0.33.0 已发布的
+`iaiops-compose` 是直接 YAML 层，必须如实记录为不符合该组件格式；下一版修正发布
+流水线后重新签名。sandbox 若需测试 0.33.0，只能把转换后的 Compose Archive 标为
+实验适配制品，保留原 OCI 摘要与转换摘要，不把它当成原签名制品。
+
 **最小观测面**：默认不启动 OTLP 导出。启用时只报进程存活/运行时长及本机审计事件总数、
 错误数；不报位号、端点、参数、凭据、审计行内容，也不复用现有 Prometheus 桥的
 `iaiops_tag_value`（它含 OT 点位标签）。审计库缺失或不可读应标为观测不可用，
