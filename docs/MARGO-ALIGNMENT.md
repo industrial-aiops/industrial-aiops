@@ -90,7 +90,7 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
    `tests/test_margo_package.py` lints the descriptor against the pinned profile bundles. The
    published 0.33.0 Compose component used a direct YAML layer with the Docker Compose artifact
    type. That is **incompatible** with rc.3's required single-layer Compose Archive; the official
-   CTT passed without checking this format. The next-release workflow now builds the required
+   CTT passed without checking this format. The 0.34.0 workflow builds the required
    tar.gz archive and OCI media types/annotations, but a signed registry artifact and WFM/device
    pull remain `待核实`. CI checks both packages are anonymously pullable. The secret-parameter flag
    also remains open (pending

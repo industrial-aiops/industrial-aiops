@@ -20,9 +20,9 @@ Prefer a container? The published image is **cosign-signed** and runs **non-root
 over stdio, so keep stdin open and mount a volume for the audit store:
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.33.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.34.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.33.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.34.0-factory
 ```
 
 For a hardened or air-gapped deployment (read-only rootfs, `cap_drop: ALL`, no-new-privileges,
@@ -514,7 +514,7 @@ application** — read-first tap + cross-protocol RCA, exposed as governed MCP t
 > Signed OCI images and an rc.3 Application Package are published. The released OCI package
 > passed the official Application Supplier CTT runner on Ubuntu 24.04;
 > independent review found the published 0.33.0 Compose component has the wrong OCI archive
-> format, which the CTT did not test. The correction is a next-release candidate;
+> format, which the CTT did not test. The 0.34.0 source corrects the publishing format;
 > deployment through a real WFM/device remains `待核实` (see [the validation record](docs/MARGO-CTT-VALIDATION.md)).
 
 A container + application-description package lives in **[`deploy/margo/`](deploy/margo/)**

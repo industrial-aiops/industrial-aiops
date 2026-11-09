@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-### Margo edge health telemetry (candidate; not in the published 0.33.0 artifact)
+## 0.34.0 — 2026-11-09
+
+### Margo edge health telemetry and rc.3 Compose Archive
 
 - Add opt-in OTLP/HTTP metrics for process uptime and audit event/error/availability counts.
   Export is off by default, blocked by `IAIOPS_NO_EGRESS=1`, and restricted to loopback or
