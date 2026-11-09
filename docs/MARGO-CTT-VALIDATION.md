@@ -1,4 +1,4 @@
-# Margo Application Supplier CTT — v0.32.0 evidence
+# Margo Application Supplier CTT — v0.32.0 and v0.33.0 evidence
 
 > This is a test record, not a Margo compliance claim. The CTT is under active
 > development; a package-validator pass does not demonstrate deployment through a
@@ -109,3 +109,32 @@ supports direct token injection. This Docker smoke test is **not** a deployment
 through a Margo WFM/device and does not verify OT hardware or live telemetry.
 The test container, state volume, and generated token file were removed after
 the probe; the CTT workspace and pulled image remain on the VM for follow-up.
+
+## Published v0.33.0 OCI preflight — 2026-11-09
+
+The official Application Supplier runner at upstream `dev` commit
+`f6e5ef4d86019bd8f07e704923207357c34ffa1d` pulled the **published**
+`oci://ghcr.io/industrial-aiops/iaiops-margo:0.33.0` manifest
+`sha256:4a3a994072fb5843946a7a11547517f8aee962bbc0bce72c1cb937a2641a4413`.
+The [HTML report](evidence/margo/ctt-app-supplier-v0.33.0-local-2026-11-09.html)
+has SHA-256 `cdcaf9030fff9070de9bafc198c4a4e7d81999d28a773a3015f71c32ba3d5dc0`
+and records `PASSED`: 67 checks, 61 passed, 0 failed, 0 warnings, 1 not run,
+4 not applicable, 1 info. The application package signature verified against
+`deploy/margo/cosign.pub` with transparency-log verification explicitly skipped.
+
+This run was on **macOS arm64 (Go 1.26.4), outside the CTT-supported Ubuntu 24.04
+host**. Five pinned Go modules were sourced from their upstream GitHub tags and
+replaced only in a temporary `-modfile` because the Go module proxies were
+unreachable; the CTT Go sources and the released OCI artifact were not changed.
+Repeat on Ubuntu 24.04 before calling 0.33.0 a supported-host CTT result.
+`MARGO-APP-OBSERVABILITY-004` is `N/A` because the released Compose component
+does not declare OTEL variables. The `-003/-005/-006` row is still `NOT RUN`:
+current CTT code marks it so unconditionally, even if OTLP is declared. The
+new optional local-health exporter on the feature branch is **not in the
+released 0.33.0 image or OCI package**. No WFM/device deployment occurred in
+this preflight.
+
+Upstream [CTT #16](https://github.com/margo/conformance_test_toolkit/pull/16)
+merged into `dev` on 2026-11-06. Its follow-on
+[#17](https://github.com/margo/conformance_test_toolkit/pull/17) targets `main`
+and remained open at this check; the `dev` runner above includes #16.

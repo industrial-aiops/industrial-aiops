@@ -12,7 +12,7 @@
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. |
+| `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>,telemetry]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. The telemetry extra enters the image on the next release, not in the already published 0.33.0 image. |
 | `compose.yaml` | Example hardened run for **local dev** (builds from source): `read_only`, `cap_drop: ALL`, no-new-privileges, single **token-authenticated** MCP port (optional IP allowlist) (socket transport — no OT inbound), single config/secret volume. |
 | `package.compose.yaml` | **Deploy-ready** compose shipped inside the signed application package (as `compose.yaml`): references the published, version-pinned GHCR image (`profile` parameter selects the per-edition variant), same hardened posture, no build section. |
 | `margo.yaml` | Margo **ApplicationDescription**, validated against the `v1.0.0-rc.3` schema: `apiVersion: v1`, compose `deploymentProfiles` / `components` / `deviceConstraints` / `parameters` / `configuration`. The component uses an OCI `repository` and `revision`; the secret-reference model remains an open point in [`margo/specification#145`](https://github.com/margo/specification/issues/145). |
@@ -75,6 +75,16 @@ Keep the file outside the image and remove it when the deployment is torn down.
 
 The OT side stays strictly **outbound** to the endpoints in `config.yaml`; the socket port is only
 the tool interface for the orchestrator/agent.
+
+## Optional local health metrics (next-release candidate)
+
+The branch adds `OTEL_METRICS_EXPORTER=none|otlp` to the Compose component and Margo parameters.
+`none` is the default. With `otlp`, install `iaiops[telemetry]` and set
+`OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` to an OTLP/HTTP collector such as
+`http://127.0.0.1:4318/v1/metrics` (same network namespace) or a private IP on the site network.
+Public DNS/IPs, link-local addresses, URL credentials and `IAIOPS_NO_EGRESS=1` are refused.
+Only process uptime and audit event/error/availability counts are emitted; no OT values or
+audit row data. The released 0.33.0 package does **not** contain this implementation.
 
 ## Why this is a good Margo citizen (already)
 

@@ -289,6 +289,14 @@ returned, recorded from the live runs.
 | Audit hash chain | `test_audit_integrity.py` | Tamper detection over the chain |
 | Library binding contracts | `test_binding_contracts.py` | BAC0, IoTDB `Session`, taospy against **real libtaos** — the assumptions our sinks make |
 
+## Edge packaging / Margo (2026-11-09)
+
+| Subject | Executed evidence | Not covered |
+|---|---|---|
+| Published 0.33.0 OCI Application Package | Official Application Supplier CTT `dev` `f6e5ef4d` on macOS arm64: 67 checks, 61 passed, 0 failed; exact OCI digest and HTML report in [`MARGO-CTT-VALIDATION.md`](MARGO-CTT-VALIDATION.md). OCI signature verified against the committed key, without Rekor inclusion proof. | This is a preflight outside the toolkit's supported Ubuntu 24.04 host; it does not exercise Symphony, a device, or running-workload telemetry. |
+| Branch-only OTLP health exporter | `tests/test_margo_telemetry.py` sends protobuf metrics to a loopback HTTP receiver; asserts the four allowed metric names and no audit secret. Destination and no-egress tests pass. | Not in the released 0.33.0 image/package. No sandbox Collector/WFM receipt yet. Current CTT runtime observability row is unconditionally `NOT RUN`. |
+| Official sandbox deployment | Upstream setup and upload guide reviewed at `margo/sandbox` `64d7a743`; Open-test is online but has 2 vCPU. | Package onboarding, WFM deployment/update/delete, Compose device, OTEL dashboard and immutable host all remain `待核实`. The sandbox guide lists WFM 8 vCPU/16 GB and Compose device 4 vCPU/4–8 GB. |
+
 ## Still testable — the follow-up register
 
 Kept here rather than in a chat log so it survives. Ordered by what a reader should

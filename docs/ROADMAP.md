@@ -897,9 +897,26 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   real edge hardware, and any verified local-copilot client/model pairing.
 - ◐ **Margo conformance run** — the official Application Supplier CTT runner passed against the
   released v0.32.0 OCI package on Ubuntu 24.04 (67 checks: 61 passed, 0 failed, 0 warnings,
-  1 not run, 4 not applicable, 1 info; report in `docs/MARGO-CTT-VALIDATION.md`). Verify
-  deployment and runtime observability on a real WFM/device next. A structural pass alone is
-  not a *Margo-compliant* claim.
+  1 not run, 4 not applicable, 1 info). The released v0.33.0 OCI package passed the same counts
+  in a macOS preflight; **repeat v0.33.0 on supported Ubuntu 24.04**. Reports and limits are in
+  `docs/MARGO-CTT-VALIDATION.md`. A structural pass alone is not a *Margo-compliant* claim.
+- ⏳ **Optional local OTLP health metrics (next-release candidate)** — export only process uptime
+  and audit counts, off by default and blocked by `IAIOPS_NO_EGRESS=1`; the feature branch has
+  implementation and a loopback receiver test. It is **not** in the immutable v0.33.0 artifact.
+  Current CTT statically checks Compose OTEL variables; its runtime row remains `NOT RUN` even
+  after declaration. Capture a running-workload OTLP receiver trace separately.
+- ⏳ **Official sandbox WFM/Compose-device lifecycle** — on lab VMs, install Symphony/MIS/Harbor
+  plus a Compose device; mirror the signed 0.33.0 package/component/images to sandbox Harbor
+  as its upload guide requires, documenting any descriptor/reference conversion. Record package
+  onboarding, deploy, update and delete with exact sandbox commit/digests. OTLP application
+  metrics require a **later signed release** containing the exporter; 0.33.0 can exercise only
+  the lifecycle and the sandbox's own observability stack.
+  This closes only the **sandbox** WFM/device gap; commercial WFM and immutable-host validation
+  remain separate. No OT hardware is needed for this software-stack check.
+- ✅ **Margo SUP feedback (2026-11-09)** — contributed the RS-485 serial-port conflict and
+  reservation use case to [#66](https://github.com/margo/specification-enhancements/pull/66#issuecomment-6730346103),
+  and asked [#103](https://github.com/margo/specification-enhancements/pull/103#issuecomment-6730348290)
+  to specify audit-volume retention and a bounded readiness wait for Compose updates.
 - ⏳ **Immutable-host validation** — live deploy on a candidate immutable edge OS (IGEL OS or
   equivalent), captured as a `待核实 → verified` row like every hardware pass.
 
