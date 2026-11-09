@@ -5,7 +5,7 @@
 
 # Industrial-AIOps × Margo — ecosystem alignment (design note)
 
-> **TL;DR（中文）** — [Margo](https://margo.org/)（Linux Foundation 的工业边缘互操作标准；Preview Release 3 = `v1.0.0-rc.3`，2026-09-15；1.0 正式版日期 待核实）把边缘世界分成三个角色：**设备 / 应用 / 编排软件**。iaiops 是其中的**边缘应用（edge application）**——一个厂商中立、带治理的 OT 只读 tap + 跨协议 RCA，全部以受治理的 MCP 工具暴露。已发布 OCI 应用包，官方 Application Supplier CTT 在 Ubuntu 24.04 上通过；真实 WFM/设备部署仍待核实，因此不能声称 Margo-compliant。本文记录角色映射、验证证据、剩余差距和社区参与路径。
+> **TL;DR（中文）** — [Margo](https://margo.org/)（Linux Foundation 的工业边缘互操作标准；Preview Release 3 = `v1.0.0-rc.3`，2026-09-15；1.0 正式版日期 待核实）把边缘世界分成三个角色：**设备 / 应用 / 编排软件**。iaiops 是其中的**边缘应用（edge application）**——一个厂商中立、带治理的 OT 只读 tap + 跨协议 RCA，全部以受治理的 MCP 工具暴露。已发布 OCI 应用包；0.33.0 通过官方 Application Supplier CTT，0.34.0 的 CTT 有一项争议性失败。0.34.0 已在官方参考 sandbox 中由 Symphony 部署到 Compose 设备并向 OpenTelemetry Collector 导出遥测；原地更新、商用编排软件和不可变主机仍待核实，因此不能声称 Margo-compliant。本文记录角色映射、验证证据、剩余差距和社区参与路径。
 
 ## 1. Why Margo, and why it's complementary (not either/or)
 
@@ -35,17 +35,19 @@ iaiops is a portable, governed OT-domain app that *any* compliant orchestrator c
 
 | Margo concept | iaiops today | Gap to be Margo-shaped |
 |---|---|---|
-| **Application package** (container + standard *application description*, OCI/Helm) | Publishes a signed rc.3 Application Package and Compose component as OCI artifacts, plus signed per-profile images; the released OCI package passed the official Application Supplier runner on Ubuntu 24.04 | Deploy it through a WFM |
+| **Application package** (container + standard *application description*, OCI/Helm) | Publishes signed rc.3 OCI artifacts and per-profile images. Released 0.34.0 deployed through the official reference sandbox WFM to its Compose device. | Verify with a commercial WFM/device pairing; resolve the 0.34.0 CTT expression finding. |
 | **Edge application** (containerised workload) | Pure-Python core, lazy per-protocol extras, and the `IAIOPS_MCP` profiles (`fab`/`factory`/`process`/`building`/`water`) run headless in the packaged container | Verify lifecycle and runtime behaviour on an actual edge host |
 | **Device role** (compliant host) | N/A — we ride on the host. What an immutable host demands OF THE APPLICATION is now gated in CI (`immutable-host` job, `scripts/immutable_host_check.sh`): non-root, read-only root filesystem, all mutable state in the declared volume, and the audit chain accepting a row under those constraints. **The published images failed that check** until 2026-08-02 — `VOLUME` after `USER` left the state directory root-owned | Validate on an actual immutable/centrally-managed edge OS (candidate: IGEL OS + its container runtime) — that still needs the host vendor |
-| **Orchestration (WOS)** desired-state | N/A — we are the payload | Confirm iaiops deploys/updates cleanly under a compliant orchestrator's desired-state lifecycle |
-| **Conformance test toolkit** (open, traceable reports) | The Application Supplier runner passed on the released v0.32.0 OCI reference on Ubuntu 24.04; the exact toolkit commit and HTML report are retained in `MARGO-CTT-VALIDATION.md`. Our CI's LinkML schema gate is separate and narrower. | Deploy through a WFM/device and observe runtime telemetry. A structural validator pass alone is not a Margo compliance claim. |
+| **Orchestration (WOS)** desired-state | Official sandbox Symphony accepted and deployed 0.34.0; both instances were removed through WFM. | Verify an in-place update that preserves application state, then repeat on a commercial orchestrator. |
+| **Conformance test toolkit** (open, traceable reports) | The Application Supplier runner passed on released 0.32.0/0.33.0; 0.34.0 reported one static Compose expression failure ([CTT #19](https://github.com/margo/conformance_test_toolkit/issues/19)). Exact reports are in `MARGO-CTT-VALIDATION.md`. A separate sandbox WFM/device run observed runtime OTLP metrics. | Resolve/retest the CTT finding and its `NOT RUN` runtime row; a validator or sandbox pass alone is not a compliance claim. |
 
 **Honest status:** iaiops is **NOT Margo-compliant today**. The application and package work in §4
-is delivered, and the official CTT runner passed against the released OCI package on Ubuntu 24.04;
-see [`MARGO-CTT-VALIDATION.md`](MARGO-CTT-VALIDATION.md). A WFM/device deployment is still
-`待核实`. Do not claim compliance from packaging or a
-validator pass alone.
+is delivered; the official CTT runner passed for earlier releases, while 0.34.0 has a disputed
+static-check failure; see [`MARGO-CTT-VALIDATION.md`](MARGO-CTT-VALIDATION.md). The released 0.34.0
+package deployed through the official reference sandbox WFM/device and exported metrics to a
+standalone Collector; see [the lifecycle record](evidence/margo/sandbox-wfm-compose-v0.34.0-2026-11-10.md).
+In-place update, commercial WFM and immutable-host tests remain `待核实`. Do not claim compliance
+from packaging, CTT or sandbox results alone.
 
 The schema pass above does **not by itself** establish conformance. It says
 the descriptor's fields, types, and enums are correct — nothing about deployment behaviour,
@@ -92,7 +94,8 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
    type. That is **incompatible** with rc.3's required single-layer Compose Archive; the official
    CTT passed without checking this format. The 0.34.0 workflow builds the required
    tar.gz archive and OCI media types/annotations. The signed 0.34.0 registry artifact has been
-   verified by digest and key; WFM/device pull remains `待核实`. CI checks both packages are
+   verified by digest and key; the sandbox device later fetched the 0.34.0 component and deployed
+   it. CI checks both packages are
    anonymously pullable. The secret-parameter flag
    also remains open (pending
    [`margo/specification#145`](https://github.com/margo/specification/issues/145)).
@@ -103,8 +106,9 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
 4. **`◐` Conformance run** — the official Application Supplier CTT runner from
    [`margo/conformance_test_toolkit`](https://github.com/margo/conformance_test_toolkit) passed
    against the released v0.32.0 OCI Application Package on Ubuntu 24.04 (61 of 67 checks passed,
-   no failures; see the evidence record and HTML report). Test deployment through a WFM/device
-   separately. The runner treats the old PGP requirement
+   no failures; see the evidence record and HTML report). The released 0.34.0 package was later
+   deployed through the official reference sandbox WFM/device, while its current CTT run reports
+   one disputed static-check failure. The runner treats the old PGP requirement
    MARGO-APP-APPLICATIONDESCRIPTION-004 as not applicable after the rc.3 OCI migration and accepts
    OCI signatures such as cosign for Compose components; the broader signing policy is still being
    discussed in [SUP #100](https://github.com/margo/specification-enhancements/pull/100).
