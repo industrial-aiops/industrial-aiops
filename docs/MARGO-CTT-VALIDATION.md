@@ -148,8 +148,9 @@ official sandbox's Compose device client searches for a pulled `.tar.gz` file,
 so the unmodified 0.33.0 component cannot satisfy that path. **The 61/67 CTT
 result did not test this format requirement.** The correction merged to `main`
 in #289 and updates the next release's publishing workflow; any 0.33.0 sandbox
-conversion must be recorded as a separate experimental artifact with its own digest and signature
-status, not described as deployment of the original signed component.
+conversion must be recorded as a separate experimental artifact with its own
+digest and signature status, not described as deployment of the original signed
+component.
 The corrected archive was pushed only to a **local OCI layout** with
 ORAS 1.3.0: one tar.gz layer, both required media types, and type/version layer
 annotations; the archive contains only `iaiops/compose.yaml`. This checks the
