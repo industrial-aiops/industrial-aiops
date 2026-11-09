@@ -33,6 +33,7 @@ reverify signatures on the device or prove Rekor inclusion.
 3. The sandbox's automatic deployment generator inserted a `servicePort`
    override absent from `margo.yaml`. WFM returned HTTP 500, yet the CLI printed
    “Instance deployment request sent successfully”; WFM listed zero deployments.
+   This helper defect is reported in [margo/sandbox#491](https://github.com/margo/sandbox/issues/491).
    A corrected lab deployment YAML omitted that invented parameter and named the
    published Compose repository/revision. WFM accepted deployment
    `1a067cb4-fefa-4e3c-8e74-30117e0f8852`.

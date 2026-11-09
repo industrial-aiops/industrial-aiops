@@ -931,7 +931,8 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   and deleting the first removed its named state volume. The sandbox client also calls
   `docker compose down --volumes` during update; see
   [sandbox #490](https://github.com/margo/sandbox/issues/490). The sandbox CLI falsely printed
-  success for a rejected parameter override, so WFM/device state was checked directly.
+  success for a rejected parameter override ([sandbox #491](https://github.com/margo/sandbox/issues/491)),
+  so WFM/device state was checked directly.
   Commercial WFM, immutable-host and OT-hardware validation remain separate.
 - ◐ **Compose Archive release correction** — 0.34.0 publishes the deterministic single-layer
   `.tar.gz` archive with rc.3 media types and required annotations. The published digest and
