@@ -17,11 +17,19 @@ live OT equipment.
 - Reserve guest administrator access for the upstream install scripts. Keep
   registry and device credentials out of the repository and evidence reports.
 
-`Open-test` currently has 2 vCPU and only 14 GB free on its 96 GB root
-filesystem. Its `wei` account can use SSH but does not have passwordless sudo.
-The scripts-only sandbox checkout is staged at `/home/wei/workspace/sandbox`;
-no sandbox service has been installed. Select or provision two suitable VMs and
-guest admin access before running the upstream setup scripts.
+The selected lab pair is `test-llm` (`192.168.1.25`) for WFM and `Open-test`
+(`192.168.1.21`) for the Compose device. `test-llm` was snapshotted before use,
+configured to 8 vCPU and booted; it has 16 GB RAM and a 70 GB disk with 54 GB
+guest free. This is below the guide's 100 GB WFM disk recommendation. `Open-test`
+has 2 vCPU, 32 GB RAM and 13 GB guest free, below the guide's device CPU
+recommendation. Both run Ubuntu 24.04.4 and can reach each other. The scripts-only
+sandbox checkout is staged at `/home/wei/workspace/sandbox` on Open-test.
+Neither `wei` account has passwordless sudo. `test-llm` timed out on a GitHub
+Git probe, while the same probe succeeded on Open-test; the full pinned sandbox
+checkout has been relayed to `test-llm` and verified clean.
+No WFM or sandbox device-agent service has been installed.
+The [direct Compose-host trial](evidence/margo/compose-host-v0.34.0-2026-11-09.md)
+is a separate software check, not the lifecycle below.
 
 ## Artifact gate before onboarding
 
@@ -35,6 +43,9 @@ guest admin access before running the upstream setup scripts.
    media types, type/version annotations, and a single top-level directory
    containing `compose.yaml`. Retain the `oras manifest fetch` JSON and signature
    output. State separately whether Rekor inclusion was checked.
+   The signed source artifacts have been verified, and ORAS manually pulled
+   both published references on Open-test. This does not replace a sandbox
+   device-agent pull or the Harbor digest mapping in step 3.
 3. Mirror all required OCI artifacts to the sandbox Harbor `library` project,
    including the image, component, and an application package named
    `iaiops-compose-app-package:latest` as required by the sandbox upload guide.
