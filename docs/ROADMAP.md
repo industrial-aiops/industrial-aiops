@@ -908,7 +908,8 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   Current CTT statically checks Compose OTEL variables; its runtime row remains `NOT RUN` even
   after declaration. Capture a running-workload OTLP receiver trace separately.
 - ⏳ **Official sandbox WFM/Compose-device lifecycle** — on lab VMs, install Symphony/MIS/Harbor
-  plus a Compose device. The 0.33.0 Compose component is **incompatible with the rc.3 archive
+  plus a Compose device; use [`MARGO-SANDBOX-RUNBOOK.md`](MARGO-SANDBOX-RUNBOOK.md) for the pinned
+  topology, artifact gate and evidence sequence. The 0.33.0 Compose component is **incompatible with the rc.3 archive
   format and the sandbox client**; a converted component/package must be labelled as an unsigned
   sandbox adapter with separate digests, or wait for the next corrected signed release. Record package
   onboarding, deploy, update and delete with exact sandbox commit/digests. OTLP application
