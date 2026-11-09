@@ -37,7 +37,7 @@ deterministic; an LLM is optional and only *phrases* the verdict.
 | **Reads** | OPC-UA (+ Historical Access, tag auto-discovery) · Modbus TCP/RTU · S7comm · Mitsubishi MC · Omron FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link · serial ASCII instruments (RS-232/485, serial device servers) — plus read-only REST layers for BAS supervisors (Metasys / Niagara) and Ignition Gateway |
 | **Figures out** | downtime root cause (the flagship copilot), alarm floods (ISA-18.2), broken dataflows, data trustworthiness, OEE, asset inventory, legacy PLC program explainer (ST/AWL/L5X) |
 | **Governs** | audit · budget · risk-tier · undo — on *every* call, through one engine, from both MCP and CLI |
-| **Stays yours** | no telemetry, no phone-home. Six tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all six for an air-gapped posture |
+| **Stays yours** | no telemetry or phone-home by default. Six tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all six for an air-gapped posture. A future-release Margo option exports only process health and audit counts to an explicitly configured local/private OTLP collector; it is also blocked by `IAIOPS_NO_EGRESS=1`. |
 
 Eleven editions ship in this package — ten per industry (fab · factory · process · building · water ·
 warehouse · clinical · pharma · renewables · plcnext), each adding its own read-only advisory checks,
@@ -513,6 +513,8 @@ application** — read-first tap + cross-protocol RCA, exposed as governed MCP t
 > **Honest status:** iaiops is a natural Margo edge application but is **NOT Margo-compliant yet**.
 > Signed OCI images and an rc.3 Application Package are published. The released OCI package
 > passed the official Application Supplier CTT runner on Ubuntu 24.04;
+> independent review found the published 0.33.0 Compose component has the wrong OCI archive
+> format, which the CTT did not test. The correction is a next-release candidate;
 > deployment through a real WFM/device remains `待核实` (see [the validation record](docs/MARGO-CTT-VALIDATION.md)).
 
 A container + application-description package lives in **[`deploy/margo/`](deploy/margo/)**

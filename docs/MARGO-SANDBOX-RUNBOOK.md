@@ -1,0 +1,72 @@
+# Margo sandbox Compose lifecycle validation
+
+This is the execution plan for testing an iaiops application package through
+the [official Margo sandbox](https://github.com/margo/sandbox). A sandbox result
+is evidence for that reference environment only; it is not a Margo compliance
+claim or a commercial WFM/device qualification. Use simulated protocols, not
+live OT equipment.
+
+## Pinned subject and environment
+
+- Pin `margo/sandbox` to commit `64d7a7433e304f1694b2f72d9bf3af288de5e368`.
+- Use two Ubuntu 24.04 VMs on the same lab network: WFM/Symphony/MIS/Harbor
+  (upstream guide: 8 vCPU, 16 GB RAM, 100 GB disk) and Compose device
+  (4 vCPU, 4–8 GB RAM, 50 GB disk). The Helm/k3s VM is outside this test.
+- Record OS, Docker/Compose, sandbox and iaiops versions, VM identities,
+  allocated resources and wall-clock start/end times before installation.
+- Reserve guest administrator access for the upstream install scripts. Keep
+  registry and device credentials out of the repository and evidence reports.
+
+`Open-test` currently has 2 vCPU and only 14 GB free on its 96 GB root
+filesystem. Its `wei` account can use SSH but does not have passwordless sudo.
+The scripts-only sandbox checkout is staged at `/home/wei/workspace/sandbox`;
+no sandbox service has been installed. Select or provision two suitable VMs and
+guest admin access before running the upstream setup scripts.
+
+## Artifact gate before onboarding
+
+1. Keep the immutable **published 0.33.0** application and component digests as
+   baseline evidence. Its Compose component is a direct-YAML OCI artifact and
+   cannot be presented as a valid rc.3 Compose Archive or as an unmodified
+   sandbox deployment.
+2. For the next signed release, verify the application package and Compose
+   component independently by digest and against `deploy/margo/cosign.pub`.
+   Inspect the component manifest: one `.tar.gz` layer, rc.3 artifact and layer
+   media types, type/version annotations, and a single top-level directory
+   containing `compose.yaml`. Retain the `oras manifest fetch` JSON and signature
+   output. State separately whether Rekor inclusion was checked.
+3. Mirror all required OCI artifacts to the sandbox Harbor `library` project,
+   including the image, component, and an application package named
+   `iaiops-compose-app-package:latest` as required by the sandbox upload guide.
+   Record a source digest → Harbor digest mapping. Do not replace a signed
+   source artifact silently with a converted adapter.
+4. Run the official Application Supplier CTT against the **released source OCI
+   reference** on Ubuntu 24.04 and retain its HTML report. A CTT pass does not
+   replace the component-format inspection above.
+
+## Lifecycle evidence
+
+Execute the [sandbox setup guide](https://github.com/margo/sandbox/blob/main/docs/setup-guide.md)
+and [operations guide](https://github.com/margo/sandbox/blob/main/docs/operations-guide.md)
+at the pinned commit. Capture the following as separate, timestamped records:
+
+| Stage | Evidence to retain |
+|---|---|
+| WFM and device ready | Symphony/MIS/Harbor and Compose-agent versions, health, device identity, and successful onboarding |
+| Package upload | Harbor digest, WFM catalog entry and exact descriptor revision |
+| Deploy | WFM request/status, device-agent pull and Compose project status, container image digest, iaiops health probe |
+| Observe | Collector receipt of the four opt-in iaiops health metrics; prove no OT samples or audit secrets are exported. This needs a release containing the exporter, not 0.33.0. |
+| Update | Old and new digest, WFM request/status, device pull, container replacement and state-volume continuity |
+| Delete | WFM request/status, device cleanup, retained/deleted volume policy, and final absence of running workload |
+
+For a 0.33.0 lifecycle experiment, a converted component must have its own
+digest and be labelled **unsigned sandbox adapter** throughout. It cannot
+validate the original signed 0.33.0 component. The preferred evidence path is
+the later corrected signed release. The sandbox's own OTEL dashboards can be
+checked during 0.33.0 experiments; iaiops metrics require the later release.
+
+Update [`MARGO-CTT-VALIDATION.md`](MARGO-CTT-VALIDATION.md) and
+[`VERIFICATION-RECORD.md`](VERIFICATION-RECORD.md) with every executed stage,
+including failures and missing evidence. Close the roadmap's sandbox gap only
+after WFM onboarding, deployment, update and deletion are all observed on the
+Compose device. Leave commercial WFM and immutable-host items open.

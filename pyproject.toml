@@ -98,6 +98,8 @@ ollama = ["requests>=2.31,<3"]        # on-box local LLM (air-gapped RCA narrati
 # Queryability layer: Parquet export from the local SQLite sink (CSV/SQLite are
 # stdlib-only; only `iaiops export parquet` / export_data(fmt="parquet") need this).
 export = ["pyarrow>=23.0.1,<24"]
+# Edge-process health counters only; no OT tag values or audit row content.
+telemetry = ["opentelemetry-sdk>=1.45,<1.46", "opentelemetry-exporter-otlp-proto-http>=1.45,<1.46"]
 # Convenience: install every pip-installable connector (full installs + the test
 # matrix). The energy edition (IEC-104 / DNP3 / IEC-61850) ships separately as
 # `iaiops-energy`, so its extras are not part of this package's `all`.

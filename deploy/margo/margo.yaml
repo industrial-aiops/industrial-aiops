@@ -16,9 +16,11 @@
 #   • Secrets — still no secret-typed parameter (margo/specification#145, open). The deploy config
 #     carries only a REFERENCE; see `masterPassword` / `mcpToken` and ../../docs/MARGO-ALIGNMENT.md.
 #
-# 待核实: the OCI format of a compose component is not specified by Margo (left to supplier and
-# WFM to agree); we publish it the way `docker compose publish` does. The official Application
-# Supplier CTT runner passed on Ubuntu 24.04, but WFM/device deployment remains unverified.
+# Margo rc.3 specifies a single-layer Compose Archive in OCI. The published 0.33.0 component
+# predates the corrected archive workflow and uses an incompatible direct-YAML layer. A source
+# edit cannot repair that signed release; this descriptor will point at the corrected component
+# only after a later release. The Application Supplier CTT did not check this component format.
+# WFM/device deployment remains unverified.
 # iaiops is NOT Margo-compliant.
 # See ../../docs/MARGO-ALIGNMENT.md.
 apiVersion: v1
@@ -115,6 +117,16 @@ parameters:
     targets:
       - pointer: IAIOPS_MCP_TOKEN
         components: [iaiops]
+  otelMetricsExporter:
+    value: none
+    targets:
+      - pointer: OTEL_METRICS_EXPORTER
+        components: [iaiops]
+  otelMetricsEndpoint:
+    value: http://127.0.0.1:4318/v1/metrics
+    targets:
+      - pointer: OTEL_EXPORTER_OTLP_METRICS_ENDPOINT
+        components: [iaiops]
 
 configuration:
   sections:
@@ -163,6 +175,22 @@ configuration:
             descriptor.
           immutable: false
           schema: tokenSchema
+    - name: Local health telemetry
+      settings:
+        - parameter: otelMetricsExporter
+          name: OTLP metrics exporter
+          description: >-
+            none (default) or otlp. Only process uptime and audit counts are exported;
+            IAIOPS_NO_EGRESS=1 suppresses export regardless of this setting.
+          immutable: false
+          schema: otelExporterSchema
+        - parameter: otelMetricsEndpoint
+          name: Local OTLP/HTTP collector
+          description: >-
+            Explicit loopback or private IP collector URL ending in /v1/metrics.
+            Public endpoints and credentials are refused by the process.
+          immutable: false
+          schema: otelEndpointSchema
   schema:
     # SelectValidationSchema — the five edition profiles.
     - name: profileSchema
@@ -196,4 +224,13 @@ configuration:
     - name: tokenSchema
       dataType: string
       minLength: 32
+      allowEmpty: false
+    - name: otelExporterSchema
+      dataType: string
+      options: [none, otlp]
+      multiselect: false
+      allowEmpty: false
+    - name: otelEndpointSchema
+      dataType: string
+      minLength: 28
       allowEmpty: false

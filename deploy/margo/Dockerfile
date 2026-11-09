@@ -18,7 +18,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 # Install from PyPI (published, reproducible). To build from local source instead, replace the
 # next line with:  COPY . /src  &&  pip install "/src[${PROFILE}]"
-RUN pip install "iaiops[${PROFILE}]==${IAIOPS_VERSION}"
+RUN pip install "iaiops[${PROFILE},telemetry]==${IAIOPS_VERSION}"
 
 # ── runtime stage: minimal, non-root ──
 FROM python:${PYTHON_VERSION}-slim AS runtime

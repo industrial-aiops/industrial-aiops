@@ -184,6 +184,39 @@ MCP 有三个**各自独立、版本协商**的东西，不是一个整体：协
 
 一条从 OT 网反向连出公网的隧道，正是上述整套要排除的东西。（Tunnels 本就是某托管平台的产品功能，不属于 MCP 协议。）
 
+### 7.2.1 Margo sandbox 与运行状态遥测
+
+**归属**：Margo Application Description 和 Compose 配置在 `deploy/margo/`；运行状态计数由
+MCP 进程的边缘适配层读取，不改协议 connector、OT 采集路径或 `@governed_tool` 的审计语义。
+应用包继续固定镜像版本并签名。已经发布的 0.33.0 OCI 制品不可被本地后续修改冒充；
+新增遥测只在下一次构建发布后才成为发布包能力。
+
+**Compose 组件格式**：rc.3 的 Application Registry 规范要求一个顶层目录、其中的
+`compose.yaml`，整体为 `.tar.gz` 单层 OCI blob；`artifactType` 必须是
+`application/vnd.org.margo.component.compose+json`，层 `mediaType` 必须是
+`application/vnd.org.margo.component.compose.tar+gzip`，并声明组件类型/版本注解。
+`docker compose publish` 的项目制品格式被规范明确排除。0.33.0 已发布的
+`iaiops-compose` 是直接 YAML 层，必须如实记录为不符合该组件格式；下一版修正发布
+流水线后重新签名。sandbox 若需测试 0.33.0，只能把转换后的 Compose Archive 标为
+实验适配制品，保留原 OCI 摘要与转换摘要，不把它当成原签名制品。
+
+**最小观测面**：默认不启动 OTLP 导出。启用时只报进程存活/运行时长及本机审计事件总数、
+错误数；不报位号、端点、参数、凭据、审计行内容，也不复用现有 Prometheus 桥的
+`iaiops_tag_value`（它含 OT 点位标签）。审计库缺失或不可读应标为观测不可用，
+不能把缺失记作零事件或健康。导出故障不改变 MCP 工具调用、审批和审计的结果。
+
+**网络与配置**：仅显式选择 `OTEL_METRICS_EXPORTER=otlp` 时启用；默认 `none`。
+OTLP/HTTP 目的地址必须是本机或实验/现场私网的 Collector，拒绝公网目的地址和明文凭据。
+应用本身不增加入站 OT 端口；本地 Collector 可由 sandbox 提供。`margo.yaml` 通过
+参数映射 Compose 环境变量，不增添 rc.3 schema 未定义的顶层 `telemetry` 字段。
+`IAIOPS_NO_EGRESS=1` 时遥测也禁用；操作员须显式关闭该开关并配置本地 Collector 才能导出。
+
+**验证边界**：Application Supplier CTT 的静态 observability 检查扫描渲染后的 Compose
+环境变量；其运行时导出检查在当前 `dev` 实现中固定为 `NOT RUN`，无法靠声明变成通过。
+必须另外记录实际 OTLP 收包证据。官方 sandbox 的 Symphony WFM、Harbor 和 Compose
+设备完成部署/更新/删除，只能说明参考环境中的生命周期成功；不能称为商用 WFM 兼容、
+不可变主机验证或 Margo-compliant。真实 OT 硬件验证仍单列。
+
 ### 7.3 D7 — 拒绝无状态托管，本地 stdio 保持一等公民
 
 两个独立理由：
