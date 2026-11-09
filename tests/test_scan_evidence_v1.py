@@ -322,7 +322,9 @@ def test_cli_run_export_reuses_stored_scan_and_preflights_output(tmp_path, monke
     args = ["run", "--targets", "10.2.0.4", "--yes", "--db", str(db), "--export", str(out)]
     result = runner.invoke(scan_app, args)
     assert result.exit_code == 0, result.output
-    assert load_and_validate(out)["observation"]["scan_id"] == scan_id_for(_result())
+    exported = load_and_validate(out)["observation"]
+    assert exported["scan_id"] == scan_id_for(_result())
+    assert exported["truncated"] is False
     assert len(list_scans(db)) == 1
 
     def no_scan(_plan):
@@ -331,6 +333,35 @@ def test_cli_run_export_reuses_stored_scan_and_preflights_output(tmp_path, monke
     monkeypatch.setattr(scan_runner, "run_scan", no_scan)
     assert runner.invoke(scan_app, [*args, "--no-store"]).exit_code == 1
     assert runner.invoke(scan_app, args).exit_code == 1  # existing output, no overwrite
+
+
+def test_run_export_preflight_does_not_create_parent(tmp_path, monkeypatch):
+    from iaiops.core.discovery import runner as scan_runner
+
+    monkeypatch.setenv("IAIOPS_HOME", str(tmp_path / "home"))
+    parent = tmp_path / "new-folder"
+
+    def no_scan(_plan):
+        assert not parent.exists()
+        return _result()
+
+    monkeypatch.setattr(scan_runner, "run_scan", no_scan)
+    out = parent / "evidence.json"
+    result = CliRunner().invoke(
+        scan_app,
+        [
+            "run",
+            "--targets",
+            "10.2.0.4",
+            "--yes",
+            "--db",
+            str(tmp_path / "scan.db"),
+            "--export",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert out.exists()
 
 
 def test_cli_run_export_failure_reports_stored_scan_id(tmp_path, monkeypatch):

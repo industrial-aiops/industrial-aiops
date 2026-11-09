@@ -201,7 +201,7 @@ def run_cmd(
 
         if no_store:
             raise ValueError("--export requires a stored scan; remove --no-store")
-        export_path = validate_output_path(export, suffixes=(".json",))
+        export_path = validate_output_path(export, suffixes=(".json",), create_parent=False)
         if (export_path.exists() or export_path.is_symlink()) and not export_overwrite:
             raise FileExistsError(
                 f"output already exists: {export_path}; pass --export-overwrite to replace it"
@@ -248,6 +248,14 @@ def run_cmd(
 
         try:
             evidence_export = export_scan(scan_id, export_path, db=db, overwrite=export_overwrite)
+        except FileExistsError as exc:
+            console.print(
+                f"[yellow]Scan was stored as {scan_id}; evidence export failed. "
+                f"Retry with `iaiops scan export {scan_id} --out <file>`.[/]"
+            )
+            raise FileExistsError(
+                f"output already exists: {export_path}; pass --export-overwrite to replace it"
+            ) from exc
         except Exception:
             console.print(
                 f"[yellow]Scan was stored as {scan_id}; evidence export failed. "

@@ -6,7 +6,8 @@
 
 - Add `iaiops scan validate <file>` for offline contract and digest checks.
 - Add `iaiops scan run --export <file>` as a shortcut over the same stored-scan
-  exporter. Invalid output options are refused before scan packets are sent;
+  exporter. Invalid output options are refused before scan packets are sent,
+  without creating a parent directory; errors name `--export-overwrite`;
   a failed export reports the stored scan ID for an offline retry.
 
 
