@@ -886,7 +886,7 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   publishes the Application Package (`ghcr.io/industrial-aiops/iaiops-margo:<version>`) and its
   Compose component (`ghcr.io/industrial-aiops/iaiops-compose:<version>`) as signed OCI artifacts.
   The published 0.33.0 component's direct-YAML OCI layer **does not meet** the rc.3 Compose
-  Archive format, despite the CTT pass; the next-release publishing correction is below.
+  Archive format, despite the CTT pass; the 0.34.0 publishing correction is below.
   A signed release tarball is a mirror. `tests/test_margo_package.py` lints descriptor ↔ profile
   menu ↔ pip extras ↔ build matrix ↔ version pins. Secret-reference semantics remain open in
   margo/specification#145; the official CTT passed on Ubuntu 24.04, while WFM/device deployment
@@ -902,7 +902,7 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   1 not run, 4 not applicable, 1 info). The released v0.33.0 OCI package passed the same counts
   on Open-test Ubuntu 24.04.4, after a matching macOS preflight. Reports and limits are in
   `docs/MARGO-CTT-VALIDATION.md`. A structural pass alone is not a *Margo-compliant* claim.
-- ⏳ **Optional local OTLP health metrics (next-release candidate)** — export only process uptime
+- ⏳ **Optional local OTLP health metrics (0.34.0 source; runtime receipt pending)** — export only process uptime
   and audit counts, off by default and blocked by `IAIOPS_NO_EGRESS=1`; `main` has
   implementation and a loopback receiver test. It is **not** in the immutable v0.33.0 artifact.
   Current CTT statically checks Compose OTEL variables; its runtime row remains `NOT RUN` even
@@ -914,14 +914,14 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   component/package must be labelled as an unsigned sandbox adapter with separate digests,
   or wait for the next corrected signed release. Record package
   onboarding, deploy, update and delete with exact sandbox commit/digests. OTLP application
-  metrics require a **later signed release** containing the exporter; 0.33.0 can exercise only
+  metrics require the signed 0.34.0 release containing the exporter; 0.33.0 can exercise only
   the lifecycle and the sandbox's own observability stack.
   This closes only the **sandbox** WFM/device gap; commercial WFM and immutable-host validation
   remain separate. No OT hardware is needed for this software-stack check.
 - ⏳ **Compose Archive release correction** — the `main` workflow replaces the direct-YAML
   OCI component with a deterministic single-layer `.tar.gz` archive, rc.3 media types and
   required annotations.
-  Verify the local OCI manifest, then the next signed release and sandbox device pull. The current
+  Verify the local OCI manifest, then the signed 0.34.0 release and sandbox device pull. The current
   CTT does not catch this mismatch; do not reuse its 0.33.0 pass as format evidence.
 - ✅ **Report the CTT blind spot** — [margo/conformance_test_toolkit#18](https://github.com/margo/conformance_test_toolkit/issues/18)
   documents the published 0.33.0 false positive and asks for component manifest/archive checks.

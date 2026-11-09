@@ -18,8 +18,8 @@
 #
 # Margo rc.3 specifies a single-layer Compose Archive in OCI. The published 0.33.0 component
 # predates the corrected archive workflow and uses an incompatible direct-YAML layer. A source
-# edit cannot repair that signed release; this descriptor will point at the corrected component
-# only after a later release. The Application Supplier CTT did not check this component format.
+# edit cannot repair that signed release; this 0.34.0 descriptor points at the corrected component
+# once the 0.34.0 OCI artifacts are published. The Application Supplier CTT did not check this format.
 # WFM/device deployment remains unverified.
 # iaiops is NOT Margo-compliant.
 # See ../../docs/MARGO-ALIGNMENT.md.
