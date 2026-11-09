@@ -91,8 +91,9 @@ discoverable on the PR. See `../deploy/margo/schema/PROVENANCE.md`.
    published 0.33.0 Compose component used a direct YAML layer with the Docker Compose artifact
    type. That is **incompatible** with rc.3's required single-layer Compose Archive; the official
    CTT passed without checking this format. The 0.34.0 workflow builds the required
-   tar.gz archive and OCI media types/annotations, but a signed registry artifact and WFM/device
-   pull remain `待核实`. CI checks both packages are anonymously pullable. The secret-parameter flag
+   tar.gz archive and OCI media types/annotations. The signed 0.34.0 registry artifact has been
+   verified by digest and key; WFM/device pull remains `待核实`. CI checks both packages are
+   anonymously pullable. The secret-parameter flag
    also remains open (pending
    [`margo/specification#145`](https://github.com/margo/specification/issues/145)).
 3. **`✅` On-box LLM brain option (2026-07-15)** — documented + deployable: `docs/AIRGAP.md`
