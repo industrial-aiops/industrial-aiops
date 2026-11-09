@@ -909,13 +909,21 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
 - ◐ **Optional local OTLP health metrics (released in 0.34.0)** — export only process uptime
   and audit counts, off by default and blocked by `IAIOPS_NO_EGRESS=1`; the published wheel's
   Ubuntu loopback receiver test passed (11 tests), including no audit-secret export.
+  The published container also exported the four metrics to a receiver on Open-test's private
+  Docker bridge; [raw protobuf evidence](evidence/margo/otlp-metrics-v0.34.0-2026-11-09.pb)
+  and a [trial record](evidence/margo/compose-host-v0.34.0-2026-11-09.md) are retained.
   Current CTT statically checks Compose OTEL variables; its runtime row remains `NOT RUN` even
   after declaration. Sandbox Collector receipt remains `待核实`.
 - ⏳ **Official sandbox WFM/Compose-device lifecycle** — on lab VMs, install Symphony/MIS/Harbor
   plus a Compose device; use [`MARGO-SANDBOX-RUNBOOK.md`](MARGO-SANDBOX-RUNBOOK.md) for the pinned
   topology, artifact gate and evidence sequence. Use the corrected signed 0.34.0 package;
   the 0.33.0 Compose component remains incompatible with the rc.3 archive format and sandbox
-  client. Record package onboarding, deploy, update and delete with exact sandbox commit/digests.
+  client. `test-llm` and `Open-test` are selected and booted for this trial. On Open-test,
+  [manual ORAS pull and Compose deployment](evidence/margo/compose-host-v0.34.0-2026-11-09.md)
+  passed, including health, MCP authentication and named-volume continuity on manual recreate.
+  The official WFM/device-agent path still awaits sudo; GitHub Git access timed out on
+  `test-llm` but worked on Open-test, which relayed the pinned sandbox source.
+  Record package onboarding, deploy, update and delete with exact sandbox commit/digests.
   The upstream sandbox client currently calls `docker compose down --volumes` during update,
   which deletes application state; see [sandbox #490](https://github.com/margo/sandbox/issues/490).
   Do not call the update state-preserving until this is fixed and retested.
@@ -923,7 +931,8 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   remain separate. No OT hardware is needed for this software-stack check.
 - ◐ **Compose Archive release correction** — 0.34.0 publishes the deterministic single-layer
   `.tar.gz` archive with rc.3 media types and required annotations. The published digest and
-  signature are verified. Sandbox device pull remains `待核实`; the CTT does not check this format.
+  signature are verified. Open-test manually pulled and extracted the published archive with
+  ORAS 1.3.0; sandbox device-agent pull remains `待核实`. The CTT does not check this format.
 - ✅ **Report the CTT blind spot** — [margo/conformance_test_toolkit#18](https://github.com/margo/conformance_test_toolkit/issues/18)
   documents the published 0.33.0 false positive and asks for component manifest/archive checks.
 - ✅ **Margo SUP feedback (2026-11-09)** — contributed the RS-485 serial-port conflict and

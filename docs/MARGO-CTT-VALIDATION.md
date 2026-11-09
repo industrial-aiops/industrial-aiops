@@ -223,3 +223,8 @@ five `ghcr.io/industrial-aiops/iaiops:0.34.0-<profile>` image signatures:
 | process | `sha256:bde3330345f98be08856ec22b44a04df76937736091eaa18b214760c3870468f` |
 | building | `sha256:d1261c360a8b0455232c99419ca0ec00878cb5fd19b05b0f583d1bb093d0db8a` |
 | water | `sha256:82d3e7fb5267e9df0660d4ebd269edd53c272d1c709cca5d73cbcedd76e06a9b` |
+
+The later [Open-test Compose-host trial](evidence/margo/compose-host-v0.34.0-2026-11-09.md)
+manually pulled both published OCI references with ORAS and ran the extracted
+Compose file. That is a direct host test, not a Symphony/device-agent pull and
+not a change to the unmodified CTT result above.
