@@ -29,7 +29,7 @@ guest admin access before running the upstream setup scripts.
    baseline evidence. Its Compose component is a direct-YAML OCI artifact and
    cannot be presented as a valid rc.3 Compose Archive or as an unmodified
    sandbox deployment.
-2. For the next signed release, verify the application package and Compose
+2. For the signed 0.34.0 release, verify the application package and Compose
    component independently by digest and against `deploy/margo/cosign.pub`.
    Inspect the component manifest: one `.tar.gz` layer, rc.3 artifact and layer
    media types, type/version annotations, and a single top-level directory
@@ -41,8 +41,11 @@ guest admin access before running the upstream setup scripts.
    Record a source digest → Harbor digest mapping. Do not replace a signed
    source artifact silently with a converted adapter.
 4. Run the official Application Supplier CTT against the **released source OCI
-   reference** on Ubuntu 24.04 and retain its HTML report. A CTT pass does not
-   replace the component-format inspection above.
+   reference** on Ubuntu 24.04 and retain its HTML report. The 0.34.0 run failed
+   `MARGO-APP-OBSERVABILITY-004` because the CTT evaluates a raw Compose
+   interpolation expression; see [`MARGO-CTT-VALIDATION.md`](MARGO-CTT-VALIDATION.md)
+   and [upstream #19](https://github.com/margo/conformance_test_toolkit/issues/19).
+   Do not label 0.34.0 CTT-passed. CTT does not replace the component-format check.
 
 ## Lifecycle evidence
 
@@ -55,15 +58,15 @@ at the pinned commit. Capture the following as separate, timestamped records:
 | WFM and device ready | Symphony/MIS/Harbor and Compose-agent versions, health, device identity, and successful onboarding |
 | Package upload | Harbor digest, WFM catalog entry and exact descriptor revision |
 | Deploy | WFM request/status, device-agent pull and Compose project status, container image digest, iaiops health probe |
-| Observe | Collector receipt of the four opt-in iaiops health metrics; prove no OT samples or audit secrets are exported. This needs a release containing the exporter, not 0.33.0. |
-| Update | Old and new digest, WFM request/status, device pull, container replacement and state-volume continuity |
+| Observe | Collector receipt of the four opt-in iaiops health metrics; prove no OT samples or audit secrets are exported. Use released 0.34.0 or later. |
+| Update | Old and new digest, WFM request/status, device pull, container replacement and state-volume continuity. Upstream Compose clients currently remove named volumes during update; see [sandbox #490](https://github.com/margo/sandbox/issues/490). Keep update validation open until this is fixed and retested. |
 | Delete | WFM request/status, device cleanup, retained/deleted volume policy, and final absence of running workload |
 
 For a 0.33.0 lifecycle experiment, a converted component must have its own
 digest and be labelled **unsigned sandbox adapter** throughout. It cannot
-validate the original signed 0.33.0 component. The preferred evidence path is
-the later corrected signed release. The sandbox's own OTEL dashboards can be
-checked during 0.33.0 experiments; iaiops metrics require the later release.
+validate the original signed 0.33.0 component. Use the corrected signed 0.34.0
+release for the next sandbox attempt. Independently preserve the named volume
+before any update until sandbox #490 is fixed.
 
 Update [`MARGO-CTT-VALIDATION.md`](MARGO-CTT-VALIDATION.md) and
 [`VERIFICATION-RECORD.md`](VERIFICATION-RECORD.md) with every executed stage,
