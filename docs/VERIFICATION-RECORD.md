@@ -8,9 +8,11 @@ store and HTML report consumers. The public exchange still labels source UUIDs,
 hardware and reported revisions separately and does not promote a hardware
 fallback into firmware. The HTML report now calls its ambiguous columns legacy.
 The `os.link` unsupported-media path has an O_EXCL reservation and replace
-fallback. Focused discovery/export/report tests: 110 passed. No FAT/exFAT/SMB
+fallback. Focused discovery/export/report tests: 111 passed. No FAT/exFAT/SMB
 medium was mounted in this environment; the actual removable-media check stays
 `待核实` and is required before merging the V1 PR.
+The wider scan/runner/store/CLI suite passed 208 tests; full Ruff check and
+format check and Bandit Medium+ passed.
 
 2026-11-08 CI gate follow-up: Python 3.11 failed twice in the existing live
 MQTT tap test because a single publish could precede subscription activation.
