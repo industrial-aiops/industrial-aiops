@@ -9,6 +9,12 @@
 > specifics below stay `待核实` until validated on a real IGEL OS 12 box. **Status: roadmap `⏳`
 > (materials submission-ready; the submission itself needs an IGEL Ready account — email-gated).**
 
+## Source-based evaluation handoff
+
+For installation, a software-only demo and optional MCP setup, start with
+[`evaluation/README.md`](evaluation/README.md). This handoff does not establish
+IGEL runtime compatibility or certification.
+
 ## Getting listed — IGEL Ready + the submission workflow
 
 Two visibility levels, pick per goal:
