@@ -4,12 +4,30 @@ A small, source-based handoff for testing Industrial-AIOps alongside an edge
 traffic-monitoring application. Baseline: release commit `513951e` (0.33.0).
 No UMS installer, licence, credentials or customer data is included.
 
+## Next joint lab test
+
+The demo now compares a production stop with healthy communications against a
+collection connection cutoff while simulated production continues. Industrial-AIOps
+provides the production-state and collection-gap evidence; Raymond's monitor can
+contribute actual network events to the same timeline once visibility is confirmed.
+
+Start with the local demo below. Then follow the
+[two-host guide](../../../demo/joint-traffic/README.md) to observe the test traffic
+in your lab and compare the evidence. The guide includes a CSV import format;
+no proprietary monitor API integration is required for this first exercise.
+
 ## 1. Get the source
 
 ```bash
 git clone --depth 1 --branch delivery/igel-evaluation-033 \
   https://github.com/industrial-aiops/industrial-aiops.git
 cd industrial-aiops
+```
+
+If you already cloned this handoff branch, update it from that checkout:
+
+```bash
+git pull --ff-only
 ```
 
 Alternatively extract the supplied source archive and enter its top directory.
