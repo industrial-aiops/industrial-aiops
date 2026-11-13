@@ -8,7 +8,7 @@ No UMS installer, licence, credentials or customer data is included.
 
 The demo now compares a production stop with healthy communications against a
 collection connection cutoff while simulated production continues. Industrial-AIOps
-provides the production-state and collection-gap evidence; Raymond's monitor can
+provides the production-state and collection-gap evidence; the IGEL lab monitor can
 contribute actual network events to the same timeline once visibility is confirmed.
 
 Start with the local demo below. Then follow the
@@ -26,7 +26,7 @@ flowchart LR
         P --> R
     end
     C["Host A: Industrial-AIOps<br/>Collection, coverage and OEE"]
-    M["Raymond's traffic monitor<br/>IMH / IMC lab environment"]
+    M["IGEL traffic monitor<br/>IMH / IMC lab environment"]
     T["Shared timeline and demo report"]
     R <-->|Modbus TCP| C
     M -.->|Observe the test traffic| R
@@ -99,7 +99,7 @@ Fixture truth and collection evidence are labelled separately.
 
 **For the actual joint exercise**, use the two-machine instructions in
 [`demo/joint-traffic/README.md`](../../../demo/joint-traffic/README.md): simulator B,
-collector A, Raymond observing their network path, then import actual monitor
+collector A, the IGEL team observing their network path, then import actual monitor
 CSV events into a common timeline. No monitor findings are fabricated.
 
 The previous single-machine OEE demo is still available at
@@ -158,7 +158,7 @@ Use the [joint demo guide](../../../demo/joint-traffic/README.md) to reproduce
 the two scenarios across a monitor-visible lab path. First confirm where the
 monitor captures traffic and whether it exports timestamped events. The source
 handoff includes a relay, collector, CSV import and report; it does not include
-an integration with Raymond's proprietary monitor or its API.
+an integration with the IGEL lab monitor or its API.
 
 Please send back: OS/Python versions, install/demo outcome, the HTML report,
 and any sanitised error output. Do not send credentials or customer addresses.

@@ -55,8 +55,7 @@ Python container workload. Identity throughout: **wei `<zhouwei008@gmail.com>`**
 
 - IGEL Ready membership + the App Creator Portal are **email-gated**: the contact form rejects
   consumer email (gmail). Two ways in: a **business-domain email**, or a **warm intro from an IGEL
-  contact** (Raymond Lucassen, IGEL presales — the emerging validation partner; his personal domain
-  is `edge2go.group`). Until one is in place, this sheet is submission-ready but cannot be filed.
+  contact**. Until one is in place, this sheet is submission-ready but cannot be filed.
 - Terms/fees of IGEL Ready: `待核实`.
 - On a real IGEL OS 12 box, validate: Managed-Container config surface, secret-injection mechanism,
   registry reachability, and the `rw_partition` size in `app-recipe/app.json` — each a

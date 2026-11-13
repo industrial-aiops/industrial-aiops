@@ -2,7 +2,7 @@
 
 Source handoff for an Industrial-AIOps / traffic-monitoring lab exercise.
 No physical PLC, GPU, LLM, UMS API or proprietary monitor SDK is required.
-IGEL compatibility and Raymond's monitor capabilities remain **待核实**.
+IGEL compatibility and the capabilities of the IGEL lab monitor remain **待核实**.
 
 ## What the audience sees
 
@@ -72,12 +72,12 @@ not see it; this is why the two-machine exercise below is the joint-demo target.
 B: loopback simulator + local fixture driver
        |
    read-only relay (B_LAB_IP:15020)
-       |                <-- Raymond monitors this inter-workload TCP path
+       |                <-- IGEL monitors this inter-workload TCP path
 A: iaiops collection --> samples, gaps, OEE, report
 ```
 
 Agree an isolated lab segment and two test hosts/VMs/containers. Choose IMH or
-IMC with Raymond according to the available visibility and networking; this
+IMC with the IGEL team according to the available visibility and networking; this
 handoff does not assume either route has already been validated. No raw-L2
 protocols or privileged packet capture are needed by the demo itself.
 
@@ -97,7 +97,7 @@ process launch. Avoid a Modbus health probe before the planned collection.
 `ready.json` records the listening IP/port. Ctrl+C cleans up the backend process.
 The simulator exits automatically about five seconds after the scenario ends.
 
-3. Raymond configures his monitor to observe A↔B TCP traffic on port 15020.
+3. The IGEL team configures the monitor to observe A↔B TCP traffic on port 15020.
    This is a required visibility check, not a capability established by this demo.
 4. On A, replace `B_LAB_IP` with exactly the same numeric address:
 
@@ -109,7 +109,7 @@ The simulator exits automatically about five seconds after the scenario ends.
 
 The collector reads only this explicit fixture endpoint. Installation is online;
 the runtime test needs no cloud. Monitor placement, switch mirroring and IGEL
-network configuration are Raymond's lab setup, not changes made by this script.
+network configuration are part of the IGEL lab setup, not changes made by this script.
 
 ## C. Combine actual exported evidence
 
@@ -167,7 +167,7 @@ Share the report files together. It contains no external script/font requests.
 - Stop interval has valid stopped-state samples while TCP reads keep succeeding.
 - Relay-cut interval has collection blind time; it is not counted as observed downtime.
 - Simulator counter ticks advance throughout that interval and reads recover afterwards.
-- Raymond confirms visibility of the A↔B path and contributes real monitor events,
+- The IGEL team confirms visibility of the A↔B path and contributes real monitor events,
   or explicitly records that this visibility/feature is unavailable.
 - The final timeline preserves evidence sources and clock status; a timestamp
   coincidence is not automatically promoted to a network root cause.
