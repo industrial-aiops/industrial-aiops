@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# Run the existing software-only demo with no inherited iaiops configuration.
+# Joint production-state / communication exercise; no external monitor assumed.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 if [[ ! -x "$ROOT/.venv/bin/iaiops" ]]; then
   echo "Install first: see deploy/igel/evaluation/README.md" >&2
   exit 1
 fi
-mkdir -p "$ROOT/dist/igel-evaluation"
 cd "$ROOT"
-env -i PATH="$PATH" HOME="$HOME" \
-  PY="$ROOT/.venv/bin/python" IAIOPS="$ROOT/.venv/bin/iaiops" \
-  IAIOPS_NO_EGRESS=1 \
-  REPORT_OUT="$ROOT/dist/igel-evaluation/oee-demo.html" \
-  bash demo/oee-line/run_demo.sh
+exec "$ROOT/.venv/bin/python" demo/joint-traffic/joint_demo.py local \
+  --duration 90 --run-id joint-demo-1 --out dist/joint-demo-1 "$@"

@@ -45,6 +45,20 @@
 **2b ≠ 2a, 2c ≠ 2b, and no amount of any of them adds up to 3.** Rung 3 is **zero
 for every protocol in both repos.** Nothing below changes that.
 
+## Source-only joint traffic demo (2026-11-13)
+
+On `delivery/igel-evaluation-033`, `demo/joint-traffic/` exercises a loopback
+pymodbus server through a read-only application TCP relay and existing governed
+CLI collection. A 90-second synthetic scenario / 93-second collection stored
+1,056 samples, observed 13.4s stopped and 18.1s blind, and generated a common
+source-labelled timeline. The fixture continues incrementing while collection
+connections are cut. No monitor findings are fabricated or imported by default.
+
+This does not raise any protocol's hardware-verification rung. Separate-host
+network visibility, Ubuntu/IGEL runtime, actual monitor exports and cross-host
+clock alignment remain **待核实**. The cut is not a packet-loss test. Detailed
+commands and test scope: [`../deploy/igel/evaluation/VERIFIED.md`](../deploy/igel/evaluation/VERIFIED.md).
+
 ## Base package (`iaiops`)
 
 | Protocol | Rung | Test | What actually runs | Not covered |

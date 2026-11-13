@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Source-only integration evaluation demo
+
+- Add a split-host Modbus fixture, read-only TCP relay, governed CLI collection
+  and common evidence timeline under `demo/joint-traffic/`. Contrast a production
+  stop with an application connection cut while synthetic production continues.
+- Accept explicitly supplied monitor CSV events without inventing monitor
+  observations, clock synchronization, root causes or IGEL compatibility.
+- Update the source handoff launcher/guide; package and published container
+  versions remain 0.33.0. This demo is not in the published artifact.
+
 ## 0.33.0 — 2026-11-09
 
 206 governed MCP tools: 205 in the 0.32.0 release plus

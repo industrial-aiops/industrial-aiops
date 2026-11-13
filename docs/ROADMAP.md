@@ -4,6 +4,18 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## Source handoff — joint production/traffic demo (2026-11-13)
+
+On `delivery/igel-evaluation-033` only, not a published package/container feature:
+`demo/joint-traffic/` provides a split-host synthetic Modbus fixture, read-only
+TCP relay, existing governed CLI collection and a shared evidence timeline.
+An application connection cutoff is contrasted with an observed production stop.
+Actual monitor CSV import is manual; no proprietary monitor API is integrated.
+
+Still pending external validation: Linux guest deployment, IMH/IMC runtime and
+network visibility, actual monitor event export and clock alignment, and physical
+devices. A software-only loopback test does not close those gaps.
+
 ## OT engineer trust — research findings → work items (2026-10-19)
 
 Source: the user's market research (PLCtalk threads on GenAI writing PLC code and on

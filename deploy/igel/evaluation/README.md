@@ -38,23 +38,30 @@ your Python version if `python3 -m venv` is unavailable.
 bash deploy/igel/evaluation/run-demo.sh
 ```
 
-Allow about two minutes. No PLC, account, GPU, LLM or cloud service is required.
-The launcher clears inherited configuration variables; the underlying demo uses
-a temporary HOME and a local pymodbus TCP server on `127.0.0.1`, with synthetic
-production data. It performs real TCP reads, deliberately kills and restarts
-that server, and then produces an OEE report and investigation output.
-It does not discover or contact the plant network.
+Allow about two minutes. The updated joint demo compares **production stopped
+while communications remain healthy** with **a collection connection cut while
+the synthetic production counter continues**. No PLC, LLM or external monitor
+is required for this first local run.
 
-Open `dist/igel-evaluation/oee-demo.html` in a browser. A successful run exits
-with code 0, reports collected samples and a blind window, and creates the HTML
-report. The report distinguishes blind time from observed downtime. The exact
-OEE varies with timing; it is not a measured customer result or a prediction.
-See [the demo explanation](../../../demo/oee-line/README.md) for the sequence.
+Open `dist/joint-demo-1/collector/joint-report.html` and its OEE detail link.
+The output directory must be new/empty. On reruns, choose another output:
 
-The simulator is temporary; it stops when the demo ends. The demo report is a
-standalone HTML file that can be forwarded. Demo state stays in a temporary
-directory; normal operation keeps local configuration and audit/data stores in
-`~/.iaiops` unless explicitly relocated.
+```bash
+bash deploy/igel/evaluation/run-demo.sh --out dist/joint-demo-2 --run-id joint-demo-2
+```
+
+The test uses loopback TCP, isolated configuration and local audit/data stores.
+It does not discover or contact a plant network. It uses an application TCP
+relay cutoff, not firewall packet loss, and keeps the software backend alive.
+Fixture truth and collection evidence are labelled separately.
+
+**For the actual joint exercise**, use the two-machine instructions in
+[`demo/joint-traffic/README.md`](../../../demo/joint-traffic/README.md): simulator B,
+collector A, Raymond observing their network path, then import actual monitor
+CSV events into a common timeline. No monitor findings are fabricated.
+
+The previous single-machine OEE demo is still available at
+[`demo/oee-line/`](../../../demo/oee-line/README.md).
 
 ## 4. Connect an MCP client (optional, separate from the demo)
 
@@ -105,12 +112,11 @@ See [the deployment overlay](../README.md) for existing packaging materials.
 Neither route is validated on an IGEL device by this handoff. Raw-L2 networking,
 physical PLC operation, UMS deployment and licensing are outside this test.
 
-A useful next joint test: observe the demo's local TCP connection and deliberate
-outage alongside the traffic-monitoring application, then compare its event
-timestamps with the collection blind window. Visibility into guest/container
-loopback traffic depends on where the monitor runs and must be checked. If it
-cannot see loopback, a separate approved lab-network scenario is needed.
-No integration between the two products is claimed yet.
+Use the [joint demo guide](../../../demo/joint-traffic/README.md) to reproduce
+the two scenarios across a monitor-visible lab path. First confirm where the
+monitor captures traffic and whether it exports timestamped events. The source
+handoff includes a relay, collector, CSV import and report; it does not include
+an integration with Raymond's proprietary monitor or its API.
 
 Please send back: OS/Python versions, install/demo outcome, the HTML report,
 and any sanitised error output. Do not send credentials or customer addresses.
