@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "published": {
+    "publisher": "mqtt",
+    "topic_prefix": "community/iaiops",
+    "broker": "127.0.0.1:18883",
+    "received": 5,
+    "published": 4,
+    "skipped_non_numeric": 1
+  },
+  "windows": [
+    {
+      "mean_value": 20,
+      "sample_count": 3
+    }
+  ],
+  "checks": [
+    "governed MQTT egress",
+    "bad quality excluded",
+    "missing numeric value skipped",
+    "window count/sum preserved",
+    "silence is not zero"
+  ]
+}

@@ -308,6 +308,17 @@ returned, recorded from the live runs.
 | WFM-deployed OTLP and deletion | A second sandbox deployment with OTLP parameters reached `INSTALLED` and `healthy`. Standalone official OpenTelemetry Collector 0.164.0 received the four declared process/audit metrics. Deleting both deployments left WFM with zero deployments and the device with no iaiops container or named volume; the test secrets were removed. | The optional sandbox Jaeger/Prometheus/Grafana/Loki stack was not installed. The CTT runtime observability row remains `NOT RUN`; its 0.34.0 static check still fails as reported above. No real OT traffic was involved. |
 | In-place update and state retention | Reapplying a deployment with the same name returned a **new** ID rather than updating the original. A marker in the original named volume disappeared when that deployment was deleted. [sandbox #490](https://github.com/margo/sandbox/issues/490) separately tracks the Compose client's `down --volumes` update path. | No in-place update or state-preserving update was verified. Do not treat delete/recreate as an update pass; preserving the on-box audit/secret store remains `待核实`. |
 
+## Community interoperability — initial trials (2026-11-13)
+
+Exact software pins, raw results and limits are in
+[`evidence/community/2026-11-13.md`](evidence/community/2026-11-13.md).
+
+| Subject | Executed evidence | Not covered |
+|---|---|---|
+| Released iaiops 0.34.0 → eKuiper 2.4.2 | Governed `uns_publish` through a real loopback Mosquitto broker; good values 10/20/30 produced a count of three and mean 20, bad 999 was excluded, missing numeric input skipped, silence produced no extra numeric observation. | Simulated input only; processing-time windows; reconnect, late/out-of-order event-time, TLS and physical meters remain untested. |
+| Tahu encoder → released iaiops 0.34.0 tap | Tahu's own Python API/protobuf at `5736e404` produced bytes in a separate process. Real-broker tests passed named NBIRTH, millisecond timestamp, alias-only NDATA, NDEATH refusal, NBIRTH replacement/removal and stale refusal. | The publisher harness is ours; no full independent EoN implementation, commercial device, TCK or compatibility certification was tested. |
+| Margo supported-operation scope | Sandbox maintainer clarified on 2026-11-12 that only fresh deployments and removals are supported, and workload update is not currently specified. The earlier real WFM/device trial covered both supported operations. | In-place update is a future capability rather than a remaining supported-operation test. CTT #20 still awaits upstream merge. |
+
 ## Still testable — the follow-up register
 
 Kept here rather than in a chat log so it survives. Ordered by what a reader should

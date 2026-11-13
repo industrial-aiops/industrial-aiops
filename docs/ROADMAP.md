@@ -870,6 +870,18 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   master password (read from `IAIOPS_NEW_MASTER_PASSWORD`, never argv).
 
 ## Ecosystem / edge packaging (Margo)
+
+The 13–19 November community workstreams (LF Energy listing, eKuiper examples,
+Tahu interoperability and Margo follow-up) are tracked in
+[`COMMUNITY-INTEGRATION-HLD.md`](COMMUNITY-INTEGRATION-HLD.md). The first software
+smokes live under `demo/ekuiper` and `demo/sparkplug-tahu`; wider coverage remains
+open as described there.
+
+**2026-11-13 scope correction:** the sandbox maintainer confirmed that workload
+update is not currently specified or implemented; fresh deployment and removal
+are the supported operations. The trial below verified both. In-place update is
+a future capability, rather than a blocker for that supported-operation trial.
+See [sandbox #490 clarification](https://github.com/margo/sandbox/issues/490#issuecomment-6815806491).
 > Positioning + gap in `docs/MARGO-ALIGNMENT.md`. iaiops is a natural **Margo edge application**
 > (governed, neutral, air-gap friendly). **NOT Margo-compliant yet** — packaging is delivered and
 > the official Application Supplier CTT passed on Ubuntu 24.04 for 0.33.0; the
