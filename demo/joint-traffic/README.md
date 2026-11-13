@@ -2,7 +2,7 @@
 
 Source handoff for an Industrial-AIOps / traffic-monitoring lab exercise.
 No physical PLC, GPU, LLM, UMS API or proprietary monitor SDK is required.
-IGEL compatibility and the capabilities of the IGEL lab monitor remain **待核实**.
+IGEL compatibility and the capabilities of the IGEL lab monitor remain **not yet verified**.
 
 ## What the audience sees
 
@@ -83,11 +83,12 @@ protocols or privileged packet capture are needed by the demo itself.
 
 1. Synchronize A, B and the monitor's clocks to UTC and record any known skew.
    If skew is unknown, do not interpret cross-host timestamp alignment as evidence.
-2. On B, replace `B_LAB_IP` with B's explicit numeric lab IP (not `0.0.0.0`):
+2. On B, enter B's explicit numeric lab IP when prompted (not `0.0.0.0`):
 
 ```bash
+read -r -p "Simulator B lab IP: " B_LAB_IP
 .venv/bin/python demo/joint-traffic/joint_demo.py simulator \
-  --bind B_LAB_IP --port 15020 --lab-network \
+  --bind "$B_LAB_IP" --port 15020 --lab-network \
   --duration 90 --run-id joint-demo-1 --out dist/joint-demo-1-simulator
 ```
 
@@ -99,11 +100,12 @@ The simulator exits automatically about five seconds after the scenario ends.
 
 3. The IGEL team configures the monitor to observe A↔B TCP traffic on port 15020.
    This is a required visibility check, not a capability established by this demo.
-4. On A, replace `B_LAB_IP` with exactly the same numeric address:
+4. On A, enter exactly the same numeric address when prompted:
 
 ```bash
+read -r -p "Simulator B lab IP: " B_LAB_IP
 .venv/bin/python demo/joint-traffic/joint_demo.py collect \
-  --host B_LAB_IP --port 15020 --lab-network \
+  --host "$B_LAB_IP" --port 15020 --lab-network \
   --duration 93 --run-id joint-demo-1 --out dist/joint-demo-1-collector
 ```
 
@@ -113,7 +115,10 @@ network configuration are part of the IGEL lab setup, not changes made by this s
 
 ## C. Combine actual exported evidence
 
-Copy B's `simulator-events.jsonl` and an actual monitor CSV to A. There is no
+Copy `dist/joint-demo-1-simulator/simulator-events.jsonl` from B to the
+repository root on A as `simulator-events.jsonl`. Save the actual monitor export
+in A's repository root as `monitor-events.csv`. Run the command below from A's
+repository root after both files are present. There is no
 automatic monitor API integration. Normalize the monitor's export to this schema
 using the included header-only `monitor-events-template.csv`:
 

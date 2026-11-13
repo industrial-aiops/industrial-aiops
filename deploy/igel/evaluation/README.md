@@ -4,12 +4,32 @@ A small, source-based handoff for testing Industrial-AIOps alongside an edge
 traffic-monitoring application. Baseline: release commit `513951e` (0.33.0).
 No UMS installer, licence, credentials or customer data is included.
 
+## Prerequisites
+
+Use Bash, Git and Python 3.11 or newer on a lab machine. Check the interpreter
+before creating the virtual environment:
+
+```bash
+python3 --version
+python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
+```
+
+If `python3` is older, use an installed Python 3.11+ interpreter instead for the
+venv command below. On Ubuntu, the corresponding Python venv package must also
+be installed. A fresh installation needs access to GitHub and Python packages.
+
 ## Next joint lab test
 
 The demo now compares a production stop with healthy communications against a
 collection connection cutoff while simulated production continues. Industrial-AIOps
 provides the production-state and collection-gap evidence; the IGEL lab monitor can
 contribute actual network events to the same timeline once visibility is confirmed.
+
+The shared Project AGNES diagram describes network observation and local AI
+analysis on the IGEL platform. This exercise adds production-state and collection
+coverage evidence alongside that network view. Capture visibility, event export
+and any future API integration still need to be checked in the IGEL lab; no
+AGNES-specific API, Ollama instance or model is required for the local demo.
 
 Start with the local demo below. Then follow the
 [two-host guide](../../../demo/joint-traffic/README.md) to observe the test traffic
@@ -26,7 +46,7 @@ flowchart LR
         P --> R
     end
     C["Host A: Industrial-AIOps<br/>Collection, coverage and OEE"]
-    M["IGEL traffic monitor<br/>IMH / IMC lab environment"]
+    M["IGEL lab: Project AGNES<br/>Traffic observation; visibility to confirm"]
     T["Shared timeline and demo report"]
     R <-->|Modbus TCP| C
     M -.->|Observe the test traffic| R
@@ -53,6 +73,8 @@ If you already cloned this handoff branch, update it from that checkout:
 ```bash
 git pull --ff-only
 ```
+
+Then repeat the installation step below to update the installed local package.
 
 Alternatively extract the supplied source archive and enter its top directory.
 Use a Linux machine or Ubuntu guest for the first run; Python 3.11+ and Bash
@@ -85,7 +107,20 @@ while communications remain healthy** with **a collection connection cut while
 the synthetic production counter continues**. No PLC, LLM or external monitor
 is required for this first local run.
 
-Open `dist/joint-demo-1/collector/joint-report.html` and its OEE detail link.
+A successful run exits with code 0 and prints `Collected ... samples` followed
+by `Report: .../joint-report.html`. Open
+`dist/joint-demo-1/collector/joint-report.html` and its OEE detail link.
+
+To view the report over local HTTP instead of opening the HTML file directly,
+serve the report directory on loopback:
+
+```bash
+.venv/bin/python -m http.server 8000 --bind 127.0.0.1 \
+  --directory dist/joint-demo-1/collector
+```
+
+Open `http://127.0.0.1:8000/joint-report.html`; press Ctrl+C to stop the server.
+For a remote lab host, copy the report files to your workstation instead.
 The output directory must be new/empty. On reruns, choose another output:
 
 ```bash
@@ -167,9 +202,8 @@ and any sanitised error output. Do not send credentials or customer addresses.
 
 See [VERIFIED.md](VERIFIED.md) for the checks performed on this handoff.
 
-Software TCP/simulator evidence is not physical-device evidence. Current
-protocol limits are recorded in
-[VERIFICATION-RECORD.md](../../../docs/VERIFICATION-RECORD.md).
+Software TCP/simulator evidence is not physical-device evidence. The English
+[handoff verification record](VERIFIED.md) lists what was and was not tested.
 The Margo descriptor and any supplier packaging checks do not establish IGEL
 certification or runtime compatibility. Newer branch-only OTLP telemetry and
 Margo archive corrections are deliberately excluded from this release baseline.

@@ -1,6 +1,6 @@
 <!-- Ready-to-paste answers for the IGEL Ready Guided App Submission Workflow. Filled to the
      extent possible without an IGEL Ready account; the account/submission itself is email-gated
-     (needs a business-domain email or a warm intro — see §4). Same 待核实 discipline as the repo. -->
+     (needs a business-domain email or a warm intro — see §4). Same not yet verified discipline as the repo. -->
 
 # IGEL Ready — submission answer sheet (Managed Container)
 
@@ -51,15 +51,15 @@ Python container workload. Identity throughout: **wei `<zhouwei008@gmail.com>`**
 | Supply-chain integrity? | Image cosign-signed; wheels on PyPI; CI gate (pytest + ruff + bandit 0 Medium+). |
 | Secrets handling? | Encrypted on-device store; injected by reference, never embedded in manifests. |
 
-## 4. Account / submission status (待核实 — needs user action)
+## 4. Account / submission status (not yet verified — needs user action)
 
 - IGEL Ready membership + the App Creator Portal are **email-gated**: the contact form rejects
   consumer email (gmail). Two ways in: a **business-domain email**, or a **warm intro from an IGEL
   contact**. Until one is in place, this sheet is submission-ready but cannot be filed.
-- Terms/fees of IGEL Ready: `待核实`.
+- Terms/fees of IGEL Ready: `not yet verified`.
 - On a real IGEL OS 12 box, validate: Managed-Container config surface, secret-injection mechanism,
   registry reachability, and the `rw_partition` size in `app-recipe/app.json` — each a
-  `待核实 → verified` row.
+  `not yet verified → verified` row.
 
 ## 5. Grass-roots alternative (no account needed)
 
