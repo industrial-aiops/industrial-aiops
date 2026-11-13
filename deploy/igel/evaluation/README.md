@@ -16,6 +16,30 @@ Start with the local demo below. Then follow the
 in your lab and compare the evidence. The guide includes a CSV import format;
 no proprietary monitor API integration is required for this first exercise.
 
+## Demo topology
+
+```mermaid
+flowchart LR
+    subgraph B["Lab host B"]
+        P["Simulated production line<br/>Run state and production counters"]
+        R["Read-only TCP relay<br/>Controlled connection cutoff"]
+        P --> R
+    end
+    C["Host A: Industrial-AIOps<br/>Collection, coverage and OEE"]
+    M["Raymond's traffic monitor<br/>IMH / IMC lab environment"]
+    T["Shared timeline and demo report"]
+    R <-->|Modbus TCP| C
+    M -.->|Observe the test traffic| R
+    C -->|Samples and collection gaps| T
+    M -.->|Actual events exported as CSV| T
+    P -.->|Fixture ground truth as JSONL| T
+```
+
+The monitor's capture visibility and export capability must be confirmed in the
+lab. Dashed arrows show the proposed observation and manual evidence-import
+paths; they do not imply a completed monitor API integration. Fixture ground
+truth stays separate from collector observations and imported monitor events.
+
 ## 1. Get the source
 
 ```bash
