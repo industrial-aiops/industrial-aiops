@@ -538,7 +538,7 @@ def local(args: argparse.Namespace) -> None:
                     collector=out / "collector",
                     simulator_events=out / "simulator/simulator-events.jsonl",
                     monitor_events=None,
-                    clocks_synchronized=True,
+                    clocks_synchronized=False,
                 )
             )
         finally:
