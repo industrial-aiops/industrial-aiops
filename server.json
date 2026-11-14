@@ -19,7 +19,7 @@
       "environmentVariables": [
         {
           "name": "IAIOPS_MCP",
-          "description": "Tool-menu selection: comma-separated protocols or a named profile (e.g. 'fab', 'process', 'building', 'opcua,modbus'). No default since 0.10.0 \u2014 unset prints the selection menu and exits; set to a profile name (e.g. factory) or comma-list of protocols.",
+          "description": "Tool-menu selection: comma-separated protocols or a named profile (e.g. 'fab', 'process', 'building', 'opcua,modbus'). No default since 0.10.0 — unset prints the selection menu and exits; set to a profile name (e.g. factory) or comma-list of protocols.",
           "isRequired": true,
           "isSecret": false
         },
@@ -37,7 +37,7 @@
         },
         {
           "name": "IAIOPS_NO_EGRESS",
-          "description": "Set to 1 to withhold every data-shipping tool (message bus, external historian, remote LLM) from list_tools() at registration time, for an airgap/sealed-box deployment. This is a data-exfiltration axis only, not read/write authorisation \u2014 whether a write is allowed is the caller's decision, and every call (read or write) is audited. Gates MCP tools only \u2014 not a firewall.",
+          "description": "Set to 1 to withhold every data-shipping tool (message bus, external historian, remote LLM) from list_tools() at registration time, for an airgap/sealed-box deployment. This is a data-exfiltration axis only, not read/write authorisation — whether a write is allowed is the caller's decision, and every call (read or write) is audited. Gates MCP tools only — not a firewall.",
           "isRequired": false,
           "isSecret": false
         }
