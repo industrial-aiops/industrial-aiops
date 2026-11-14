@@ -32,11 +32,14 @@ _PAGE_SIZE = 1000
 _MAX_ROWS = 500_000  # hard ceiling so a runaway DB cannot exhaust memory
 
 
-def validate_output_path(out_path: str | Path, *, suffixes: tuple[str, ...]) -> Path:
+def validate_output_path(
+    out_path: str | Path, *, suffixes: tuple[str, ...], create_parent: bool = True
+) -> Path:
     """Validate a user-supplied output file path and prepare its directory.
 
     Rejects traversal (``..`` segments) and wrong extensions; creates the
-    parent directory ``0700`` when missing. Returns the expanded Path.
+    parent directory ``0700`` when missing unless ``create_parent=False`` is
+    used for a side-effect-free preflight. Returns the expanded Path.
     """
     path = Path(out_path).expanduser()
     if ".." in path.parts:
@@ -47,7 +50,7 @@ def validate_output_path(out_path: str | Path, *, suffixes: tuple[str, ...]) -> 
     if path.exists() and path.is_dir():
         raise ValueError(f"Output path is a directory: {out_path}")
     parent = path.parent
-    if not parent.exists():
+    if create_parent and not parent.exists():
         parent.mkdir(parents=True, mode=0o700)
         os.chmod(parent, 0o700)  # mkdir mode is masked by umask — set explicitly
     return path
