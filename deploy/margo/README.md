@@ -12,7 +12,7 @@
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>,telemetry]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. The 0.34.0 source includes the telemetry extra; the already published 0.33.0 image does not. |
+| `Dockerfile` | Reproducible, **non-root**, read-only-rootfs-friendly image. Installs the published `iaiops[<profile>,telemetry]` wheel; headless MCP entrypoint. Build-arg `PROFILE` = edition. The 0.34.1 source includes the telemetry extra; the already published 0.33.0 image does not. |
 | `compose.yaml` | Example hardened run for **local dev** (builds from source): `read_only`, `cap_drop: ALL`, no-new-privileges, single **token-authenticated** MCP port (optional IP allowlist) (socket transport — no OT inbound), single config/secret volume. |
 | `package.compose.yaml` | **Deploy-ready** compose shipped inside the signed application package (as `compose.yaml`): references the published, version-pinned GHCR image (`profile` parameter selects the per-edition variant), same hardened posture, no build section. |
 | `margo.yaml` | Margo **ApplicationDescription**, validated against the `v1.0.0-rc.3` schema: `apiVersion: v1`, compose `deploymentProfiles` / `components` / `deviceConstraints` / `parameters` / `configuration`. The component uses an OCI `repository` and `revision`; the secret-reference model remains an open point in [`margo/specification#145`](https://github.com/margo/specification/issues/145). |
@@ -26,7 +26,7 @@
 - `ghcr.io/industrial-aiops/iaiops-margo:<version>` — OCI Application Package; its compose component
   is `ghcr.io/industrial-aiops/iaiops-compose:<version>`. Both are signed by digest. **The published
   0.33.0 component uses a direct YAML layer, which rc.3 does not accept as a Compose Archive.**
-  The 0.34.0 workflow builds a single-layer `.tar.gz` archive with the required media types
+  The 0.34.1 workflow builds a single-layer `.tar.gz` archive with the required media types
   and annotations. A signature on 0.33.0 does not fix its component format.
 - `iaiops-margo-package-<version>.tar.gz` (+ `.sig`) on the GitHub release — a signed mirror of the
   application package: `margo.yaml` + deploy-ready `compose.yaml` + `cosign.pub`.
@@ -85,7 +85,7 @@ Keep the file outside the image and remove it when the deployment is torn down.
 The OT side stays strictly **outbound** to the endpoints in `config.yaml`; the socket port is only
 the tool interface for the orchestrator/agent.
 
-## Optional local health metrics (0.34.0 source)
+## Optional local health metrics (0.34.1 source)
 
 The source on `main` adds `OTEL_METRICS_EXPORTER=none|otlp` to the Compose component and Margo parameters.
 `none` is the default. With `otlp`, install `iaiops[telemetry]` and set

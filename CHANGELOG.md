@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.34.1 — 2026-11-14
+
+- Clarify MCP directory descriptions, explicit profile/stdio startup, writable
+  audit state and Glama claim/build settings; include maintainer `zw008`.
+- Reconcile released 0.33/0.34 capabilities with the roadmap and README.
+  Margo sandbox evidence covers fresh deployment and deletion; in-place
+  updates remain unsupported by that reference environment.
+- Refresh package, registry and edge image pins. Runtime behavior and governed
+  tool count are unchanged; scan-evidence Draft PRs are not included.
+
 ## 0.34.0 — 2026-11-09
 
 ### Margo edge health telemetry and rc.3 Compose Archive
