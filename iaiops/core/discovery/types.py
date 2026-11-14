@@ -179,6 +179,8 @@ class ProtocolCandidate:
     #: which is what a scan stored by an older version reads back as, and is a
     #: different statement from any particular port.
     port: int = 0
+    #: Structured execution result for evidence exchange; old rows lack it.
+    status: str = "unknown"
 
 
 @dataclass(frozen=True)
@@ -211,6 +213,9 @@ class ScanResult:
     notes: tuple[str, ...] = ()
     started_at: str = ""
     finished_at: str = ""
+    #: Execution evidence, not inferred from the scan verdict. Older rows lack it.
+    stage_status: dict[str, str] = field(default_factory=dict)
+    attempted_hosts: tuple[str, ...] | None = None
 
     @property
     def devices(self) -> tuple[HostResult, ...]:

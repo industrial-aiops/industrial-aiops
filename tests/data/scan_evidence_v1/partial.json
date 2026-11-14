@@ -1,0 +1,116 @@
+{
+  "exported_at": "2026-10-30T09:00:00+00:00",
+  "format": "iaiops.scan-evidence",
+  "format_version": "1.0",
+  "generator": {
+    "name": "iaiops",
+    "version": "0.28.0"
+  },
+  "hosts": [
+    {
+      "alive": true,
+      "identities": [
+        {
+          "entity_type": "device",
+          "fields": {
+            "hardware_version": {
+              "raw_value": "3.1",
+              "source_field": "HardwareVersion",
+              "value": "3.1"
+            },
+            "physical_serial": {
+              "raw_value": "00042",
+              "source_field": "SerialNumber",
+              "value": "00042"
+            },
+            "vendor": {
+              "raw_value": null,
+              "source_field": null,
+              "value": "Siemens"
+            }
+          },
+          "protocol": "s7"
+        }
+      ],
+      "ip": "10.2.0.4",
+      "mac": null,
+      "ports": [
+        {
+          "port": 102,
+          "rtt_ms": 1.0,
+          "state": "open"
+        }
+      ],
+      "protocols": [
+        {
+          "confidence": "confirmed",
+          "evidence": "s7_cpu_info",
+          "port": 102,
+          "protocol": "s7",
+          "status": "success"
+        }
+      ],
+      "sources": [
+        "tcp"
+      ]
+    }
+  ],
+  "observation": {
+    "attempted_hosts": [
+      "10.2.0.4"
+    ],
+    "collection_domain": null,
+    "errors": [],
+    "finished_at": "2026-10-30T08:01:00+00:00",
+    "profile": "inventory",
+    "scan_id": "0123456789abcdef",
+    "scope": {
+      "allow_browse": [],
+      "cidrs": [],
+      "excluded": [],
+      "hosts": [
+        "10.2.0.4"
+      ],
+      "ports": [],
+      "protocols": []
+    },
+    "site": "fixture-site",
+    "stages": [
+      {
+        "name": "L0_passive",
+        "status": "success"
+      },
+      {
+        "name": "L0_broadcast",
+        "status": "not_requested"
+      },
+      {
+        "name": "L1_sweep",
+        "status": "success"
+      },
+      {
+        "name": "L2_identify",
+        "status": "partial"
+      },
+      {
+        "name": "L3_fingerprint",
+        "status": "not_requested"
+      },
+      {
+        "name": "L4_browse",
+        "status": "not_requested"
+      }
+    ],
+    "started_at": "2026-10-30T08:00:00+00:00",
+    "truncated": false,
+    "verdict": "partial",
+    "wire_summary": {
+      "tcp_connect": 1
+    }
+  },
+  "source": {
+    "assertion": "unverified",
+    "id": "8b0f8465-7a8c-46d7-8b8d-b27da8b4e197"
+  },
+  "subject_sha256": "5129719bcc9f12fef6d9c37365f6f34acdf96b65e54ae12808673c73d1fe2df8"
+}

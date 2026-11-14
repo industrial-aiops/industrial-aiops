@@ -1,0 +1,66 @@
+{
+  "exported_at": "2026-10-30T09:00:00+00:00",
+  "format": "iaiops.scan-evidence",
+  "format_version": "1.0",
+  "generator": {
+    "name": "iaiops",
+    "version": "0.28.0"
+  },
+  "hosts": [],
+  "observation": {
+    "attempted_hosts": [],
+    "collection_domain": null,
+    "errors": [],
+    "finished_at": "2026-10-30T08:01:00+00:00",
+    "profile": "inventory",
+    "scan_id": "0123456789abcdef",
+    "scope": {
+      "allow_browse": [],
+      "cidrs": [],
+      "excluded": [],
+      "hosts": [
+        "10.2.0.4"
+      ],
+      "ports": [],
+      "protocols": []
+    },
+    "site": "fixture-site",
+    "stages": [
+      {
+        "name": "L0_passive",
+        "status": "success"
+      },
+      {
+        "name": "L0_broadcast",
+        "status": "not_requested"
+      },
+      {
+        "name": "L1_sweep",
+        "status": "success"
+      },
+      {
+        "name": "L2_identify",
+        "status": "not_run"
+      },
+      {
+        "name": "L3_fingerprint",
+        "status": "not_requested"
+      },
+      {
+        "name": "L4_browse",
+        "status": "not_requested"
+      }
+    ],
+    "started_at": "2026-10-30T08:00:00+00:00",
+    "truncated": false,
+    "verdict": "no_devices_found",
+    "wire_summary": {
+      "tcp_connect": 1
+    }
+  },
+  "source": {
+    "assertion": "unverified",
+    "id": "8b0f8465-7a8c-46d7-8b8d-b27da8b4e197"
+  },
+  "subject_sha256": "8d78296623c49063368e5f4394f996480c80fdfcd2643435dfbffb8ab96142bc"
+}

@@ -78,7 +78,7 @@ def _publish(payload: str) -> None:
     client.disconnect()
 
 
-def _wait_for(tap, ref, timeout_s=5.0):
+def _wait_for(tap, ref, payload, timeout_s=5.0):
     """Publish-and-poll until the value lands.
 
     Re-publishing on every attempt is deliberate: with a short ``stale_after_s``
@@ -88,6 +88,7 @@ def _wait_for(tap, ref, timeout_s=5.0):
     """
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
+        _publish(payload)
         try:
             return tap.read(ref)
         except OTNoReadingError:
@@ -100,8 +101,7 @@ def test_a_published_value_is_readable_through_the_held_session():
 
     with mqtt_tap_session(_target()) as client:
         tap = client.iaiops_uns_tap
-        _publish("42.5")
-        value, _ = _wait_for(tap, _TOPIC)
+        value, _ = _wait_for(tap, _TOPIC, "42.5")
         assert value == 42.5
 
 
@@ -113,8 +113,7 @@ def test_a_publisher_that_stops_becomes_a_refusal_not_a_repeated_value():
     stale_after_s = 2.0
     with mqtt_tap_session(_target(stale_after_s=stale_after_s)) as client:
         tap = client.iaiops_uns_tap
-        _publish("7")
-        assert _wait_for(tap, _TOPIC)[0] == 7
+        assert _wait_for(tap, _TOPIC, "7")[0] == 7
         time.sleep(stale_after_s + 0.6)  # nothing more is published
         with pytest.raises(OTNoReadingError, match="stale_after_s"):
             tap.read(_TOPIC)

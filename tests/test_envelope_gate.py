@@ -33,7 +33,12 @@ ENVELOPE_BUILDERS = frozenset({"envelope_fields", "bounded"})
 #: Qualified ``module::function`` names exempted from the gate, each with a
 #: written justification. Empty on purpose — an exemption is a decision that
 #: should have to be argued for in review, not a quiet default.
-ALLOWLIST: dict[str, str] = {}
+ALLOWLIST: dict[str, str] = {
+    # The v1 offline file's observation.truncated is evidence completeness, not
+    # a bounded CLI/MCP return. Both functions operate on the file contract.
+    "iaiops/core/discovery/scan_contract.py::validate_scan_evidence": "offline observation field",
+    "iaiops/core/discovery/scan_export.py::build_scan_evidence": "offline observation field",
+}
 
 
 def _python_files() -> list[Path]:

@@ -3,6 +3,8 @@
 For each configured (or supplied) target this **actively connects** with our own
 protocol client and reads the device's *identity* call — vendor / model /
 firmware / serial — then aggregates everything into an asset-register JSON.
+The legacy flat fields remain for compatibility; `reported_revision`,
+`source_device_id` and `serial_kind` expose their actual semantics when known.
 
 Honesty note (important): this is **ACTIVE fingerprinting via our client
 connections**, NOT passive SPAN/tap discovery. It will only find devices we are
@@ -49,6 +51,11 @@ def _fingerprint_one(target: Any) -> dict:
         "model": "",
         "firmware": "",
         "serial": "",
+        "serial_kind": "unknown",
+        "source_device_id": "",
+        "reported_revision": "",
+        "hardware_version": "",
+        "software_version": "",
         "reachable": False,
         "last_seen": "",
         "error": "",
@@ -73,6 +80,8 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "vendor": s(info.get("manufacturer", ""), 96),
             "model": s(info.get("product_name", ""), 96),
             "firmware": s(info.get("software_version", ""), 64),
+            "software_version": s(info.get("software_version", ""), 64),
+            "source_device_id": s(info.get("application_uri", ""), 96),
         }
     if proto == "s7":
         from iaiops.connectors.s7.ops import s7_cpu_info
@@ -83,7 +92,10 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "vendor": "Siemens/compatible",
             "model": s(cpu.get("ModuleName", cpu.get("ModuleTypeName", "")), 96),
             "firmware": s(cpu.get("Version", ""), 64),
+            "reported_revision": s(cpu.get("Version", ""), 64),
+            "hardware_version": s(cpu.get("HardwareVersion", ""), 64),
             "serial": s(cpu.get("SerialNumber", ""), 64),
+            "serial_kind": "physical_serial",
         }
     if proto in ("ethernetip", "eip"):
         from iaiops.connectors.eip.ops import eip_controller_info
@@ -94,7 +106,9 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "vendor": s(str(ctrl.get("vendor", "Rockwell/Allen-Bradley")), 96),
             "model": s(str(ctrl.get("product_name", ctrl.get("product_type", ""))), 96),
             "firmware": s(str(ctrl.get("revision", ctrl.get("version", ""))), 64),
+            "reported_revision": s(str(ctrl.get("revision", ctrl.get("version", ""))), 64),
             "serial": s(str(ctrl.get("serial", "")), 64),
+            "serial_kind": "physical_serial",
         }
     if proto == "mc":
         from iaiops.connectors.mc.ops import mc_cpu_status
@@ -104,6 +118,7 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "vendor": "Mitsubishi/compatible",
             "model": s(info.get("cpu_type", ""), 96),
             "firmware": s(info.get("cpu_code", ""), 64),
+            "reported_revision": s(info.get("cpu_code", ""), 64),
         }
     if proto == "modbus":
         return _modbus_identity(target)
@@ -117,6 +132,8 @@ def _probe_identity(target: Any, proto: str) -> dict:
             "vendor": "MTConnect agent",
             "model": s(first.get("name", ""), 96),
             "serial": s(first.get("uuid", ""), 96),
+            "serial_kind": "source_device_id",
+            "source_device_id": s(first.get("uuid", ""), 96),
         }
     raise ValueError(f"No identity probe for protocol '{proto}'.")
 
@@ -138,6 +155,7 @@ def _modbus_identity(target: Any) -> dict:
         "vendor": s(_mei(info, 0), 96),
         "model": s(_mei(info, 1), 96),
         "firmware": s(_mei(info, 2), 64),
+        "reported_revision": s(_mei(info, 2), 64),
     }
 
 

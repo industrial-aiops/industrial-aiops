@@ -281,6 +281,17 @@ class TestStoredAndUnstoredRenderTheSame:
 
 
 class TestStructure:
+    def test_legacy_version_and_id_columns_remain_visible(self, tmp_path):
+        result = scan(device())
+        scan_id = save_scan(result, tmp_path / "data.db")
+        record = load_scan(scan_id, tmp_path / "data.db")
+        record["hosts"][0].update(serial="machine-uuid", firmware="3.2")
+        html = render_html(record)
+        assert "Serial / ID (legacy)" in html
+        assert "Version (legacy)" in html
+        assert "machine-uuid" in html and "3.2" in html
+        assert "hardware revision or protocol revision" in html
+
     def test_it_is_a_complete_standalone_document(self):
         html = render_result(scan(device()))
         assert html.startswith("<!doctype html>")

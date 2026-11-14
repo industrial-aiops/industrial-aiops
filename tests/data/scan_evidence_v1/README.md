@@ -1,0 +1,5 @@
+# Scan evidence v1 samples
+
+All files here are self-built fixtures, not simulator or hardware observations. `duplicate_identity.invalid.json` must be rejected by the independent validator.
+These samples represent new scans with `truncated: false`; old records whose
+completeness is unknown export `truncated: null` instead.

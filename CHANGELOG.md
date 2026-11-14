@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Scan evidence exchange V1
+
+- Add the offline `iaiops scan export <scan-id> --out scan.json` command and a
+  standard-library-only validator for `iaiops.scan-evidence` 1.0. The public
+  projection excludes raw errors, authorization details and internal store
+  dictionaries; output is validated before an atomic, permission-restricted
+  write. It does not scan or upload.
+- Persist source UUID, stage execution evidence and a scan-body fingerprint for
+  new scans. An identical save is idempotent; the legacy 16-character scan ID
+  naming a different body now raises a conflict instead of replacing hosts.
+  New scans report `truncated: false` because scope and output limits refuse
+  rather than cut evidence; older rows export this and other missing metadata
+  as unknown and are not backfilled.
+- Stop before L2 when L1 aborts on an unhealthy segment. Preserve all swept
+  hosts and mark the run aborted when L2 itself aborts, including on its final
+  host.
+- Separate physical serial, source device ID, hardware/software versions and
+  protocol-reported revision in the exchange format. Keep legacy flat identity
+  aliases, including OPC UA model, EIP revision and S7/IO-Link hardware fallbacks,
+  for existing callers; label the HTML report's ambiguous legacy columns.
+  Explicit provenance prevents those fallbacks from claiming firmware in the
+  exchange format. Fall back to exclusive create plus atomic replace on media
+  that cannot hard-link, including FAT/exFAT and some SMB shares; physical USB
+  verification remains pending.
+  Preserve IO-Link vendor, model and name provenance, including the actual
+  product-code/device-family fallback; likewise identify the chosen S7 model
+  field.
+  No platform import or physical-device validation has been claimed.
+
 ## 0.34.0 — 2026-11-09
 
 ### Margo edge health telemetry and rc.3 Compose Archive
@@ -29,6 +58,7 @@
   MCP cannot supply that attestation. CALL parameter addresses are references
   until a block interface proves their direction. Identity-query failures do
   not echo connection errors into the result.
+
 ### Sparkplug point draft
 
 - `iaiops mqtt point-draft` and governed MCP `sparkplug_point_draft` turn a
@@ -45,6 +75,7 @@
 - Update the current package, MCP registry and edge deployment descriptors to
   0.33.0. The 0.32.0 Margo CTT record remains historical evidence for that
   released artifact; this release has not been tested on a WFM/device.
+
 
 ## 0.32.0 — 2026-10-20
 

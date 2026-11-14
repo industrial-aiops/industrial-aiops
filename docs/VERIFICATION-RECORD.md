@@ -1,5 +1,76 @@
 # 验证记录 — what has actually been run, per protocol
 
+## Scan evidence V1 — worktree verification (2026-10-30)
+
+2026-11-09 merge review: restored the historical flat OPC UA model, EIP
+firmware/revision and S7/IO-Link hardware-version fallback fields for existing
+store and HTML report consumers. The public exchange still labels source UUIDs,
+hardware and reported revisions separately and does not promote a hardware
+fallback into firmware. The HTML report now calls its ambiguous columns legacy.
+The `os.link` unsupported-media path has an O_EXCL reservation and replace
+fallback. Focused discovery/export/report tests: 111 passed. No FAT/exFAT/SMB
+medium was mounted in this environment; the actual removable-media check stays
+`待核实` and is required before merging the V1 PR.
+The wider scan/runner/store/CLI suite passed 208 tests; full Ruff check and
+format check and Bandit Medium+ passed.
+
+2026-11-08 CI gate follow-up: Python 3.11 failed twice in the existing live
+MQTT tap test because a single publish could precede subscription activation.
+The helper described repeated publishing but did not perform it. Its test
+setup now republishes while waiting; this tests delivery after the subscription
+is ready without weakening the assertion that a stopped publisher becomes a
+stale-reading refusal. On commit `72943a5`, the real-broker CI and all six PR
+checks passed: Python 3.11 and 3.12 each reported 4920 passed, 38 skipped.
+
+2026-11-08 contract review: a mocked IO-Link master response was projected
+through the real identification and export code. Vendor, model and name now
+retain raw values and source fields; the model fallback reports the actual
+`productcode` or `devicefamily` branch. The S7 `ModuleName` fallback also
+records its chosen source. Focused scan-evidence and identification tests
+passed (77); the wider scan-evidence/store/runner/CLI/identification set passed
+(174), as did full Ruff check, Ruff format check, and Bandit Medium+.
+This is a code-path check, not a physical IO-Link/S7 device test.
+
+2026-11-08 lab preflight: `scan plan` for one authorized Ubuntu `Open-test` VM
+emitted no packets and previewed six TCP connects under `legacy-safe`. `scan run`
+then recorded exactly six connects, one live host, zero identified industrial
+devices, and a `partial` verdict because the local ARP cache could not be read.
+`scan export` wrote that stored scan, and the standalone stdlib validator accepted
+the JSON. The export preserved `partial` and the live host, reported
+`truncated: false`, and produced subject SHA-256
+`41654c7f7f5425fd5d3284e15301660f7744b5ec71225d9c8636de7fb235c92a`.
+The focused scan evidence/store/runner/CLI tests passed (109), as did Ruff check
+and format on changed Python files. This VM has no industrial protocol service:
+the run proves the real scan → store → export → validate path, not a device
+identity, platform import, or physical-device support claim.
+
+2026-11-04 rebase review: the branch rebased cleanly onto `origin/main` at
+`dca4bdd`. Focused scan evidence/store tests passed (41). `ruff check .`,
+`ruff format --check .`, and Bandit Medium+ passed. A full local run reported
+4886 passed, 49 skipped, 10 failed: one test requires this Mac's ARP cache to
+produce output, while nine live MCP HTTP tests received 502 from the local
+loopback path. These failures do not establish a product regression; Linux CI
+is needed for an independent full gate. The platform-import and authorized
+physical-device gaps below remain open.
+
+`tests/test_scan_evidence_v1.py` exercises stored scan → offline export →
+independent stdlib validator, repeat export digest, old-row unknown fields,
+same-ID conflict, atomic no-overwrite, version/tamper/duplicate rejection and
+CLI no-network behavior. Samples in `tests/data/scan_evidence_v1/` are **self-built
+fixtures**. No asset-platform importer or authorized physical device has been
+tested; V1 contract integration and the first field-device support claim remain
+`待核实`. This section records worktree verification, not a release.
+Release review also exercised L1-to-L2 abort isolation and L2 abort reporting
+for both a partial host list and an abort on the final host
+(`tests/test_discovery_runner.py::TestAbortIsStructural`). Those tests use
+injected probes; they do not establish device behavior.
+Release-review gates on this worktree: `pytest` **4894 passed, 49 skipped,
+1 deselected** (`test_the_local_cache_parses_without_notes` depends on this
+machine's empty `arp` output); `ruff check .`, `ruff format --check .`, and
+`bandit -q -r iaiops mcp_server -ll` passed. The gate does not close IA-06:
+there is no asset-platform importer integration or authorized physical-device
+sample in the accessible workspace.
+
 > **This file records evidence, not intent.** Every row says what was executed, by
 > which test, at which rung of the ladder in
 > [`PREVIEW-VERIFICATION.md`](PREVIEW-VERIFICATION.md) — and what was **not**.
