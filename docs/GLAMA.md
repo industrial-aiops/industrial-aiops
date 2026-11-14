@@ -40,7 +40,7 @@ Use Python 3.12 and install the published package with an explicit dependency
 extra, for example:
 
 ```sh
-pip install 'iaiops[factory]==0.34.0'
+pip install 'iaiops[factory]==0.34.1'
 ```
 
 Configure the executable as `iaiops-mcp`, with no arguments, and set:
@@ -66,10 +66,10 @@ non-root user and state directory configured:
 
 ```sh
 docker build -f deploy/margo/Dockerfile \
-  --build-arg IAIOPS_VERSION=0.34.0 --build-arg PROFILE=factory \
-  -t iaiops-glama:0.34.0 .
+  --build-arg IAIOPS_VERSION=0.34.1 --build-arg PROFILE=factory \
+  -t iaiops-glama:0.34.1 .
 docker run --rm -i -v iaiops-glama-state:/home/iaiops/.iaiops \
-  iaiops-glama:0.34.0
+  iaiops-glama:0.34.1
 ```
 
 Glama may use a generated build spec rather than that file. Compare its saved
