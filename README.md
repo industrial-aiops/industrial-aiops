@@ -30,6 +30,20 @@ optional on-box LLM) use [`deploy/margo/compose.yaml`](deploy/margo/compose.yaml
 [`deploy/airgap/`](deploy/airgap/). The analysis engine needs **no GPU and no model API** — it is
 deterministic; an LLM is optional and only *phrases* the verdict.
 
+## MCP directory overview
+
+Industrial-AIOps connects AI agents and command-line workflows to industrial data.
+Use it to inventory configured assets, collect bounded samples, inspect alarms and
+data quality, calculate OEE from declared tag semantics, and investigate downtime
+with evidence from collected history. Protocol support includes OPC UA, Modbus,
+Siemens S7, MQTT/Sparkplug B and BACnet; coverage and verification vary by connector.
+
+MCP and CLI share the same governance and audit engine. Analysis is deterministic;
+a language model is optional. Select an explicit MCP profile such as `factory` or
+`building`; the base server does not start without a selection. Device writes,
+where supported, have additional safeguards. No tool deploys PLC logic.
+See [Glama setup and listing text](docs/GLAMA.md) for container and directory settings.
+
 ## What you get
 
 |  |  |
