@@ -217,6 +217,12 @@ OTLP/HTTP 目的地址必须是本机或实验/现场私网的 Collector，拒�
 设备完成部署/更新/删除，只能说明参考环境中的生命周期成功；不能称为商用 WFM 兼容、
 不可变主机验证或 Margo-compliant。真实 OT 硬件验证仍单列。
 
+**状态更新（2026-11-14）**：上述进程健康 OTLP 与 Compose Archive 修正已随 0.34.0 发布；
+官方 sandbox 的 WFM→Compose 设备新部署、MCP 鉴权、OTLP 收包和删除已实测，见
+`docs/evidence/margo/sandbox-wfm-compose-v0.34.0-2026-11-10.md`。前文关于下一版的
+描述保留 0.33.0 审核时的历史背景。维护者已明确当前 sandbox 不支持原地更新；
+同名 apply 是新部署，不能据此宣称保留状态的升级成功。商用 WFM、不可变主机及真机仍单列验证。
+
 ### 7.3 D7 — 拒绝无状态托管，本地 stdio 保持一等公民
 
 两个独立理由：

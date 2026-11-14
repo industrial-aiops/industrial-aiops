@@ -28,7 +28,7 @@ field engineers before building beyond the minimal versions.
   **Minimal version shipped in 0.32.0**: `iaiops program xref-config` / MCP
   `plc_program_xref_config` — AWL/.scl × s7 and L5X × Logix only; every other pair
   is reported as not comparable, with no lists.
-  **Follow-up merged to `main` in #282 (unreleased):** Logix live reads compare
+  **Follow-up shipped in 0.33.0 (#282):** Logix live reads compare
   the L5X controller name with the online name (not a unique device ID); S7
   AWL/SCL has no CPU identity, so an operator must attest export origin through
   the CLI before live reads.
@@ -875,7 +875,9 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
 > the official Application Supplier CTT passed on Ubuntu 24.04 for 0.33.0; the
 > 0.34.0 run reported one disputed failure. The released 0.34.0 package deployed
 > through the official sandbox WFM and Compose device, with OTLP receipt; safe
-> in-place update, commercial WFM and immutable-host validation remain `待核实`.
+> in-place update is not supported by the current sandbox and is not a gate for
+> its supported fresh-deploy/delete lifecycle. Commercial WFM and immutable-host
+> validation remain `待核实`.
 > See `docs/MARGO-CTT-VALIDATION.md`. Contributor-first (free); paid
 > membership only on customer pull.
 - ✅ **Container (OCI) image per edition profile** (2026-07-15) — reproducible, headless MCP
