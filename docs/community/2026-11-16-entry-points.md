@@ -57,7 +57,7 @@ The actual repositories are under [fledge-power](https://github.com/fledge-power
 not a guessed monolithic `fledgepower` repository.
 
 [Python PIVOT model request #2](https://github.com/fledge-power/fledgepower-pivot-model/issues/2)
-asks about accurate class generation. Schema snapshot inspected via repository metadata:
+asks about accurate class generation. Repository revision recorded via GitHub metadata:
 `c00cbf776c90a3e0d0ffdeee4e6659508ba1d2cb`. A potential small contribution is a Python
 schema/example validator retaining value, timestamp and quality distinctions,
 with accepted/rejected example fixtures. Do not invent a replacement schema or

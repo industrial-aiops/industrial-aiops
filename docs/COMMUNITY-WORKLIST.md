@@ -60,7 +60,6 @@ This ordering is a working preference, not a promise of acceptance by any commun
 | Date | Community / source | Observation | Evidence and limits | Next step |
 |---|---|---|---|---|
 | 2026-11-16 | OPC UA / local asyncua source | Existing vendor trust tests lack CA-chain/CRL scenarios | Added local strict-validator tests; independent vendor PKI and robust CRL provenance checks remain separate | Review reproducible gaps before preparing an upstream report |
-
 | 2026-11-16 | Sparkplug / Tahu pinned Python helper | Parent NDEATH did not invalidate iaiops device-cache reads | Reproduced with external-generated payloads; local regression and fix, offline only | Review fix and extend lifecycle matrix; no upstream claim |
 | 2026-11-16 | Tahu timestamp defaults | Reproduced equal default timestamps across two calls | Existing PRs #398/#472 found | Follow existing work; do not duplicate |
 | 2026-11-16 | Fledge / LF Energy / OPC UA | Reviewed current source/docs/issues; candidate tasks recorded | No runtimes or public uploads executed | Proceed with one local bounded fixture per candidate |
