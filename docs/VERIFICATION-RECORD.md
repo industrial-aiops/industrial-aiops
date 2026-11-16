@@ -45,6 +45,33 @@
 **2b ≠ 2a, 2c ≠ 2b, and no amount of any of them adds up to 3.** Rung 3 is **zero
 for every protocol in both repos.** Nothing below changes that.
 
+## Source-only joint traffic demo (2026-11-13)
+
+On `delivery/igel-evaluation-033`, `demo/joint-traffic/` exercises a loopback
+pymodbus server through a read-only application TCP relay and existing governed
+CLI collection. A 90-second synthetic scenario / 93-second collection stored
+1,056 samples, observed 13.4s stopped and 18.1s blind, and generated a common
+source-labelled timeline. The fixture continues incrementing while collection
+connections are cut. No monitor findings are fabricated or imported by default.
+
+This does not raise any protocol's hardware-verification rung. Separate-host
+network visibility, Ubuntu/IGEL runtime, actual monitor exports and cross-host
+clock alignment remain **待核实**. The cut is not a packet-loss test. Detailed
+commands and test scope: [`../deploy/igel/evaluation/VERIFIED.md`](../deploy/igel/evaluation/VERIFIED.md).
+
+## Local OPC UA CA-chain/CRL fixture (2026-11-16)
+
+`tests/test_opcua_pki_live.py` drives the actual connector against an encrypted,
+strict local asyncua server with ephemeral root/intermediate/client certificates.
+Checks: valid chain accepted; missing issuer, revoked leaf, expired leaf and wrong
+ApplicationUri rejected. Root and intermediate are explicitly loaded into the
+fixture trust store; no root-only transmitted-chain discovery is claimed.
+
+This is same-stack software evidence, not a physical or independent .NET server
+PKI pass. Fixtures use correctly signed, current CRLs. asyncua's TrustStore loads
+revocation serials; these tests do not establish CRL signature/issuer/freshness
+validation. Vendor PKI, client-side chain validation and GDS remain pending.
+
 ## Base package (`iaiops`)
 
 | Protocol | Rung | Test | What actually runs | Not covered |

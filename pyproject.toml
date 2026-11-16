@@ -105,7 +105,7 @@ telemetry = ["opentelemetry-sdk>=1.45,<1.46", "opentelemetry-exporter-otlp-proto
 # `iaiops-energy`, so its extras are not part of this package's `all`.
 all = [
     "asyncua>=2.0,<3",
-    "pyopenssl>=25",  # resolver guard — see the `opcua` extra above
+    "pyopenssl>=26.4",  # resolver guard — see the `opcua` extra above
     "pymodbus>=3.5,<4",
     "pyserial>=3.5",
     "pyS7>=2.8,<3",

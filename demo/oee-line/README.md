@@ -16,7 +16,7 @@ The shift is compressed into ~70 seconds, so its losses are proportionally far
 larger than a real line's: the demo typically reports a gap of 20+ points against
 the "reported" figure, where published benchmarking of manual-vs-measured OEE
 puts the real-world gap at 8–12 points (`docs/MARKET-EVIDENCE.md` §3, itself
-marked 待核实). Quoting the demo's percentage as an expected result would be
+marked not yet verified). Quoting the demo's percentage as an expected result would be
 exactly the kind of flattering overstatement the tool is built to refuse.
 
 What the demo legitimately shows is **mechanism**: that stoppages too short to

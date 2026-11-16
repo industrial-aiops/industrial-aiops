@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Align the `all` extra with the OPC UA pyOpenSSL compatibility floor (26.4).
+- Update the source-only IGEL joint demo baseline to 0.34.1; retain dated 0.33.0
+  verification records. This does not establish IGEL runtime validation.
+- Add local CA-chain/CRL OPC UA validation evidence and a community worklist.
+
 ## 0.34.1 — 2026-11-14
 
 - Clarify MCP directory descriptions, explicit profile/stdio startup, writable
