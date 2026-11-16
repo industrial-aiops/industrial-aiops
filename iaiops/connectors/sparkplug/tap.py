@@ -230,7 +230,10 @@ class UnsTap:
             raise OTNoReadingError("An MQTT ref is required (a topic, or node:metric).")
         node = wanted.split(REF_SEP)[0] if REF_SEP in wanted else ""
         with self._lock:
-            dead = self._dead.get(node, "")
+            # NDEATH invalidates all devices under the edge node as well.
+            # A device DBIRTH cannot revive its dead parent; only NBIRTH can.
+            parent = "/".join(node.split("/")[:2])
+            dead = self._dead.get(node, "") or self._dead.get(parent, "")
             point = self._points.get(wanted)
             known = len(self._points)
 

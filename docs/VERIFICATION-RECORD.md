@@ -72,6 +72,20 @@ PKI pass. Fixtures use correctly signed, current CRLs. asyncua's TrustStore load
 revocation serials; these tests do not establish CRL signature/issuer/freshness
 validation. Vendor PKI, client-side chain validation and GDS remain pending.
 
+## External Tahu offline lifecycle probe (2026-11-16; branch-only)
+
+Tahu develop `c19db8c926dcc8c1f28ad604a13d73d95f281323` Python helpers generated
+NBIRTH/DBIRTH/NDEATH payloads. Offline replay reproduced a child device reading
+remaining accessible after its parent's NDEATH on main `1508515`. Parent-death
+refusal and a regression are prepared; an unrelated node remains readable and
+recovery requires the corresponding BIRTH messages. Reproduction/provenance:
+[`community/2026-11-16-entry-points.md`](community/2026-11-16-entry-points.md).
+
+72 relevant tests plus 14 boundary tests passed. This is independent-payload
+codec/cache evidence, not broker, device or TCK validation; no protocol rung is
+raised and no upstream defect is attributed to Tahu. Timestamp default behavior
+is already covered by upstream PRs #398/#472. No report was sent upstream.
+
 ## Base package (`iaiops`)
 
 | Protocol | Rung | Test | What actually runs | Not covered |
