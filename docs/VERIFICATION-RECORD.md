@@ -72,12 +72,12 @@ PKI pass. Fixtures use correctly signed, current CRLs. asyncua's TrustStore load
 revocation serials; these tests do not establish CRL signature/issuer/freshness
 validation. Vendor PKI, client-side chain validation and GDS remain pending.
 
-## External Tahu offline lifecycle probe (2026-11-16; branch-only)
+## External Tahu offline lifecycle probe (2026-11-16; merged via #300)
 
 Tahu develop `c19db8c926dcc8c1f28ad604a13d73d95f281323` Python helpers generated
 NBIRTH/DBIRTH/NDEATH payloads. Offline replay reproduced a child device reading
 remaining accessible after its parent's NDEATH on main `1508515`. Parent-death
-refusal and a regression are prepared; an unrelated node remains readable and
+refusal and its regression landed on main in PR #300, still unreleased; an unrelated node remains readable and
 recovery requires the corresponding BIRTH messages. Reproduction/provenance:
 [`community/2026-11-16-entry-points.md`](community/2026-11-16-entry-points.md).
 
@@ -85,6 +85,15 @@ recovery requires the corresponding BIRTH messages. Reproduction/provenance:
 codec/cache evidence, not broker, device or TCK validation; no protocol rung is
 raised and no upstream defect is attributed to Tahu. Timestamp default behavior
 is already covered by upstream PRs #398/#472. No report was sent upstream.
+
+## Fledge notification function probe (2026-11-17)
+
+Pinned notification-service `e0e8437` reason enrichment was compiled locally with
+only a no-op logging sink. Five cases preserved supplied evaluation data and
+existing reason fields. Source caller inspection found enrichment before delivery
+queueing; the queue/plugin path itself was not executed. Full Fledge, release
+bundle, Docker and threshold/delivery integration remain untested. Report and raw
+result: [local probe](community/2026-11-17-fledge-notification.md).
 
 ## Base package (`iaiops`)
 

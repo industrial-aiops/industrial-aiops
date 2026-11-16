@@ -13,13 +13,20 @@ These are planned participation directions, not completed registrations or integ
 The worklist and the three prerequisite maintenance changes landed on main in
 [PR #299](https://github.com/industrial-aiops/industrial-aiops/pull/299); no new package release was made.
 
-### Community first experiment (2026-11-16; branch-only)
+### Community first experiment (2026-11-16; merged 2026-11-17)
 
 [Entry points and evidence](community/2026-11-16-entry-points.md). Offline payloads
 from a pinned external Tahu Python helper reproduced an iaiops child-device cache
-remaining readable after NDEATH. A regression and parent-death refusal fix are
-under review. Fledge, LF Energy and OPC UA candidates remain unimplemented;
+remaining readable after NDEATH. The regression and parent-death refusal fix landed
+on main in PR #300, not yet released. LF Energy and OPC UA runtime candidates remain pending;
 existing upstream issues/PRs are linked to avoid duplicate work.
+
+### Fledge notification probe (2026-11-17)
+
+[Source/function execution report](community/2026-11-17-fledge-notification.md).
+Five pinned upstream C++ enrichment cases preserve values under `reason.data`.
+Full notification-service/delivery-plugin execution and version comparison remain
+pending; do not call the issue an end-to-end reproduction or a Fledge integration.
 
 ## Source handoff — joint production/traffic demo (2026-11-13)
 
