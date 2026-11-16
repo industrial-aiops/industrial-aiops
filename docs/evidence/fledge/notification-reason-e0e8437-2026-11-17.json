@@ -1,0 +1,136 @@
+{
+  "source_commit": "e0e84373c5bbd2fab26c9a033c84c45812c1d260",
+  "source_path": "C/services/notification/notification_queue.cpp",
+  "source_sha256": "1f09f441a6a394c151f21bdf8430c11bd38a79cd6ac19c14b73964e14e7c41a8",
+  "function_sha256": "f600ce606e6c88ef1f93f76360ff669bf159054bff6d61eb23c0705ae72a98d5",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)",
+  "scope": "upstream C++ function; logger stub; no service/plugin/broker",
+  "cases_passed": 5,
+  "results": [
+    {
+      "case": "single-item",
+      "input_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z"
+      },
+      "evaluation_data": {
+        "sinusoid": {
+          "sinusoid": 87.3
+        },
+        "timestamp_sinusoid": 1794873600.0
+      },
+      "output_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z",
+        "data": {
+          "sinusoid": {
+            "sinusoid": 87.3
+          },
+          "timestamp_sinusoid": 1794873600.0
+        }
+      }
+    },
+    {
+      "case": "second-value",
+      "input_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z"
+      },
+      "evaluation_data": {
+        "sinusoid": {
+          "sinusoid": 91.7
+        }
+      },
+      "output_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z",
+        "data": {
+          "sinusoid": {
+            "sinusoid": 91.7
+          }
+        }
+      }
+    },
+    {
+      "case": "cleared",
+      "input_reason": {
+        "reason": "cleared",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z"
+      },
+      "evaluation_data": {
+        "sinusoid": {
+          "sinusoid": 50.0
+        }
+      },
+      "output_reason": {
+        "reason": "cleared",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z",
+        "data": {
+          "sinusoid": {
+            "sinusoid": 50.0
+          }
+        }
+      }
+    },
+    {
+      "case": "empty-data",
+      "input_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z"
+      },
+      "evaluation_data": {},
+      "output_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z",
+        "data": {}
+      }
+    },
+    {
+      "case": "escaped-text",
+      "input_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z"
+      },
+      "evaluation_data": {
+        "label": "quote \" and slash \\"
+      },
+      "output_reason": {
+        "reason": "triggered",
+        "asset": [
+          "sinusoid"
+        ],
+        "timestamp": "2026-11-17T00:00:00Z",
+        "data": {
+          "label": "quote \" and slash \\"
+        }
+      }
+    }
+  ]
+}
