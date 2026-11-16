@@ -13,6 +13,14 @@ These are planned participation directions, not completed registrations or integ
 The worklist and the three prerequisite maintenance changes landed on main in
 [PR #299](https://github.com/industrial-aiops/industrial-aiops/pull/299); no new package release was made.
 
+### Community first experiment (2026-11-16; branch-only)
+
+[Entry points and evidence](community/2026-11-16-entry-points.md). Offline payloads
+from a pinned external Tahu Python helper reproduced an iaiops child-device cache
+remaining readable after NDEATH. A regression and parent-death refusal fix are
+under review. Fledge, LF Energy and OPC UA candidates remain unimplemented;
+existing upstream issues/PRs are linked to avoid duplicate work.
+
 ## Source handoff — joint production/traffic demo (2026-11-13)
 
 Source handoff is now on main via PR #299, based on released 0.34.1.

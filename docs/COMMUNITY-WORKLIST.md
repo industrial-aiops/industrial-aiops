@@ -13,10 +13,18 @@ require pyOpenSSL >=26.4, and five local CA-chain/CRL checks are included. These
 changes are on main; they are not a new published package release. All six PR CI
 checks passed, including the Python 3.11/3.12 gates and Linux integration contracts.
 
-Next maintenance session: inspect current Sparkplug/Tahu reconnect and data-validity
-issues, choose one reproducible case and add an evidence row below. Keep Margo
+First research and experiment: [entry-point report](community/2026-11-16-entry-points.md).
+Next: review the branch-only parent-death fix and expand the independent lifecycle matrix. Keep Margo
 state-retention follow-up active. Vendor PKI, CRL provenance checks, IGEL/AGNES and
 physical-device validation remain open; community registrations remain planned.
+
+## First experiment — 2026-11-16
+
+Independent Tahu helper payloads reproduced an iaiops parent-node-death cache gap;
+regression and branch-only fix are prepared. No upstream defect is attributed to
+Tahu. Its default-timestamp behavior was also reproduced, but existing PRs #398/#472
+already cover it. Other projects have source-backed candidate tasks, not verified
+integrations. See the report for exact sources and evidence limits.
 
 ## Working routine
 
@@ -37,11 +45,11 @@ physical-device validation remain open; community registrations remain planned.
 | Community | Potential contribution / first investigation | Mutual value | Status |
 |---|---|---|---|
 | [Margo](https://github.com/margo/sandbox) | Follow sandbox #490/#491 and CTT #18/#19; reproduce upstream changes before revising our state-retention and conformance claims | Reliable stateful industrial workloads; reference deployment evidence | Existing participation; continue follow-up |
-| [Eclipse Sparkplug / Tahu](https://github.com/eclipse-tahu/tahu) | Independently produced BIRTH/DEATH, stale-value, reconnect and alias/sequence cases; compare with our tap/namespace audit and identify reproducible mismatches | Data trust and cross-implementation interoperability | Planned; first new community focus |
-| [LF Edge Fledge](https://lfedge.org/projects/fledge/) | Inspect existing north plugins/API and examples; prototype one read-only path into coverage/incident analysis before proposing another plugin | Give existing industrial data pipelines explainable coverage and incident evidence | Planned |
+| [Eclipse Sparkplug / Tahu](https://github.com/eclipse-tahu/tahu) | Independently produced BIRTH/DEATH, stale-value, reconnect and alias/sequence cases; compare with our tap/namespace audit and identify reproducible mismatches | Data trust and cross-implementation interoperability | Research and offline Tahu replay started; local fix under review |
+| [LF Edge Fledge](https://lfedge.org/projects/fledge/) | Inspect existing north plugins/API and examples; prototype one read-only path into coverage/incident analysis before proposing another plugin | Give existing industrial data pipelines explainable coverage and incident evidence | Research complete; runtime experiment pending |
 | [LF Energy](https://lfenergy.org/projects/) — FledgePOWER | Inspect current project status and contribution process; seek a simulator-based IEC-104/DNP3/IEC-61850 observation case using iaiops-energy | Reproducible protocol-health evidence for energy gateways | Planned; coordinate with energy repository |
 | [LF Energy SEAPATH](https://lfenergy.org/projects/seapath/) | Check workload deployment/observability examples; assess a non-critical read-only collector scenario, with no protection/control claims | Understand operations evidence for virtualized substation workloads | Planned; hardware/partner evidence pending |
-| [OPC Foundation open-source ecosystem](https://opcfoundation.org/cloud/) | Start with UA Cloud Library/information-model examples and certificate troubleshooting; keep suggested point semantics separate from operator confirmation | Better model interpretation, diagnostics and reproducible interop reports | Planned |
+| [OPC Foundation open-source ecosystem](https://opcfoundation.org/cloud/) | Start with UA Cloud Library/information-model examples and certificate troubleshooting; keep suggested point semantics separate from operator confirmation | Better model interpretation, diagnostics and reproducible interop reports | Research complete; runtime experiment pending |
 
 Priority: deepen Margo; start Sparkplug, then Fledge. Explore energy projects
 when a concrete lab case or partner appears; keep OPC UA work narrowly scoped.
@@ -52,6 +60,10 @@ This ordering is a working preference, not a promise of acceptance by any commun
 | Date | Community / source | Observation | Evidence and limits | Next step |
 |---|---|---|---|---|
 | 2026-11-16 | OPC UA / local asyncua source | Existing vendor trust tests lack CA-chain/CRL scenarios | Added local strict-validator tests; independent vendor PKI and robust CRL provenance checks remain separate | Review reproducible gaps before preparing an upstream report |
+
+| 2026-11-16 | Sparkplug / Tahu pinned Python helper | Parent NDEATH did not invalidate iaiops device-cache reads | Reproduced with external-generated payloads; local regression and fix, offline only | Review fix and extend lifecycle matrix; no upstream claim |
+| 2026-11-16 | Tahu timestamp defaults | Reproduced equal default timestamps across two calls | Existing PRs #398/#472 found | Follow existing work; do not duplicate |
+| 2026-11-16 | Fledge / LF Energy / OPC UA | Reviewed current source/docs/issues; candidate tasks recorded | No runtimes or public uploads executed | Proceed with one local bounded fixture per candidate |
 
 Use a new row for each verified finding. Leave an unsuccessful experiment visible;
 do not turn lack of data into evidence that a device or project is healthy.

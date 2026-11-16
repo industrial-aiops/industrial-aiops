@@ -1,0 +1,34 @@
+{
+  "upstream_commit": "c19db8c926dcc8c1f28ad604a13d73d95f281323",
+  "source_sha256": {
+    "sparkplug_b.py": "967ad3df3a0d050168cc2e68003f6d15e545973df1392b4fb00cdb55f5ebc112",
+    "sparkplug_b_pb2.py": "8297b74e5499befc42469c21714a9bb61e05e75e042e43589f1e4514bb4f2e41",
+    "array_packer.py": "230a20e1d57ddac37ae87446c140d32b6975a671745b64eef1a94871fef48738"
+  },
+  "transport": "offline Tahu payloads; no broker/device/TCK",
+  "before_node_death": 1,
+  "after_node_death": 1,
+  "device_read_refused": false,
+  "default_metric_timestamps": [
+    1794840139086,
+    1794840139086
+  ],
+  "defaults_are_equal": true,
+  "frames": [
+    {
+      "topic": "spBv1.0/lab/NBIRTH/node",
+      "file": "00.bin",
+      "sha256": "a01e2654aaab13391c1af1083a9c3bb1a9c610a4400092dcd63984d4c2d6b6db"
+    },
+    {
+      "topic": "spBv1.0/lab/DBIRTH/node/device",
+      "file": "01.bin",
+      "sha256": "dfd20e1301b84363fafde55e3baea0fe731d4cb24756d6a2925f4729670747b5"
+    },
+    {
+      "topic": "spBv1.0/lab/NDEATH/node",
+      "file": "02.bin",
+      "sha256": "5a5d634318698c01bdac7bfbfc34a52e312da387aacaa33fe4034f89daa7eec8"
+    }
+  ]
+}

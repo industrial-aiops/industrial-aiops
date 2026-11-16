@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refuse cached Sparkplug device readings after their parent node NDEATH; add
+  an offline external-Tahu payload regression and community exploration evidence.
+
 - Align the `all` extra with the OPC UA pyOpenSSL compatibility floor (26.4).
 - Update the source-only IGEL joint demo baseline to 0.34.1; retain dated 0.33.0
   verification records. This does not establish IGEL runtime validation.
