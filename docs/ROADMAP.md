@@ -10,11 +10,14 @@ Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md). Continue Margo
 explore Sparkplug/Tahu, Fledge, LF Energy FledgePOWER/SEAPATH and OPC Foundation
 open-source projects through reproducible issues and small useful contributions.
 These are planned participation directions, not completed registrations or integrations.
+The worklist and the three prerequisite maintenance changes landed on main in
+[PR #299](https://github.com/industrial-aiops/industrial-aiops/pull/299); no new package release was made.
 
 ## Source handoff — joint production/traffic demo (2026-11-13)
 
-Source handoff (branch name retained for existing links), now rebased by merge
-onto released 0.34.1; not a new published package/container feature:
+Source handoff is now on main via PR #299, based on released 0.34.1.
+The delivery branch is retained for existing links; this is not a new published
+package/container feature:
 `demo/joint-traffic/` provides a split-host synthetic Modbus fixture, read-only
 TCP relay, existing governed CLI collection and a shared evidence timeline.
 An application connection cutoff is contrasted with an observed production stop.

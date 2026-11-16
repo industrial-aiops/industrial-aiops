@@ -62,8 +62,13 @@ truth stays separate from collector observations and imported monitor events.
 
 ## 1. Get the source
 
+The source handoff is included on `main` through PR #299. The existing
+`delivery/igel-evaluation-033` link is retained and synchronized for earlier
+recipients. This remains a source update against the 0.34.1 release baseline.
+
+
 ```bash
-git clone --depth 1 --branch delivery/igel-evaluation-033 \
+git clone --depth 1 --branch main \
   https://github.com/industrial-aiops/industrial-aiops.git
 cd industrial-aiops
 ```

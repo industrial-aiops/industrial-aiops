@@ -94,3 +94,12 @@ Validation of the updated source on macOS / Python 3.13.12:
 
 Linux/IGEL, AGNES and independent-vendor CA/CRL verification remain untested by
 this source update. Historical 0.33.0 results above were not relabelled.
+
+
+## Main-branch review — 2026-11-16
+
+PR #299 was reviewed and merged at `afc18b07b7448e9ee72bf02797c0981557967427`.
+All six PR checks passed: Python 3.11 and 3.12 quality gates, dependency audit/SBOM,
+Margo schema, container readiness and Linux integration contracts. Linux CI is
+software/reference evidence, not IGEL guest, AGNES or physical-equipment testing.
+The package version remains 0.34.1; additions stay Unreleased in CHANGELOG.

@@ -5,6 +5,19 @@ create a scheduled automation. All external participation below is **planned**,
 except the Margo evidence already recorded in this repository. No paid membership,
 registration, outreach or upstream submission is implied by this list.
 
+## Maintenance completed on main — 2026-11-16
+
+[PR #299](https://github.com/industrial-aiops/industrial-aiops/pull/299) is merged.
+The IGEL source demo now uses the 0.34.1 baseline, both OPC UA installation extras
+require pyOpenSSL >=26.4, and five local CA-chain/CRL checks are included. These
+changes are on main; they are not a new published package release. All six PR CI
+checks passed, including the Python 3.11/3.12 gates and Linux integration contracts.
+
+Next maintenance session: inspect current Sparkplug/Tahu reconnect and data-validity
+issues, choose one reproducible case and add an evidence row below. Keep Margo
+state-retention follow-up active. Vendor PKI, CRL provenance checks, IGEL/AGNES and
+physical-device validation remain open; community registrations remain planned.
+
 ## Working routine
 
 - Pick one small item per maintenance session, after immediate product defects.
