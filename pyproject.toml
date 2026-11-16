@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "iaiops"
-version = "0.33.0"
+version = "0.34.1"
 description = "Governed, vendor-neutral OT data tap + intelligent troubleshooting for AI agents — 15 field protocols (OPC-UA, Modbus TCP/RTU, S7comm, Mitsubishi MC, Omron FINS, MTConnect, MQTT/Sparkplug, EtherNet/IP, EtherCAT, SECS/GEM, PROFINET, BACnet, HART-IP, IO-Link, serial ASCII) with a built-in governance harness (audit, budget, risk tiers, MOC), an AI downtime root-cause copilot, plus OEE, downtime, and asset-inventory analytics. Energy protocols (IEC-104 / DNP3 / IEC-61850) ship separately as iaiops-energy."
 readme = "README.md"
 license = "MIT"
@@ -98,12 +98,14 @@ ollama = ["requests>=2.31,<3"]        # on-box local LLM (air-gapped RCA narrati
 # Queryability layer: Parquet export from the local SQLite sink (CSV/SQLite are
 # stdlib-only; only `iaiops export parquet` / export_data(fmt="parquet") need this).
 export = ["pyarrow>=23.0.1,<24"]
+# Edge-process health counters only; no OT tag values or audit row content.
+telemetry = ["opentelemetry-sdk>=1.45,<1.46", "opentelemetry-exporter-otlp-proto-http>=1.45,<1.46"]
 # Convenience: install every pip-installable connector (full installs + the test
 # matrix). The energy edition (IEC-104 / DNP3 / IEC-61850) ships separately as
 # `iaiops-energy`, so its extras are not part of this package's `all`.
 all = [
     "asyncua>=2.0,<3",
-    "pyopenssl>=25",  # resolver guard — see the `opcua` extra above
+    "pyopenssl>=26.4",  # resolver guard — see the `opcua` extra above
     "pymodbus>=3.5,<4",
     "pyserial>=3.5",
     "pyS7>=2.8,<3",

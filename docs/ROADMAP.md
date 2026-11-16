@@ -4,9 +4,17 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## Community participation and maintenance (2026-11-16)
+
+Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md). Continue Margo;
+explore Sparkplug/Tahu, Fledge, LF Energy FledgePOWER/SEAPATH and OPC Foundation
+open-source projects through reproducible issues and small useful contributions.
+These are planned participation directions, not completed registrations or integrations.
+
 ## Source handoff — joint production/traffic demo (2026-11-13)
 
-On `delivery/igel-evaluation-033` only, not a published package/container feature:
+Source handoff (branch name retained for existing links), now rebased by merge
+onto released 0.34.1; not a new published package/container feature:
 `demo/joint-traffic/` provides a split-host synthetic Modbus fixture, read-only
 TCP relay, existing governed CLI collection and a shared evidence timeline.
 An application connection cutoff is contrasted with an observed production stop.
@@ -40,7 +48,7 @@ field engineers before building beyond the minimal versions.
   **Minimal version shipped in 0.32.0**: `iaiops program xref-config` / MCP
   `plc_program_xref_config` — AWL/.scl × s7 and L5X × Logix only; every other pair
   is reported as not comparable, with no lists.
-  **Follow-up merged to `main` in #282 (unreleased):** Logix live reads compare
+  **Follow-up shipped in 0.33.0 (#282):** Logix live reads compare
   the L5X controller name with the online name (not a unique device ID); S7
   AWL/SCL has no CPU identity, so an operator must attest export origin through
   the CLI before live reads.
@@ -884,7 +892,12 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
 ## Ecosystem / edge packaging (Margo)
 > Positioning + gap in `docs/MARGO-ALIGNMENT.md`. iaiops is a natural **Margo edge application**
 > (governed, neutral, air-gap friendly). **NOT Margo-compliant yet** — packaging is delivered and
-> the official Application Supplier CTT passed on Ubuntu 24.04; WFM/device deployment remains `待核实`.
+> the official Application Supplier CTT passed on Ubuntu 24.04 for 0.33.0; the
+> 0.34.0 run reported one disputed failure. The released 0.34.0 package deployed
+> through the official sandbox WFM and Compose device, with OTLP receipt; safe
+> in-place update is not supported by the current sandbox and is not a gate for
+> its supported fresh-deploy/delete lifecycle. Commercial WFM and immutable-host
+> validation remain `待核实`.
 > See `docs/MARGO-CTT-VALIDATION.md`. Contributor-first (free); paid
 > membership only on customer pull.
 - ✅ **Container (OCI) image per edition profile** (2026-07-15) — reproducible, headless MCP
@@ -893,14 +906,19 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   them** (public key `deploy/margo/cosign.pub`), and pushes
   `ghcr.io/industrial-aiops/iaiops:<version>-<profile>`. The tag→PyPI race that silently broke the
   v0.12–v0.14 image builds is fixed (CI now waits for the wheel to land on PyPI).
-- ✅ **Margo application description — hosted + signed + CI-linted** (2026-07-15; rc.3 migration
+- ◐ **Margo application description — hosted + signed + CI-linted** (2026-07-15; rc.3 migration
   2026-10-16) — `deploy/margo/margo.yaml` validates against the Margo `v1.0.0-rc.3` schema. CI
   publishes the Application Package (`ghcr.io/industrial-aiops/iaiops-margo:<version>`) and its
   Compose component (`ghcr.io/industrial-aiops/iaiops-compose:<version>`) as signed OCI artifacts.
+  The published 0.33.0 component's direct-YAML OCI layer **does not meet** the rc.3 Compose
+  Archive format, despite the CTT pass. The published 0.34.0 component corrects the archive
+  format; its signed registry manifest is verified and the official sandbox Compose device
+  fetched the component by OCI repository/revision during a successful deployment.
   A signed release tarball is a mirror. `tests/test_margo_package.py` lints descriptor ↔ profile
   menu ↔ pip extras ↔ build matrix ↔ version pins. Secret-reference semantics remain open in
-  margo/specification#145; the official CTT passed on Ubuntu 24.04, while WFM/device deployment
-  remains `待核实`.
+  margo/specification#145; the 0.33.0 CTT passed on Ubuntu 24.04. The 0.34.0 sandbox WFM/device
+  deploy, MCP authentication and local OTLP receipt are recorded in
+  [the lifecycle trial](evidence/margo/sandbox-wfm-compose-v0.34.0-2026-11-10.md).
 - ✅ **On-box LLM brain option — documented + deployable** (2026-07-15) — `docs/AIRGAP.md` (three
   tiers: deterministic diagnosis needs no LLM at all; `rca_narrate` → on-box Ollama for narration;
   fully local MCP copilot as a documented pattern) + `deploy/airgap/compose.yaml` (signed iaiops
@@ -909,9 +927,46 @@ over this window, with who confirmed what, signed" — is `iaiops-enterprise` E8
   real edge hardware, and any verified local-copilot client/model pairing.
 - ◐ **Margo conformance run** — the official Application Supplier CTT runner passed against the
   released v0.32.0 OCI package on Ubuntu 24.04 (67 checks: 61 passed, 0 failed, 0 warnings,
-  1 not run, 4 not applicable, 1 info; report in `docs/MARGO-CTT-VALIDATION.md`). Verify
-  deployment and runtime observability on a real WFM/device next. A structural pass alone is
-  not a *Margo-compliant* claim.
+  1 not run, 4 not applicable, 1 info). The released v0.33.0 OCI package passed the same counts
+  on Open-test Ubuntu 24.04.4, after a matching macOS preflight. The published v0.34.0 package
+  reported **FAILED** (79 checks: 73 passed, 1 failed): CTT treats a Compose exporter default
+  expression as a literal non-OTLP exporter, though Docker Compose renders it to `none`.
+  This is tracked in [upstream #19](https://github.com/margo/conformance_test_toolkit/issues/19). Reports and limits are in
+  `docs/MARGO-CTT-VALIDATION.md`. A structural pass alone is not a *Margo-compliant* claim.
+- ◐ **Optional local OTLP health metrics (released in 0.34.0)** — export only process uptime
+  and audit counts, off by default and blocked by `IAIOPS_NO_EGRESS=1`; the published wheel's
+  Ubuntu loopback receiver test passed (11 tests), including no audit-secret export.
+  The published container also exported the four metrics to a receiver on Open-test's private
+  Docker bridge; [raw protobuf evidence](evidence/margo/otlp-metrics-v0.34.0-2026-11-09.pb)
+  and a [trial record](evidence/margo/compose-host-v0.34.0-2026-11-09.md) are retained.
+  Current CTT statically checks Compose OTEL variables; its runtime row remains `NOT RUN` even
+  after declaration. The WFM-deployed 0.34.0 container subsequently exported the four declared
+  metrics to a standalone official OpenTelemetry Collector on the sandbox device; the optional
+  sandbox observability stack was not installed.
+- ◐ **Official sandbox WFM/Compose-device lifecycle** — [`MARGO-SANDBOX-RUNBOOK.md`](MARGO-SANDBOX-RUNBOOK.md)
+  guided the lab run on `test-llm` (Symphony/MIS/Harbor) and `Open-test` (Compose device).
+  The released 0.34.0 Application Package was imported into WFM; its signed OCI component was
+  fetched by the device; both default and OTLP-enabled instances reached `INSTALLED` with healthy
+  containers, authenticated MCP access, Collector receipt, and verified deletion. See
+  [the exact trial record](evidence/margo/sandbox-wfm-compose-v0.34.0-2026-11-10.md).
+  **In-place update is still `待核实`:** reapplying the same name created a second deployment,
+  and deleting the first removed its named state volume. The sandbox client also calls
+  `docker compose down --volumes` during update; see
+  [sandbox #490](https://github.com/margo/sandbox/issues/490). The sandbox CLI falsely printed
+  success for a rejected parameter override ([sandbox #491](https://github.com/margo/sandbox/issues/491)),
+  so WFM/device state was checked directly.
+  Commercial WFM, immutable-host and OT-hardware validation remain separate.
+- ◐ **Compose Archive release correction** — 0.34.0 publishes the deterministic single-layer
+  `.tar.gz` archive with rc.3 media types and required annotations. The published digest and
+  signature are verified. Open-test manually pulled and extracted the published archive with
+  ORAS 1.3.0; the sandbox device agent later fetched it by OCI repository/revision and deployed
+  it. The CTT does not check this format.
+- ✅ **Report the CTT blind spot** — [margo/conformance_test_toolkit#18](https://github.com/margo/conformance_test_toolkit/issues/18)
+  documents the published 0.33.0 false positive and asks for component manifest/archive checks.
+- ✅ **Margo SUP feedback (2026-11-09)** — contributed the RS-485 serial-port conflict and
+  reservation use case to [#66](https://github.com/margo/specification-enhancements/pull/66#issuecomment-6730346103),
+  and asked [#103](https://github.com/margo/specification-enhancements/pull/103#issuecomment-6730348290)
+  to specify audit-volume retention and a bounded readiness wait for Compose updates.
 - ⏳ **Immutable-host validation** — live deploy on a candidate immutable edge OS (IGEL OS or
   equivalent), captured as a `待核实 → verified` row like every hardware pass.
 

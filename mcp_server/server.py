@@ -169,6 +169,12 @@ def main() -> None:
         " + cross-protocol brain" if include_brain else " (brain disabled)",
         tool_count,
     )
+    from mcp_server.telemetry import start_health_metrics
     from mcp_server.transport import run_server
 
-    run_server(mcp)  # stdio by default; IAIOPS_MCP_TRANSPORT=sse|streamable-http to front it
+    health_metrics = start_health_metrics()
+    try:
+        run_server(mcp)  # stdio by default; IAIOPS_MCP_TRANSPORT=sse|streamable-http
+    finally:
+        if health_metrics is not None:
+            health_metrics.shutdown()

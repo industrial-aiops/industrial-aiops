@@ -20,15 +20,29 @@ Prefer a container? The published image is **cosign-signed** and runs **non-root
 over stdio, so keep stdin open and mount a volume for the audit store:
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.33.0-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.34.1-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.33.0-factory
+  ghcr.io/industrial-aiops/iaiops:0.34.1-factory
 ```
 
 For a hardened or air-gapped deployment (read-only rootfs, `cap_drop: ALL`, no-new-privileges,
 optional on-box LLM) use [`deploy/margo/compose.yaml`](deploy/margo/compose.yaml) and
 [`deploy/airgap/`](deploy/airgap/). The analysis engine needs **no GPU and no model API** — it is
 deterministic; an LLM is optional and only *phrases* the verdict.
+
+## MCP directory overview
+
+Industrial-AIOps connects AI agents and command-line workflows to industrial data.
+Use it to inventory configured assets, collect bounded samples, inspect alarms and
+data quality, calculate OEE from declared tag semantics, and investigate downtime
+with evidence from collected history. Protocol support includes OPC UA, Modbus,
+Siemens S7, MQTT/Sparkplug B and BACnet; coverage and verification vary by connector.
+
+MCP and CLI share the same governance and audit engine. Analysis is deterministic;
+a language model is optional. Select an explicit MCP profile such as `factory` or
+`building`; the base server does not start without a selection. Device writes,
+where supported, have additional safeguards. No tool deploys PLC logic.
+See [Glama setup and listing text](docs/GLAMA.md) for container and directory settings.
 
 ## What you get
 
@@ -37,7 +51,7 @@ deterministic; an LLM is optional and only *phrases* the verdict.
 | **Reads** | OPC-UA (+ Historical Access, tag auto-discovery) · Modbus TCP/RTU · S7comm · Mitsubishi MC · Omron FINS · MTConnect · MQTT/Sparkplug B · EtherNet/IP · EtherCAT · PROFINET · SECS/GEM · HART-IP · BACnet/IP · IO-Link · serial ASCII instruments (RS-232/485, serial device servers) — plus read-only REST layers for BAS supervisors (Metasys / Niagara) and Ignition Gateway |
 | **Figures out** | downtime root cause (the flagship copilot), alarm floods (ISA-18.2), broken dataflows, data trustworthiness, OEE, asset inventory, legacy PLC program explainer (ST/AWL/L5X) |
 | **Governs** | audit · budget · risk-tier · undo — on *every* call, through one engine, from both MCP and CLI |
-| **Stays yours** | no telemetry, no phone-home. Six tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all six for an air-gapped posture |
+| **Stays yours** | no telemetry or phone-home by default. Six tools *can* send data off-box by design (`stream_publish`, `stream_publish_event`, `uns_publish`, `historian_push`, `mqtt_publish`, `rca_narrate`) — `IAIOPS_NO_EGRESS=1` withholds all six for an air-gapped posture. Since 0.34.0, an opt-in Margo option exports only process health and audit counts to an explicitly configured local/private OTLP collector; it is also blocked by `IAIOPS_NO_EGRESS=1`. |
 
 Eleven editions ship in this package — ten per industry (fab · factory · process · building · water ·
 warehouse · clinical · pharma · renewables · plcnext), each adding its own read-only advisory checks,
@@ -513,6 +527,8 @@ application** — read-first tap + cross-protocol RCA, exposed as governed MCP t
 > **Honest status:** iaiops is a natural Margo edge application but is **NOT Margo-compliant yet**.
 > Signed OCI images and an rc.3 Application Package are published. The released OCI package
 > passed the official Application Supplier CTT runner on Ubuntu 24.04;
+> independent review found the published 0.33.0 Compose component has the wrong OCI archive
+> format, which the CTT did not test. The 0.34.0 source corrects the publishing format;
 > deployment through a real WFM/device remains `待核实` (see [the validation record](docs/MARGO-CTT-VALIDATION.md)).
 
 A container + application-description package lives in **[`deploy/margo/`](deploy/margo/)**

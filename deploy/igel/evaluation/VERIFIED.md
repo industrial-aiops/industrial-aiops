@@ -71,3 +71,26 @@ application TCP connections; no firewall DROP or real packet-loss test was run.
 The GitHub clone/pull path, Linux/Ubuntu/IGEL deployment and a real two-host
 monitoring path were not exercised in this fresh walkthrough. Existing socket
 and CSV-import test evidence above remains applicable; only documentation changed.
+
+## Updated source baseline — 2026-11-16
+
+The current handoff merges released 0.34.1 (`d7f98c8`) while retaining the branch
+name for existing setup links. Earlier 0.33.0 measurements above remain historical.
+The `opcua` and `all` extras now both require pyOpenSSL >=26.4; the built wheel
+metadata was checked for both constraints. Local CA-chain/CRL checks are recorded
+in `tests/test_opcua_pki_live.py` and the repository verification record. Those
+checks do not establish independent-vendor PKI, hardware or IGEL compatibility.
+
+
+Validation of the updated source on macOS / Python 3.13.12:
+
+- `uv sync --extra opcua --extra modbus --extra telemetry` and wheel build passed.
+- 66 applicable tests passed, including five actual encrypted PKI cases and the
+  joint-demo/security/profile/packaging tests. Three upstream deprecation warnings.
+- Default joint-demo launcher exited 0: 1071 samples,
+  1 blind interval(s), 13.6s observed stopped and
+  18.3s unobserved. Synthetic software data only.
+- Ruff check/format, shell syntax and Bandit Medium+ gate passed.
+
+Linux/IGEL, AGNES and independent-vendor CA/CRL verification remain untested by
+this source update. Historical 0.33.0 results above were not relabelled.

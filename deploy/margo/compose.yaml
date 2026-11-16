@@ -53,6 +53,10 @@ services:
       # Unlocks the encrypted secret store non-interactively. Inject via your host's secret manager
       # (Margo device secret facility) — do NOT hardcode. Left unset here on purpose.
       IAIOPS_MASTER_PASSWORD: "${IAIOPS_MASTER_PASSWORD:?set in the host secret store}"
+      # Optional process-health/audit-count OTLP metrics; disabled by default.
+      OTEL_METRICS_EXPORTER: ${OTEL_METRICS_EXPORTER:-none}
+      OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:-http://127.0.0.1:4318/v1/metrics}
     volumes:
       # Config + encrypted secrets + audit/undo store. Populate once with `iaiops init` (below).
       - iaiops-state:/home/iaiops/.iaiops

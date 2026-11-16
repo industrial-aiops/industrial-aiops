@@ -2,15 +2,34 @@
 
 ## Unreleased
 
-### Source-only integration evaluation demo
+- Align the `all` extra with the OPC UA pyOpenSSL compatibility floor (26.4).
+- Update the source-only IGEL joint demo baseline to 0.34.1; retain dated 0.33.0
+  verification records. This does not establish IGEL runtime validation.
+- Add local CA-chain/CRL OPC UA validation evidence and a community worklist.
 
-- Add a split-host Modbus fixture, read-only TCP relay, governed CLI collection
-  and common evidence timeline under `demo/joint-traffic/`. Contrast a production
-  stop with an application connection cut while synthetic production continues.
-- Accept explicitly supplied monitor CSV events without inventing monitor
-  observations, clock synchronization, root causes or IGEL compatibility.
-- Update the source handoff launcher/guide; package and published container
-  versions remain 0.33.0. This demo is not in the published artifact.
+## 0.34.1 — 2026-11-14
+
+- Clarify MCP directory descriptions, explicit profile/stdio startup, writable
+  audit state and Glama claim/build settings; include maintainer `zw008`.
+- Reconcile released 0.33/0.34 capabilities with the roadmap and README.
+  Margo sandbox evidence covers fresh deployment and deletion; in-place
+  updates remain unsupported by that reference environment.
+- Refresh package, registry and edge image pins. Runtime behavior and governed
+  tool count are unchanged; scan-evidence Draft PRs are not included.
+
+## 0.34.0 — 2026-11-09
+
+### Margo edge health telemetry and rc.3 Compose Archive
+
+- Add opt-in OTLP/HTTP metrics for process uptime and audit event/error/availability counts.
+  Export is off by default, blocked by `IAIOPS_NO_EGRESS=1`, and restricted to loopback or
+  private-IP collectors. No OT tag values, endpoint names, secrets, or audit rows are sent.
+- Wire the exporter choice and endpoint through the rc.3 application parameters and Compose
+  environment. The current CTT runtime-export row remains `NOT RUN` by design; receiving
+  metrics must be verified separately on a running workload.
+- Correct the **next-release** Compose OCI component to the rc.3 single-layer `.tar.gz` archive
+  and required media types/annotations. The published 0.33.0 component used a direct YAML layer;
+  the Application Supplier CTT did not detect that format mismatch.
 
 ## 0.33.0 — 2026-11-09
 

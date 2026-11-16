@@ -228,10 +228,10 @@ jobs:
   # metadata.version. The descriptor's component then points at its deployable
   # by `repository: oci://…` + `revision`.
   #
-  # The compose component's OCI format is NOT specified by Margo (custom/compose
-  # packaging is left to supplier and WFM to agree — 待核实 against a real WFM); it
-  # is pushed the way `docker compose publish` does, so a Compose-capable device
-  # can pull it without an iaiops-specific tool. Both artifacts are cosign-signed
+  # Margo rc.3 specifies a single-layer Compose Archive: one top-level directory
+  # containing compose.yaml, with exact artifact/layer media types and layer
+  # annotations. `docker compose publish` produces a different OCI format and is
+  # explicitly excluded by the specification. Both artifacts are cosign-signed
   # by digest with the same key as the images (deploy/margo/cosign.pub).
   margo-oci:
     needs: [wait-for-pypi, build]
@@ -248,17 +248,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: echo "$GH_TOKEN" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      # Pushed from inside the directory so the layer titles are bare file names
-      # (`compose.yaml`, `margo.yaml`), not CI paths.
-      - name: Push the compose component (oci://ghcr.io/industrial-aiops/iaiops-compose)
+      # Pushed from inside the directory so the layer titles are bare file names.
+      - name: Push the Compose Archive component (oci://ghcr.io/industrial-aiops/iaiops-compose)
         run: |
           v="${{ needs.wait-for-pypi.outputs.version }}"
           work="$(mktemp -d)"
-          cp deploy/margo/package.compose.yaml "${work}/compose.yaml"
+          python scripts/margo_compose_archive.py "${v}" \
+            "${work}/iaiops-compose-${v}.tar.gz" "${work}/compose-annotations.json"
           cd "${work}"
           oras push "ghcr.io/industrial-aiops/iaiops-compose:${v}" \
-            --artifact-type application/vnd.docker.compose.project \
-            compose.yaml:application/vnd.docker.compose.file+yaml
+            --artifact-type application/vnd.org.margo.component.compose+json \
+            --annotation-file compose-annotations.json \
+            "iaiops-compose-${v}.tar.gz:application/vnd.org.margo.component.compose.tar+gzip"
+          oras manifest fetch "ghcr.io/industrial-aiops/iaiops-compose:${v}" | jq -e --arg v "${v}" '
+            .artifactType == "application/vnd.org.margo.component.compose+json"
+            and (.layers | length) == 1
+            and .layers[0].mediaType == "application/vnd.org.margo.component.compose.tar+gzip"
+            and .layers[0].annotations["org.margo.component.type"] == "compose"
+            and .layers[0].annotations["org.margo.component.version"] == $v
+          '
           digest=$(oras resolve "ghcr.io/industrial-aiops/iaiops-compose:${v}")
           echo "ghcr.io/industrial-aiops/iaiops-compose@${digest}" > "${GITHUB_WORKSPACE}/compose.ref"
           echo "pushed $(cat "${GITHUB_WORKSPACE}/compose.ref")"

@@ -17,7 +17,11 @@ truth so a release bump or a profile-menu change cannot silently drift:
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
+import sys
+import tarfile
 import tomllib
 from pathlib import Path
 from typing import Any
@@ -132,3 +136,33 @@ class TestPackagedCompose:
         }
         missing = pointers - set(environment)
         assert not missing, f"descriptor parameters not wired in package compose env: {missing}"
+
+
+def test_rc3_compose_archive_and_publish_contract(tmp_path: Path) -> None:
+    """The device gets one tar.gz layer, not a docker-compose-publish YAML layer."""
+    archive = tmp_path / "iaiops-compose.tar.gz"
+    annotations = tmp_path / "annotations.json"
+    command = [
+        sys.executable,
+        str(REPO / "scripts" / "margo_compose_archive.py"),
+        _project_version(),
+        str(archive),
+        str(annotations),
+    ]
+    subprocess.run(command, check=True, cwd=REPO)
+    first = archive.read_bytes()
+    subprocess.run(command, check=True, cwd=REPO)
+    assert archive.read_bytes() == first, "archive must be reproducible"
+    with tarfile.open(archive, "r:gz") as package:
+        assert package.getnames() == ["iaiops", "iaiops/compose.yaml"]
+        member = package.extractfile("iaiops/compose.yaml")
+        assert member is not None
+        assert member.read() == (MARGO_DIR / "package.compose.yaml").read_bytes()
+    layer = json.loads(annotations.read_text(encoding="utf-8"))[archive.name]
+    assert layer["org.margo.component.type"] == "compose"
+    assert layer["org.margo.component.version"] == _project_version()
+    workflow = (REPO / ".github/workflows/publish-image.yml").read_text(encoding="utf-8")
+    assert "application/vnd.org.margo.component.compose+json" in workflow
+    assert "application/vnd.org.margo.component.compose.tar+gzip" in workflow
+    assert "--annotation-file compose-annotations.json" in workflow
+    assert "--artifact-type application/vnd.docker.compose.project" not in workflow

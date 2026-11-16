@@ -9,7 +9,7 @@
 # sync with pyproject.toml by tests/test_margo_package.py.
 services:
   iaiops:
-    image: ghcr.io/industrial-aiops/iaiops:0.33.0-${IAIOPS_MCP:-factory}
+    image: ghcr.io/industrial-aiops/iaiops:0.34.1-${IAIOPS_MCP:-factory}
     # Least-privilege posture a Margo device/host would give an OT workload (same as compose.yaml):
     # non-root, read-only rootfs, no capabilities, one token-authenticated MCP port (optional IP allowlist), no OT inbound.
     read_only: true
@@ -44,6 +44,10 @@ services:
       # Secret REFERENCE model (margo/specification#145): the value never travels in the package —
       # inject from the device secret facility at deploy time.
       IAIOPS_MASTER_PASSWORD: ${IAIOPS_MASTER_PASSWORD:?set in the host secret store}
+      # Optional process-health/audit-count OTLP metrics; no OT tag values. Defaults off.
+      OTEL_METRICS_EXPORTER: ${OTEL_METRICS_EXPORTER:-none}
+      OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: http/protobuf
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:-http://127.0.0.1:4318/v1/metrics}
     volumes:
       - iaiops-state:/home/iaiops/.iaiops
     restart: unless-stopped

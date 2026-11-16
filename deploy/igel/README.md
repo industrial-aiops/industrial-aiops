@@ -49,8 +49,8 @@ and it sidesteps the debian/ubuntu-only dependency constraint** (deps live insid
 
 ```bash
 # 1. Pull the PUBLISHED, cosign-signed neutral image (no local build needed) + verify it
-podman pull ghcr.io/industrial-aiops/iaiops:0.33.0-factory
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.33.0-factory
+podman pull ghcr.io/industrial-aiops/iaiops:0.34.1-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.34.1-factory
 # 2. In IGEL: connect the OCI registry + deploy the container via UMS / App Portal (not yet verified: exact
 #    Managed-Container config surface — the feature is evolving; confirm against current IGEL docs).
 ```
@@ -73,7 +73,7 @@ runs the neutral image via the container runtime.
 
 | Path | Purpose |
 |------|---------|
-| `app.json` | App metadata — `version` (SemVer 0.33.0), `public_version` absent (submission rule), `rw_partition`, `prefer_btrfs`. |
+| `app.json` | App metadata — `version` (SemVer 0.34.1), `public_version` absent (submission rule), `rw_partition`, `prefer_btrfs`. |
 | `igel/thirdparty.json` | Binaries the app uses (container runtime). Submission requirement. |
 | `igel/install.sh` | Enables the systemd service (`enable_system_service iaiops.service`). |
 | `input/all/etc/systemd/system/iaiops.service` | systemd unit that runs the neutral image via the container runtime. `not yet verified`: run mode for an MCP stdio workload. |

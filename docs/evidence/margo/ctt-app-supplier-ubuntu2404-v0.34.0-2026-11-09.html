@@ -1,0 +1,2120 @@
+
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<title>Application Supplier Conformance Test Report</title>
+
+<style>
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f5f5f5;
+}
+
+.header {
+    background: #333;
+    color: white;
+    padding: 30px;
+}
+
+.header h1 {
+    margin: 0 0 30px 0;
+    font-size: 42px;
+    font-weight: bold;
+}
+
+.header p {
+    font-size: 18px;
+    margin: 10px 0;
+}
+
+.summary {
+    padding: 20px;
+    background: white;
+}
+
+.summary h2 {
+    margin-top: 0;
+}
+
+.pass {
+    color: green;
+    font-weight: bold;
+}
+
+.fail {
+    color: red;
+    font-weight: bold;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+th,
+td {
+    border: 1px solid #ddd;
+    padding: 12px;
+    vertical-align: middle;
+}
+
+th {
+    background: #f2f2f2;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: left;
+}
+
+.status-cell {
+    text-align: center;
+    min-width: 90px;
+}
+
+.pass-icon {
+    color: green;
+    font-size: 26px;
+    line-height: 1;
+}
+
+.pass-text {
+    color: green;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.fail-icon {
+    color: red;
+    font-size: 26px;
+    line-height: 1;
+}
+
+.fail-text {
+    color: red;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.warn {
+    color: #b36b00;
+    font-weight: bold;
+}
+
+.other {
+    color: #666;
+    font-weight: bold;
+}
+
+.warn-icon {
+    font-size: 26px;
+    line-height: 1;
+}
+
+.warn-text {
+    color: #b36b00;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.other-text {
+    color: #666;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+    <h1>
+        Application Supplier Conformance Test Report
+    </h1>
+
+    <p>
+        <strong>Application:</strong>
+        Industrial-AIOps
+    </p>
+
+    <p>
+        <strong>Application Version:</strong>
+        0.34.0
+    </p>
+
+    
+    <p>
+        <strong>Input source:</strong>
+        oci://ghcr.io/industrial-aiops/iaiops-margo:0.34.0
+    </p>
+    
+
+    
+    <p>
+        <strong>OCI manifest digest:</strong>
+        sha256:9cf7abbe6f8ff6277d7c5d0babf885c7c2be4dc8b08786790d2f99d9e72de3c3
+    </p>
+    
+
+    
+    <p>
+        <strong>CTT source revision:</strong>
+        f6e5ef4d86019bd8f07e704923207357c34ffa1d
+    </p>
+    
+
+    <p>
+        <strong>Generated:</strong>
+        2026-11-09T13:07:08Z
+    </p>
+
+</div>
+
+<div class="summary">
+
+    <h2>Summary</h2>
+
+    <p>
+        Total Checks: 79
+        |
+        <span class="pass">
+            ✅ Passed: 73
+        </span>
+        |
+        <span class="fail">
+            ❌ Failed: 1
+        </span>
+        |
+        <span class="warn">
+            ⚠️ Warnings: 0
+        </span>
+        |
+        <span class="other">
+            Not run: 1
+            · Not applicable: 3
+            · Info: 1
+        </span>
+    </p>
+
+    <p>
+        Warnings, not run, not applicable and info rows do not fail the report.
+    </p>
+
+    <p>
+        <strong>
+            Success Rate: 98.6%
+        </strong>
+    </p>
+
+</div>
+
+<table>
+
+<tr>
+    <th>CR-ID</th>
+    <th>Application Description Attribute</th>
+    <th>Status</th>
+    <th>Type</th>
+    <th>Validation Rule (Expected)</th>
+    <th>Actual Value</th>
+    <th>Remarks</th>
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>metadata.name</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>Industrial-AIOps</td>
+    <td>Application name conforms to the required specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>component</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>array</td>
+    <td>At least one component definition</td>
+    <td>1 item(s)</td>
+    <td>Component configuration conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>apiVersion</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>v1</td>
+    <td>v1</td>
+    <td>API version conforms to the required specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>metadata.catalog.organization.name</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>Industrial-AIOps (independent)</td>
+    <td>Organization information conforms to the required specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-002,MARGO-APP-APPLICATIONDESCRIPTION-007</td>
+    <td>component.name</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>iaiops</td>
+    <td>Component configuration conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>revision</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>0.34.0</td>
+    <td>Revision information conforms to the deployment requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (profileSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>profileSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (transportSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>transportSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (portSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>portSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (allowlistSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>allowlistSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (passwordSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>passwordSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (tokenSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>tokenSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (otelExporterSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>otelExporterSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema (otelEndpointSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema name required</td>
+    <td>otelEndpointSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (profileSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>profileSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (transportSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>transportSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (portSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>portSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (allowlistSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>allowlistSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (passwordSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>passwordSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (tokenSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>tokenSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (otelExporterSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>otelExporterSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.schema (otelEndpointSchema)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a schema definition</td>
+    <td>otelEndpointSchema</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>deploymentProfile.type</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>helm | compose</td>
+    <td>compose</td>
+    <td>Deployment profile type conforms to the supported deployment specifications.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>schema.dataType (string)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Schema data type required</td>
+    <td>string</td>
+    <td>Schema conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (profile)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>profile</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (transport)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>transport</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (mcpPort)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>mcpPort</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (allowlistIps)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>allowlistIps</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (masterPassword)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>masterPassword</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (mcpToken)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>mcpToken</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (otelMetricsExporter)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>otelMetricsExporter</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>setting.parameter (otelMetricsEndpoint)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a parameter definition</td>
+    <td>otelMetricsEndpoint</td>
+    <td>Parameter conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-003</td>
+    <td>parameter.target.component ([iaiops])</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>reference</td>
+    <td>Must match a deployment component</td>
+    <td>1 item(s)</td>
+    <td>Parameter conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-001, MARGO-APP-APPLICATIONDESCRIPTION-006, MARGO-APP-APPLICATIONDESCRIPTION-005</td>
+    <td>id</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>lowercase letters, numbers and dashes only, max length=200</td>
+    <td>io-github-industrial-aiops-iaiops</td>
+    <td>Application identifier conforms to the required naming convention.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>metadata.version</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>0.34.0</td>
+    <td>Application version conforms to the required specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>metadata.catalog.organization</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>array</td>
+    <td>At least one organization</td>
+    <td>1 item(s)</td>
+    <td>Organization information conforms to the required specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>deploymentProfile</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>array</td>
+    <td>At least one deployment profile</td>
+    <td>1 item(s)</td>
+    <td>Deployment profile configuration conforms to the required baseline.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>deploymentProfile.id</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>iaiops-compose</td>
+    <td>Deployment profile configuration conforms to the defined specification.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>properties</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>map</td>
+    <td>Component properties required</td>
+    <td>4 properties</td>
+    <td>Component properties conform to the deployment requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>repository</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Repository URL required</td>
+    <td>oci://ghcr.io/industrial-aiops/iaiops-compose</td>
+    <td>Repository configuration conforms to the deployment requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (IAIOPS_MCP_TOKEN)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>IAIOPS_MCP_TOKEN</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (OTEL_METRICS_EXPORTER)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>OTEL_METRICS_EXPORTER</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (OTEL_EXPORTER_OTLP_METRICS_ENDPOINT)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>OTEL_EXPORTER_OTLP_METRICS_ENDPOINT</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (IAIOPS_MCP)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>IAIOPS_MCP</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (IAIOPS_MCP_TRANSPORT)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>IAIOPS_MCP_TRANSPORT</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (IAIOPS_MCP_PORT)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>IAIOPS_MCP_PORT</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (IAIOPS_ALLOWLIST_IPS)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>IAIOPS_ALLOWLIST_IPS</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>parameter.target.pointer (IAIOPS_MASTER_PASSWORD)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>string</td>
+    <td>Required (non-empty)</td>
+    <td>IAIOPS_MASTER_PASSWORD</td>
+    <td>Parameter target pointer conforms to the defined component mapping requirements.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td></td>
+    <td>Validating compose component &#39;iaiops&#39;</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>network</td>
+    <td>OCI repository reachable</td>
+    <td>reachable</td>
+    <td>OCI repository reachable for component &#39;iaiops&#39;</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-004</td>
+    <td>Package signature (PGP)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="other-text">N/A</div>
+        
+
+    </td>
+
+    <td>signature</td>
+    <td>When signing the package, PGP MUST be used</td>
+    <td>-</td>
+    <td>Not applicable: the Compose fields packageLocation and keyLocation (the public key of a PGP-signed package) were removed from the Application Description by margo/specification #200 &#34;Compose the OCI way&#34; (2026-08-21). Packages are now signed as OCI artifacts (e.g. cosign); see MARGO-APP-APPLICATIONDESCRIPTION-008.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONDESCRIPTION-008</td>
+    <td>Signature of Compose component &#39;iaiops&#39;</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>signature</td>
+    <td>RECOMMENDED: a signature (cosign, Sigstore bundle or Notation) is attached to the Compose package in the registry</td>
+    <td>cosign signature tag sha256-cdf8852066bb79dc71cf6f8ff0609556c284c1948077e074e1e29aa6aaa4bb34.sig</td>
+    <td>A signature is attached to ghcr.io/industrial-aiops/iaiops-compose:0.34.0.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-003</td>
+    <td>Application Package Manifest (pull by reference)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>registry</td>
+    <td>GET /v2/&lt;name&gt;/manifests/&lt;reference&gt; returns the manifest; its sha256 is the digest the registry reports</td>
+    <td>sha256:9cf7abbe6f8ff6277d7c5d0babf885c7c2be4dc8b08786790d2f99d9e72de3c3</td>
+    <td>The manifest is retrievable by reference and is content-addressed.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-003</td>
+    <td>Application Package Manifest (OCI image manifest)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>manifest</td>
+    <td>schemaVersion 2, mediaType application/vnd.oci.image.manifest.v1&#43;json</td>
+    <td>schemaVersion 2, application/vnd.oci.image.manifest.v1&#43;json</td>
+    <td>The manifest is an OCI image manifest.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-004</td>
+    <td>manifest.artifactType</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>manifest</td>
+    <td>application/vnd.margo.app.v1&#43;json</td>
+    <td>application/vnd.margo.app.v1&#43;json</td>
+    <td>The manifest is marked as a Margo Application Package.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-004</td>
+    <td>manifest.config</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>manifest</td>
+    <td>Empty descriptor (application/vnd.oci.empty.v1&#43;json, size 2)</td>
+    <td>application/vnd.oci.empty.v1&#43;json</td>
+    <td>The config is the OCI empty descriptor.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-004</td>
+    <td>manifest.layers (Application Description)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>manifest</td>
+    <td>Exactly one layer of mediaType application/vnd.margo.app.description.v1&#43;yaml</td>
+    <td>1 layer</td>
+    <td>The Application Description is one layer of the manifest.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-004</td>
+    <td>manifest.layers (resource media types)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>manifest</td>
+    <td>application/vnd.margo.app.&lt;icon|descriptionFile|licenseFile|releaseNotes&gt;.v1&#43;&lt;format&gt;</td>
+    <td>1 layer(s)</td>
+    <td>Every resource layer carries a Margo-specific media type.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-004</td>
+    <td>manifest.layers (resources of the Application Description)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="other-text">N/A</div>
+        
+
+    </td>
+
+    <td>manifest</td>
+    <td>Each file in metadata.catalog.application is a layer with the media type of its kind</td>
+    <td>no resources</td>
+    <td>The Application Description refers to no resource files.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-004</td>
+    <td>manifest.layers (annotation org.margo.app.resource)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>manifest</td>
+    <td>Resource layers are annotated with org.margo.app.resource</td>
+    <td>annotated</td>
+    <td>Every resource layer carries the org.margo.app.resource annotation.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-001</td>
+    <td>Application Package parts (blobs)</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>registry</td>
+    <td>GET /v2/&lt;name&gt;/blobs/&lt;digest&gt; returns each layer and the config; digest and size match the descriptor</td>
+    <td>2 of 2 blobs</td>
+    <td>Every part of the Application Package is a blob retrievable by its digest.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-APPLICATIONREGISTRY-002</td>
+    <td>Tags of the Application Package</td>
+
+    <td class="status-cell">
+
+        
+            <div class="pass-icon">✅</div>
+            <div class="pass-text">PASS</div>
+
+        
+
+    </td>
+
+    <td>registry</td>
+    <td>Each tag of this manifest is metadata.version (0.34.0)</td>
+    <td>0.34.0</td>
+    <td>The tag of the Application Package is its metadata.version.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-OBSERVABILITY-004</td>
+    <td>OpenTelemetry export of component &#39;iaiops&#39;</td>
+
+    <td class="status-cell">
+
+        
+            <div class="fail-icon">❌</div>
+            <div class="fail-text">FAIL</div>
+
+        
+
+    </td>
+
+    <td>observability</td>
+    <td>Metrics, traces and logs for OpenTelemetry are sent to the collector using OTLP</td>
+    <td>OTEL_METRICS_EXPORTER=${OTEL_METRICS_EXPORTER:-none}</td>
+    <td>The workload exports OpenTelemetry data with an exporter or protocol other than OTLP.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-OBSERVABILITY-008</td>
+    <td>Auto-instrumentation of component &#39;iaiops&#39;</td>
+
+    <td class="status-cell">
+
+        
+            <div class="other-text">N/A</div>
+        
+
+    </td>
+
+    <td>observability</td>
+    <td>SHOULD NOT: no instrumentation.opentelemetry.io/inject-* annotation, no Instrumentation resource</td>
+    <td>compose</td>
+    <td>Auto-instrumentation by the OpenTelemetry Operator applies to Kubernetes workloads only.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-OBSERVABILITY-001, MARGO-APP-OBSERVABILITY-002, MARGO-APP-OBSERVABILITY-007</td>
+    <td>Workload exposes OpenTelemetry data</td>
+
+    <td class="status-cell">
+
+        
+            <div class="other-text">INFO</div>
+        
+
+    </td>
+
+    <td>observability</td>
+    <td>MAY / OPTIONAL (highly recommended): workload-specific data is sent to the OpenTelemetry collector</td>
+    <td>yes: iaiops</td>
+    <td>The workload declares an OpenTelemetry configuration.</td>
+
+</tr>
+
+
+
+<tr>
+
+    <td>MARGO-APP-OBSERVABILITY-003, MARGO-APP-OBSERVABILITY-005, MARGO-APP-OBSERVABILITY-006</td>
+    <td>Alternative observability framework, export without the collector</td>
+
+    <td class="status-cell">
+
+        
+            <div class="other-text">NOT RUN</div>
+        
+
+    </td>
+
+    <td>observability</td>
+    <td>Self-contained alternative framework; no export outside the device without the end user&#39;s approval</td>
+    <td>-</td>
+    <td>Not covered yet: these require observing the network traffic of the running workload, or a declaration of the supplier.</td>
+
+</tr>
+
+
+
+</table>
+
+</body>
+</html>

@@ -12,13 +12,13 @@ FROM python:${PYTHON_VERSION}-slim AS build
 # Which edition profile to bake in. Matches an IAIOPS_MCP profile AND the same-named pip extra
 # (fab / factory / process / building / water). Pin the version for a reproducible image.
 ARG PROFILE=factory
-ARG IAIOPS_VERSION=0.33.0
+ARG IAIOPS_VERSION=0.34.1
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 # Install from PyPI (published, reproducible). To build from local source instead, replace the
 # next line with:  COPY . /src  &&  pip install "/src[${PROFILE}]"
-RUN pip install "iaiops[${PROFILE}]==${IAIOPS_VERSION}"
+RUN pip install "iaiops[${PROFILE},telemetry]==${IAIOPS_VERSION}"
 
 # ── runtime stage: minimal, non-root ──
 FROM python:${PYTHON_VERSION}-slim AS runtime

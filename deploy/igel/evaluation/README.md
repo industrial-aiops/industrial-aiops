@@ -1,7 +1,7 @@
-# Industrial-AIOps 0.33.0 — integration evaluation
+# Industrial-AIOps 0.34.1 — integration evaluation
 
 A small, source-based handoff for testing Industrial-AIOps alongside an edge
-traffic-monitoring application. Baseline: release commit `513951e` (0.33.0).
+traffic-monitoring application. Baseline: release commit `d7f98c8` (0.34.1).
 No UMS installer, licence, credentials or customer data is included.
 
 ## Prerequisites
@@ -92,7 +92,7 @@ python3 -m venv .venv
 .venv/bin/iaiops --version
 ```
 
-Expected version: `iaiops 0.33.0`. Keep the virtual environment in this directory;
+Expected version: `iaiops 0.34.1`. Keep the virtual environment in this directory;
 the demo launcher below uses it. On Ubuntu, install the venv package matching
 your Python version if `python3 -m venv` is unavailable.
 
@@ -184,7 +184,7 @@ The first joint exercise should use only reads. No PLC logic is written.
 First reproduce this demo in a Linux environment. Then choose IMH or IMC based
 on the intended use case with the IGEL team. A Linux guest is one candidate for
 this source install; for a container candidate, the published image is
-`ghcr.io/industrial-aiops/iaiops:0.33.0-factory`.
+`ghcr.io/industrial-aiops/iaiops:0.34.1-factory`.
 See [the deployment overlay](../README.md) for existing packaging materials.
 Neither route is validated on an IGEL device by this handoff. Raw-L2 networking,
 physical PLC operation, UMS deployment and licensing are outside this test.

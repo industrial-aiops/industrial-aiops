@@ -41,7 +41,7 @@ python3 -m venv .venv
 .venv/bin/iaiops --version
 ```
 
-The iaiops package remains 0.33.0. These scripts are source-only handoff updates,
+The iaiops package remains 0.34.1. These scripts are source-only handoff updates,
 not a new PyPI or container release. The existing published container does not
 include this new orchestration; start with the source install in a Linux lab.
 
