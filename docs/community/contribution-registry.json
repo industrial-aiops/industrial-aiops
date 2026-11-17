@@ -129,25 +129,28 @@
       "number": 302,
       "kind": "pr",
       "role": "author",
-      "summary": "Fledge 上游文档草稿与 PIVOT Python 示例",
-      "next_action": "审阅草稿；自身仓库 PR 不等于外部提交"
+      "summary": "Fledge/PIVOT 贡献材料与后续提交记录",
+      "next_action": "对应上游 Fledge #1748 和 PIVOT #2 回复；自身 PR 仍单独跟踪"
+    },
+    {
+      "repo": "fledge-iot/fledge",
+      "number": 1748,
+      "kind": "pr",
+      "role": "author",
+      "summary": "补充通知 reason.data 文档、取值方法与单条/窗口边界",
+      "next_action": "跟进上游 review 和 CI；不声称完整通知服务验证"
+    },
+    {
+      "repo": "fledge-power/fledgepower-pivot-model",
+      "number": 2,
+      "comment_id": 6946004370,
+      "kind": "comment",
+      "role": "commenter",
+      "summary": "提交三个 PIVOT 示例的无损读取结果，询问权威 schema 和 Python API",
+      "next_action": "等待维护者明确模型定义；这是讨论回复，不是实现 PR"
     }
   ],
   "drafts": [
-    {
-      "project": "Fledge",
-      "status": "not_submitted",
-      "summary": "可选 reason.data、单条数据和窗口聚合边界文档补丁",
-      "artifact": "https://github.com/industrial-aiops/industrial-aiops/blob/feat/community-contribution-drafts/docs/community/contributions/fledge-notification-context.patch",
-      "next_action": "核对最新 develop，审阅后再明确执行外投；完整服务未验证"
-    },
-    {
-      "project": "FledgePOWER / PIVOT",
-      "status": "not_submitted",
-      "summary": "三个模型 JSON 示例的 Python 无损读取与字段保留，不是 Schema 验证",
-      "artifact": "https://github.com/industrial-aiops/industrial-aiops/pull/302",
-      "next_action": "围绕现有 #2 明确权威模型和目标 Python API"
-    },
     {
       "project": "OPC Foundation / UA Cloud Library",
       "status": "research_only",

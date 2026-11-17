@@ -6,6 +6,14 @@ create a scheduled automation. Actual participation and PR states are recorded i
 existing Tahu #472 and Margo submissions. Planned directions are not completed registrations. No paid membership,
 registration, outreach or upstream submission is implied by this list.
 
+## Authorized submissions — 2026-11-17
+
+- Fledge: [PR #1748](https://github.com/fledge-iot/fledge/pull/1748), notification
+  evaluation-data documentation; submitted after review, not yet accepted/merged.
+- PIVOT: [existing issue #2 comment](https://github.com/fledge-power/fledgepower-pivot-model/issues/2#issuecomment-6946004370),
+  lossless example observations and schema/API clarification; not an implementation PR.
+- Full Fledge service/plugin validation and typed PIVOT bindings remain open.
+
 ## Contribution follow-up entry point
 
 Use [the contribution ledger](COMMUNITY-CONTRIBUTIONS.md) for PR content, current
