@@ -1,11 +1,10 @@
 --- a/docs/plugin_developers_guide/08_notify_plugins.rst
 +++ b/docs/plugin_developers_guide/08_notify_plugins.rst
-@@ -141,6 +141,37 @@
+@@ -141,6 +141,36 @@
         "timestamp": "2020-11-18 11:52:33.960530+00:00"
     }
  
-+Evaluation data in the trigger reason
-+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++**Evaluation data in the trigger reason**
 +
 +When the notification service enriches a trigger reason with evaluation data,
 +the delivery plugin receives that data in an optional ``data`` object. It is

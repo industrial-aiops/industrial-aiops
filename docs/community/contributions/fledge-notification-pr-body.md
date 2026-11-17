@@ -1,17 +1,7 @@
-# Clarify optional evaluation data in notification delivery reasons
+The notification delivery guide currently illustrates only reason, asset and timestamp. Add an optional nested `data` example, explain how to access the evaluated datapoint, and retain compatibility with reasons that do not carry evaluation data. Clarify that window evaluation data may be aggregate data rather than a single original sample.
 
-Related to fledge-iot/fledge#1716; this documentation change does not close it.
+Related to #1716; this documentation change does not close that feature request and does not alter the plugin API or runtime.
 
-The delivery-plugin guide currently shows only reason, asset and timestamp.
-Document the optional nested data object, an illustrative single-item datapoint
-lookup, compatibility when data is absent, and the distinction between evaluation
-aggregates and original readings. No API or runtime behavior changes.
+Evidence: notification-service develop at `e0e84373c5bbd2fab26c9a033c84c45812c1d260` calls `addDataToReason(reason, data)` before queueing delivery. A focused local C++ execution of the unmodified enrichment function, with only a no-op logging sink, preserved supplied evaluation data and original reason fields in five cases. This was not a full service or delivery-plugin test. The new example is illustrative, not represented as a captured production notification.
 
-Evidence: notification-service develop e0e8437 calls addDataToReason before
-queueing delivery. Five local C++ function cases preserve the supplied evaluation
-data and original reason fields. This is function-level execution with a no-op
-logger, not a full service/plugin test. Deployed service-version differences and
-actual delivery-plugin capture remain separate checks.
-
-Validation: patch applies to Fledge develop a20fc6d; the added RST fragment renders
-with docutils --halt=warning. Full project Sphinx build was not run.
+Validation: applied against Fledge develop `cf091f09fd456a767c155fc7474944dd9057c4c1`; added RST fragment rendered using docutils with `--halt=warning` and Pygments. Full project Sphinx build was not run.

@@ -1,13 +1,15 @@
 # Community contribution drafts — 2026-11-17
 
-No model API or secret key was used. GitHub API queries, Python standard library,
-local compiler and document checks were sufficient. No community PR, issue or
-message was sent. The artifacts below are ready for review, not accepted upstream.
+No model API or secret key was used. Following user authorization and review,
+Fledge documentation was submitted as [upstream PR #1748](https://github.com/fledge-iot/fledge/pull/1748)
+and PIVOT findings were posted to the [existing issue #2](https://github.com/fledge-power/fledgepower-pivot-model/issues/2#issuecomment-6946004370).
+The PIVOT submission is a discussion comment, not an implementation PR. These
+submissions are not accepted/merged community integrations.
 
-## Fledge: documentation patch prepared
+## Fledge: documentation PR submitted
 
 Target: `fledge-iot/fledge`, develop
-`a20fc6dce1bfa47657e50760458383f815944ba2`.
+`cf091f09fd456a767c155fc7474944dd9057c4c1` at submission review.
 
 Read `CONTRIBUTING.md` and `docs/plugin_developers_guide/08_notify_plugins.rst`.
 The guide's example contains only reason/asset/timestamp, whereas the notification
@@ -31,10 +33,10 @@ with `--halt=warning`. A full Fledge Sphinx build and live plugin capture were n
 run. Upstream code remains outside this repository; the patch contains minimal
 context from the Apache-2.0 project and newly authored documentation.
 
-When explicitly authorized to submit: recheck latest develop and existing PRs,
-use a descriptive username-prefixed branch per project guidance, and follow its
-commit/sign-off requirements. Significant feature work requires discussion first;
-this draft deliberately stays a small documentation correction.
+Before submission, latest develop and existing PRs were rechecked. The fork branch
+is `zw008-docs-notification-context`; the commit uses wei <zhouwei008@gmail.com>
+and a matching Signed-off-by. The reviewed patch and PR text above match the
+submitted content. Full service/plugin and project Sphinx validation remain open.
 
 ## LF Energy / PIVOT: do not generate a schema from examples
 
@@ -69,11 +71,11 @@ before implementing a generator or new schema. No model change is proposed yet.
 
 ## Next focused work
 
-1. Review and, if authorized, submit the Fledge documentation patch as a small PR.
+1. Follow Fledge #1748 review/CI and respond with focused updates.
 2. Capture an actual delivery-plugin argument on a disposable Linux service before
    proposing runtime fixes; distinguish current develop from deployed releases.
-3. For PIVOT #2, establish the maintained schema source and expected Python API
-   with the existing discussion before generating classes.
+3. Follow the submitted PIVOT #2 comment; establish the maintained schema source
+   and expected Python API before generating classes.
 
 Margo follow-up, Sparkplug lifecycle coverage and other communities remain in the
 main worklist; do not start new protocol/control work merely to increase PR count.

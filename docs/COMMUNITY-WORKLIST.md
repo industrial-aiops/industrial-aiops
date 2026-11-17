@@ -39,7 +39,7 @@ version-specific validation remain pending. A comment draft is prepared, not sen
 
 [Fledge patch and PIVOT experiment](community/2026-11-17-contribution-drafts.md).
 A Fledge delivery-guide patch now applies cleanly to pinned develop and its added
-RST fragment renders. No upstream PR was submitted. Three PIVOT example files
+RST fragment renders. Submitted as Fledge #1748; PIVOT findings were posted to existing #2. Three PIVOT example files
 round-trip in Python with raw quality/time indicators preserved; they are not
 assumed to define a JSON Schema. No model API/key was needed for this work.
 
