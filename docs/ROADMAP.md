@@ -28,6 +28,12 @@ Five pinned upstream C++ enrichment cases preserve values under `reason.data`.
 Full notification-service/delivery-plugin execution and version comparison remain
 pending; do not call the issue an end-to-end reproduction or a Fledge integration.
 
+### Community contribution drafts (2026-11-17; branch-only)
+
+[Prepared Fledge doc patch and PIVOT example probe](community/2026-11-17-contribution-drafts.md).
+The Fledge patch was applied and its added RST rendered; no external PR was sent.
+PIVOT example inspection is not schema/protocol validation or typed-model generation.
+
 ## Source handoff — joint production/traffic demo (2026-11-13)
 
 Source handoff is now on main via PR #299, based on released 0.34.1.
