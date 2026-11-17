@@ -1,0 +1,12 @@
+{
+  "status": "PASS",
+  "checks": [
+    "Tahu NBIRTH named metric",
+    "epoch-millisecond source timestamp",
+    "alias-only NDATA",
+    "NDEATH refuses cached value",
+    "NBIRTH replaces alias and removes old metric",
+    "silence refuses stale value"
+  ],
+  "tahu_commit": "5736e404889d4b95910613040a99ba79589ffb13"
+}

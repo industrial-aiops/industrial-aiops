@@ -3,6 +3,10 @@
 > 单一架构真相文档。此前 `CLAUDE.md` 指向的 `docs/HLD.md` / `docs/PLATFORM-ARCHITECTURE.md`
 > 均不存在；本文件补上并成为权威来源。身份、品牌隔离、铁律见 `CLAUDE.md`。
 
+Community integration examples and their data-quality boundaries are specified in
+[`COMMUNITY-INTEGRATION-HLD.md`](COMMUNITY-INTEGRATION-HLD.md); they reuse the
+existing core/connectors and do not add a new product layer.
+
 ## 1. 定位
 
 厂商中立的**现场勘察 + 工业数据 tap + 跨协议智能排查**。唯一带**审计 + 预算 + 回滚 +
