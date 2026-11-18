@@ -1,6 +1,6 @@
 # 社区贡献与 PR 跟踪台账
 
-最后核对：2026-11-17 18:55:40（Asia/Shanghai）。
+最后核对：2026-11-18 13:52:01（Asia/Shanghai）。
 
 只读 GitHub API 快照；不是实时状态，也不是账号全部活动清单。
 合并按 merged_at 判断，closed 不自动算合并；自身 PR、他人承接 PR、
@@ -15,8 +15,8 @@
 |---|---|---|---|---|
 | [margo/conformance_test_toolkit #16](https://github.com/margo/conformance_test_toolkit/pull/16) | CTT 报告记录应用包来源 | merged | author; GitHub 作者 zw008 | 已合入 dev；通过 #17 跟踪 main 的承接 |
 | [margo/conformance_test_toolkit #20](https://github.com/margo/conformance_test_toolkit/pull/20) | 修复 Compose OTEL 参数插值和默认值解析 | merged | author; GitHub 作者 zw008 | 固定新提交重跑 CTT，不改写历史失败结果 |
-| [eclipse-tahu/tahu #472](https://github.com/eclipse-tahu/tahu/pull/472) | Python addMetric 默认时间戳按调用时计算 | open | author; GitHub 作者 zw008 | 跟进 review/CI，与 #398 去重，不开重复 PR |
-| [fledge-iot/fledge #1748](https://github.com/fledge-iot/fledge/pull/1748) | 补充通知 reason.data 文档、取值方法与单条/窗口边界 | open | author; GitHub 作者 zw008 | 跟进上游 review 和 CI；不声称完整通知服务验证 |
+| [eclipse-tahu/tahu #472](https://github.com/eclipse-tahu/tahu/pull/472) | Python addMetric 默认时间戳按调用时计算 | open | author; GitHub 作者 zw008 | 2026-11-18：eclipsefdn/eca FAILURE；官方校验页找不到提交邮箱对应账号。用户核对 Eclipse 账号、zhouwei008@gmail.com 关联及 ECA 后重验；保持提交身份，与 #398 去重 |
+| [fledge-iot/fledge #1748](https://github.com/fledge-iot/fledge/pull/1748) | 补充通知 reason.data 文档、取值方法与单条/窗口边界 | open | author; GitHub 作者 zw008 | 2026-11-18：DCO 通过，无 review/评论；#304 补充原生回调边界验证，实际服务/插件仍待验证 |
 
 ## 相关承接 PR（不是本人提交）
 
@@ -46,6 +46,8 @@
 | [industrial-aiops/industrial-aiops #300](https://github.com/industrial-aiops/industrial-aiops/pull/300) | 父节点 NDEATH 拒绝设备缓存、外部 Tahu 报文回归 | merged | author; GitHub 作者 zw008 | main 已有，尚未发布；扩展 broker 生命周期矩阵 |
 | [industrial-aiops/industrial-aiops #301](https://github.com/industrial-aiops/industrial-aiops/pull/301) | Fledge 通知函数复现及 #300 状态同步 | merged | author; GitHub 作者 zw008 | 实际 delivery-plugin 入参与完整服务仍待验证 |
 | [industrial-aiops/industrial-aiops #302](https://github.com/industrial-aiops/industrial-aiops/pull/302) | Fledge/PIVOT 贡献材料与后续提交记录 | draft | author; GitHub 作者 zw008 | 对应上游 Fledge #1748 和 PIVOT #2 回复；自身 PR 仍单独跟踪 |
+| [industrial-aiops/industrial-aiops #303](https://github.com/industrial-aiops/industrial-aiops/pull/303) | 社区贡献台账、只读 GitHub API 刷新与提交身份核对 | draft | author; GitHub 作者 zw008 | 持续刷新；包括外部 PR、讨论、ECA 阻塞和自身草稿，Draft 不等于已合入 |
+| [industrial-aiops/industrial-aiops #304](https://github.com/industrial-aiops/industrial-aiops/pull/304) | Fledge 原生投递回调边界复现及 2026-11-18 社区跟进 | draft | author; GitHub 作者 zw008 | 5 组内容及失败/空回调检查通过；脚手架不等于完整服务，下一步真实插件捕获 |
 
 ## 未提交的外部草稿与候选
 

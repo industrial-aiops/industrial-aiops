@@ -90,7 +90,7 @@
       "kind": "pr",
       "role": "author",
       "summary": "Python addMetric 默认时间戳按调用时计算",
-      "next_action": "跟进 review/CI，与 #398 去重，不开重复 PR"
+      "next_action": "2026-11-18：eclipsefdn/eca FAILURE；官方校验页找不到提交邮箱对应账号。用户核对 Eclipse 账号、zhouwei008@gmail.com 关联及 ECA 后重验；保持提交身份，与 #398 去重"
     },
     {
       "repo": "industrial-aiops/industrial-aiops",
@@ -138,7 +138,7 @@
       "kind": "pr",
       "role": "author",
       "summary": "补充通知 reason.data 文档、取值方法与单条/窗口边界",
-      "next_action": "跟进上游 review 和 CI；不声称完整通知服务验证"
+      "next_action": "2026-11-18：DCO 通过，无 review/评论；#304 补充原生回调边界验证，实际服务/插件仍待验证"
     },
     {
       "repo": "fledge-power/fledgepower-pivot-model",
@@ -148,6 +148,22 @@
       "role": "commenter",
       "summary": "提交三个 PIVOT 示例的无损读取结果，询问权威 schema 和 Python API",
       "next_action": "等待维护者明确模型定义；这是讨论回复，不是实现 PR"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 303,
+      "kind": "pr",
+      "role": "author",
+      "summary": "社区贡献台账、只读 GitHub API 刷新与提交身份核对",
+      "next_action": "持续刷新；包括外部 PR、讨论、ECA 阻塞和自身草稿，Draft 不等于已合入"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 304,
+      "kind": "pr",
+      "role": "author",
+      "summary": "Fledge 原生投递回调边界复现及 2026-11-18 社区跟进",
+      "next_action": "5 组内容及失败/空回调检查通过；脚手架不等于完整服务，下一步真实插件捕获"
     }
   ],
   "drafts": [
