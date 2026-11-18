@@ -28,6 +28,12 @@ Five pinned upstream C++ enrichment cases preserve values under `reason.data`.
 Full notification-service/delivery-plugin execution and version comparison remain
 pending; do not call the issue an end-to-end reproduction or a Fledge integration.
 
+### Community follow-up (2026-11-18; branch-only)
+
+[Status and Fledge callback-boundary evidence](community/2026-11-18-follow-up.md).
+Resolve Tahu's ECA account association through the user; do not change commit
+identity speculatively. Native callback probe is not full service/plugin validation.
+
 ## Source handoff — joint production/traffic demo (2026-11-13)
 
 Source handoff is now on main via PR #299, based on released 0.34.1.

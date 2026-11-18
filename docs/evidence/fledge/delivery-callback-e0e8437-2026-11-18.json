@@ -1,0 +1,71 @@
+{
+  "source_commit": "e0e84373c5bbd2fab26c9a033c84c45812c1d260",
+  "enrichment_file_sha256": "1f09f441a6a394c151f21bdf8430c11bd38a79cd6ac19c14b73964e14e7c41a8",
+  "enrichment_function_sha256": "f600ce606e6c88ef1f93f76360ff669bf159054bff6d61eb23c0705ae72a98d5",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)",
+  "delivery_file_sha256": "983afa103dd593532c7a6f030302590d5d36844f295025b8f7718a6e99f02b5e",
+  "delivery_function_sha256": "f76cc75ba26b00a81a46706a52308240ab49a8497d856f2553103d44431e4405",
+  "captured_cases": 5,
+  "checks": {
+    "callback_failure_propagated": true,
+    "missing_callback_refused": true
+  },
+  "scope": "Native functions; logger/class/macro/callback scaffolding; no service/plugin",
+  "captured_reasons": [
+    {
+      "reason": "triggered",
+      "asset": [
+        "sinusoid"
+      ],
+      "timestamp": "2026-11-17T00:00:00Z",
+      "data": {
+        "sinusoid": {
+          "sinusoid": 87.3
+        },
+        "timestamp_sinusoid": 1794873600.0
+      }
+    },
+    {
+      "reason": "triggered",
+      "asset": [
+        "sinusoid"
+      ],
+      "timestamp": "2026-11-17T00:00:00Z",
+      "data": {
+        "sinusoid": {
+          "sinusoid": 91.7
+        }
+      }
+    },
+    {
+      "reason": "cleared",
+      "asset": [
+        "sinusoid"
+      ],
+      "timestamp": "2026-11-17T00:00:00Z",
+      "data": {
+        "sinusoid": {
+          "sinusoid": 50.0
+        }
+      }
+    },
+    {
+      "reason": "triggered",
+      "asset": [
+        "sinusoid"
+      ],
+      "timestamp": "2026-11-17T00:00:00Z",
+      "data": {}
+    },
+    {
+      "reason": "triggered",
+      "asset": [
+        "sinusoid"
+      ],
+      "timestamp": "2026-11-17T00:00:00Z",
+      "data": {
+        "label": "quote \" and slash \\"
+      }
+    }
+  ]
+}
