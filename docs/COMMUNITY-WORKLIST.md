@@ -33,7 +33,17 @@ integrations. See the report for exact sources and evidence limits.
 reason-enrichment cases passed at the pinned notification-service revision.
 Current source already attaches evaluation data under `reason.data`; the missing
 value claim was not reproduced at this function boundary. Full service/plugin and
-version-specific validation remain pending. A comment draft is prepared, not sent.
+version-specific validation remain pending. The documentation contribution was
+submitted as [Fledge #1748](https://github.com/fledge-iot/fledge/pull/1748).
+
+## Follow-up — 2026-11-18
+
+[Upstream status and native callback probe](community/2026-11-18-follow-up.md).
+Tahu #472 is blocked on Eclipse ECA account/email association, requiring user
+confirmation. Fledge #1748 DCO passed and awaits review; PIVOT has no new reply.
+Five enrichment outputs reached the native delivery wrapper's capture callback
+unchanged; callback-failure and missing-callback checks passed. Test scaffolding
+is explicit; actual service/plugin/macro/queue validation remains pending.
 
 ## Working routine
 
