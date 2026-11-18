@@ -90,7 +90,7 @@
       "kind": "pr",
       "role": "author",
       "summary": "Python addMetric 默认时间戳按调用时计算",
-      "next_action": "2026-11-18：eclipsefdn/eca FAILURE；官方校验页找不到提交邮箱对应账号。用户核对 Eclipse 账号、zhouwei008@gmail.com 关联及 ECA 后重验；保持提交身份，与 #398 去重"
+      "next_action": "2026-11-18 用户确认尚无 Eclipse 账号：先用 zhouwei008@gmail.com 注册并验证邮箱，关联 GitHub zw008，自行阅读并签署 ECA，再重验 #472；不更改提交身份，与 #398 去重"
     },
     {
       "repo": "industrial-aiops/industrial-aiops",

@@ -15,7 +15,7 @@
 |---|---|---|---|---|
 | [margo/conformance_test_toolkit #16](https://github.com/margo/conformance_test_toolkit/pull/16) | CTT 报告记录应用包来源 | merged | author; GitHub 作者 zw008 | 已合入 dev；通过 #17 跟踪 main 的承接 |
 | [margo/conformance_test_toolkit #20](https://github.com/margo/conformance_test_toolkit/pull/20) | 修复 Compose OTEL 参数插值和默认值解析 | merged | author; GitHub 作者 zw008 | 固定新提交重跑 CTT，不改写历史失败结果 |
-| [eclipse-tahu/tahu #472](https://github.com/eclipse-tahu/tahu/pull/472) | Python addMetric 默认时间戳按调用时计算 | open | author; GitHub 作者 zw008 | 2026-11-18：eclipsefdn/eca FAILURE；官方校验页找不到提交邮箱对应账号。用户核对 Eclipse 账号、zhouwei008@gmail.com 关联及 ECA 后重验；保持提交身份，与 #398 去重 |
+| [eclipse-tahu/tahu #472](https://github.com/eclipse-tahu/tahu/pull/472) | Python addMetric 默认时间戳按调用时计算 | open | author; GitHub 作者 zw008 | 2026-11-18 用户确认尚无 Eclipse 账号：先用 zhouwei008@gmail.com 注册并验证邮箱，关联 GitHub zw008，自行阅读并签署 ECA，再重验 #472；不更改提交身份，与 #398 去重 |
 | [fledge-iot/fledge #1748](https://github.com/fledge-iot/fledge/pull/1748) | 补充通知 reason.data 文档、取值方法与单条/窗口边界 | open | author; GitHub 作者 zw008 | 2026-11-18：DCO 通过，无 review/评论；#304 补充原生回调边界验证，实际服务/插件仍待验证 |
 
 ## 相关承接 PR（不是本人提交）
