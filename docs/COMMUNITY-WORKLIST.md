@@ -1,9 +1,25 @@
 # Community worklist
 
 Added 2026-11-16. Maintain this list during normal project work; it does not
-create a scheduled automation. All external participation below is **planned**,
-except the Margo evidence already recorded in this repository. No paid membership,
+create a scheduled automation. Actual participation and PR states are recorded in
+[COMMUNITY-CONTRIBUTIONS.md](COMMUNITY-CONTRIBUTIONS.md), including the account's
+existing Tahu #472 and Margo submissions. Planned directions are not completed registrations. No paid membership,
 registration, outreach or upstream submission is implied by this list.
+
+## Authorized submissions — 2026-11-17
+
+- Fledge: [PR #1748](https://github.com/fledge-iot/fledge/pull/1748), notification
+  evaluation-data documentation; submitted after review, not yet accepted/merged.
+- PIVOT: [existing issue #2 comment](https://github.com/fledge-power/fledgepower-pivot-model/issues/2#issuecomment-6946004370),
+  lossless example observations and schema/API clarification; not an implementation PR.
+- Full Fledge service/plugin validation and typed PIVOT bindings remain open.
+
+## Contribution follow-up entry point
+
+Use [the contribution ledger](COMMUNITY-CONTRIBUTIONS.md) for PR content, current
+state, ownership, evidence and next action. Its read-only GitHub API refresh command
+is documented there. Check this ledger before claiming no upstream submission or
+opening another issue; changes made outside this chat are included when verified.
 
 ## Maintenance completed on main — 2026-11-16
 

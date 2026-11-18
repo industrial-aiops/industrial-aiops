@@ -1,0 +1,183 @@
+{
+  "owner": "zw008",
+  "scope": "本轮已核对的工业 OT 社区记录，非账号全部 GitHub 活动",
+  "records": [
+    {
+      "repo": "margo/conformance_test_toolkit",
+      "number": 16,
+      "kind": "pr",
+      "role": "author",
+      "summary": "CTT 报告记录应用包来源",
+      "next_action": "已合入 dev；通过 #17 跟踪 main 的承接"
+    },
+    {
+      "repo": "margo/conformance_test_toolkit",
+      "number": 17,
+      "kind": "pr",
+      "role": "related",
+      "summary": "他人发起的 dev→main 汇总，包含 #16",
+      "next_action": "不是本人提交；核对实际运行版本"
+    },
+    {
+      "repo": "margo/conformance_test_toolkit",
+      "number": 20,
+      "kind": "pr",
+      "role": "author",
+      "summary": "修复 Compose OTEL 参数插值和默认值解析",
+      "next_action": "固定新提交重跑 CTT，不改写历史失败结果"
+    },
+    {
+      "repo": "margo/conformance_test_toolkit",
+      "number": 18,
+      "kind": "issue",
+      "role": "author",
+      "summary": "CTT 漏检 rc.3 Compose OCI 组件格式",
+      "next_action": "关注修复并准备错误包/修正包正反样例"
+    },
+    {
+      "repo": "margo/conformance_test_toolkit",
+      "number": 19,
+      "kind": "issue",
+      "role": "author",
+      "summary": "OTEL 插值被误判为非 OTLP exporter",
+      "next_action": "关联已合并 #20；关闭不等于本地已重测"
+    },
+    {
+      "repo": "margo/sandbox",
+      "number": 490,
+      "kind": "issue",
+      "role": "author",
+      "summary": "Compose 更新删除命名状态卷",
+      "next_action": "关注修复并验证审计、密钥及配置保留"
+    },
+    {
+      "repo": "margo/sandbox",
+      "number": 491,
+      "kind": "issue",
+      "role": "author",
+      "summary": "错误 servicePort 与 CLI 误报成功",
+      "next_action": "重跑拒绝参数，分别确认退出码与 WFM 状态"
+    },
+    {
+      "repo": "margo/specification",
+      "number": 145,
+      "kind": "issue",
+      "role": "commenter",
+      "summary": "参与敏感信息管理策略讨论",
+      "next_action": "关注外部密钥引用与部署凭据边界"
+    },
+    {
+      "repo": "margo/specification-enhancements",
+      "number": 66,
+      "kind": "comment",
+      "role": "commenter",
+      "summary": "补充 RS-485 冲突与资源预留用例",
+      "next_action": "观察资源预留语义与维护者回应",
+      "comment_id": 6730346103
+    },
+    {
+      "repo": "margo/specification-enhancements",
+      "number": 103,
+      "kind": "comment",
+      "role": "commenter",
+      "summary": "询问规范增强与部署衔接",
+      "next_action": "核对后续回应和规范变更",
+      "comment_id": 6730348290
+    },
+    {
+      "repo": "eclipse-tahu/tahu",
+      "number": 472,
+      "kind": "pr",
+      "role": "author",
+      "summary": "Python addMetric 默认时间戳按调用时计算",
+      "next_action": "2026-11-18：eclipsefdn/eca FAILURE；官方校验页找不到提交邮箱对应账号。用户核对 Eclipse 账号、zhouwei008@gmail.com 关联及 ECA 后重验；保持提交身份，与 #398 去重"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 295,
+      "kind": "pr",
+      "role": "author",
+      "summary": "初始 eKuiper/Tahu 互操作试验",
+      "next_action": "审查与后续试验重叠；Draft 不等于交付"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 299,
+      "kind": "pr",
+      "role": "author",
+      "summary": "IGEL 基线、依赖下限、PKI 与社区清单",
+      "next_action": "IGEL/AGNES 与独立厂商 PKI 验证仍单列"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 300,
+      "kind": "pr",
+      "role": "author",
+      "summary": "父节点 NDEATH 拒绝设备缓存、外部 Tahu 报文回归",
+      "next_action": "main 已有，尚未发布；扩展 broker 生命周期矩阵"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 301,
+      "kind": "pr",
+      "role": "author",
+      "summary": "Fledge 通知函数复现及 #300 状态同步",
+      "next_action": "实际 delivery-plugin 入参与完整服务仍待验证"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 302,
+      "kind": "pr",
+      "role": "author",
+      "summary": "Fledge/PIVOT 贡献材料与后续提交记录",
+      "next_action": "对应上游 Fledge #1748 和 PIVOT #2 回复；自身 PR 仍单独跟踪"
+    },
+    {
+      "repo": "fledge-iot/fledge",
+      "number": 1748,
+      "kind": "pr",
+      "role": "author",
+      "summary": "补充通知 reason.data 文档、取值方法与单条/窗口边界",
+      "next_action": "2026-11-18：DCO 通过，无 review/评论；#304 补充原生回调边界验证，实际服务/插件仍待验证"
+    },
+    {
+      "repo": "fledge-power/fledgepower-pivot-model",
+      "number": 2,
+      "comment_id": 6946004370,
+      "kind": "comment",
+      "role": "commenter",
+      "summary": "提交三个 PIVOT 示例的无损读取结果，询问权威 schema 和 Python API",
+      "next_action": "等待维护者明确模型定义；这是讨论回复，不是实现 PR"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 303,
+      "kind": "pr",
+      "role": "author",
+      "summary": "社区贡献台账、只读 GitHub API 刷新与提交身份核对",
+      "next_action": "持续刷新；包括外部 PR、讨论、ECA 阻塞和自身草稿，Draft 不等于已合入"
+    },
+    {
+      "repo": "industrial-aiops/industrial-aiops",
+      "number": 304,
+      "kind": "pr",
+      "role": "author",
+      "summary": "Fledge 原生投递回调边界复现及 2026-11-18 社区跟进",
+      "next_action": "5 组内容及失败/空回调检查通过；脚手架不等于完整服务，下一步真实插件捕获"
+    }
+  ],
+  "drafts": [
+    {
+      "project": "OPC Foundation / UA Cloud Library",
+      "status": "research_only",
+      "summary": "#326 大值上传候选，未自建服务复现",
+      "next_action": "在本地服务复现，不向公共实例上传实验"
+    },
+    {
+      "project": "SEAPATH",
+      "status": "research_only",
+      "summary": "只读监控工作负载候选，无部署实测或提交",
+      "next_action": "有实验环境后再限定小场景"
+    }
+  ]
+}
