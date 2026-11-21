@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep Sparkplug historical/store-and-forward metrics out of the live-read
+  cache, preserving current values and their original freshness deadline.
+  Verified by offline synthetic protobuf replay only, not a physical gateway or OEE run.
+
 - Refuse cached Sparkplug device readings after their parent node NDEATH; add
   an offline external-Tahu payload regression and community exploration evidence.
 

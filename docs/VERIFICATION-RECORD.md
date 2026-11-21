@@ -1,5 +1,36 @@
 # 验证记录 — what has actually been run, per protocol
 
+## 2026-11-21 — Sparkplug historical replay (local fix, not released)
+
+Baseline: local `main` ae443b7, package version 0.34.1; the correction is on
+`fix/sparkplug-historical-cache`, integrated into local main only; not pushed or
+published. This is an offline,
+synthetic protobuf cache regression, not an external gateway, broker/TCK or OEE test.
+
+`tests/test_sparkplug_historical_cache.py` failed in six cases before the fix
+(one existing-safe ordering passed). After the fix its seven cases pass, along
+with `test_uns_tap.py`, `test_sparkplug.py`, `test_sparkplug_parent_death.py` and
+`test_sparkplug_recorded_frames.py`: **76 passed**. Names and BIRTH-learned aliases
+are covered for node/device DATA. Historical values preserve the live value and
+timestamp, do not postpone expiry or revive an expired reading, and do not
+create a live reading when no live value exists. A subsequent live publish still
+updates the cache. Mixed history/live payloads work in both orders.
+
+Integration checks for this local change: `pytest -q -rs -m 'not integration'`
+completed with **4718 passed, 2 skipped, 250 deselected**. Skips: PROFINET's
+pnio-dcp does not support macOS; the missing-pyarrow error case is inapplicable
+because pyarrow is installed. The unfiltered run was interrupted while its Docker
+discovery test waited for dependency installation (1055 passed, 6 skipped before
+interruption); it is not a full-suite pass. Its test container was stopped.
+Full-repository `ruff check .`, `ruff format --check .` (692 files), and
+`bandit -q -r iaiops mcp_server --severity-level medium` passed. This includes
+the non-integration governance, brand-isolation and model-free-layer checks.
+
+Protocol basis: Sparkplug 3.0.0, `is_historical` field description (PDF page 75):
+[specification](https://sparkplug.eclipse.org/specification/version/3.0/documents/sparkplug-specification-3.0.0.pdf#page=75).
+This tap has no history sink: historical metrics remain decodable, but are
+excluded from its live-read cache. No gateway or downstream OEE correctness is claimed.
+
 > **This file records evidence, not intent.** Every row says what was executed, by
 > which test, at which rung of the ladder in
 > [`PREVIEW-VERIFICATION.md`](PREVIEW-VERIFICATION.md) — and what was **not**.

@@ -4,6 +4,15 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## Historical replay cache correction (2026-11-21; local main only, not released)
+
+Offline synthetic protobuf replay reproduces historical metrics replacing live
+values in the Sparkplug tap. The local fix excludes `is_historical` metrics from
+the live-read cache, including its freshness timer. Regression coverage includes
+NDATA/DDATA, metric names/aliases, history-only and mixed payloads, expiry and
+recovery by a new live publish. Physical gateway store-and-forward and OEE
+validation remain pending; see the dated verification record.
+
 ## Community participation and maintenance (2026-11-16)
 
 Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md). Continue Margo;
