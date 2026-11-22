@@ -24,7 +24,13 @@
     "ruff_check": "passed",
     "ruff_format": "705 files already formatted",
     "bandit_medium_plus": "zero; exit 0",
-    "git_diff_check": "passed"
+    "git_diff_check": "passed",
+    "brand_and_version_regressions": "25 passed, including adjacent-document rejection probes",
+    "initial_iaiops_ci": {
+      "run": 45026270257,
+      "result": "one brand-isolation policy failure in each Python job; 4997 passed, 39 skipped",
+      "correction": "documented exact-file exceptions for two dated third-party WFM build receipts, with narrow-scope regression"
+    }
   },
   "outstanding": [
     "upstream PR 93 review/merge",

@@ -45,6 +45,14 @@ configuration failures in the fork; they are unchanged by this PR. Consequently
 this is a passing focused CI, **not a claim that all upstream CI is green**.
 See `ci-status.json`.
 
+The first IAIops evidence-archive CI (run 45026270257) caught dependency names in
+two external WFM build receipts with the brand-isolation scanner: each Python
+job reported 4,997 passed, 39 skipped and that one policy failure. The correction
+adds documented exceptions for exactly those two receipts, preserving their
+upstream dependency names. A regression probe verifies an adjacent README with
+the same prohibited text still fails the scanner. The brand/version focused
+check then passed **25 tests**; application modules and signed artifacts are unchanged.
+
 ## Candidate runtime and artifact identity
 
 The candidate binary was built from an isolated source copy, not the dirty live
