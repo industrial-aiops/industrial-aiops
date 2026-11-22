@@ -90,7 +90,7 @@
       "kind": "pr",
       "role": "author",
       "summary": "Python addMetric 默认时间戳按调用时计算",
-      "next_action": "2026-11-18 用户确认尚无 Eclipse 账号：先用 zhouwei008@gmail.com 注册并验证邮箱，关联 GitHub zw008，自行阅读并签署 ECA，再重验 #472；不更改提交身份，与 #398 去重"
+      "next_action": "2026-11-22 用户确认已注册并签署 ECA；GitHub 仍为 11-13 的旧 FAILURE，无 review/评论。官方重验返回 400：hCaptcha challenge response failed；需本人打开官方校验页完成验证码并重新验证，再核对状态；不改提交身份，与 #398 去重"
     },
     {
       "repo": "industrial-aiops/industrial-aiops",

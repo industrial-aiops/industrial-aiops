@@ -1,6 +1,6 @@
 # 社区贡献与 PR 跟踪台账
 
-最后核对：2026-11-18 13:52:01（Asia/Shanghai）。
+最后核对：2026-11-22 09:49:16（Asia/Shanghai）。
 
 只读 GitHub API 快照；不是实时状态，也不是账号全部活动清单。
 合并按 merged_at 判断，closed 不自动算合并；自身 PR、他人承接 PR、
@@ -15,7 +15,7 @@
 |---|---|---|---|---|
 | [margo/conformance_test_toolkit #16](https://github.com/margo/conformance_test_toolkit/pull/16) | CTT 报告记录应用包来源 | merged | author; GitHub 作者 zw008 | 已合入 dev；通过 #17 跟踪 main 的承接 |
 | [margo/conformance_test_toolkit #20](https://github.com/margo/conformance_test_toolkit/pull/20) | 修复 Compose OTEL 参数插值和默认值解析 | merged | author; GitHub 作者 zw008 | 固定新提交重跑 CTT，不改写历史失败结果 |
-| [eclipse-tahu/tahu #472](https://github.com/eclipse-tahu/tahu/pull/472) | Python addMetric 默认时间戳按调用时计算 | open | author; GitHub 作者 zw008 | 2026-11-18 用户确认尚无 Eclipse 账号：先用 zhouwei008@gmail.com 注册并验证邮箱，关联 GitHub zw008，自行阅读并签署 ECA，再重验 #472；不更改提交身份，与 #398 去重 |
+| [eclipse-tahu/tahu #472](https://github.com/eclipse-tahu/tahu/pull/472) | Python addMetric 默认时间戳按调用时计算 | open | author; GitHub 作者 zw008 | 2026-11-22 用户确认已注册并签署 ECA；GitHub 仍为 11-13 的旧 FAILURE，无 review/评论。官方重验返回 400：hCaptcha challenge response failed；需本人打开官方校验页完成验证码并重新验证，再核对状态；不改提交身份，与 #398 去重 |
 | [fledge-iot/fledge #1748](https://github.com/fledge-iot/fledge/pull/1748) | 补充通知 reason.data 文档、取值方法与单条/窗口边界 | open | author; GitHub 作者 zw008 | 2026-11-18：DCO 通过，无 review/评论；#304 补充原生回调边界验证，实际服务/插件仍待验证 |
 
 ## 相关承接 PR（不是本人提交）
