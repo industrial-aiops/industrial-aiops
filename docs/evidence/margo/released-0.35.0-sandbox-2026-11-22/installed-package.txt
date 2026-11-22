@@ -1,0 +1,1 @@
+installed 0.35.0 /opt/venv/lib/python3.12/site-packages/iaiops/core/readiness/diagnostic.py /opt/venv/lib/python3.12/site-packages/iaiops/connectors/sparkplug/transport.py no overlay

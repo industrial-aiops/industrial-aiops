@@ -7,8 +7,9 @@
 ## 0.35.0 release verification (2026-11-22)
 
 The diagnostic-card and MQTT acknowledgement fixes are included in 0.35.0.
-Release artifact publication and package-only Sandbox validation are in progress;
-prior source-overlay records remain historical, not released-package evidence.
+Release publication and package-only Sandbox validation are complete: see the
+[released 0.35.0 evidence](evidence/margo/released-0.35.0-sandbox-2026-11-22/README.md).
+Prior source-overlay records remain historical, not released-package evidence.
 
 ## MQTT subscription readiness (2026-11-22; unreleased)
 

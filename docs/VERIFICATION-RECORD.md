@@ -1,5 +1,28 @@
 # 验证记录 — what has actually been run, per protocol
 
+## 2026-11-22 — released 0.35.0, package-only Sandbox verification
+
+Published tag `v0.35.0` / `dc5403f`: PyPI, five signed multi-arch image editions,
+Margo OCI package/component and signed tar mirror, locked SBOM and MCP Registry.
+All release CI/publication jobs passed. Downloaded wheel/sdist/SBOM hashes and
+image/package/component signatures were verified before deployment.
+
+The unmodified OCI package was mirrored into Harbor with equal manifest digest.
+Real WFM deployment `be1357a5-a662-4569-9df6-778d920fd407` reached INSTALLED;
+its non-root/read-only-rootfs container was healthy and used the verified official
+factory image. **No source overlay:** installed metadata 0.35.0, site-packages
+paths, no PYTHONPATH, and five runtime module hashes identical to the official
+PyPI wheel. Sufficient synthetic replay measured one 6-second stop, root cause
+null; missing samples and stale current-mode input withheld the observation.
+All exported hashes verified; replay never claimed current plant readiness.
+Twenty live Mosquitto single-publication sessions plus silence expiry passed;
+MCP authentication returned 401/200. No physical OT gateway/plant or second vendor.
+
+Normal cleanup advanced manifest 11 → 12 → 13 without lowering the rollback
+floor. WFM/device caches/test containers/volumes are empty; the agent is running
+without test secrets. [Released-package evidence, ZIPs and limits](evidence/margo/released-0.35.0-sandbox-2026-11-22/README.md).
+
+
 ## 2026-11-22 — diagnostic readiness reference (candidate, unreleased)
 
 Candidate source `c04b732df6abc6195edd6556a18280ad8e14572e`, package metadata
