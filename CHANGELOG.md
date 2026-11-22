@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.35.0 — 2026-11-22
+
 - Wait for broker connection and matching successful SUBACK before yielding an
   MQTT tap session. Bound startup by the configured timeout; fail explicitly on
   denied/missing acknowledgements. Real-broker tests wait for PUBACK rather than sleeps.
