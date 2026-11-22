@@ -79,6 +79,12 @@ time. The one thing it keeps is a namespace audit verdict, and that counts only 
 the broker and topic filter it was taken on and always shows its age — so edit
 `config.yaml` by hand and the answer stays true.
 
+**Unreleased reference scenario:** `iaiops diagnostic-card` adds a window-specific
+HTML readiness snapshot and portable evidence ZIP for a synthetic conveyor on
+one Sandbox platform. [Run the two cases](demo/sandbox-readiness/README.md);
+[dated candidate trial](docs/evidence/margo/readiness-sandbox-2026-11-22/README.md).
+Replay sufficiency never establishes live readiness or a physical root cause.
+
 `readiness` reads your config and local store and answers one question: **which
 scenarios can this site run today, and what does each gap need?** Every gap comes
 with the command that closes it, ranked by how much it unlocks. No agent, no

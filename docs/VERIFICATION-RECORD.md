@@ -1,5 +1,26 @@
 # 验证记录 — what has actually been run, per protocol
 
+## 2026-11-22 — diagnostic readiness reference (candidate, unreleased)
+
+Candidate source `c04b732df6abc6195edd6556a18280ad8e14572e`, package metadata
+0.34.1, on `feat/sandbox-diagnostic-readiness`; local baseline and origin/main
+were `f76ebb9`. This is not a published 0.34.1 artifact verification. The real
+Sandbox trial used the released **0.34.0** package/component/base image plus an
+explicit source overlay for CLI processes. WFM reported INSTALLED; the non-root,
+read-only-rootfs application was healthy. Sufficient synthetic run-state data
+produced one 6-second stop (physical cause null); missing critical samples and
+current-mode stale evidence both withheld the result. Replay never claimed live
+readiness. All exported inventory hashes verified. MCP auth boundary: 401 without
+a token, 200 initialize with the valid test token. No OT hardware/external model.
+
+Broader non-integration regression: **4743 passed, 2 skipped, 250 deselected**.
+The final guard/test additions were rerun separately: latest candidate focused,
+CLI governance and brand checks **51 passed**;
+repository Ruff check/format passed (697 files); Bandit Medium+ scan exit 0.
+The [dated evidence record](evidence/margo/readiness-sandbox-2026-11-22/README.md)
+contains the actual ZIP/HTML cards, audit references, input pins, timing and
+limitations, as well as the broader regression and cleanup outcomes.
+
 ## 2026-11-21 — Sparkplug historical replay (local fix, not released)
 
 Baseline: local `main` ae443b7, package version 0.34.1; the correction is on
