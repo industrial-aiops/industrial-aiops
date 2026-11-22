@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add an audited offline `diagnostic-card` CLI and local HTML/ZIP evidence export
+  for the single-platform synthetic conveyor reference scenario. Separate declared
+  configuration from window-specific sample sufficiency; withhold observations
+  for missing/invalid/stale evidence. Replays never establish live readiness.
+
 - Keep Sparkplug historical/store-and-forward metrics out of the live-read
   cache, preserving current values and their original freshness deadline.
   Verified by offline synthetic protobuf replay only, not a physical gateway or OEE run.

@@ -16,6 +16,7 @@ from iaiops.cli.baseline import baseline_app
 from iaiops.cli.case import case_app
 from iaiops.cli.collect import collect_app
 from iaiops.cli.compliance import compliance_app, historian_app
+from iaiops.cli.diagnostic_card import diagnostic_card_cmd
 from iaiops.cli.diagnostics import diag_app
 from iaiops.cli.doctor import doctor_cmd
 from iaiops.cli.eip import eip_app
@@ -122,6 +123,7 @@ app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
 app.command("reset")(reset_cmd)
 app.command("readiness")(readiness_cmd)
+app.command("diagnostic-card")(diagnostic_card_cmd)
 app.add_typer(investigate_app, name="investigate")
 app.add_typer(relations_app, name="relations")
 app.add_typer(knowledge_app, name="knowledge")

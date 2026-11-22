@@ -4,6 +4,32 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## Sandbox diagnostic readiness reference scenario (2026-11-22; planned, unreleased)
+
+Scope: MIT single-installation capability under HLD §8.3. One Sandbox platform,
+one synthetic conveyor-stop scenario and an explicitly human-declared point map.
+No device writes, inferred tag roles, external model dependency or fleet governance.
+
+- [ ] Add a local diagnostic readiness card: show configuration readiness separately
+  from evidence readiness for the named capability and exact observation window.
+  Missing mapping, missing/invalid/stale samples or inconsistent timestamps must
+  produce actionable gaps, never a definite root cause or a healthy-device claim.
+- [ ] Supply sufficient/insufficient synthetic evidence cases and expected results,
+  using the existing analysis engine. Keep declared semantics and evidence provenance.
+- [ ] Export a local evidence bundle: raw inputs, window/assessment/diagnostic results,
+  audit references and SHA-256 inventory; retain application/component/image digests
+  and deployment/platform identity with explicit unverified/missing states.
+- [ ] Run offline regression, governance/brand/model-boundary checks and real Sandbox
+  reference validation; record source/artifact pins and limitations. A candidate build
+  or source overlay is not verification of the unchanged published 0.34.1 artifact.
+
+Acceptance: the sufficient case yields a bounded, evidence-backed diagnostic result;
+removing a required input yields insufficient evidence and no definite cause. Report
+time-to-first-result with fixed prerequisites, plus downgrade/authorization checks.
+Second-vendor interoperability, organization-level signing/retention and full Margo
+certification are excluded. OTLP receipt already has prior evidence; do not rebuild
+it as a prerequisite for this first slice.
+
 ## Historical replay cache correction (2026-11-21; local main only, not released)
 
 Offline synthetic protobuf replay reproduces historical metrics replacing live
