@@ -1,0 +1,8 @@
+{
+  "container": "7392982d661d6d1efd6ce7ab53180f0857b50d4ab862504a18158e92f4f1b9e9",
+  "image": "sha256:ca5b33f17f7aa07b6919dad898c4df8a8b6aa0d4ab6f49c355deb5620b57680a",
+  "original_container_restored": true,
+  "running": true,
+  "candidate_container_removed": true,
+  "temporary_image_tags_removed": true
+}

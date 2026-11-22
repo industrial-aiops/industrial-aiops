@@ -1,0 +1,35 @@
+{
+  "date": "2026-11-22",
+  "source_review": [
+    "Margo-only identity mapping preserves catalog display name and generic uniqueness validation",
+    "package status/identity checks precede profile merging and storage",
+    "NBI preserves conflict/bad-request states",
+    "no manifest allocation/rollback logic changed"
+  ],
+  "verification": [
+    "before failures reproduced",
+    "target Go tests passed",
+    "race count=25 passed",
+    "vet passed",
+    "focused fork CI passed on 316457f",
+    "two unchanged signed releases simultaneously onboarded",
+    "PENDING and FAILED runtime requests returned 409 with zero writes/restarts",
+    "official 0.36.0 image identity and 14 wheel modules matched",
+    "six evidence ZIP inventories verified",
+    "original WFM container/image and device agent restored",
+    "temporary secret absence checked before export; test records removed"
+  ],
+  "documentation_checks": {
+    "relative_links": "passed",
+    "ruff_check": "passed",
+    "ruff_format": "705 files already formatted",
+    "bandit_medium_plus": "zero; exit 0",
+    "git_diff_check": "passed"
+  },
+  "outstanding": [
+    "upstream PR 93 review/merge",
+    "upstream fork-workflow approval requires repository administrator; HTTP 403 for current account",
+    "legacy empty workflow configuration failures unchanged",
+    "second-platform OTLP reception remains NOT RUN"
+  ]
+}

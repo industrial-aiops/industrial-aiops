@@ -1,0 +1,40 @@
+{"caller":"github.com/eclipse-symphony/symphony/coa/pkg/apis/v1alpha2/providers/states/memorystate.(*MemoryStateProvider).Get:278","diagnostics":{"correlationId":"","resourceId":"","traceContext":{"spanId":"","traceId":""}},"instance":"test-llm","level":"error","msg":"  P (Memory State): failed to get io.example.app-v-1.0.0 state: Not Found: entry 'io.example.app-v-1.0.0' is not found in namespace default","scope":"coa.runtime","time":"2026-11-22T12:43:56.728873498Z","type":"log","ver":"unknown"}
+{"caller":"github.com/eclipse-symphony/symphony/coa/pkg/apis/v1alpha2/providers/states/memorystate.(*MemoryStateProvider).Get:290","diagnostics":{"correlationId":"","resourceId":"","traceContext":{"spanId":"","traceId":""}},"instance":"test-llm","level":"error","msg":"  P (Memory State): failed to get io.example.app-v-2.0.0 state: Not Found: entry 'io.example.app-v-2.0.0' is not found in namespace default","scope":"coa.runtime","time":"2026-11-22T12:43:56.72938871Z","type":"log","ver":"unknown"}
+--- FAIL: TestSameNamedMargoPackagesCoexistWithSolutionValidation (0.00s)
+    package_identity_test.go:29:
+            Error Trace:    /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/managers/margo/package_identity_test.go:29
+            Error:          Received unexpected error:
+                            Bad Request: Failed to create or update object: spec.displayName: Invalid value: Example: solution displayName must be unique
+            Test:           TestSameNamedMargoPackagesCoexistWithSolutionValidation
+--- FAIL: TestTransformationRejectsMissingDataBeforeLogging (0.00s)
+    package_identity_test.go:45:
+            Error Trace:    /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/managers/margo/package_identity_test.go:45
+            Error:          func (assert.PanicTestFunc)(0xdb34c0) should not panic
+                                Panic value:    runtime error: invalid memory address or nil pointer dereference
+                                Panic stack:    goroutine 9 [running]:
+                            runtime/debug.Stack()
+                                /usr/local/go/src/runtime/debug/stack.go:26 +0x5e
+                            github.com/stretchr/testify/assert.didPanic.func1()
+                                /home/wei/workspace/margo-symphony-modcache/github.com/stretchr/testify@v1.11.1/assert/assertions.go:1286 +0x6b
+                            panic({0xf0f8e0?, 0x1968150?})
+                                /usr/local/go/src/runtime/panic.go:783 +0x132
+                            github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.(*MargoTransformer).AppPackageToSymphonyObjects(0x19b6aa0, {0x2?, 0xc000085c20?}, {{{0x0, 0x0}, 0x0, {0x0, 0x0, 0x0, {0x0, ...}, ...}, ...}, ...}, ...)
+                                /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/managers/margo/transformer.go:37 +0x65
+                            github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.TestTransformationRejectsMissingDataBeforeLogging.func1()
+                                /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/managers/margo/package_identity_test.go:46 +0x68
+                            github.com/stretchr/testify/assert.didPanic(0x196d8d0?)
+                                /home/wei/workspace/margo-symphony-modcache/github.com/stretchr/testify@v1.11.1/assert/assertions.go:1291 +0x70
+                            github.com/stretchr/testify/assert.NotPanics({0x7532c4e64ae0, 0xc000376380}, 0xc0002beb00, {0x0, 0x0, 0x0})
+                                /home/wei/workspace/margo-symphony-modcache/github.com/stretchr/testify@v1.11.1/assert/assertions.go:1362 +0x7e
+                            github.com/stretchr/testify/require.NotPanics({0x11e7d28, 0xc000376380}, 0xc0002beb00, {0x0, 0x0, 0x0})
+                                /home/wei/workspace/margo-symphony-modcache/github.com/stretchr/testify@v1.11.1/require/require.go:1711 +0xa6
+                            github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.TestTransformationRejectsMissingDataBeforeLogging(0xc000376380)
+                                /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/managers/margo/package_identity_test.go:45 +0x257
+                            testing.tRunner(0xc000376380, 0x10bee98)
+                                /usr/local/go/src/testing/testing.go:1934 +0xea
+                            created by testing.(*T).Run in goroutine 1
+                                /usr/local/go/src/testing/testing.go:1997 +0x465
+            Test:           TestTransformationRejectsMissingDataBeforeLogging
+FAIL
+FAIL    github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo   0.008s
+FAIL

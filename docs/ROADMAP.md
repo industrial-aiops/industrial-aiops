@@ -4,6 +4,53 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## P1 — Margo health-metric reception on a second platform (2026-11-22; NOT RUN)
+
+Reuse the existing exporter (HLD §7.2.1); this is a package-verification task,
+not an exporter rewrite. Compare the same signed application/component/image
+artifacts on the reference Sandbox and an independent second Margo environment.
+A candidate WFM on the same Sandbox is not that second vendor/platform.
+
+The [Margo collector connection specification](https://docs.margo.org/specification/observability/collecting-workload-observability-data#connecting-to-the-opentelemetry-collector)
+requires device injection of `HTTP_OTEL_EXPORTER_OTLP_ENDPOINT`. Released
+[v0.35.0 telemetry](https://github.com/industrial-aiops/industrial-aiops/blob/v0.35.0/mcp_server/telemetry.py)
+reads `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`; the same lookup remains in 0.36.0.
+The existing `otelMetricsEndpoint` parameter maps to the latter variable. This
+is a statically identified integration risk, **not a reproduced device failure**.
+The [0.35.0 Sandbox record](evidence/margo/released-0.35.0-sandbox-2026-11-22/README.md)
+and the 0.36.0 PdM/WFM trials do not contain Collector-reception evidence.
+
+- [ ] Pin and verify the same signed package, Compose component and runtime image
+  digests for both environments and every phase. Use configuration parameters only;
+  no repackaging, source overlay, replacement exporter or rebuilt application image.
+- [ ] Record platform/device versions, injected endpoint variables, descriptor
+  defaults, actual application endpoint and local Collector configuration. Select
+  a Collector address/port distinct from the application's hard-coded fallback so
+  an accidental localhost match cannot mask missing mapping. Never export secrets.
+- [ ] With explicit `otelMetricsExporter=otlp` and egress permitted only to the test
+  Collector, first test device-default injection without an operator endpoint
+  override. Record whether an actual platform mapping exists and what the Collector
+  receives; do not infer success/failure from variable names or static CTT results.
+- [ ] On the unchanged signed artifacts, explicitly set `otelMetricsEndpoint` to
+  that same reachable private-IP/loopback Collector URL ending in `/v1/metrics`.
+  Capture received OTLP/HTTP protobuf data for `iaiops.process.uptime`,
+  `iaiops.audit.events`, `iaiops.audit.errors` and `iaiops.audit.available`.
+  Run a synthetic governed operation to create a known audit-count change.
+- [ ] Set the exporter back to `none`; after a bounded, recorded drain interval
+  covering export/flush timing, verify no new **IAIops application** metrics arrive.
+  Distinguish those metrics from ongoing platform/Collector telemetry. Use normal
+  deletion/fresh deployment if the platform lacks parameter-update support.
+- [ ] Inspect received payloads and attributes: process/audit health counters only;
+  no OT point values/names, diagnostic text, audit rows or credentials. Preserve
+  timestamped on/off receipts and reproducible commands with the artifact manifest,
+  then remove test workloads/configuration and restore the device agent.
+
+Acceptance is actual Collector reception when explicitly enabled and no new app
+metrics after disabling, with unchanged signed artifacts and no OT data export.
+Report device-default injection separately from the explicit-parameter path. This
+would complement CTT PR #20's static-check evidence; it must not turn a CTT runtime
+`NOT RUN` row into an asserted pass or be called formal Margo certification.
+
 ## 0.36.0 release verification (2026-11-22)
 
 The P0 PdM evaluation/feedback workflow is included in 0.36.0. Release publication

@@ -1,5 +1,25 @@
 # 验证记录 — what has actually been run, per protocol
 
+## 2026-11-22 — WFM PR #93 with unchanged released applications
+
+Candidate WFM commit `316457f` fixes same-name application/version onboarding
+and rejects incomplete packages before deployment writes. Original-source tests
+reproduced both the collision and nil-description panic; Linux package tests,
+25 race repetitions and vet passed. Focused fork CI passed; upstream PR CI awaits
+administrator approval (HTTP 403 for this account). Legacy commented workflows
+also have configuration failures; all-upstream-green is not claimed.
+
+In real Sandbox, PENDING/FAILED requests returned 409 with no deployment, version
+change or WFM restart. Unchanged signed 0.35.0/0.36.0 packages were simultaneously
+ONBOARDED; 0.36.0 deployed INSTALLED/healthy with signed runtime image identity
+and 14 official-wheel module hashes. Full synthetic PdM/feedback/refusal/audit
+workflow, six ZIP inventories and MCP 401/200 passed. No source overlay or app rebuild.
+Normal manifest **15 → 16 → 17**, then zero deployments/test containers/volumes;
+test package records/secrets removed, original WFM container/image and agent
+configuration restored. The fix remains an unmerged upstream candidate. Collector
+reception is NOT RUN; the separate same-package acceptance is in ROADMAP.md.
+[Evidence, build/trust setup, CI limits and cleanup](evidence/margo/wfm-package-identity-readiness-2026-11-22/README.md).
+
 ## 2026-11-22 — released 0.36.0, PdM complete workflow in Sandbox
 
 Tag `v0.36.0` / `20c52bb` published successfully to PyPI, five signed image
