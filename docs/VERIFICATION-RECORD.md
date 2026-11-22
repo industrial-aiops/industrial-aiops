@@ -1,5 +1,23 @@
 # 验证记录 — what has actually been run, per protocol
 
+## 2026-11-22 — P0 PdM evaluation/feedback (local candidate, unreleased)
+
+Source `a84e233`, based on main `1a9ad5d`, adds frozen-threshold offline evaluation
+and diagnosis-bound feedback, reusing `pdm_forecast`, `case confirm/dismiss` and
+maintenance-log normalization (`learn=False`). Five synthetic windows deliberately
+include TP/FP/TN/FN and abstention. Pending → premature-confirmation refusal →
+existing confirmation CLI → linked maintenance export passed, using an explicitly
+scripted synthetic reviewer; no real engineer/plant confirmation is claimed.
+
+Non-integration regression: **4780 passed, 2 skipped, 250 deselected**. After
+synchronizing local editable-install metadata to declared version 0.35.0, the final
+scenario and **219 focused/compatibility/version checks** passed. Ruff check/format
+(705 files) and Bandit Medium+ passed. Exported hashes and selected engine-module
+hashes match the candidate commit. No training, threshold update, physical PdM,
+public-dataset performance or Sandbox validation. This is not in the published
+0.35.0 wheel. [Dated evidence and review](evidence/pdm/p0-evaluation-feedback-2026-11-22/README.md).
+
+
 ## 2026-11-22 — released 0.35.0, package-only Sandbox verification
 
 Published tag `v0.35.0` / `dc5403f`: PyPI, five signed multi-arch image editions,
