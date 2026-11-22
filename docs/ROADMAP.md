@@ -4,6 +4,17 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## MQTT subscription readiness (2026-11-22; unreleased)
+
+- [x] Reproduce the startup race: session returns before broker SUBACK, so a
+  one-shot non-retained publish can be lost before the subscription exists.
+- [x] Bound startup by target timeout and require a matching successful SUBACK;
+  reject failed subscribe requests/denied acknowledgements. Keep stale-value refusal.
+- [x] Replace publisher sleeps with PUBACK completion; test delayed/denied/missing
+  acknowledgements.
+- [x] Confirm the real-broker repeated run: five complete passes (20 tests).
+  Remote CI is checked after integration; see the delivery run link.
+
 ## Sandbox diagnostic readiness reference scenario (2026-11-22; candidate, unreleased)
 
 Scope: MIT single-installation capability under HLD §8.3. One Sandbox platform,

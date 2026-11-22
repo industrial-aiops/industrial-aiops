@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Wait for broker connection and matching successful SUBACK before yielding an
+  MQTT tap session. Bound startup by the configured timeout; fail explicitly on
+  denied/missing acknowledgements. Real-broker tests wait for PUBACK rather than sleeps.
+
 - Add an audited offline `diagnostic-card` CLI and local HTML/ZIP evidence export
   for the single-platform synthetic conveyor reference scenario. Separate declared
   configuration from window-specific sample sufficiency; withhold observations
