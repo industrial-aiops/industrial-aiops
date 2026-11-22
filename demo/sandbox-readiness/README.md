@@ -1,4 +1,4 @@
-# Sandbox diagnostic readiness — first reference slice (unreleased)
+# Sandbox diagnostic readiness — first reference slice (0.35.0)
 
 One platform, one **synthetic conveyor** and a closed observation window. This
 local card separates supplied configuration readiness from actual sample
@@ -8,7 +8,9 @@ observation capability, not the complete RCA/readiness surface.
 
 ## Reproduce without devices or an external model
 
-Install the candidate source in an isolated environment, then run from the repo:
+Install iaiops 0.35.0, then run the reference data harness from the repo.
+For a package-only deployment, invoke `iaiops diagnostic-card` with the two
+JSON inputs; the application must use its installed CLI, without PYTHONPATH overlays:
 
 ```sh
 IAIOPS_HOME=/tmp/iaiops-readiness-demo .venv/bin/python \

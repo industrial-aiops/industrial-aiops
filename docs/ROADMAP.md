@@ -4,6 +4,12 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## 0.35.0 release verification (2026-11-22)
+
+The diagnostic-card and MQTT acknowledgement fixes are included in 0.35.0.
+Release artifact publication and package-only Sandbox validation are in progress;
+prior source-overlay records remain historical, not released-package evidence.
+
 ## MQTT subscription readiness (2026-11-22; unreleased)
 
 - [x] Reproduce the startup race: session returns before broker SUBACK, so a
