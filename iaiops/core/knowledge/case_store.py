@@ -81,6 +81,7 @@ def _cases_from(kb: KnowledgeBase) -> list[Case]:
                 answered_by=str(value.get("answered_by", "")),
                 answered_at=str(value.get("answered_at", "")),
                 endpoint=str(value.get("endpoint", "")),
+                evidence_ref=str(value.get("evidence_ref", "")),
             )
         )
     return out
@@ -102,6 +103,7 @@ def open_case(
     ranked: Any = (),
     audit_rows: Any = (),
     base_dir: Path | None = None,
+    evidence_ref: str = "",
 ) -> Case:
     """Open a case for a stoppage, carrying what we ranked and what someone did.
 
@@ -121,7 +123,14 @@ def open_case(
     recorded since.
     """
     existing = _existing(site, _case_id(endpoint, when), base_dir)
-    if existing is not None and existing.answered:
+    if existing is not None and evidence_ref:
+        if (
+            existing.evidence_ref != evidence_ref
+            or existing.endpoint != endpoint
+            or existing.when != when
+        ):
+            raise ValueError("Case identity/evidence binding conflict; use a distinct observation")
+    if existing is not None and (existing.answered or (existing.evidence_ref and not evidence_ref)):
         return existing
     case = case_from_audit(_case_id(endpoint, when), when, audit_rows)
     case = Case(
@@ -133,6 +142,7 @@ def open_case(
         fix_actions=case.fix_actions,
         note=case.note,
         endpoint=str(endpoint),
+        evidence_ref=evidence_ref,
     )
     return _store(site, case, base_dir)
 
@@ -199,6 +209,7 @@ def confirm_case(
         capture=CONFIRMED if anchored else OVERRIDE,
         fix_actions=case.fix_actions,
         endpoint=case.endpoint,
+        evidence_ref=case.evidence_ref,
         answered_by=who,
         answered_at=_now(),
         note=(
@@ -230,6 +241,7 @@ def dismiss_case(site: str, incident_id: str, by: str, base_dir: Path | None = N
         capture="",
         fix_actions=case.fix_actions,
         endpoint=case.endpoint,
+        evidence_ref=case.evidence_ref,
         answered_by=str(by).strip(),
         answered_at=_now(),
         note=f"dismissed by {str(by).strip()} — not an incident; kept as a negative example",

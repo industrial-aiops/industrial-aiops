@@ -4,6 +4,29 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## P0 PdM reproducible evaluation and feedback (2026-11-22; implemented locally, unreleased)
+
+MIT single-call/offline capability (HLD §8.3), using existing `pdm_forecast`,
+`case confirm` and maintenance-log normalization. No device writes, model dependency,
+automatic threshold adjustment, fleet dispatch or organization-level attestation.
+
+- [x] Export a pinned evaluation bundle with exact input, declared asset/source
+  group split, frozen threshold/policy revision, per-window forecasts and metrics.
+  Reject split leakage and invalid clocks; missing/bad evidence is abstention,
+  never a healthy negative. Report coverage, event recall, false alarms per scored
+  observation-hour and bounded lead time; threshold ETA error is not physical RUL.
+- [x] Define a versioned feedback contract binding evaluation/window hashes to
+  existing cases and explicit maintenance records. Pending, confirmed, false alarm
+  and inconclusive remain distinct; no inference can create a human label.
+- [x] Run a synthetic degradation → case confirm → maintenance-feedback example,
+  export its audit references, and test malformed/leaky/insufficient/contradictory
+  evidence and policy denial. Benchmark ground truth is never auto-confirmation.
+- [x] Review and run applicable regression, Ruff and Bandit gates. Physical PdM,
+  public-dataset performance and calibrated lifetime uncertainty remain unverified.
+
+Candidate command/contract: [PdM reference guide](../demo/pdm-feedback/README.md).
+The scripted synthetic reviewer is not a real plant/human validation.
+
 ## 0.35.0 release verification (2026-11-22)
 
 The diagnostic-card and MQTT acknowledgement fixes are included in 0.35.0.

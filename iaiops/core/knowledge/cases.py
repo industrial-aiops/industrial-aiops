@@ -86,6 +86,8 @@ class Case:
     #: answer to another compares this. Empty on cases opened before it existed.
     endpoint: str = ""
 
+    evidence_ref: str = ""
+
     def __post_init__(self) -> None:
         if self.capture and self.capture not in CAPTURE_MODES:
             raise ValueError(
@@ -147,6 +149,7 @@ class Case:
                 **({"answered_by": self.answered_by} if self.answered_by else {}),
                 **({"answered_at": self.answered_at} if self.answered_at else {}),
                 **({"endpoint": self.endpoint} if self.endpoint else {}),
+                **({"evidence_ref": self.evidence_ref} if self.evidence_ref else {}),
             },
             source=SUGGESTED,
             note=self.note,

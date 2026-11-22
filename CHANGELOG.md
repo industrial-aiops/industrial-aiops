@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add an offline `pdm-evaluation run/open-case/feedback` candidate: frozen-policy
+  evaluation with declared asset/source splits, explicit abstention/coverage,
+  threshold-event metrics, hashed reproduction bundles and existing case/maintenance
+  linkage. Human confirmation remains explicit; no training or threshold update.
+- Preserve optional case evidence bindings through confirmation/dismissal and reject
+  attempts to rebind a PdM case to different prediction evidence.
+
 ## 0.35.0 — 2026-11-22
 
 - Wait for broker connection and matching successful SUBACK before yielding an

@@ -38,6 +38,7 @@ from iaiops.cli.mtconnect import mtconnect_app
 from iaiops.cli.oee import oee_app
 from iaiops.cli.onboard import onboard_app
 from iaiops.cli.opcua import opcua_app
+from iaiops.cli.pdm_evaluation import pdm_evaluation_app
 from iaiops.cli.profinet import profinet_app
 from iaiops.cli.program import program_app
 from iaiops.cli.readiness import readiness_cmd
@@ -133,6 +134,7 @@ app.add_typer(sensor_app, name="sensor")
 app.add_typer(serial_app, name="serial")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
+app.add_typer(pdm_evaluation_app, name="pdm-evaluation")
 app.add_typer(meter_app, name="meter")
 app.add_typer(store_app, name="store")
 app.add_typer(case_app, name="case")
