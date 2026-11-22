@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Add an offline `pdm-evaluation run/open-case/feedback` candidate: frozen-policy
+## 0.36.0 — 2026-11-22
+
+- Add an offline `pdm-evaluation run/open-case/feedback` workflow: frozen-policy
   evaluation with declared asset/source splits, explicit abstention/coverage,
   threshold-event metrics, hashed reproduction bundles and existing case/maintenance
   linkage. Human confirmation remains explicit; no training or threshold update.

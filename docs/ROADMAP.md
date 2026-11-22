@@ -4,6 +4,12 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## 0.36.0 release verification (2026-11-22)
+
+The P0 PdM evaluation/feedback workflow is included in 0.36.0. Release publication
+and package-only Sandbox verification are in progress. The earlier local candidate
+record remains historical; it is not released-package verification.
+
 ## P0 PdM reproducible evaluation and feedback (2026-11-22; implemented locally, unreleased)
 
 MIT single-call/offline capability (HLD §8.3), using existing `pdm_forecast`,

@@ -1,14 +1,14 @@
-# Reproducible PdM evaluation and feedback — P0 candidate, unreleased
+# Reproducible PdM evaluation and feedback — 0.36.0
 
-This evaluates the **existing** `pdm_forecast` with an explicitly frozen high
-threshold. No fitting, classifier, new protocol, device write, model dependency,
-threshold tuning, actual plant diagnosis or organization-level attestation.
-The packaged version remains 0.35.0; this feature is only on the local development
-branch until merged/released. Use this candidate source, not an unchanged 0.35.0 wheel.
+This evaluates the existing `pdm_forecast` with an explicitly frozen high threshold.
+No fitting, classifier, new protocol, device write, model dependency, threshold
+adjustment or organization-level attestation. Released in iaiops 0.36.0.
+Use the installed package/official image and the release JSON/runner assets for
+package-only validation; never mount a replacement `iaiops` module or PYTHONPATH.
 
 ## Run the complete isolated example
 
-From an environment with this candidate installed:
+From an environment with iaiops 0.36.0 installed (or the official image):
 
 ```sh
 .venv/bin/python demo/pdm-feedback/run_demo.py --out-dir /tmp/pdm-example-NEW
@@ -134,7 +134,7 @@ samples. Consumers verify bytes, module compatibility and recompute evaluation
 before opening a case/exporting feedback. No archive extraction or code execution.
 The hashes are unsigned integrity inventories, not protection against someone
 rewriting both data and manifest. They do not claim a complete dependency/source
-attestation. Run with the pinned candidate for reproduction.
+attestation. Run with the pinned 0.36.0 artifacts for reproduction.
 
 P1 maintenance-before/after comparison, CMMS integration, cross-site governance,
 physical PdM and public-dataset validation are outside this first slice.
