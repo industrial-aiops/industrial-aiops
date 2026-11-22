@@ -7,10 +7,12 @@
 ## 0.36.0 release verification (2026-11-22)
 
 The P0 PdM evaluation/feedback workflow is included in 0.36.0. Release publication
-and package-only Sandbox verification are in progress. The earlier local candidate
-record remains historical; it is not released-package verification.
+and package-only Sandbox verification are complete: see the
+[released 0.36.0 evidence](evidence/pdm/released-0.36.0-sandbox-2026-11-22/README.md).
+Four feedback states, refusal paths and audit/maintenance references passed using
+the official image and wheel. The earlier local candidate record remains historical.
 
-## P0 PdM reproducible evaluation and feedback (2026-11-22; implemented locally, unreleased)
+## P0 PdM reproducible evaluation and feedback (2026-11-22; released 0.36.0)
 
 MIT single-call/offline capability (HLD §8.3), using existing `pdm_forecast`,
 `case confirm` and maintenance-log normalization. No device writes, model dependency,
@@ -30,7 +32,7 @@ automatic threshold adjustment, fleet dispatch or organization-level attestation
 - [x] Review and run applicable regression, Ruff and Bandit gates. Physical PdM,
   public-dataset performance and calibrated lifetime uncertainty remain unverified.
 
-Candidate command/contract: [PdM reference guide](../demo/pdm-feedback/README.md).
+Released command/contract: [PdM reference guide](../demo/pdm-feedback/README.md).
 The scripted synthetic reviewer is not a real plant/human validation.
 
 ## 0.35.0 release verification (2026-11-22)

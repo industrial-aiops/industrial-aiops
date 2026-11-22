@@ -1,0 +1,16 @@
+{
+  "schema": "iaiops.pdm-feedback-request/v1",
+  "outcome": "confirmed",
+  "by": "synthetic reviewer fixture",
+  "maintenance": {
+    "work_order_id": "synthetic-maintenance-001",
+    "device_id": "synthetic-motor-detected",
+    "case_id": "synthetic-motor-detected-20261120T000000",
+    "diagnosis_id": "a8f1c7e130920a98d0b792c65847d54722aef0ce1fcfe8614cab5cbdf05ce57b",
+    "cause": "mechanical_fault",
+    "completed_at": "2026-11-20T02:00:00Z",
+    "actions": [
+      "synthetic inspection/replacement record"
+    ]
+  }
+}

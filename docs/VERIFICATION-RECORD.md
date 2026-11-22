@@ -1,5 +1,27 @@
 # 验证记录 — what has actually been run, per protocol
 
+## 2026-11-22 — released 0.36.0, PdM complete workflow in Sandbox
+
+Tag `v0.36.0` / `20c52bb` published successfully to PyPI, five signed image
+editions, signed Margo OCI/tar and MCP Registry; release CI passed all six jobs.
+Real reference WFM deployed the unchanged signed package and reported INSTALLED;
+healthy non-root/read-only workload image matched the signed index. No source
+overlay: installed 0.36.0 and 14 module hashes matched the official PyPI wheel.
+Five synthetic windows and all four feedback states passed, including existing
+case confirm/dismiss, matching audits and maintenance bridge with no learning.
+Premature confirmation/dismissal, contradictory maintenance and policy rebinding
+were refused. All six exported ZIP inventories reverified; MCP 401/200 passed.
+The reviewer was scripted synthetic annotation, not physical/human validation.
+
+An initial stale pip index required failed-job rerun. A failed WFM catalog import
+(display-name collision) and nil-description panic required deleting that failed
+record and reimporting after WFM auto-restart; the unchanged package then onboarded.
+Those WFM defects remain unresolved; no application source workaround was used.
+Normal manifest progression **13 → 14 → 15** preserved anti-rollback. Final WFM
+zero deployments, device zero test containers/volumes, agent running without test
+secrets; temporary cache alias and transport archives removed.
+[Formal results, artifacts, incidents and limits](evidence/pdm/released-0.36.0-sandbox-2026-11-22/README.md).
+
 ## 2026-11-22 — P0 PdM evaluation/feedback (local candidate, unreleased)
 
 Source `a84e233`, based on main `1a9ad5d`, adds frozen-threshold offline evaluation

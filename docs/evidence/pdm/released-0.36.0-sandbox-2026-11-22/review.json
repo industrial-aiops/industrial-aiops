@@ -1,0 +1,25 @@
+{
+  "reviewed": "2026-11-22",
+  "scope": [
+    "official artifact identity and signatures",
+    "no source overlay or bind mount",
+    "14 installed module hashes",
+    "six ZIP inventory hashes",
+    "four feedback states and four refusal paths",
+    "case confirm/dismiss audit references and non-learning maintenance bridge",
+    "temporary secret absence in exports",
+    "normal anti-rollback version progression and final cleanup"
+  ],
+  "local_checks": {
+    "version_parity": "17 passed",
+    "ruff_check": "passed",
+    "ruff_format_check": "705 files already formatted",
+    "bandit_medium_or_higher": "zero; exit 0",
+    "git_diff_check": "passed"
+  },
+  "limits": [
+    "scripted synthetic reviewer, not a real human/plant claim",
+    "WFM display-name collision and nil-description panic remain upstream defects",
+    "not physical PdM accuracy or calibrated RUL validation"
+  ]
+}
