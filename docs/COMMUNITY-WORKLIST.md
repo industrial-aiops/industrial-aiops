@@ -6,6 +6,34 @@ create a scheduled automation. Actual participation and PR states are recorded i
 existing Tahu #472 and Margo submissions. Planned directions are not completed registrations. No paid membership,
 registration, outreach or upstream submission is implied by this list.
 
+## Margo follow-up queue — 2026-11-24
+
+Recorded while the contributor is traveling without the test environment.
+No new upstream submission or hardware/runtime validation is implied.
+
+- [ ] **First, close existing review loops:** [Symphony #92](https://github.com/margo/symphony/pull/92)
+  needs a concise concurrency scenario and minimal reproducer; [#93](https://github.com/margo/symphony/pull/93)
+  needs the exact onboarding requests/EasyCLI reproduction for distinct versioned
+  artifacts with the same application ID/name when the environment is available.
+  The travel/update reply is posted; await feedback before repeating it.
+- [ ] **Read now; test later:** review [digest pinning #239](https://github.com/margo/specification/pull/239)
+  and [immutability issue #238](https://github.com/margo/specification/issues/238)
+  against existing package/component/image receipts. Distinguish digests at each
+  layer, tag mutation, and runtime image references; do not claim implementation.
+- [ ] Review [allowEmpty #237](https://github.com/margo/specification/pull/237)
+  for missing/empty/default parameter boundaries; runtime checks await environment.
+- [ ] Track CTT tasks [#519](https://github.com/margo/sandbox/issues/519),
+  [#520](https://github.com/margo/sandbox/issues/520),
+  [#521](https://github.com/margo/sandbox/issues/521),
+  [#522](https://github.com/margo/sandbox/issues/522): requirement-ID mapping and
+  coverage gaps. Existing assignees are working on them; clarify title/body scope
+  before contributing, and avoid duplicate implementation.
+- [ ] Follow [MIAF credentials #94](https://github.com/margo/symphony/pull/94)
+  (Draft; SVID rotation remains open) and [EasyCLI logs #518](https://github.com/margo/sandbox/issues/518)
+  (assigned). Observation only until a concrete uncovered problem is identified.
+- [ ] Track [CTT #21](https://github.com/margo/conformance_test_toolkit/pull/21)
+  review; do not equate the proposal with merged conformance support.
+
 ## Authorized submissions — 2026-11-17
 
 - Fledge: [PR #1748](https://github.com/fledge-iot/fledge/pull/1748), notification
