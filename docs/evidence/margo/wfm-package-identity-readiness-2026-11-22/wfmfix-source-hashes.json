@@ -1,0 +1,5 @@
+{
+  "api/pkg/apis/v1alpha1/managers/margo/deployment.go": "e3d8f7be912a8179130709c83694d51b123eeab8a7e1ac62434a745a800a03f3",
+  "api/pkg/apis/v1alpha1/managers/margo/transformer.go": "37dabae91448201103dba5ef716f72e29e5ad9acfbc3cbc366e68a582b9b26c6",
+  "api/pkg/apis/v1alpha1/vendors/margo/workload-mgmt-vendor.go": "ede2ebf1fbd8e2912457327561a60234728193c2d9282e510a6563dfb457b821"
+}

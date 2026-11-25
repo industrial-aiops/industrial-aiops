@@ -1,0 +1,8 @@
+{
+  "agent": "running",
+  "watermark": 11,
+  "cached_records": 0,
+  "test_secret_environment": "absent",
+  "test_containers": 0,
+  "test_volumes": 0
+}

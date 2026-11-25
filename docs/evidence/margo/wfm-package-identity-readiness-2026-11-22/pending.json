@@ -1,0 +1,5 @@
+{
+  "schema": "iaiops.pdm-feedback-request/v1",
+  "outcome": "pending",
+  "by": "synthetic reviewer fixture"
+}

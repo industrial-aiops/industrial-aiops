@@ -1,0 +1,10 @@
+{
+  "dataset.json": "5de0aac359fb89a6173cb584bc62f2a521d3d8430d1a38ff34f67d3eb043ba75",
+  "run_demo.py": "2cd99d79fe52e3ede3cca94d9a8b1fd2fab54f7bb56302a1e08fd24b7b87e0ca",
+  "pdm036-extra-harness.py": "463875c25ac368bcf6935a9eb6cdaaae5efc0c2d018d62ed51f17145d0b93dc0",
+  "pdm-feedback-request-v1.schema.json": "7d7334211df023764c2fa0fd7ec22e11616fea565d9a15645be8fc2d7b8d10b4",
+  "iaiops-compose-app-package-0.36.0.tar.gz": "a3c3f5d224d01bfd41bcc9b4cc4076d9b92025ffcd5080a1e779added9e19d53",
+  "iaiops-compose-app-package-0.36.0.tar.gz.sig": "816b19966bbc8c8728946f54578a2ed45c14600eb2046f16e007a90434e0aa7c",
+  "iaiops-0.36.0-locked.cdx.json": "4ddffbd5f79c87b87c5433c086b69dd1fb315f8220c017acda19f80d36c83832",
+  "iaiops-0.36.0-locked.cdx.json.sha256": "c9b491c3e8a1921c1cea29330279077873cf7896f909bfc9619c27ad04e4b865"
+}

@@ -1,0 +1,6 @@
+
+Verification for ghcr.io/industrial-aiops/iaiops:0.36.0-factory --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - Existence of the claims in the transparency log was verified offline
+  - The signatures were verified against the specified public key

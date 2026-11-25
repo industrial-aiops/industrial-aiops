@@ -1,0 +1,29 @@
+{
+  "image_publication": {
+    "first_attempt": "factory pip index reported versions only through 0.35.0 after host preflight passed",
+    "failed_job": 137170334621,
+    "action": "reran failed jobs after official wheel was verified; same release commit/tag/wheel",
+    "final_workflow": 45009983150,
+    "final_conclusion": "success"
+  },
+  "wfm_first_import": {
+    "package_id": "a95c77f9-bdc1-4b2b-9741-e34653a4236a",
+    "status": "FAILED",
+    "reason": "spec.displayName: Industrial-AIOps: solution displayName must be unique",
+    "deployment_attempt": "EOF; WFM panic in MargoTransformer.MergeWithAppPackage transformer.go:555 (nil package Description)",
+    "manifest_after_failure": {
+      "version": 13,
+      "deployments": 0
+    },
+    "recovery": "WFM auto-restarted; internal solutions list was empty and instances list empty; deleted only failed package record with normal Maestro delete; reimported byte-identical signed package and waited for ONBOARDED before deploying",
+    "existing_package_records": "retained",
+    "source_patch_or_rollback_bypass": false
+  },
+  "image_transport": {
+    "reason": "agent Compose deployment removes the version tag, then forces a pull; docker save/load retains uncompressed content but does not prevent the compressed-layer download",
+    "recovery": "downloaded original signed amd64 manifest/config/compressed blobs; verified every SHA-256; imported OCI archive, retained temporary local cache alias through agent restart, normal agent reconciliation completed",
+    "image_rebuild": false,
+    "package_or_compose_modification": false,
+    "cache_alias": "iaiops-release036-cache:verified (removed in final cleanup)"
+  }
+}

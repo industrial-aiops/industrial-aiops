@@ -1,0 +1,35 @@
+go: downloading github.com/go-openapi/jsonpointer v0.22.5
+go: downloading github.com/spiffe/go-spiffe/v2 v2.7.0
+go: downloading github.com/go-openapi/swag/jsonname v0.25.5
+go: downloading github.com/go-openapi/swag v0.25.4
+go: downloading github.com/go-jose/go-jose/v4 v4.1.4
+{"caller":"github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.(*MargoDatabase).UpsertAppPackage:198","instance":"test-llm","level":"info","msg":"UpsertAppPackage: app package 'package-id' stored successfully","scope":"coa.runtime","time":"2026-11-22T12:43:58.96488671Z","type":"log","ver":"unknown"}
+{"caller":"github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/vendors/margo.(*WorkloadMgmtVendor).createDeployment:243","diagnostics":{"correlationId":"","resourceId":"","traceContext":{"spanId":"","traceId":""}},"instance":"test-llm","level":"info","msg":"V (WorkloadMgmt): createDeployment, method: POST, {\"metadata\":{\"name\":\"trial\"},\"spec\":{\"appPackageRef\":{\"id\":\"package-id\"},\"deploymentProfile\":{\"components\":null,\"type\":\"\"}}}","scope":"coa.runtime","time":"2026-11-22T12:43:58.965115317Z","type":"log","ver":"unknown"}
+{"caller":"github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.(*MargoDatabase).GetAppPackage:227","diagnostics":{"correlationId":"","resourceId":"","traceContext":{"spanId":"","traceId":""}},"instance":"test-llm","level":"info","msg":"GetAppPackage: app package 'package-id' retrieved successfully","scope":"coa.runtime","time":"2026-11-22T12:43:58.965404024Z","type":"log","ver":"unknown"}
+{"caller":"github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.(*DeploymentManager).CreateDeployment:155","diagnostics":{"correlationId":"","resourceId":"","traceContext":{"spanId":"","traceId":""}},"instance":"test-llm","level":"info","msg":"CreateDeployment: Starting deployment process for 'trial'","scope":"coa.runtime","time":"2026-11-22T12:43:58.965431814Z","type":"log","ver":"unknown"}
+--- FAIL: TestCreateDeploymentReturnsConflictForUnavailablePackage (0.00s)
+    --- FAIL: TestCreateDeploymentReturnsConflictForUnavailablePackage/PENDING (0.00s)
+panic: runtime error: invalid memory address or nil pointer dereference [recovered, repanicked]
+[signal SIGSEGV: segmentation violation code=0x1 addr=0x18 pc=0xd99bd5]
+
+goroutine 9 [running]:
+testing.tRunner.func1.2({0xf02b00, 0x19511e0})
+    /usr/local/go/src/testing/testing.go:1872 +0x237
+testing.tRunner.func1()
+    /usr/local/go/src/testing/testing.go:1875 +0x35b
+panic({0xf02b00?, 0x19511e0?})
+    /usr/local/go/src/runtime/panic.go:783 +0x132
+github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.(*MargoTransformer).MergeWithAppPackage(0x0, 0xc0003c5040, {{{0x0, 0x0}, 0xc00038d6f0, {0x0, 0x0, 0x0, {0x0, 0x0}, ...}, ...}, ...})
+    /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/managers/margo/transformer.go:555 +0x35
+github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo.(*DeploymentManager).CreateDeployment(_, {_, _}, {0x0, {0x0, 0x0, 0x0, {0xc0002d5bb8, 0x5}, 0x0}, ...}, ...)
+    /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/managers/margo/deployment.go:165 +0x165
+github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/vendors/margo.(*WorkloadMgmtVendor).createDeployment(0xc0003add90, {{0x11dc7c8, 0x199fa80}, {0x10566ef, 0x4}, {0x0, 0x0}, {0x0, 0x0}, {0xc00009b280, ...}, ...})
+    /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/vendors/margo/workload-mgmt-vendor.go:257 +0x4d0
+github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/vendors/margo.TestCreateDeploymentReturnsConflictForUnavailablePackage.func1(0xc0000bfa40)
+    /home/wei/workspace/margo-package-fix-20261122/api/pkg/apis/v1alpha1/vendors/margo/package_readiness_test.go:30 +0x425
+testing.tRunner(0xc0000bfa40, 0xc00038c680)
+    /usr/local/go/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 8
+    /usr/local/go/src/testing/testing.go:1997 +0x465
+FAIL    github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/vendors/margo    0.010s
+FAIL

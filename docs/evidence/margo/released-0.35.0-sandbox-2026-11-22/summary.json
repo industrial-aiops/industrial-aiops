@@ -1,0 +1,19 @@
+{
+  "sufficient": {
+    "status": "ready",
+    "live_readiness": false,
+    "generated_at": "2026-11-22T06:20:18.310393+00:00"
+  },
+  "insufficient": {
+    "status": "insufficient_evidence",
+    "live_readiness": false,
+    "generated_at": "2026-11-22T06:20:19.301186+00:00"
+  },
+  "stale": {
+    "status": "insufficient_evidence",
+    "live_readiness": false,
+    "generated_at": "2026-11-22T06:20:20.278044+00:00"
+  },
+  "unauthenticated_http": 401,
+  "authenticated_initialize_http": 200
+}

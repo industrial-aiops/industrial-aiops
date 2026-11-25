@@ -1,0 +1,66 @@
+"""External CLI verification only; never replaces installed iaiops code."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import zipfile
+
+root=Path(os.environ.get('PDM036_RESULT_DIR','/tmp/pdm036-result'))
+env={**os.environ,'HOME':str(root/'isolated-home'),'IAIOPS_HOME':str(root/'isolated-home')}
+env.pop('IAIOPS_CONFIG',None);env.pop('OT_AIOPS_HOME',None)
+assert not env.get('PYTHONPATH')
+
+
+def call(args,expected=0):
+    p=subprocess.run([sys.executable,'-c','from iaiops.cli import app; app()',*args],env=env,capture_output=True,text=True)
+    assert p.returncode==expected,(args,p.returncode,p.stdout,p.stderr)
+    return p.stdout
+
+
+def write(name,data):
+    path=root/name;path.write_text(json.dumps(data,indent=2)+'\n');return str(path)
+
+
+base=['pdm-evaluation','feedback','--evaluation',str(root/'evaluation.zip'),'--window','false-alarm','--site','synthetic-demo']
+opened=json.loads(call(['pdm-evaluation','open-case','--evaluation',str(root/'evaluation.zip'),'--window','false-alarm','--site','synthetic-demo']))
+request={'schema':'iaiops.pdm-feedback-request/v1','outcome':'inconclusive','by':'synthetic reviewer fixture'}
+call([*base,'--input',write('inconclusive-request.json',request),'--out',str(root/'inconclusive.zip')])
+request['outcome']='false_positive'
+call([*base,'--input',write('premature-dismiss-request.json',request),'--out',str(root/'must-not-false-positive.zip')],1)
+assert not (root/'must-not-false-positive.zip').exists()
+call(['case','dismiss',opened['case_id'],'--by',request['by'],'--site','synthetic-demo'])
+call([*base,'--input',write('false-positive-request.json',request),'--out',str(root/'false-positive.zip')])
+confirmed=json.loads((root/'confirmed.json').read_text())
+confirmed['maintenance']['cause']='sensor_fault'
+call(['pdm-evaluation','feedback','--evaluation',str(root/'evaluation.zip'),'--window','detected','--site','synthetic-demo','--input',write('conflicting-maintenance-request.json',confirmed),'--out',str(root/'must-not-conflict.zip')],1)
+assert not (root/'must-not-conflict.zip').exists()
+data=json.loads(Path('/tmp/pdm036-input/dataset.json').read_text());data['policy']['revision']='different-policy'
+call(['pdm-evaluation','run','--input',write('revised-policy.json',data),'--out',str(root/'revised-policy.zip')])
+call(['pdm-evaluation','open-case','--evaluation',str(root/'revised-policy.zip'),'--window','detected','--site','synthetic-demo'],1)
+summary={}
+for case in ('evaluation','pending','confirmed','inconclusive','false-positive','revised-policy'):
+    with zipfile.ZipFile(root/(case+'.zip')) as archive:
+        manifest=json.loads(archive.read('manifest.json'))
+        assert manifest['package_version']=='0.36.0'
+        for name,item in manifest['files'].items():
+            assert hashlib.sha256(archive.read(name)).hexdigest()==item['sha256']
+        if 'feedback.json' in archive.namelist():
+            feedback=json.loads(archive.read('feedback.json'))
+            assert feedback['updates_applied']==[]
+            summary[case]={'outcome':feedback['outcome'],'updates_applied':[]}
+            if case in ('confirmed','false-positive'):
+                refs=json.loads(archive.read('case-confirmation-reference.json'))
+                assert refs['status']=='matching_records' and refs['rows']
+            if case=='confirmed':
+                assert feedback['maintenance_bridge']['n_mapped']==1
+                assert 'weights' not in feedback['maintenance_bridge']
+        else:
+            result=json.loads(archive.read('evaluation.json'))
+            assert result['metrics']['event_recall']==1/3
+            summary[case]={'metrics':result['metrics']}
+summary['refusals']=['premature confirmation','premature dismissal','conflicting maintenance cause','different-policy case rebinding']
+summary['annotation']='synthetic scripted reviewer; no real human/plant claim'
+(root/'complete-summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+print(json.dumps(summary,indent=2))

@@ -1,0 +1,15 @@
+{
+  "version": "0.35.0",
+  "files": [
+    {
+      "filename": "iaiops-0.35.0-py3-none-any.whl",
+      "sha256": "6d2cc3f1e3dc16870421f0d9842fc94c72d544770e09bc625d95288b5435a443",
+      "bytes": 1252299
+    },
+    {
+      "filename": "iaiops-0.35.0.tar.gz",
+      "sha256": "392e26643ea60c40ef4398e4b938b8e1500a98c2270d327eb25ec80737492d4f",
+      "bytes": 2439299
+    }
+  ]
+}

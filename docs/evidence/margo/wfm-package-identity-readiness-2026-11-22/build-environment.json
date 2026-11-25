@@ -1,0 +1,12 @@
+{
+  "rust_toolchain": "1.85.1",
+  "rust_build": "cargo build --release -p symphony (normal upstream unlocked build)",
+  "lock_limitation": "committed Rust lockfile was stale and failed --locked; build-only regenerated lock archived, committed source untouched",
+  "go_version": "1.25.10",
+  "sandbox_dependency_commit": "64d7a7433e304f1694b2f72d9bf3af288de5e368",
+  "module_transport": "goproxy.cn with existing sums; build-only modfile replaces Sandbox with exact local checkout",
+  "rust_transport": "rsproxy.cn; Cargo checksum validation retained",
+  "ca_bundle_sha256": "07c9b14e6a4871195c61224c050129ceebadd266a6c788d8dc4bebc0fb23f708",
+  "ca_bundle_origin": "exact public system trust bundle copied from preserved original WFM container; TLS verification retained",
+  "generated_rust_lock_sha256": "1eacc4dcddecd829ac2c9c747a8686f5cf23fece56ea75e42b0fa66e1129d856"
+}
