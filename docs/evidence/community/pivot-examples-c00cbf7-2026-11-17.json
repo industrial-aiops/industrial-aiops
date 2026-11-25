@@ -1,0 +1,225 @@
+{
+  "scope": "JSON example inspection, not schema/protocol validation",
+  "site_semantics": "unconfirmed",
+  "examples": [
+    {
+      "model": "pivottm",
+      "sha256": "b7ffb7306ad81aef90fcd17fd82eebdfa2f10a59b8b3207794ab504da76c388f",
+      "roundtrip_equal": true,
+      "top_level_keys": [
+        "@xmlns:xs",
+        "PIVOTTM"
+      ],
+      "schema_keywords_present": [],
+      "raw_indicators": [
+        {
+          "path": "/PIVOTTM/GTIM/MvTyp/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTM/GTIM/MvTyp/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTM/GTIM/MvTyp/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTM/GTIM/MvTyp/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTM/GTIM/Origin/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTM/GTIM/Origin/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTM/GTIM/Origin/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTM/GTIM/Origin/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTM/GTIM/TmValidity",
+          "raw_value": {
+            "stVal": "VALID"
+          }
+        }
+      ]
+    },
+    {
+      "model": "pivotts",
+      "sha256": "c5e24a17ec9e947a35ba94cc04ea8bd7a481dae01e7969ee2d64b39ace3aedc8",
+      "roundtrip_equal": true,
+      "top_level_keys": [
+        "@xmlns:xs",
+        "PIVOTTS"
+      ],
+      "schema_keywords_present": [],
+      "raw_indicators": [
+        {
+          "path": "/PIVOTTS/GTIS/DpsTyp/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/DpsTyp/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTS/GTIS/DpsTyp/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/DpsTyp/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/Origin/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/Origin/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTS/GTIS/Origin/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/Origin/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/SpsTyp/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/SpsTyp/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTS/GTIS/SpsTyp/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/SpsTyp/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTS/GTIS/TmValidity",
+          "raw_value": {
+            "stVal": "VALID"
+          }
+        }
+      ]
+    },
+    {
+      "model": "pivottc",
+      "sha256": "f87eb98b4ccc67fdc66ab934e39c8a0b50e2534100cd12f69dfac7633df71f20",
+      "roundtrip_equal": true,
+      "top_level_keys": [
+        "@xmlns:xs",
+        "PIVOTTC"
+      ],
+      "schema_keywords_present": [],
+      "raw_indicators": [
+        {
+          "path": "/PIVOTTC/GTIC/DevSt/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/DevSt/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTC/GTIC/DevSt/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/DevSt/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/DpcTyp/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/DpcTyp/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTC/GTIC/DpcTyp/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/DpcTyp/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/SpcTyp/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/SpcTyp/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTC/GTIC/SpcTyp/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/SpcTyp/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TagClass/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TagClass/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TagClass/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TagClass/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TmStamp/q/DetailQuality/oldData",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TmStamp/q/Validity",
+          "raw_value": "good"
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TmStamp/stVal/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TmStamp/stVal/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TmStamp/t/TimeQuality/clockFailure",
+          "raw_value": true
+        },
+        {
+          "path": "/PIVOTTC/GTIC/TmStamp/t/TimeQuality/clockNotSynchronized",
+          "raw_value": true
+        }
+      ]
+    }
+  ],
+  "upstream_repository": "fledge-power/fledgepower-pivot-model",
+  "upstream_commit": "c00cbf776c90a3e0d0ffdeee4e6659508ba1d2cb",
+  "recorded_on": "2026-11-17"
+}

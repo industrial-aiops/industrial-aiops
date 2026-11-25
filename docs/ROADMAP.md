@@ -142,7 +142,9 @@ validation remain pending; see the dated verification record.
 
 ## Community participation and maintenance (2026-11-16)
 
-Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md). Continue Margo;
+Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md).
+Participation/PR ledger: [COMMUNITY-CONTRIBUTIONS.md](COMMUNITY-CONTRIBUTIONS.md).
+Continue Margo;
 explore Sparkplug/Tahu, Fledge, LF Energy FledgePOWER/SEAPATH and OPC Foundation
 open-source projects through reproducible issues and small useful contributions.
 These are planned participation directions, not completed registrations or integrations.
@@ -164,7 +166,13 @@ Five pinned upstream C++ enrichment cases preserve values under `reason.data`.
 Full notification-service/delivery-plugin execution and version comparison remain
 pending; do not call the issue an end-to-end reproduction or a Fledge integration.
 
-### Community follow-up (2026-11-18; branch-only)
+### Community contribution drafts (2026-11-17; historical contribution)
+
+[Prepared Fledge doc patch and PIVOT example probe](community/2026-11-17-contribution-drafts.md).
+The Fledge patch was applied and its added RST rendered; it was submitted as upstream #1748.
+PIVOT example inspection is not schema/protocol validation or typed-model generation.
+
+### Community follow-up (2026-11-18; historical probe)
 
 [Status and Fledge callback-boundary evidence](community/2026-11-18-follow-up.md).
 Resolve Tahu's ECA account association through the user; do not change commit
