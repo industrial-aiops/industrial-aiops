@@ -1,0 +1,104 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_____________ test_waits_for_subscription_before_one_shot_publish ______________
+
+    def test_waits_for_subscription_before_one_shot_publish():
+        client = Client()
+        try:
+            _subscribe_tap(client, target())
+>           assert client.ready.is_set(), "one-shot publish would be lost before subscription exists"
+E           AssertionError: one-shot publish would be lost before subscription exists
+E           assert False
+E            +  where False = is_set()
+E            +    where is_set = <threading.Event at 0x109504190: unset>.is_set
+E            +      where <threading.Event at 0x109504190: unset> = <test_mqtt_subscription_ready.Client object at 0x109841550>.ready
+
+tests/test_mqtt_subscription_ready.py:40: AssertionError
+__________ test_refuses_denied_missing_failed_or_wrong_ack[options0] ___________
+
+options = {'codes': (128,)}
+
+    @pytest.mark.parametrize("options", [
+        {"codes": (128,)}, {"codes": ()}, {"ack": False},
+        {"rc": 4, "ack": False}, {"mid": 18},
+    ])
+    def test_refuses_denied_missing_failed_or_wrong_ack(options):
+        client = Client(**options)
+        try:
+>           with pytest.raises(OTConnectionError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE OTConnectionError
+
+tests/test_mqtt_subscription_ready.py:54: Failed
+__________ test_refuses_denied_missing_failed_or_wrong_ack[options1] ___________
+
+options = {'codes': ()}
+
+    @pytest.mark.parametrize("options", [
+        {"codes": (128,)}, {"codes": ()}, {"ack": False},
+        {"rc": 4, "ack": False}, {"mid": 18},
+    ])
+    def test_refuses_denied_missing_failed_or_wrong_ack(options):
+        client = Client(**options)
+        try:
+>           with pytest.raises(OTConnectionError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE OTConnectionError
+
+tests/test_mqtt_subscription_ready.py:54: Failed
+__________ test_refuses_denied_missing_failed_or_wrong_ack[options2] ___________
+
+options = {'ack': False}
+
+    @pytest.mark.parametrize("options", [
+        {"codes": (128,)}, {"codes": ()}, {"ack": False},
+        {"rc": 4, "ack": False}, {"mid": 18},
+    ])
+    def test_refuses_denied_missing_failed_or_wrong_ack(options):
+        client = Client(**options)
+        try:
+>           with pytest.raises(OTConnectionError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE OTConnectionError
+
+tests/test_mqtt_subscription_ready.py:54: Failed
+__________ test_refuses_denied_missing_failed_or_wrong_ack[options3] ___________
+
+options = {'rc': 4, 'ack': False}
+
+    @pytest.mark.parametrize("options", [
+        {"codes": (128,)}, {"codes": ()}, {"ack": False},
+        {"rc": 4, "ack": False}, {"mid": 18},
+    ])
+    def test_refuses_denied_missing_failed_or_wrong_ack(options):
+        client = Client(**options)
+        try:
+>           with pytest.raises(OTConnectionError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE OTConnectionError
+
+tests/test_mqtt_subscription_ready.py:54: Failed
+__________ test_refuses_denied_missing_failed_or_wrong_ack[options4] ___________
+
+options = {'mid': 18}
+
+    @pytest.mark.parametrize("options", [
+        {"codes": (128,)}, {"codes": ()}, {"ack": False},
+        {"rc": 4, "ack": False}, {"mid": 18},
+    ])
+    def test_refuses_denied_missing_failed_or_wrong_ack(options):
+        client = Client(**options)
+        try:
+>           with pytest.raises(OTConnectionError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE OTConnectionError
+
+tests/test_mqtt_subscription_ready.py:54: Failed
+=========================== short test summary info ============================
+FAILED tests/test_mqtt_subscription_ready.py::test_waits_for_subscription_before_one_shot_publish
+FAILED tests/test_mqtt_subscription_ready.py::test_refuses_denied_missing_failed_or_wrong_ack[options0]
+FAILED tests/test_mqtt_subscription_ready.py::test_refuses_denied_missing_failed_or_wrong_ack[options1]
+FAILED tests/test_mqtt_subscription_ready.py::test_refuses_denied_missing_failed_or_wrong_ack[options2]
+FAILED tests/test_mqtt_subscription_ready.py::test_refuses_denied_missing_failed_or_wrong_ack[options3]
+FAILED tests/test_mqtt_subscription_ready.py::test_refuses_denied_missing_failed_or_wrong_ack[options4]
+6 failed in 4.93s

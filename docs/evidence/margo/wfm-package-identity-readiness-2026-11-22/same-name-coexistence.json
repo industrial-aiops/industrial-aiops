@@ -1,0 +1,23 @@
+{
+  "packages": [
+    {
+      "package_id": "16df120b-8aa0-48e7-a00e-ea92071f88f9",
+      "record_name": "wfmfix-035-20261122",
+      "state": "ONBOARDED",
+      "application_id": "io-github-industrial-aiops-iaiops",
+      "application_name": "Industrial-AIOps",
+      "application_version": "0.35.0"
+    },
+    {
+      "package_id": "a56f9dbf-a871-411c-be61-90f6fcc49aa3",
+      "record_name": "wfmfix-036-20261122",
+      "state": "ONBOARDED",
+      "application_id": "io-github-industrial-aiops-iaiops",
+      "application_name": "Industrial-AIOps",
+      "application_version": "0.36.0"
+    }
+  ],
+  "simultaneously_onboarded": true,
+  "original_application_names_preserved": true,
+  "generic_solutions_endpoint": "separate vendor state; not used as Margo backing-store evidence"
+}

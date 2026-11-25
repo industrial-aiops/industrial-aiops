@@ -1,0 +1,13 @@
+{
+  "actual_runtime_image": "sha256:61255c8bc0553876dba35792c3dda7cb6208b44b766a313a692c353a17477ea5",
+  "signed_index": "sha256:61255c8bc0553876dba35792c3dda7cb6208b44b766a313a692c353a17477ea5",
+  "equal": true,
+  "mounts": [
+    {
+      "type": "volume",
+      "destination": "/home/iaiops/.iaiops",
+      "read_write": true
+    }
+  ],
+  "source_bind_mounts": 0
+}

@@ -1,0 +1,155 @@
+[manager]	WARNING	Test in comment: explicit is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: operator is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: choice is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: warned is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: loudly is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: narrowing is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: for is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: the is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: type is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: checker is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: narrowing is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: for is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: the is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: type is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: checker is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: DTD is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: entities is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: barred is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: above is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: ET is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: resolves is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: no is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: externals is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: DTD is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: entities is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: rejected is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: above is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: DTD is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: entities is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: rejected is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: above is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: DTD is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: entities is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: rejected is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: above is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: reads is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: the is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: local is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: kernel is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: ARP is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: cache is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: see is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: _run is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: fixed is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: argv is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: shell is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: False is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: no is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: interpolation is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/governance/audit.py:188
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/governance/audit.py:188
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/governance/audit.py:468
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/governance/audit.py:502
+[manager]	WARNING	Test in comment: env is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: var is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: prefix is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: secret is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: env is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: var is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: suffix is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: secret is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: key is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: name is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: secret is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: env is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: var is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: name is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: secret is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: pre is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: rename is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: fallback is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: env is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: var is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: name is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: not is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: secret is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: operator is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: s is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: explicit is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: choice is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: warned is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:234
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:235
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:235
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:245
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:245
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:262
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:262
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:351
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:351
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:352
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:360
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/reader.py:373
+[manager]	WARNING	Test in comment: justification is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: where is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: is is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: built is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: from is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: FIXED is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: clause is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: list is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: every is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: parameterized is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: justification is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: same is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: fixed is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: clause is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: list is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: as is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: query_samples is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: values is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: bound is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/sqlite_local.py:258
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/sqlite_local.py:258
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/sqlite_local.py:258
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/sqlite_local.py:286
+[manager]	WARNING	Test in comment: ident is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: sanitized is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: ident is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: sanitized is not a test name or id, ignoring
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:62
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:94
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:94
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:95
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:95
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:95
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:96
+[tester]	WARNING	nosec encountered (B608), but no failed test on file iaiops/core/sink/tdengine.py:96
+[manager]	WARNING	Test in comment: re is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: runs is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: this is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: interpreter is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: on is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: a is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: fixed is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: argv is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: see is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: _subprocess_arm is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: fixed is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: argv is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: shell is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: False is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: no is not a test name or id, ignoring
+[manager]	WARNING	Test in comment: interpolation is not a test name or id, ignoring

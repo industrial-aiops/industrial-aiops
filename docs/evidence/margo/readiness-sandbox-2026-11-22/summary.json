@@ -1,0 +1,23 @@
+{
+  "sufficient": {
+    "status": "ready",
+    "live_readiness": false,
+    "generated_at": "2026-11-22T01:46:55.836588+00:00",
+    "assessment_duration_ms": 0.439
+  },
+  "insufficient": {
+    "status": "insufficient_evidence",
+    "live_readiness": false,
+    "generated_at": "2026-11-22T01:46:56.711956+00:00",
+    "assessment_duration_ms": 0.212
+  },
+  "stale": {
+    "status": "insufficient_evidence",
+    "live_readiness": false,
+    "generated_at": "2026-11-22T01:46:57.599784+00:00",
+    "assessment_duration_ms": 0.319
+  },
+  "unauthenticated_http": 401,
+  "authenticated_initialize_http": 200,
+  "completed_at": "2026-11-22T01:47:40.133315+00:00"
+}

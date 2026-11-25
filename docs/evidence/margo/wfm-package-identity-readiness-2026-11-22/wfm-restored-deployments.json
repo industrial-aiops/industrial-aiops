@@ -1,0 +1,13 @@
+{
+  "WFMServerHost": "127.0.0.1",
+  "WFMServerPort": 8082,
+  "NorthboundBaseURL": "v1alpha2/margo/nbi/v1",
+  "Data": [
+    {
+      "items": [],
+      "metadata": {
+        "continue": false
+      }
+    }
+  ]
+}

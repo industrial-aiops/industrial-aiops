@@ -1,5 +1,140 @@
 # 验证记录 — what has actually been run, per protocol
 
+## 2026-11-22 — WFM PR #93 with unchanged released applications
+
+Candidate WFM commit `316457f` fixes same-name application/version onboarding
+and rejects incomplete packages before deployment writes. Original-source tests
+reproduced both the collision and nil-description panic; Linux package tests,
+25 race repetitions and vet passed. Focused fork CI passed; upstream PR CI awaits
+administrator approval (HTTP 403 for this account). Legacy commented workflows
+also have configuration failures; all-upstream-green is not claimed.
+
+In real Sandbox, PENDING/FAILED requests returned 409 with no deployment, version
+change or WFM restart. Unchanged signed 0.35.0/0.36.0 packages were simultaneously
+ONBOARDED; 0.36.0 deployed INSTALLED/healthy with signed runtime image identity
+and 14 official-wheel module hashes. Full synthetic PdM/feedback/refusal/audit
+workflow, six ZIP inventories and MCP 401/200 passed. No source overlay or app rebuild.
+Normal manifest **15 → 16 → 17**, then zero deployments/test containers/volumes;
+test package records/secrets removed, original WFM container/image and agent
+configuration restored. The fix remains an unmerged upstream candidate. Collector
+reception is NOT RUN; the separate same-package acceptance is in ROADMAP.md.
+[Evidence, build/trust setup, CI limits and cleanup](evidence/margo/wfm-package-identity-readiness-2026-11-22/README.md).
+
+## 2026-11-22 — released 0.36.0, PdM complete workflow in Sandbox
+
+Tag `v0.36.0` / `20c52bb` published successfully to PyPI, five signed image
+editions, signed Margo OCI/tar and MCP Registry; release CI passed all six jobs.
+Real reference WFM deployed the unchanged signed package and reported INSTALLED;
+healthy non-root/read-only workload image matched the signed index. No source
+overlay: installed 0.36.0 and 14 module hashes matched the official PyPI wheel.
+Five synthetic windows and all four feedback states passed, including existing
+case confirm/dismiss, matching audits and maintenance bridge with no learning.
+Premature confirmation/dismissal, contradictory maintenance and policy rebinding
+were refused. All six exported ZIP inventories reverified; MCP 401/200 passed.
+The reviewer was scripted synthetic annotation, not physical/human validation.
+
+An initial stale pip index required failed-job rerun. A failed WFM catalog import
+(display-name collision) and nil-description panic required deleting that failed
+record and reimporting after WFM auto-restart; the unchanged package then onboarded.
+Those WFM defects remain unresolved; no application source workaround was used.
+Normal manifest progression **13 → 14 → 15** preserved anti-rollback. Final WFM
+zero deployments, device zero test containers/volumes, agent running without test
+secrets; temporary cache alias and transport archives removed.
+[Formal results, artifacts, incidents and limits](evidence/pdm/released-0.36.0-sandbox-2026-11-22/README.md).
+
+## 2026-11-22 — P0 PdM evaluation/feedback (local candidate, unreleased)
+
+Source `a84e233`, based on main `1a9ad5d`, adds frozen-threshold offline evaluation
+and diagnosis-bound feedback, reusing `pdm_forecast`, `case confirm/dismiss` and
+maintenance-log normalization (`learn=False`). Five synthetic windows deliberately
+include TP/FP/TN/FN and abstention. Pending → premature-confirmation refusal →
+existing confirmation CLI → linked maintenance export passed, using an explicitly
+scripted synthetic reviewer; no real engineer/plant confirmation is claimed.
+
+Non-integration regression: **4780 passed, 2 skipped, 250 deselected**. After
+synchronizing local editable-install metadata to declared version 0.35.0, the final
+scenario and **219 focused/compatibility/version checks** passed. Ruff check/format
+(705 files) and Bandit Medium+ passed. Exported hashes and selected engine-module
+hashes match the candidate commit. No training, threshold update, physical PdM,
+public-dataset performance or Sandbox validation. This is not in the published
+0.35.0 wheel. [Dated evidence and review](evidence/pdm/p0-evaluation-feedback-2026-11-22/README.md).
+
+
+## 2026-11-22 — released 0.35.0, package-only Sandbox verification
+
+Published tag `v0.35.0` / `dc5403f`: PyPI, five signed multi-arch image editions,
+Margo OCI package/component and signed tar mirror, locked SBOM and MCP Registry.
+All release CI/publication jobs passed. Downloaded wheel/sdist/SBOM hashes and
+image/package/component signatures were verified before deployment.
+
+The unmodified OCI package was mirrored into Harbor with equal manifest digest.
+Real WFM deployment `be1357a5-a662-4569-9df6-778d920fd407` reached INSTALLED;
+its non-root/read-only-rootfs container was healthy and used the verified official
+factory image. **No source overlay:** installed metadata 0.35.0, site-packages
+paths, no PYTHONPATH, and five runtime module hashes identical to the official
+PyPI wheel. Sufficient synthetic replay measured one 6-second stop, root cause
+null; missing samples and stale current-mode input withheld the observation.
+All exported hashes verified; replay never claimed current plant readiness.
+Twenty live Mosquitto single-publication sessions plus silence expiry passed;
+MCP authentication returned 401/200. No physical OT gateway/plant or second vendor.
+
+Normal cleanup advanced manifest 11 → 12 → 13 without lowering the rollback
+floor. WFM/device caches/test containers/volumes are empty; the agent is running
+without test secrets. [Released-package evidence, ZIPs and limits](evidence/margo/released-0.35.0-sandbox-2026-11-22/README.md).
+
+
+## 2026-11-22 — diagnostic readiness reference (candidate, unreleased)
+
+Candidate source `c04b732df6abc6195edd6556a18280ad8e14572e`, package metadata
+0.34.1, on `feat/sandbox-diagnostic-readiness`; local baseline and origin/main
+were `f76ebb9`. This is not a published 0.34.1 artifact verification. The real
+Sandbox trial used the released **0.34.0** package/component/base image plus an
+explicit source overlay for CLI processes. WFM reported INSTALLED; the non-root,
+read-only-rootfs application was healthy. Sufficient synthetic run-state data
+produced one 6-second stop (physical cause null); missing critical samples and
+current-mode stale evidence both withheld the result. Replay never claimed live
+readiness. All exported inventory hashes verified. MCP auth boundary: 401 without
+a token, 200 initialize with the valid test token. No OT hardware/external model.
+
+Broader non-integration regression: **4743 passed, 2 skipped, 250 deselected**.
+The final guard/test additions were rerun separately: latest candidate focused,
+CLI governance and brand checks **51 passed**;
+repository Ruff check/format passed (697 files); Bandit Medium+ scan exit 0.
+The [dated evidence record](evidence/margo/readiness-sandbox-2026-11-22/README.md)
+contains the actual ZIP/HTML cards, audit references, input pins, timing and
+limitations, as well as the broader regression and cleanup outcomes.
+
+## 2026-11-21 — Sparkplug historical replay (local fix, not released)
+
+Baseline: local `main` ae443b7, package version 0.34.1; the correction is on
+`fix/sparkplug-historical-cache`, integrated into local main only; not pushed or
+published. This is an offline,
+synthetic protobuf cache regression, not an external gateway, broker/TCK or OEE test.
+
+`tests/test_sparkplug_historical_cache.py` failed in six cases before the fix
+(one existing-safe ordering passed). After the fix its seven cases pass, along
+with `test_uns_tap.py`, `test_sparkplug.py`, `test_sparkplug_parent_death.py` and
+`test_sparkplug_recorded_frames.py`: **76 passed**. Names and BIRTH-learned aliases
+are covered for node/device DATA. Historical values preserve the live value and
+timestamp, do not postpone expiry or revive an expired reading, and do not
+create a live reading when no live value exists. A subsequent live publish still
+updates the cache. Mixed history/live payloads work in both orders.
+
+Integration checks for this local change: `pytest -q -rs -m 'not integration'`
+completed with **4718 passed, 2 skipped, 250 deselected**. Skips: PROFINET's
+pnio-dcp does not support macOS; the missing-pyarrow error case is inapplicable
+because pyarrow is installed. The unfiltered run was interrupted while its Docker
+discovery test waited for dependency installation (1055 passed, 6 skipped before
+interruption); it is not a full-suite pass. Its test container was stopped.
+Full-repository `ruff check .`, `ruff format --check .` (692 files), and
+`bandit -q -r iaiops mcp_server --severity-level medium` passed. This includes
+the non-integration governance, brand-isolation and model-free-layer checks.
+
+Protocol basis: Sparkplug 3.0.0, `is_historical` field description (PDF page 75):
+[specification](https://sparkplug.eclipse.org/specification/version/3.0/documents/sparkplug-specification-3.0.0.pdf#page=75).
+This tap has no history sink: historical metrics remain decodable, but are
+excluded from its live-read cache. No gateway or downstream OEE correctness is claimed.
+
 > **This file records evidence, not intent.** Every row says what was executed, by
 > which test, at which rung of the ladder in
 > [`PREVIEW-VERIFICATION.md`](PREVIEW-VERIFICATION.md) — and what was **not**.

@@ -1,0 +1,8 @@
+{
+  "Status": "running",
+  "Running": true,
+  "StartedAt": "2026-11-22T06:18:22.907866296Z",
+  "Health": {
+    "Status": "healthy"
+  }
+}

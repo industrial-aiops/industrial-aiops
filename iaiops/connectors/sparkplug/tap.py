@@ -194,6 +194,11 @@ class UnsTap:
         if decoded.get("encoding") != "sparkplug_b":
             return
         for metric in decoded.get("metrics") or ():
+            # Sparkplug 3.0's is_historical flag: replayed history is not a
+            # current value. This cache serves live reads only; replay must
+            # neither replace the live value nor refresh its arrival/expiry.
+            if metric.get("is_historical"):
+                continue
             name = str(metric.get("name") or "")
             if not name:
                 continue

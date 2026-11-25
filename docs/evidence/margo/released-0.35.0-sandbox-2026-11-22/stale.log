@@ -1,0 +1,5 @@
+{
+  "status": "insufficient_evidence",
+  "live_readiness": false,
+  "bundle": "/tmp/release035-evidence/stale.zip"
+}

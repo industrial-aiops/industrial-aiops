@@ -60,6 +60,15 @@ ALLOWED: dict[str, str] = {
     # Vendored verbatim from upstream Margo at a recorded commit; PROVENANCE.md
     # documents it as an unmodified copy and an offline schema gate checks it.
     "deploy/margo/schema": "vendored upstream schema — must stay byte-exact",
+    # Dated external WFM build receipts, not IAIops dependencies or product copy.
+    # Preserve upstream module names/versions for reproduction. Scope exceptions
+    # to these two files; adjacent documentation must still pass the gate.
+    "docs/evidence/margo/wfm-package-identity-readiness-2026-11-22/candidate-build-info.txt": (
+        "external WFM binary dependency receipt — preserves upstream module identities"
+    ),
+    "docs/evidence/margo/wfm-package-identity-readiness-2026-11-22/go.test.mod.txt": (
+        "external WFM build-only modfile — records the exact upstream dependency checkout"
+    ),
     # Negative routing rules. The word is what stops an OT skill being dispatched
     # to IT work; removing it weakens the isolation this gate protects.
     "skills/iaiops/SKILL.md": "negative routing rule — scopes the skill AWAY from IT",
@@ -153,6 +162,20 @@ class TestNoITBrandLeaksIntoTheOTRepo:
         )
         assert pattern.search("this file mentions VMware vSphere")
         assert pattern.search("runs on ESXi")
+
+    @pytest.mark.parametrize("name", ["candidate-build-info.txt", "go.test.mod.txt"])
+    def test_external_build_receipts_do_not_exempt_adjacent_docs(self, tmp_path, monkeypatch, name):
+        parent = "docs/evidence/margo/wfm-package-identity-readiness-2026-11-22"
+        receipt, product_doc = f"{parent}/{name}", f"{parent}/README.md"
+        for rel in (receipt, product_doc):
+            path = tmp_path / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("dep k8s.io/api v0.35.2\n")
+        monkeypatch.setitem(globals(), "ROOT", tmp_path)
+        monkeypatch.setitem(globals(), "_tracked_files", lambda: [receipt, product_doc])
+
+        hits = _scan()
+        assert [(rel, word) for rel, _line, word, _text in hits] == [(product_doc, "k8s")]
 
     def test_letters_inside_a_hash_are_not_a_product_name(self):
         """The false positive that made CI red: `NSX` inside a base64 integrity

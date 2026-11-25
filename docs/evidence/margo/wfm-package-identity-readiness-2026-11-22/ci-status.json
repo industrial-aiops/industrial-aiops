@@ -1,0 +1,22 @@
+{
+  "focused_workflows": [
+    {
+      "id": 45024197951,
+      "name": "Margo package regression",
+      "status": "completed",
+      "conclusion": "success",
+      "head_sha": "316457f165e2628f7db0409e8dfa0a81f96c3d4b",
+      "html_url": "https://github.com/zw008/symphony/actions/runs/45024197951"
+    },
+    {
+      "id": 45024223954,
+      "name": "Margo package regression",
+      "status": "completed",
+      "conclusion": "action_required",
+      "head_sha": "316457f165e2628f7db0409e8dfa0a81f96c3d4b",
+      "html_url": "https://github.com/margo/symphony/actions/runs/45024223954"
+    }
+  ],
+  "upstream_approval_attempt": "HTTP 403: Must have admin rights to Repository",
+  "legacy_fork_workflows": "Six pre-existing fully commented workflow files report configuration failure; unchanged by this PR. No claim of all upstream checks passing."
+}

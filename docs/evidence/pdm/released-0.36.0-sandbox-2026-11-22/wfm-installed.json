@@ -1,0 +1,90 @@
+{
+  "WFMServerHost": "127.0.0.1",
+  "WFMServerPort": 8082,
+  "NorthboundBaseURL": "v1alpha2/margo/nbi/v1",
+  "Data": [
+    {
+      "items": [
+        {
+          "id": "2d443e09-6cf4-429e-ba86-3ead0693c84f",
+          "metadata": {
+            "creationTimestamp": "2026-11-22T10:16:16.544578273Z",
+            "name": "io-github-industrial-aiops-iaiops-release036-20261122"
+          },
+          "recentOperation": {
+            "op": "DEPLOY",
+            "status": "PENDING"
+          },
+          "spec": {
+            "appPackageRef": {
+              "id": "efdfff13-65a7-43c9-beb5-ace0fbf1a62a"
+            },
+            "deploymentProfile": {
+              "components": [
+                {
+                  "name": "iaiops",
+                  "properties": {
+                    "repository": "oci://ghcr.io/industrial-aiops/iaiops-compose",
+                    "revision": "0.36.0",
+                    "timeout": "5m",
+                    "wait": true
+                  }
+                }
+              ],
+              "deviceConstraints": {
+                "capacityRequirements": {
+                  "cpu": {
+                    "architectures": [
+                      "amd64",
+                      "arm64"
+                    ],
+                    "cores": 0.5
+                  },
+                  "memory": "512Mi",
+                  "storage": "1Gi"
+                },
+                "eligibilityRules": [
+                  {
+                    "propertySelector": {
+                      "matchExpressions": [
+                        {
+                          "itemSelector": {
+                            "matchExpressions": [
+                              {
+                                "key": "/type",
+                                "operator": "In",
+                                "values": [
+                                  "ethernet"
+                                ]
+                              }
+                            ]
+                          },
+                          "key": "/interfaces",
+                          "operator": "ContainsAll"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              "type": "compose"
+            },
+            "deviceRef": {
+              "id": "northstarida.xtapro.docker.edge.35z9a"
+            }
+          },
+          "status": {
+            "contextualInfo": {
+              "message": "stored on wfm, yet to be synced with the device"
+            },
+            "lastUpdateTime": "2026-11-22T10:27:10.349743831Z",
+            "state": "INSTALLED"
+          }
+        }
+      ],
+      "metadata": {
+        "continue": false
+      }
+    }
+  ]
+}

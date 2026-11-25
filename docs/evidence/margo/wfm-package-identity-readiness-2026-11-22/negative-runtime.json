@@ -1,0 +1,14 @@
+{
+  "early_package_state": "PENDING",
+  "early_deploy_http": 409,
+  "failed_package_state": "FAILED",
+  "failed_deploy_http": 409,
+  "error": "Conflict: referenced application package is not onboarded",
+  "followup_list_http": 200,
+  "deployments": 0,
+  "manifest": {
+    "version": 15,
+    "deployments": 0
+  },
+  "wfm_restarts": 0
+}

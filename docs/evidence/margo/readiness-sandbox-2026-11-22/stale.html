@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><title>IAIops diagnostic readiness</title><style>body{font:17px system-ui;max-width:900px;margin:40px auto;padding:0 20px;color:#183040}section{border:1px solid #aac;padding:20px;border-radius:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style><h1>Diagnostic readiness / 诊断就绪卡</h1><section><h2>insufficient_evidence</h2><p>Mode: current_window</p><p>Snapshot generated: 2026-11-22T01:46:57.599784+00:00</p><p>Valid until: 2026-11-21T00:00:25+00:00 (replay has no live validity).</p><p>This is a saved assessment, not continuous monitoring. Reassess after expiry.</p><p>Configuration: ready · Evidence: insufficient</p><p>Window: 2026-11-21T00:00:00+00:00 → 2026-11-21T00:00:20+00:00</p><ul><li>Observation window is stale; collect a current window.</li><li>Last source sample is stale; receipt time cannot renew its validity.</li></ul></section><h2>Bounded observation</h2><pre>null
+</pre><h2>Scope and limitations</h2><ul><li>Declarations and provenance are operator-supplied, not independently attested.</li><li>No device contact/write, physical cause, production validation or certification.</li><li>Replay sufficiency does not establish current operational readiness.</li></ul><h2>Deployment identity (operator supplied / missing)</h2><pre>{
+  &quot;application_package_digest&quot;: {
+    &quot;value&quot;: &quot;sha256:9cf7abbe6f8ff6277d7c5d0babf885c7c2be4dc8b08786790d2f99d9e72de3c3&quot;,
+    &quot;verification&quot;: &quot;operator_supplied&quot;
+  },
+  &quot;compose_component_digest&quot;: {
+    &quot;value&quot;: &quot;sha256:cdf8852066bb79dc71cf6f8ff0609556c284c1948077e074e1e29aa6aaa4bb34&quot;,
+    &quot;verification&quot;: &quot;operator_supplied&quot;
+  },
+  &quot;deployment_id&quot;: {
+    &quot;value&quot;: &quot;fc680976-b8e3-4908-84db-da7523b1764d&quot;,
+    &quot;verification&quot;: &quot;operator_supplied&quot;
+  },
+  &quot;platform_version&quot;: {
+    &quot;value&quot;: &quot;margo/symphony 932ef320b6491da3ec484cf4aa2d69900dbb4445; sandbox device reference&quot;,
+    &quot;verification&quot;: &quot;operator_supplied&quot;
+  },
+  &quot;runtime_image_digest&quot;: {
+    &quot;value&quot;: &quot;sha256:4719d9d57245c6a2841c6581a90bfcccc032c592bc2310df77da3e8845556f05&quot;,
+    &quot;verification&quot;: &quot;operator_supplied&quot;
+  },
+  &quot;source_revision&quot;: {
+    &quot;value&quot;: &quot;c04b732df6abc6195edd6556a18280ad8e14572e (source overlay on released 0.34.0 base)&quot;,
+    &quot;verification&quot;: &quot;operator_supplied&quot;
+  }
+}
+</pre></html>

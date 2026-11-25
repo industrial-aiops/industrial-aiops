@@ -1,0 +1,9 @@
+┌─────────────────────────────────────────┐
+│              Server Config              │
+├─────────────────────────────────────────┤
+│ Host:      127.0.0.1                    │
+│ Port:      8082                         │
+│ Basepath:  v1alpha2/margo/nbi/v1        │
+└─────────────────────────────────────────┘
+
+Apply failed: failed to create application deployment: onboard app package request failed: Post "https://127.0.0.1:8082/v1alpha2/margo/nbi/v1/app-deployments": EOF

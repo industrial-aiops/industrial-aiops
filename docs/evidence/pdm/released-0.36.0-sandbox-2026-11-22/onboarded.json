@@ -1,0 +1,20 @@
+{
+  "id": "efdfff13-65a7-43c9-beb5-ace0fbf1a62a",
+  "metadata": {
+    "annotations": {
+      "description": "Application package from Harbor OCI Registry"
+    },
+    "creationTimestamp": "2026-11-22T10:15:59.588203555Z",
+    "labels": {
+      "env": "dev"
+    },
+    "name": "iaiops-036-app-package"
+  },
+  "status": {
+    "contextualInfo": {
+      "message": "Package onboarded successfully"
+    },
+    "lastUpdateTime": "2026-11-22T10:16:07.662103967Z",
+    "state": "ONBOARDED"
+  }
+}

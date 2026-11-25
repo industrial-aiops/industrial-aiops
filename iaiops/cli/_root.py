@@ -16,6 +16,7 @@ from iaiops.cli.baseline import baseline_app
 from iaiops.cli.case import case_app
 from iaiops.cli.collect import collect_app
 from iaiops.cli.compliance import compliance_app, historian_app
+from iaiops.cli.diagnostic_card import diagnostic_card_cmd
 from iaiops.cli.diagnostics import diag_app
 from iaiops.cli.doctor import doctor_cmd
 from iaiops.cli.eip import eip_app
@@ -37,6 +38,7 @@ from iaiops.cli.mtconnect import mtconnect_app
 from iaiops.cli.oee import oee_app
 from iaiops.cli.onboard import onboard_app
 from iaiops.cli.opcua import opcua_app
+from iaiops.cli.pdm_evaluation import pdm_evaluation_app
 from iaiops.cli.profinet import profinet_app
 from iaiops.cli.program import program_app
 from iaiops.cli.readiness import readiness_cmd
@@ -122,6 +124,7 @@ app.command("approve")(approve_cmd)
 app.command("doctor")(doctor_cmd)
 app.command("reset")(reset_cmd)
 app.command("readiness")(readiness_cmd)
+app.command("diagnostic-card")(diagnostic_card_cmd)
 app.add_typer(investigate_app, name="investigate")
 app.add_typer(relations_app, name="relations")
 app.add_typer(knowledge_app, name="knowledge")
@@ -131,6 +134,7 @@ app.add_typer(sensor_app, name="sensor")
 app.add_typer(serial_app, name="serial")
 app.add_typer(collect_app, name="collect")
 app.add_typer(oee_app, name="oee")
+app.add_typer(pdm_evaluation_app, name="pdm-evaluation")
 app.add_typer(meter_app, name="meter")
 app.add_typer(store_app, name="store")
 app.add_typer(case_app, name="case")
