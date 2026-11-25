@@ -191,7 +191,9 @@ def _subscribe_tap(client, target, **_kwargs):
 
     tap = UnsTap(client, target)
     client.on_message = lambda _c, _u, msg: tap.on_message(msg.topic, bytes(msg.payload))
-    client.subscribe(str(getattr(target, "topic", "") or "#"))
+    from iaiops.connectors.sparkplug.transport import _subscribe_ready
+
+    _subscribe_ready(client, target)
     client.iaiops_uns_tap = tap
 
 

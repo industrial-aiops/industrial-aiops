@@ -1,0 +1,9 @@
+{
+  "baseline_container": "7392982d661d6d1efd6ce7ab53180f0857b50d4ab862504a18158e92f4f1b9e9",
+  "baseline_image": "sha256:ca5b33f17f7aa07b6919dad898c4df8a8b6aa0d4ab6f49c355deb5620b57680a",
+  "candidate_container": "b958c38ede920cb5584af83ab593947b603a897ef6a79f8a02d2838b86c8645d",
+  "candidate_image": "sha256:ce459c5b10edb88963e9a8114847878887917ba53a10eea1fdbd672460405356",
+  "candidate_source_commit": "316457f165e2628f7db0409e8dfa0a81f96c3d4b",
+  "binary_sha256": "e940e8250acba20a7d789902f91c9e95b5a63257ffbb44d955d5e05d14e99007",
+  "runtime_configuration": "original environment, command, host network and mounts copied in memory; original container preserved stopped"
+}

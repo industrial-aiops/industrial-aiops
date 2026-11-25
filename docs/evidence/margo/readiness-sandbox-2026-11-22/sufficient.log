@@ -1,0 +1,5 @@
+{
+  "status": "ready",
+  "live_readiness": false,
+  "bundle": "/tmp/readiness-evidence/sufficient.zip"
+}

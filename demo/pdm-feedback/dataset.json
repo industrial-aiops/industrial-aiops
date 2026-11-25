@@ -1,0 +1,729 @@
+{
+  "schema": "iaiops.pdm-dataset/v1",
+  "policy": {
+    "revision": "synthetic-threshold-v1",
+    "warn_high": 40,
+    "horizon_s": 1200,
+    "max_gap_s": 60,
+    "unit": "mm/s (synthetic scalar trend, not raw waveform)",
+    "condition": "constant synthetic load"
+  },
+  "reference_groups": [
+    {
+      "asset": "synthetic-reference-motor",
+      "source_group": "synthetic-reference-file"
+    }
+  ],
+  "windows": [
+    {
+      "id": "detected",
+      "asset": "synthetic-motor-detected",
+      "source_group": "synthetic-file-detected",
+      "condition": "constant synthetic load",
+      "unit": "mm/s (synthetic scalar trend, not raw waveform)",
+      "declared_by": "synthetic fixture author",
+      "start": "2026-11-20T00:00:00+00:00",
+      "end": "2026-11-20T00:30:00+00:00",
+      "label": {
+        "event": true,
+        "by": "synthetic fixture author",
+        "observed_until": "2026-11-20T00:50:00+00:00",
+        "event_id": "detected-threshold",
+        "event_at": "2026-11-20T00:40:00+00:00"
+      },
+      "samples": [
+        {
+          "ts": "2026-11-20T00:00:00+00:00",
+          "quality": "good",
+          "value": 0.0
+        },
+        {
+          "ts": "2026-11-20T00:01:00+00:00",
+          "quality": "good",
+          "value": 1.0
+        },
+        {
+          "ts": "2026-11-20T00:02:00+00:00",
+          "quality": "good",
+          "value": 2.0
+        },
+        {
+          "ts": "2026-11-20T00:03:00+00:00",
+          "quality": "good",
+          "value": 3.0
+        },
+        {
+          "ts": "2026-11-20T00:04:00+00:00",
+          "quality": "good",
+          "value": 4.0
+        },
+        {
+          "ts": "2026-11-20T00:05:00+00:00",
+          "quality": "good",
+          "value": 5.0
+        },
+        {
+          "ts": "2026-11-20T00:06:00+00:00",
+          "quality": "good",
+          "value": 6.0
+        },
+        {
+          "ts": "2026-11-20T00:07:00+00:00",
+          "quality": "good",
+          "value": 7.0
+        },
+        {
+          "ts": "2026-11-20T00:08:00+00:00",
+          "quality": "good",
+          "value": 8.0
+        },
+        {
+          "ts": "2026-11-20T00:09:00+00:00",
+          "quality": "good",
+          "value": 9.0
+        },
+        {
+          "ts": "2026-11-20T00:10:00+00:00",
+          "quality": "good",
+          "value": 10.0
+        },
+        {
+          "ts": "2026-11-20T00:11:00+00:00",
+          "quality": "good",
+          "value": 11.0
+        },
+        {
+          "ts": "2026-11-20T00:12:00+00:00",
+          "quality": "good",
+          "value": 12.0
+        },
+        {
+          "ts": "2026-11-20T00:13:00+00:00",
+          "quality": "good",
+          "value": 13.0
+        },
+        {
+          "ts": "2026-11-20T00:14:00+00:00",
+          "quality": "good",
+          "value": 14.0
+        },
+        {
+          "ts": "2026-11-20T00:15:00+00:00",
+          "quality": "good",
+          "value": 15.0
+        },
+        {
+          "ts": "2026-11-20T00:16:00+00:00",
+          "quality": "good",
+          "value": 16.0
+        },
+        {
+          "ts": "2026-11-20T00:17:00+00:00",
+          "quality": "good",
+          "value": 17.0
+        },
+        {
+          "ts": "2026-11-20T00:18:00+00:00",
+          "quality": "good",
+          "value": 18.0
+        },
+        {
+          "ts": "2026-11-20T00:19:00+00:00",
+          "quality": "good",
+          "value": 19.0
+        },
+        {
+          "ts": "2026-11-20T00:20:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:21:00+00:00",
+          "quality": "good",
+          "value": 21.0
+        },
+        {
+          "ts": "2026-11-20T00:22:00+00:00",
+          "quality": "good",
+          "value": 22.0
+        },
+        {
+          "ts": "2026-11-20T00:23:00+00:00",
+          "quality": "good",
+          "value": 23.0
+        },
+        {
+          "ts": "2026-11-20T00:24:00+00:00",
+          "quality": "good",
+          "value": 24.0
+        },
+        {
+          "ts": "2026-11-20T00:25:00+00:00",
+          "quality": "good",
+          "value": 25.0
+        },
+        {
+          "ts": "2026-11-20T00:26:00+00:00",
+          "quality": "good",
+          "value": 26.0
+        },
+        {
+          "ts": "2026-11-20T00:27:00+00:00",
+          "quality": "good",
+          "value": 27.0
+        },
+        {
+          "ts": "2026-11-20T00:28:00+00:00",
+          "quality": "good",
+          "value": 28.0
+        },
+        {
+          "ts": "2026-11-20T00:29:00+00:00",
+          "quality": "good",
+          "value": 29.0
+        },
+        {
+          "ts": "2026-11-20T00:30:00+00:00",
+          "quality": "good",
+          "value": 30.0
+        }
+      ]
+    },
+    {
+      "id": "healthy",
+      "asset": "synthetic-motor-healthy",
+      "source_group": "synthetic-file-healthy",
+      "condition": "constant synthetic load",
+      "unit": "mm/s (synthetic scalar trend, not raw waveform)",
+      "declared_by": "synthetic fixture author",
+      "start": "2026-11-20T00:00:00+00:00",
+      "end": "2026-11-20T00:30:00+00:00",
+      "label": {
+        "event": false,
+        "by": "synthetic fixture author",
+        "observed_until": "2026-11-20T00:50:00+00:00"
+      },
+      "samples": [
+        {
+          "ts": "2026-11-20T00:00:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:01:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:02:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:03:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:04:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:05:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:06:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:07:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:08:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:09:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:10:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:11:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:12:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:13:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:14:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:15:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:16:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:17:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:18:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:19:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:20:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:21:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:22:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:23:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:24:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:25:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:26:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:27:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:28:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:29:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:30:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        }
+      ]
+    },
+    {
+      "id": "false-alarm",
+      "asset": "synthetic-motor-false-alarm",
+      "source_group": "synthetic-file-false-alarm",
+      "condition": "constant synthetic load",
+      "unit": "mm/s (synthetic scalar trend, not raw waveform)",
+      "declared_by": "synthetic fixture author",
+      "start": "2026-11-20T00:00:00+00:00",
+      "end": "2026-11-20T00:30:00+00:00",
+      "label": {
+        "event": false,
+        "by": "synthetic fixture author",
+        "observed_until": "2026-11-20T00:50:00+00:00"
+      },
+      "samples": [
+        {
+          "ts": "2026-11-20T00:00:00+00:00",
+          "quality": "good",
+          "value": 0.0
+        },
+        {
+          "ts": "2026-11-20T00:01:00+00:00",
+          "quality": "good",
+          "value": 1.0
+        },
+        {
+          "ts": "2026-11-20T00:02:00+00:00",
+          "quality": "good",
+          "value": 2.0
+        },
+        {
+          "ts": "2026-11-20T00:03:00+00:00",
+          "quality": "good",
+          "value": 3.0
+        },
+        {
+          "ts": "2026-11-20T00:04:00+00:00",
+          "quality": "good",
+          "value": 4.0
+        },
+        {
+          "ts": "2026-11-20T00:05:00+00:00",
+          "quality": "good",
+          "value": 5.0
+        },
+        {
+          "ts": "2026-11-20T00:06:00+00:00",
+          "quality": "good",
+          "value": 6.0
+        },
+        {
+          "ts": "2026-11-20T00:07:00+00:00",
+          "quality": "good",
+          "value": 7.0
+        },
+        {
+          "ts": "2026-11-20T00:08:00+00:00",
+          "quality": "good",
+          "value": 8.0
+        },
+        {
+          "ts": "2026-11-20T00:09:00+00:00",
+          "quality": "good",
+          "value": 9.0
+        },
+        {
+          "ts": "2026-11-20T00:10:00+00:00",
+          "quality": "good",
+          "value": 10.0
+        },
+        {
+          "ts": "2026-11-20T00:11:00+00:00",
+          "quality": "good",
+          "value": 11.0
+        },
+        {
+          "ts": "2026-11-20T00:12:00+00:00",
+          "quality": "good",
+          "value": 12.0
+        },
+        {
+          "ts": "2026-11-20T00:13:00+00:00",
+          "quality": "good",
+          "value": 13.0
+        },
+        {
+          "ts": "2026-11-20T00:14:00+00:00",
+          "quality": "good",
+          "value": 14.0
+        },
+        {
+          "ts": "2026-11-20T00:15:00+00:00",
+          "quality": "good",
+          "value": 15.0
+        },
+        {
+          "ts": "2026-11-20T00:16:00+00:00",
+          "quality": "good",
+          "value": 16.0
+        },
+        {
+          "ts": "2026-11-20T00:17:00+00:00",
+          "quality": "good",
+          "value": 17.0
+        },
+        {
+          "ts": "2026-11-20T00:18:00+00:00",
+          "quality": "good",
+          "value": 18.0
+        },
+        {
+          "ts": "2026-11-20T00:19:00+00:00",
+          "quality": "good",
+          "value": 19.0
+        },
+        {
+          "ts": "2026-11-20T00:20:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:21:00+00:00",
+          "quality": "good",
+          "value": 21.0
+        },
+        {
+          "ts": "2026-11-20T00:22:00+00:00",
+          "quality": "good",
+          "value": 22.0
+        },
+        {
+          "ts": "2026-11-20T00:23:00+00:00",
+          "quality": "good",
+          "value": 23.0
+        },
+        {
+          "ts": "2026-11-20T00:24:00+00:00",
+          "quality": "good",
+          "value": 24.0
+        },
+        {
+          "ts": "2026-11-20T00:25:00+00:00",
+          "quality": "good",
+          "value": 25.0
+        },
+        {
+          "ts": "2026-11-20T00:26:00+00:00",
+          "quality": "good",
+          "value": 26.0
+        },
+        {
+          "ts": "2026-11-20T00:27:00+00:00",
+          "quality": "good",
+          "value": 27.0
+        },
+        {
+          "ts": "2026-11-20T00:28:00+00:00",
+          "quality": "good",
+          "value": 28.0
+        },
+        {
+          "ts": "2026-11-20T00:29:00+00:00",
+          "quality": "good",
+          "value": 29.0
+        },
+        {
+          "ts": "2026-11-20T00:30:00+00:00",
+          "quality": "good",
+          "value": 30.0
+        }
+      ]
+    },
+    {
+      "id": "missed",
+      "asset": "synthetic-motor-missed",
+      "source_group": "synthetic-file-missed",
+      "condition": "constant synthetic load",
+      "unit": "mm/s (synthetic scalar trend, not raw waveform)",
+      "declared_by": "synthetic fixture author",
+      "start": "2026-11-20T00:00:00+00:00",
+      "end": "2026-11-20T00:30:00+00:00",
+      "label": {
+        "event": true,
+        "by": "synthetic fixture author",
+        "observed_until": "2026-11-20T00:50:00+00:00",
+        "event_id": "missed-threshold",
+        "event_at": "2026-11-20T00:40:00+00:00"
+      },
+      "samples": [
+        {
+          "ts": "2026-11-20T00:00:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:01:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:02:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:03:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:04:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:05:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:06:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:07:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:08:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:09:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:10:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:11:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:12:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:13:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:14:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:15:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:16:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:17:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:18:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:19:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:20:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:21:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:22:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:23:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:24:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:25:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:26:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:27:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:28:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:29:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        },
+        {
+          "ts": "2026-11-20T00:30:00+00:00",
+          "quality": "good",
+          "value": 20.0
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "asset": "synthetic-motor-missing",
+      "source_group": "synthetic-file-missing",
+      "condition": "constant synthetic load",
+      "unit": "mm/s (synthetic scalar trend, not raw waveform)",
+      "declared_by": "synthetic fixture author",
+      "start": "2026-11-20T00:00:00+00:00",
+      "end": "2026-11-20T00:30:00+00:00",
+      "label": {
+        "event": true,
+        "by": "synthetic fixture author",
+        "observed_until": "2026-11-20T00:50:00+00:00",
+        "event_id": "missing-threshold",
+        "event_at": "2026-11-20T00:40:00+00:00"
+      },
+      "samples": []
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "schema": "iaiops.conveyor-observation/v1",
+  "window": {
+    "start": "2026-11-21T00:00:00+00:00",
+    "end": "2026-11-21T00:00:20+00:00"
+  },
+  "policy": {
+    "max_gap_s": 2,
+    "max_age_s": 5
+  },
+  "mapping": {
+    "endpoint": "synthetic-conveyor",
+    "ref": "run",
+    "declared_by": "reference fixture author (synthetic, not plant mapping)",
+    "known_values": [
+      0,
+      1
+    ],
+    "running_when": [
+      1
+    ]
+  },
+  "samples": [
+    {
+      "ts": "2026-11-21T00:00:00+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:01+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:02+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:03+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:04+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:05+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:06+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:07+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:08+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 0
+    },
+    {
+      "ts": "2026-11-21T00:00:09+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 0
+    },
+    {
+      "ts": "2026-11-21T00:00:10+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 0
+    },
+    {
+      "ts": "2026-11-21T00:00:11+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 0
+    },
+    {
+      "ts": "2026-11-21T00:00:12+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 0
+    },
+    {
+      "ts": "2026-11-21T00:00:13+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 0
+    },
+    {
+      "ts": "2026-11-21T00:00:14+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:15+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:16+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:17+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:18+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:19+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    },
+    {
+      "ts": "2026-11-21T00:00:20+00:00",
+      "endpoint": "synthetic-conveyor",
+      "ref": "run",
+      "quality": "good",
+      "historical": false,
+      "value": 1
+    }
+  ]
+}

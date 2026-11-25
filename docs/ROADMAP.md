@@ -4,6 +4,142 @@
 > ideas land; pull items into a release when picked up. (The HLD these slot into is
 > an internal design doc, not shipped in this repo.)
 
+## P1 — Margo health-metric reception on a second platform (2026-11-22; NOT RUN)
+
+Reuse the existing exporter (HLD §7.2.1); this is a package-verification task,
+not an exporter rewrite. Compare the same signed application/component/image
+artifacts on the reference Sandbox and an independent second Margo environment.
+A candidate WFM on the same Sandbox is not that second vendor/platform.
+
+The [Margo collector connection specification](https://docs.margo.org/specification/observability/collecting-workload-observability-data#connecting-to-the-opentelemetry-collector)
+requires device injection of `HTTP_OTEL_EXPORTER_OTLP_ENDPOINT`. Released
+[v0.35.0 telemetry](https://github.com/industrial-aiops/industrial-aiops/blob/v0.35.0/mcp_server/telemetry.py)
+reads `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT`; the same lookup remains in 0.36.0.
+The existing `otelMetricsEndpoint` parameter maps to the latter variable. This
+is a statically identified integration risk, **not a reproduced device failure**.
+The [0.35.0 Sandbox record](evidence/margo/released-0.35.0-sandbox-2026-11-22/README.md)
+and the 0.36.0 PdM/WFM trials do not contain Collector-reception evidence.
+
+- [ ] Pin and verify the same signed package, Compose component and runtime image
+  digests for both environments and every phase. Use configuration parameters only;
+  no repackaging, source overlay, replacement exporter or rebuilt application image.
+- [ ] Record platform/device versions, injected endpoint variables, descriptor
+  defaults, actual application endpoint and local Collector configuration. Select
+  a Collector address/port distinct from the application's hard-coded fallback so
+  an accidental localhost match cannot mask missing mapping. Never export secrets.
+- [ ] With explicit `otelMetricsExporter=otlp` and egress permitted only to the test
+  Collector, first test device-default injection without an operator endpoint
+  override. Record whether an actual platform mapping exists and what the Collector
+  receives; do not infer success/failure from variable names or static CTT results.
+- [ ] On the unchanged signed artifacts, explicitly set `otelMetricsEndpoint` to
+  that same reachable private-IP/loopback Collector URL ending in `/v1/metrics`.
+  Capture received OTLP/HTTP protobuf data for `iaiops.process.uptime`,
+  `iaiops.audit.events`, `iaiops.audit.errors` and `iaiops.audit.available`.
+  Run a synthetic governed operation to create a known audit-count change.
+- [ ] Set the exporter back to `none`; after a bounded, recorded drain interval
+  covering export/flush timing, verify no new **IAIops application** metrics arrive.
+  Distinguish those metrics from ongoing platform/Collector telemetry. Use normal
+  deletion/fresh deployment if the platform lacks parameter-update support.
+- [ ] Inspect received payloads and attributes: process/audit health counters only;
+  no OT point values/names, diagnostic text, audit rows or credentials. Preserve
+  timestamped on/off receipts and reproducible commands with the artifact manifest,
+  then remove test workloads/configuration and restore the device agent.
+
+Acceptance is actual Collector reception when explicitly enabled and no new app
+metrics after disabling, with unchanged signed artifacts and no OT data export.
+Report device-default injection separately from the explicit-parameter path. This
+would complement CTT PR #20's static-check evidence; it must not turn a CTT runtime
+`NOT RUN` row into an asserted pass or be called formal Margo certification.
+
+## 0.36.0 release verification (2026-11-22)
+
+The P0 PdM evaluation/feedback workflow is included in 0.36.0. Release publication
+and package-only Sandbox verification are complete: see the
+[released 0.36.0 evidence](evidence/pdm/released-0.36.0-sandbox-2026-11-22/README.md).
+Four feedback states, refusal paths and audit/maintenance references passed using
+the official image and wheel. The earlier local candidate record remains historical.
+
+## P0 PdM reproducible evaluation and feedback (2026-11-22; released 0.36.0)
+
+MIT single-call/offline capability (HLD §8.3), using existing `pdm_forecast`,
+`case confirm` and maintenance-log normalization. No device writes, model dependency,
+automatic threshold adjustment, fleet dispatch or organization-level attestation.
+
+- [x] Export a pinned evaluation bundle with exact input, declared asset/source
+  group split, frozen threshold/policy revision, per-window forecasts and metrics.
+  Reject split leakage and invalid clocks; missing/bad evidence is abstention,
+  never a healthy negative. Report coverage, event recall, false alarms per scored
+  observation-hour and bounded lead time; threshold ETA error is not physical RUL.
+- [x] Define a versioned feedback contract binding evaluation/window hashes to
+  existing cases and explicit maintenance records. Pending, confirmed, false alarm
+  and inconclusive remain distinct; no inference can create a human label.
+- [x] Run a synthetic degradation → case confirm → maintenance-feedback example,
+  export its audit references, and test malformed/leaky/insufficient/contradictory
+  evidence and policy denial. Benchmark ground truth is never auto-confirmation.
+- [x] Review and run applicable regression, Ruff and Bandit gates. Physical PdM,
+  public-dataset performance and calibrated lifetime uncertainty remain unverified.
+
+Released command/contract: [PdM reference guide](../demo/pdm-feedback/README.md).
+The scripted synthetic reviewer is not a real plant/human validation.
+
+## 0.35.0 release verification (2026-11-22)
+
+The diagnostic-card and MQTT acknowledgement fixes are included in 0.35.0.
+Release publication and package-only Sandbox validation are complete: see the
+[released 0.35.0 evidence](evidence/margo/released-0.35.0-sandbox-2026-11-22/README.md).
+Prior source-overlay records remain historical, not released-package evidence.
+
+## MQTT subscription readiness (2026-11-22; unreleased)
+
+- [x] Reproduce the startup race: session returns before broker SUBACK, so a
+  one-shot non-retained publish can be lost before the subscription exists.
+- [x] Bound startup by target timeout and require a matching successful SUBACK;
+  reject failed subscribe requests/denied acknowledgements. Keep stale-value refusal.
+- [x] Replace publisher sleeps with PUBACK completion; test delayed/denied/missing
+  acknowledgements.
+- [x] Confirm the real-broker repeated run: five complete passes (20 tests).
+  Remote CI is checked after integration; see the delivery run link.
+
+## Sandbox diagnostic readiness reference scenario (2026-11-22; candidate, unreleased)
+
+Scope: MIT single-installation capability under HLD §8.3. One Sandbox platform,
+one synthetic conveyor-stop scenario and an explicitly human-declared point map.
+No device writes, inferred tag roles, external model dependency or fleet governance.
+
+- [x] Add a local diagnostic readiness card: show configuration readiness separately
+  from evidence readiness for the named capability and exact observation window.
+  Missing mapping, missing/invalid/stale samples or inconsistent timestamps must
+  produce actionable gaps, never a definite root cause or a healthy-device claim.
+- [x] Supply sufficient/insufficient synthetic evidence cases and expected results,
+  using the existing analysis engine. Keep declared semantics and evidence provenance.
+- [x] Export a local evidence bundle: raw inputs, window/assessment/diagnostic results,
+  audit references and SHA-256 inventory; retain application/component/image digests
+  and deployment/platform identity with explicit unverified/missing states.
+- [x] Run offline regression, governance/brand/model-boundary checks and real Sandbox
+  reference validation; record source/artifact pins and limitations. A candidate build
+  or source overlay is not verification of the unchanged published 0.34.1 artifact.
+
+Acceptance: the sufficient case yields a bounded, evidence-backed diagnostic result;
+removing a required input yields insufficient evidence and no definite cause. Report
+time-to-first-result with fixed prerequisites, plus downgrade/authorization checks.
+Candidate `c04b732` implements `iaiops diagnostic-card`; see
+[`demo/sandbox-readiness`](../demo/sandbox-readiness/README.md) and the
+[actual Sandbox source-overlay evidence](evidence/margo/readiness-sandbox-2026-11-22/README.md).
+No physical cause is inferred: the first capability observes stops/duration.
+
+Second-vendor interoperability, organization-level signing/retention and full Margo
+certification are excluded. OTLP receipt already has prior evidence; do not rebuild
+it as a prerequisite for this first slice.
+
+## Historical replay cache correction (2026-11-21; local main only, not released)
+
+Offline synthetic protobuf replay reproduces historical metrics replacing live
+values in the Sparkplug tap. The local fix excludes `is_historical` metrics from
+the live-read cache, including its freshness timer. Regression coverage includes
+NDATA/DDATA, metric names/aliases, history-only and mixed payloads, expiry and
+recovery by a new live publish. Physical gateway store-and-forward and OEE
+validation remain pending; see the dated verification record.
+
 ## Community participation and maintenance (2026-11-16)
 
 Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md). Continue Margo;

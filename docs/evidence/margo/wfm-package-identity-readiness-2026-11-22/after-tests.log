@@ -1,0 +1,4 @@
+ok      github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/margo   0.011s
+ok      github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/vendors/margo    0.012s
+ok      github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/managers/solutions   0.011s
+?       github.com/eclipse-symphony/symphony/api/pkg/apis/v1alpha1/validation   [no test files]

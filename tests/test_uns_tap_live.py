@@ -72,20 +72,17 @@ def _publish(payload: str) -> None:
     )
     client.connect(_HOST, _PORT)
     client.loop_start()
-    client.publish(_TOPIC, payload, qos=1)
-    time.sleep(0.3)
-    client.loop_stop()
-    client.disconnect()
+    try:
+        info = client.publish(_TOPIC, payload, qos=1)
+        info.wait_for_publish(timeout=5)
+        assert info.is_published(), "broker did not acknowledge test publication"
+    finally:
+        client.disconnect()
+        client.loop_stop()
 
 
 def _wait_for(tap, ref, timeout_s=5.0):
-    """Publish-and-poll until the value lands.
-
-    Re-publishing on every attempt is deliberate: with a short ``stale_after_s``
-    a value can arrive AND go stale between two polls, and a version of this
-    helper that only waited reported "never arrived" for a value it had already
-    seen and correctly expired.
-    """
+    """Poll for one already acknowledged publication; never republish to mask loss."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         try:

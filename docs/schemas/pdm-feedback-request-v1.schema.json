@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/industrial-aiops/industrial-aiops/pdm-feedback-request/v1",
+  "title": "IAIops single-diagnosis feedback request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "outcome",
+    "by"
+  ],
+  "properties": {
+    "schema": {
+      "const": "iaiops.pdm-feedback-request/v1"
+    },
+    "outcome": {
+      "enum": [
+        "pending",
+        "confirmed",
+        "false_positive",
+        "inconclusive"
+      ]
+    },
+    "by": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "\\S"
+    },
+    "maintenance": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "work_order_id",
+        "device_id",
+        "case_id",
+        "diagnosis_id",
+        "cause",
+        "completed_at"
+      ],
+      "properties": {
+        "work_order_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "\\S"
+        },
+        "device_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "\\S"
+        },
+        "case_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "\\S"
+        },
+        "diagnosis_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "cause": {
+          "enum": [
+            "changeover",
+            "comms_loss",
+            "material_starvation",
+            "mechanical_fault",
+            "quality_reject",
+            "sensor_fault",
+            "utility_fault"
+          ]
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S"
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "signals": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "changeover",
+              "comms_loss",
+              "material_starvation",
+              "mechanical_fault",
+              "quality_reject",
+              "sensor_fault",
+              "utility_fault"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "not": {
+              "const": "confirmed"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "maintenance": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

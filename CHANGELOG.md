@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.36.0 — 2026-11-22
+
+- Add an offline `pdm-evaluation run/open-case/feedback` workflow: frozen-policy
+  evaluation with declared asset/source splits, explicit abstention/coverage,
+  threshold-event metrics, hashed reproduction bundles and existing case/maintenance
+  linkage. Human confirmation remains explicit; no training or threshold update.
+- Preserve optional case evidence bindings through confirmation/dismissal and reject
+  attempts to rebind a PdM case to different prediction evidence.
+
+## 0.35.0 — 2026-11-22
+
+- Wait for broker connection and matching successful SUBACK before yielding an
+  MQTT tap session. Bound startup by the configured timeout; fail explicitly on
+  denied/missing acknowledgements. Real-broker tests wait for PUBACK rather than sleeps.
+
+- Add an audited offline `diagnostic-card` CLI and local HTML/ZIP evidence export
+  for the single-platform synthetic conveyor reference scenario. Separate declared
+  configuration from window-specific sample sufficiency; withhold observations
+  for missing/invalid/stale evidence. Replays never establish live readiness.
+
+- Keep Sparkplug historical/store-and-forward metrics out of the live-read
+  cache, preserving current values and their original freshness deadline.
+  Verified by offline synthetic protobuf replay only, not a physical gateway or OEE run.
+
 - Refuse cached Sparkplug device readings after their parent node NDEATH; add
   an offline external-Tahu payload regression and community exploration evidence.
 

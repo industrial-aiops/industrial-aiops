@@ -20,9 +20,9 @@ Prefer a container? The published image is **cosign-signed** and runs **non-root
 over stdio, so keep stdin open and mount a volume for the audit store:
 
 ```bash
-cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.34.1-factory
+cosign verify --key deploy/margo/cosign.pub ghcr.io/industrial-aiops/iaiops:0.36.0-factory
 docker run -i --rm -v iaiops-state:/home/iaiops/.iaiops \
-  ghcr.io/industrial-aiops/iaiops:0.34.1-factory
+  ghcr.io/industrial-aiops/iaiops:0.36.0-factory
 ```
 
 For a hardened or air-gapped deployment (read-only rootfs, `cap_drop: ALL`, no-new-privileges,
@@ -78,6 +78,12 @@ command that advances it?** It is derived from your store and `config.yaml` ever
 time. The one thing it keeps is a namespace audit verdict, and that counts only for
 the broker and topic filter it was taken on and always shows its age — so edit
 `config.yaml` by hand and the answer stays true.
+
+**0.35.0 reference scenario:** `iaiops diagnostic-card` adds a window-specific
+HTML readiness snapshot and portable evidence ZIP for a synthetic conveyor on
+one Sandbox platform. [Run the two cases](demo/sandbox-readiness/README.md);
+[dated candidate trial](docs/evidence/margo/readiness-sandbox-2026-11-22/README.md).
+Replay sufficiency never establishes live readiness or a physical root cause.
 
 `readiness` reads your config and local store and answers one question: **which
 scenarios can this site run today, and what does each gap need?** Every gap comes

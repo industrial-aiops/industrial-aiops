@@ -1,0 +1,73 @@
+{
+  "evaluation": {
+    "metrics": {
+      "abstained": 1,
+      "coverage": 0.8,
+      "event_recall": 0.3333333333333333,
+      "false_alarms_per_scored_hour": 0.5,
+      "fn": 1,
+      "fp": 1,
+      "labelled_events": 3,
+      "lifetime_interval_coverage": null,
+      "mean_matched_lead_s": 600.0,
+      "precision": 0.5,
+      "scored_observation_hours": 2.0,
+      "scored_time_coverage": 0.8,
+      "scored_windows": 4,
+      "threshold_eta_mae_s": 0.0,
+      "tn": 1,
+      "total_observation_hours": 2.5,
+      "total_windows": 5,
+      "tp": 1,
+      "unscored_events": 1
+    }
+  },
+  "pending": {
+    "outcome": "pending",
+    "updates_applied": []
+  },
+  "confirmed": {
+    "outcome": "confirmed",
+    "updates_applied": []
+  },
+  "inconclusive": {
+    "outcome": "inconclusive",
+    "updates_applied": []
+  },
+  "false-positive": {
+    "outcome": "false_positive",
+    "updates_applied": []
+  },
+  "revised-policy": {
+    "metrics": {
+      "abstained": 1,
+      "coverage": 0.8,
+      "event_recall": 0.3333333333333333,
+      "false_alarms_per_scored_hour": 0.5,
+      "fn": 1,
+      "fp": 1,
+      "labelled_events": 3,
+      "lifetime_interval_coverage": null,
+      "mean_matched_lead_s": 600.0,
+      "precision": 0.5,
+      "scored_observation_hours": 2.0,
+      "scored_time_coverage": 0.8,
+      "scored_windows": 4,
+      "threshold_eta_mae_s": 0.0,
+      "tn": 1,
+      "total_observation_hours": 2.5,
+      "total_windows": 5,
+      "tp": 1,
+      "unscored_events": 1
+    }
+  },
+  "refusals": [
+    "premature confirmation",
+    "premature dismissal",
+    "conflicting maintenance cause",
+    "different-policy case rebinding"
+  ],
+  "annotation": "synthetic scripted reviewer; no real human/plant claim",
+  "unauthenticated_http": 401,
+  "authenticated_initialize_http": 200
+}

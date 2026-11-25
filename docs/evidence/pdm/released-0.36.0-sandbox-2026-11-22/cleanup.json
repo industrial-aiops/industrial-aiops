@@ -1,0 +1,11 @@
+{
+  "agent": "running",
+  "watermark": 15,
+  "cached_records": 0,
+  "test_secret_environment": "absent",
+  "test_containers": 0,
+  "test_volumes": 0,
+  "temporary_secret_files": "absent",
+  "image_transport_archives": "removed",
+  "image_cache_alias": "removed"
+}

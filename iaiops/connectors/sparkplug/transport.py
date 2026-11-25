@@ -62,6 +62,47 @@ def _connect_mqtt(client: Any, target: TargetConfig) -> None:
     client.loop_start()
 
 
+def _subscribe_ready(client: Any, target: TargetConfig) -> None:
+    """Wait for CONNACK and matching successful SUBACK, within one timeout.
+
+    A TCP connection and an enqueued SUBSCRIBE are not an active subscription.
+    Register the callback before sending; the ACK may arrive before subscribe returns.
+    """
+    import threading
+    import time
+
+    deadline = time.monotonic() + target.timeout_s
+    while not client.is_connected():
+        if time.monotonic() >= deadline:
+            raise OTConnectionError("MQTT connection was not acknowledged before timeout")
+        time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+    condition = threading.Condition()
+    acknowledgements: dict[int, Any] = {}
+    previous = client.on_subscribe
+
+    def accepted(_client, _userdata, mid, codes, _properties=None):
+        with condition:
+            acknowledgements[mid] = codes
+            condition.notify_all()
+
+    client.on_subscribe = accepted
+    try:
+        rc, mid = client.subscribe(str(target.topic or "#"))
+        if rc != 0 or mid is None:
+            raise OTConnectionError("MQTT subscribe request failed")
+        with condition:
+            if not condition.wait_for(
+                lambda: mid in acknowledgements,
+                timeout=max(0, deadline - time.monotonic()),
+            ):
+                raise OTConnectionError("MQTT subscription SUBACK timed out")
+            codes = acknowledgements[mid]
+        if not codes or any(getattr(code, "value", code) >= 128 for code in codes):
+            raise OTConnectionError("MQTT broker denied subscription")
+    finally:
+        client.on_subscribe = previous
+
+
 def _close_mqtt(client: Any) -> None:
     """Stop the network loop and disconnect (best-effort teardown)."""
     client.loop_stop()
