@@ -77,7 +77,8 @@ integrations. See the report for exact sources and evidence limits.
 reason-enrichment cases passed at the pinned notification-service revision.
 Current source already attaches evaluation data under `reason.data`; the missing
 value claim was not reproduced at this function boundary. Full service/plugin and
-version-specific validation remain pending. A comment draft is prepared, not sent.
+version-specific validation remain pending. The documentation was submitted as
+[Fledge #1748](https://github.com/fledge-iot/fledge/pull/1748); acceptance remains separate.
 
 ## Working routine
 
@@ -119,3 +120,17 @@ This ordering is a working preference, not a promise of acceptance by any commun
 
 Use a new row for each verified finding. Leave an unsuccessful experiment visible;
 do not turn lack of data into evidence that a device or project is healthy.
+
+## Merge review and weekend environment work — 2026-11-25
+
+- PRs #302/#303/#304: reconcile with 0.36.0 main and run current CI before merging.
+  These are contribution records and local probes, not completed service integrations.
+- PR #281: retain release hold until IA-06 importer/authorized device samples and
+  actual FAT/exFAT/SMB no-hard-link media acceptance are available. PR #284 is
+  stacked on #281 and retains the same gate. Unit tests cannot close these gates.
+- PR #295: retain Draft pending the planned reconnect/event-time and broader
+  Sparkplug coverage, and comparison with already merged #300 and 0.35/0.36 fixes.
+- Weekend (after environment access returns): prioritize Symphony #92 concurrent
+  manifest scenario and #93 distinct-version EasyCLI reproducer, then the Fledge
+  real-service/plugin capture. Collector reception on a second platform remains
+  the separate P1 acceptance task in ROADMAP.md; do not mark it tested here.

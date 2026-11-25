@@ -36,6 +36,7 @@ def metadata(**changes):
     "changes,status",
     [
         ({}, "closed_unmerged"),
+        ({"draft": True}, "closed_unmerged"),
         ({"merged_at": "2026-11-17T00:00:00Z"}, "merged"),
         ({"state": "open", "draft": True}, "draft"),
         ({"state": "open"}, "open"),

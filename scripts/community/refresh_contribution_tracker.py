@@ -33,10 +33,10 @@ def refresh(record):
         state = (
             "merged"
             if data["merged_at"]
-            else "draft"
-            if data["draft"]
             else "closed_unmerged"
             if data["state"] == "closed"
+            else "draft"
+            if data["draft"]
             else "open"
         )
     elif kind == "issue":
