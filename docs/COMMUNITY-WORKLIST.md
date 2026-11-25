@@ -80,6 +80,14 @@ value claim was not reproduced at this function boundary. Full service/plugin an
 version-specific validation remain pending. The documentation was submitted as
 [Fledge #1748](https://github.com/fledge-iot/fledge/pull/1748); acceptance remains separate.
 
+## Concrete contribution drafts — 2026-11-17
+
+[Fledge patch and PIVOT experiment](community/2026-11-17-contribution-drafts.md).
+A Fledge delivery-guide patch now applies cleanly to pinned develop and its added
+RST fragment renders. Submitted as Fledge #1748; PIVOT findings were posted to existing #2. Three PIVOT example files
+round-trip in Python with raw quality/time indicators preserved; they are not
+assumed to define a JSON Schema. No model API/key was needed for this work.
+
 ## Working routine
 
 - Pick one small item per maintenance session, after immediate product defects.
