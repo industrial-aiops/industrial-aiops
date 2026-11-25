@@ -80,6 +80,15 @@ value claim was not reproduced at this function boundary. Full service/plugin an
 version-specific validation remain pending. The documentation was submitted as
 [Fledge #1748](https://github.com/fledge-iot/fledge/pull/1748); acceptance remains separate.
 
+## Follow-up — 2026-11-18
+
+[Upstream status and native callback probe](community/2026-11-18-follow-up.md).
+Tahu #472 is blocked on Eclipse ECA account/email association, requiring user
+confirmation. Fledge #1748 DCO passed and awaits review; PIVOT has no new reply.
+Five enrichment outputs reached the native delivery wrapper's capture callback
+unchanged; callback-failure and missing-callback checks passed. Test scaffolding
+is explicit; actual service/plugin/macro/queue validation remains pending.
+
 ## Concrete contribution drafts — 2026-11-17
 
 [Fledge patch and PIVOT experiment](community/2026-11-17-contribution-drafts.md).

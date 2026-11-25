@@ -166,11 +166,17 @@ Five pinned upstream C++ enrichment cases preserve values under `reason.data`.
 Full notification-service/delivery-plugin execution and version comparison remain
 pending; do not call the issue an end-to-end reproduction or a Fledge integration.
 
-### Community contribution drafts (2026-11-17; branch-only)
+### Community contribution drafts (2026-11-17; historical contribution)
 
 [Prepared Fledge doc patch and PIVOT example probe](community/2026-11-17-contribution-drafts.md).
-The Fledge patch was applied and its added RST rendered; no external PR was sent.
+The Fledge patch was applied and its added RST rendered; it was submitted as upstream #1748.
 PIVOT example inspection is not schema/protocol validation or typed-model generation.
+
+### Community follow-up (2026-11-18; historical probe)
+
+[Status and Fledge callback-boundary evidence](community/2026-11-18-follow-up.md).
+Resolve Tahu's ECA account association through the user; do not change commit
+identity speculatively. Native callback probe is not full service/plugin validation.
 
 ## Source handoff — joint production/traffic demo (2026-11-13)
 
