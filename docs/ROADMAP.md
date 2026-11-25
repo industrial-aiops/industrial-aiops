@@ -142,7 +142,9 @@ validation remain pending; see the dated verification record.
 
 ## Community participation and maintenance (2026-11-16)
 
-Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md). Continue Margo;
+Daily-work queue: [COMMUNITY-WORKLIST.md](COMMUNITY-WORKLIST.md).
+Participation/PR ledger: [COMMUNITY-CONTRIBUTIONS.md](COMMUNITY-CONTRIBUTIONS.md).
+Continue Margo;
 explore Sparkplug/Tahu, Fledge, LF Energy FledgePOWER/SEAPATH and OPC Foundation
 open-source projects through reproducible issues and small useful contributions.
 These are planned participation directions, not completed registrations or integrations.

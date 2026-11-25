@@ -1,9 +1,53 @@
 # Community worklist
 
 Added 2026-11-16. Maintain this list during normal project work; it does not
-create a scheduled automation. All external participation below is **planned**,
-except the Margo evidence already recorded in this repository. No paid membership,
+create a scheduled automation. Actual participation and PR states are recorded in
+[COMMUNITY-CONTRIBUTIONS.md](COMMUNITY-CONTRIBUTIONS.md), including the account's
+existing Tahu #472 and Margo submissions. Planned directions are not completed registrations. No paid membership,
 registration, outreach or upstream submission is implied by this list.
+
+## Margo follow-up queue — 2026-11-24
+
+Recorded while the contributor is traveling without the test environment.
+No new upstream submission or hardware/runtime validation is implied.
+
+- [ ] **First, close existing review loops:** [Symphony #92](https://github.com/margo/symphony/pull/92)
+  needs a concise concurrency scenario and minimal reproducer; [#93](https://github.com/margo/symphony/pull/93)
+  needs the exact onboarding requests/EasyCLI reproduction for distinct versioned
+  artifacts with the same application ID/name when the environment is available.
+  The travel/update reply is posted; await feedback before repeating it.
+- [ ] **Read now; test later:** review [digest pinning #239](https://github.com/margo/specification/pull/239)
+  and [immutability issue #238](https://github.com/margo/specification/issues/238)
+  against existing package/component/image receipts. Distinguish digests at each
+  layer, tag mutation, and runtime image references; do not claim implementation.
+- [ ] Review [allowEmpty #237](https://github.com/margo/specification/pull/237)
+  for missing/empty/default parameter boundaries; runtime checks await environment.
+- [ ] Track CTT tasks [#519](https://github.com/margo/sandbox/issues/519),
+  [#520](https://github.com/margo/sandbox/issues/520),
+  [#521](https://github.com/margo/sandbox/issues/521),
+  [#522](https://github.com/margo/sandbox/issues/522): requirement-ID mapping and
+  coverage gaps. Existing assignees are working on them; clarify title/body scope
+  before contributing, and avoid duplicate implementation.
+- [ ] Follow [MIAF credentials #94](https://github.com/margo/symphony/pull/94)
+  (Draft; SVID rotation remains open) and [EasyCLI logs #518](https://github.com/margo/sandbox/issues/518)
+  (assigned). Observation only until a concrete uncovered problem is identified.
+- [ ] Track [CTT #21](https://github.com/margo/conformance_test_toolkit/pull/21)
+  review; do not equate the proposal with merged conformance support.
+
+## Authorized submissions — 2026-11-17
+
+- Fledge: [PR #1748](https://github.com/fledge-iot/fledge/pull/1748), notification
+  evaluation-data documentation; submitted after review, not yet accepted/merged.
+- PIVOT: [existing issue #2 comment](https://github.com/fledge-power/fledgepower-pivot-model/issues/2#issuecomment-6946004370),
+  lossless example observations and schema/API clarification; not an implementation PR.
+- Full Fledge service/plugin validation and typed PIVOT bindings remain open.
+
+## Contribution follow-up entry point
+
+Use [the contribution ledger](COMMUNITY-CONTRIBUTIONS.md) for PR content, current
+state, ownership, evidence and next action. Its read-only GitHub API refresh command
+is documented there. Check this ledger before claiming no upstream submission or
+opening another issue; changes made outside this chat are included when verified.
 
 ## Maintenance completed on main — 2026-11-16
 
@@ -33,7 +77,8 @@ integrations. See the report for exact sources and evidence limits.
 reason-enrichment cases passed at the pinned notification-service revision.
 Current source already attaches evaluation data under `reason.data`; the missing
 value claim was not reproduced at this function boundary. Full service/plugin and
-version-specific validation remain pending. A comment draft is prepared, not sent.
+version-specific validation remain pending. The documentation was submitted as
+[Fledge #1748](https://github.com/fledge-iot/fledge/pull/1748); acceptance remains separate.
 
 ## Concrete contribution drafts — 2026-11-17
 
@@ -83,3 +128,17 @@ This ordering is a working preference, not a promise of acceptance by any commun
 
 Use a new row for each verified finding. Leave an unsuccessful experiment visible;
 do not turn lack of data into evidence that a device or project is healthy.
+
+## Merge review and weekend environment work — 2026-11-25
+
+- PRs #302/#303/#304: reconcile with 0.36.0 main and run current CI before merging.
+  These are contribution records and local probes, not completed service integrations.
+- PR #281: retain release hold until IA-06 importer/authorized device samples and
+  actual FAT/exFAT/SMB no-hard-link media acceptance are available. PR #284 is
+  stacked on #281 and retains the same gate. Unit tests cannot close these gates.
+- PR #295: retain Draft pending the planned reconnect/event-time and broader
+  Sparkplug coverage, and comparison with already merged #300 and 0.35/0.36 fixes.
+- Weekend (after environment access returns): prioritize Symphony #92 concurrent
+  manifest scenario and #93 distinct-version EasyCLI reproducer, then the Fledge
+  real-service/plugin capture. Collector reception on a second platform remains
+  the separate P1 acceptance task in ROADMAP.md; do not mark it tested here.
